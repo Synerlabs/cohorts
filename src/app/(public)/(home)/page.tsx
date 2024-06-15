@@ -1,8 +1,15 @@
-import { Sheet } from "@/components/ui/sheet";
-import { LoginForm } from "@/app/(public)/(home)/components/loginForm";
-import { FlipWords } from "@/components/ui/flip-words";
-import { MainHero } from "@/app/(public)/(home)/components/hero";
+import { LoginForm } from "@/app/(public)/(home)/components/login/login-form";
 
-export default function SignUp() {
+import { createClient } from "@/lib/utils/supabase/server";
+import { redirect } from "next/navigation";
+
+export default async function SignUp() {
+  const supabase = createClient();
+
+  const { data, error } = await supabase.auth.getUser();
+  if (data?.user) {
+    redirect("/home");
+  }
+
   return <LoginForm />;
 }
