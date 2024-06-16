@@ -15,11 +15,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/app/(public)/(home)/actions/login.action";
 import { AlertCircle, Loader2 } from "lucide-react";
+import Cookies from "js-cookie";
 
 export function LoginForm() {
   const [state, login, pending] = useActionState(loginAction, null);
 
-  console.log(state);
+  if (state?.session) {
+    // NEXT_PUBLIC_SUPABASE_URL=https://cckcdccbiqufipuzewmk.supabase.co
+    // given url with subdomain i want to isolate the subdomain
+    // const subdomain = process.env.NEXT_PUBLIC_SUPABASE_URL?.split(
+    //   ".",
+    // )[0].replace("https://", "");
+    // console.log("subdomain", subdomain);
+    //
+    // Cookies.set(`sb-${subdomain}-auth-token`, state?.session?.access_token);
+  }
+
   return (
     <Card className="w-[369px]">
       <CardHeader>

@@ -7,16 +7,18 @@ export async function updateSession(request: NextRequest) {
       headers: request.headers,
     },
   });
-
+  // console.log("REST", response);
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         get(name: string) {
+          console.log("GETTING COOKIE from middlware", name);
           return request.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
+          console.log("SETTING COOKIE from middlware", name, value, options);
           request.cookies.set({
             name,
             value,
@@ -34,6 +36,7 @@ export async function updateSession(request: NextRequest) {
           });
         },
         remove(name: string, options: CookieOptions) {
+          console.log("REMOVING COOKIE from middlware", name, options);
           request.cookies.set({
             name,
             value: "",
@@ -54,7 +57,7 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  await supabase.auth.getUser();
-
+  const test = await supabase.auth.getUser();
+  // console.log("WHAT USER", test);
   return response;
 }

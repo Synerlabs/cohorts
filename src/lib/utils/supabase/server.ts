@@ -14,6 +14,7 @@ export function createClient() {
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
+            console.log("SETTING COOKIE from server", name, value, options);
             cookieStore.set({ name, value, ...options });
           } catch (error) {
             // The `set` method was called from a Server Component.
