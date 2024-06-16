@@ -13,12 +13,12 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { login } from "@/app/(public)/(home)/actions/login";
+import { loginAction } from "@/app/(public)/(home)/actions/login.action";
 import { AlertCircle, Loader2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function LoginForm() {
-  const [state, loginAction, pending] = useActionState(login, null);
+  const [state, login, pending] = useActionState(loginAction, null);
+
   console.log(state);
   return (
     <Card className="w-[369px]">
@@ -37,7 +37,8 @@ export function LoginForm() {
                 id="email"
                 name="email"
                 type="email"
-                placeholder="m@example.com"
+                placeholder="email@example.com"
+                defaultValue={state?.email}
                 required
               />
             </div>
@@ -51,7 +52,13 @@ export function LoginForm() {
                   Forgot your password?
                 </Link>
               </div>
-              <Input id="password" name="password" type="password" required />
+              <Input
+                id="password"
+                name="password"
+                type="password"
+                defaultValue={state?.password}
+                required
+              />
             </div>
             {state?.error && (
               <div className="flex items-center gap-2 text-red-500">
@@ -59,11 +66,7 @@ export function LoginForm() {
                 <span>{state?.error}</span>
               </div>
             )}
-            <Button
-              formAction={loginAction}
-              className="w-full"
-              disabled={pending}
-            >
+            <Button formAction={login} className="w-full" disabled={pending}>
               {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Login
             </Button>

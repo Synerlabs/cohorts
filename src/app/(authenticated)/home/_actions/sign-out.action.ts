@@ -11,7 +11,7 @@ export const signout = async () => {
 
   if (error) {
     console.log("ERROR!", error);
-    redirect({ error: error.message });
+    return { error: error.message };
   }
 
   revalidatePath("/", "layout");
