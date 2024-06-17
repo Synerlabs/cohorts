@@ -13,12 +13,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signUpAction } from "@/app/(public)/(home)/actions/sign-up.action";
 import { useActionState } from "react";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, CircleCheckBig, Loader2 } from "lucide-react";
 
 export function RegistrationForm() {
   const [state, signup, pending] = useActionState(signUpAction, null);
 
-  return (
+  return state?.success ? (
+    <Card className="w-[369px] h-[494px] flex items-center justify-center">
+      <CardHeader>
+        <CardTitle className="text-xl flex flex-col items-center gap-4">
+          <CircleCheckBig className="text-green-500" size={40} />
+          Account created!
+        </CardTitle>
+        <CardDescription className={"text-center"}>
+          Your account has been successfully created.{" "}
+          <span className="font-bold">Check your email</span> for verification
+          instructions
+        </CardDescription>
+      </CardHeader>
+    </Card>
+  ) : (
     <Card className="w-[369px]">
       <CardHeader>
         <CardTitle className="text-xl">Sign Up</CardTitle>
@@ -32,11 +46,23 @@ export function RegistrationForm() {
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="first-name">First name</Label>
-                <Input id="first-name" placeholder="Max" required />
+                <Input
+                  id="first-name"
+                  name="firstName"
+                  defaultValue={state?.firstName}
+                  placeholder="John"
+                  required
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="last-name">Last name</Label>
-                <Input id="last-name" placeholder="Robinson" required />
+                <Input
+                  id="last-name"
+                  name="lastName"
+                  defaultValue={state?.lastName}
+                  placeholder="Doe"
+                  required
+                />
               </div>
             </div>
             <div className="grid gap-2">

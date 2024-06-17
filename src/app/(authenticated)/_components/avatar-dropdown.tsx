@@ -17,14 +17,18 @@ type AvatarDropdownProps = {
 };
 
 export default function AvatarDropdown({ user }: AvatarDropdownProps) {
-  const fullName = user.user_metadata?.full_name;
-  const avatarFallback = fullName ? (
-    `${fullName.split(" ")[0]}${fullName.split(" ")[1]}`
+  const firstName = user.user_metadata?.firstName;
+  const lastName = user.user_metadata?.lastName;
+  const hasName = firstName && lastName;
+  const avatarFallback = hasName ? (
+    `${firstName[0]}${lastName[0]}`
   ) : (
     <UserIcon className="h-5 w-5 text-slate-500" />
   );
+  console.log(firstName, lastName);
   return (
     <DropdownMenu>
+      {/*{JSON.stringify(user)}*/}
       <DropdownMenuTrigger asChild>
         <Avatar className="cursor-pointer">
           <AvatarImage src="https://github.com/shadcn.pngx" />
@@ -34,8 +38,11 @@ export default function AvatarDropdown({ user }: AvatarDropdownProps) {
         </Avatar>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuLabel>My Account</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          {hasName ? `${firstName} ${lastName}` : "My Account"}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        <DropdownMenuItem>My Profile</DropdownMenuItem>
         <DropdownMenuItem>Settings</DropdownMenuItem>
         <DropdownMenuItem>Support</DropdownMenuItem>
         <DropdownMenuSeparator />
