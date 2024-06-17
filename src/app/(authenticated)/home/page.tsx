@@ -15,9 +15,8 @@ export default async function PrivatePage() {
   }
 
   return (
-    <div>
-      <SignOutBtn />
+    <>
       Hello {data?.user?.email} {JSON.stringify(data?.user)}
-    </div>
+    </>
   );
 }

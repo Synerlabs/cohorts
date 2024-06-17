@@ -110,7 +110,7 @@ export function Sidebar() {
           <div className="flex h-full max-h-screen flex-col gap-2">
             <div className="flex-1">
               <div className="pt-6 pl-6 pb-4">
-                <h4>cohorts</h4>
+                <h4>cohorts.</h4>
               </div>
               <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
                 <Link

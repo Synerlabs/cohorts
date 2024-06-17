@@ -1,6 +1,4 @@
 "use server";
-import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/utils/supabase/server";
 
 type CurrentState = {
@@ -25,9 +23,7 @@ export async function signUpAction(
     password: formData.get("password") as string,
   };
 
-  const { error, ...resp } = await supabase.auth.signUp(data);
-  console.log("resp", resp);
-  console.log("error", error);
+  const { error } = await supabase.auth.signUp(data);
   if (error) {
     return { email, password, success: false, error: error.message };
   } else {
