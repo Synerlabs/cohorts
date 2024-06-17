@@ -6,7 +6,11 @@
     "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:migrate": "npx supabase migration up",
+    "db:reset": "npx supabase db reset",
+    "db:diff": "npx supabase db diff --schema public",
+    "supabase:start": "npx supabase start"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.0.4",
