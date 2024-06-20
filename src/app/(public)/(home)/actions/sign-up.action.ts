@@ -25,8 +25,8 @@ export async function signUpAction(
     password: formData.get("password") as string,
     options: {
       data: {
-        firstName,
-        lastName,
+        first_name: firstName,
+        last_name: lastName,
       },
     },
   };

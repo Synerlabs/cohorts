@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 
 export function Sidebar() {
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen hidden sm:block">
       <aside className="fixed inset-y-0 left-0 z-10 flex w-14 flex-col border-r bg-background sm:flex">
         <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
           <TooltipProvider>
@@ -105,8 +105,8 @@ export function Sidebar() {
           </TooltipProvider>
         </nav>
       </aside>
-      <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr] pl-[55px]">
-        <div className="hidden border-r bg-muted/40 md:block">
+      <div className="grid min-h-screen w-full lg:grid-cols-[220px_1fr] lg:grid-cols-[250px_1fr] pl-[55px]">
+        <div className="hidden border-r bg-muted/40 lg:block">
           <div className="flex h-full max-h-screen flex-col gap-2">
             <div className="flex-1">
               <div className="pt-6 pl-6 pb-4">

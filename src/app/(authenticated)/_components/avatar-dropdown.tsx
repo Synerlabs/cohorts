@@ -10,15 +10,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import Link from "next/link";
 import { User } from "@supabase/auth-js";
 import { UserIcon } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 type AvatarDropdownProps = {
   user: User;
 };
 
 export default function AvatarDropdown({ user }: AvatarDropdownProps) {
-  const firstName = user.user_metadata?.firstName;
-  const lastName = user.user_metadata?.lastName;
+  const firstName = user.user_metadata?.first_name;
+  const lastName = user.user_metadata?.last_name;
   const hasName = firstName && lastName;
   const avatarFallback = hasName ? (
     `${firstName[0]}${lastName[0]}`
