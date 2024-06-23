@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/utils/supabase/server";
-import CreateCohortCta from "@/app/(authenticated)/home/_components/create-cohort-cta";
+import CreateCohortCta from "@/app/(authenticated)/home/_components/create-cohort/create-cohort-cta";
 import {
   Card,
   CardContent,
@@ -117,9 +117,9 @@ export default async function PrivatePage() {
         </div>
         <Card className="col-span-1 rounded-lg h-full p-2 flex flex-col">
           <CardHeader>
-            <h2>Join a cohort</h2>
+            <h4>Join a cohort</h4>
           </CardHeader>
-          <div className="relative flex flex-col items-center justify-center overflow-hidden -mt-4 mb-4">
+          <div className="relative flex flex-col items-center justify-center overflow-hidden mb-4">
             <Marquee pauseOnHover className="[--duration:20s] w-fit">
               {firstRow.map((review) => (
                 <ReviewCard key={review.username} {...review} />
