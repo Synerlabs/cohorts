@@ -18,25 +18,24 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
+import { useForm, useFormContext } from "react-hook-form";
 
 export default function CreateCohortForm() {
-  const form = useForm();
+  const { control, watch } = useFormContext();
   return (
-    <Form {...form}>
-      <FormItem>
-        <FormControl>
-          <Input
-            placeholder="e.g. Association of Computer Science Students"
-            autoFocus
-          />
-        </FormControl>
-        <FormMessage />
-        <FormDescription className="pt-2">
-          Don't worry if it's a bit long—we'll handle that later with
-          alternative names.
-        </FormDescription>
-      </FormItem>
-    </Form>
+    <FormItem>
+      <FormControl>
+        <Input
+          placeholder="e.g. Association of Computer Science Students"
+          autoFocus
+          {...control.register("name")}
+        />
+      </FormControl>
+      <FormMessage />
+      <FormDescription className="pt-2">
+        Don't worry if it's a bit long—we'll handle that later with alternative
+        names.
+      </FormDescription>
+    </FormItem>
   );
 }

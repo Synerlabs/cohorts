@@ -18,35 +18,28 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
+import { useForm, useFormContext } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { Briefcase } from "lucide-react";
 
 export default function FinalizeForm() {
-  const form = useForm();
+  const { watch } = useFormContext();
   return (
-    <Form {...form}>
+    <>
       <Card className="max-h-[calc(100vh-500px)] overflow-y-auto border-gray-300">
         <CardHeader>
-          <CardTitle className="text-xl">
-            Association of Computer Science Students
-          </CardTitle>
+          <CardTitle className="text-xl">{watch("name")}</CardTitle>
           <span className="text-sm text-muted-foreground font-normal">
-            https://cohorts.com/<span className="font-medium">@acs-2023</span>
+            https://cohorts.com/
+            <span className="font-medium">@{watch("slug")}</span>
           </span>
           <div>
-            <Badge variant="secondary">Professional Organization</Badge>
+            <Badge variant="secondary">{watch("type")}</Badge>
           </div>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            he official voice and community for computer science students at the
-            University of Manitoba. We represent the interests and concerns of
-            computer science students to the Computer Science department, the
-            Faculty of Science, university administration and any outside
-            organizations. We organize events and activities for students to
-            network, learn, and have fun. Join us and be part of a vibrant and
-            diverse computer science community!
+            {watch("description")}
           </p>
         </CardContent>
       </Card>
@@ -61,6 +54,6 @@ export default function FinalizeForm() {
         potential data loss, service interruptions, or other liabilities that
         may occur due to the use of its services.
       </p>
-    </Form>
+    </>
   );
 }

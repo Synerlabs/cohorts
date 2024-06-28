@@ -18,22 +18,24 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
+import { useForm, useFormContext } from "react-hook-form";
 
 export default function AlternateNameForm() {
-  const form = useForm();
+  const { control } = useFormContext();
   return (
-    <Form {...form}>
-      <FormItem>
-        <FormControl>
-          <Input placeholder="e.g. Aldub R3, NASA, FedEx" autoFocus />
-        </FormControl>
-        <FormMessage />
-        <FormDescription className="pt-2">
-          (Optional) This can be an acronym, abbreviation, or just a simpler
-          name you might use more casually.
-        </FormDescription>
-      </FormItem>
-    </Form>
+    <FormItem>
+      <FormControl>
+        <Input
+          placeholder="e.g. Aldub R3, NASA, FedEx"
+          autoFocus
+          {...control.register("alternateName")}
+        />
+      </FormControl>
+      <FormMessage />
+      <FormDescription className="pt-2">
+        (Optional) This can be an acronym, abbreviation, or just a simpler name
+        you might use more casually.
+      </FormDescription>
+    </FormItem>
   );
 }

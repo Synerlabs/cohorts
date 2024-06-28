@@ -18,17 +18,21 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
+import { useForm, useFormContext } from "react-hook-form";
 
 export default function DescriptionForm() {
-  const form = useForm();
+  const { control } = useFormContext();
   return (
-    <Form {...form}>
-      <Textarea placeholder="Type your description here." autoFocus={true} />
+    <FormItem>
+      <Textarea
+        placeholder="Type your description here."
+        autoFocus={true}
+        {...control.register("description")}
+      />
       <FormDescription className="mt-4">
         Provide a brief description of your organization. This helps us
         understand your mission and what makes your organization unique.
       </FormDescription>
-    </Form>
+    </FormItem>
   );
 }

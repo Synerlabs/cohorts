@@ -18,27 +18,26 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useForm } from "react-hook-form";
+import { useForm, useFormContext } from "react-hook-form";
 
 export default function SlugForm() {
-  const form = useForm();
+  const { control } = useFormContext();
   return (
-    <Form {...form}>
-      <FormItem>
-        <FormControl>
-          <Input
-            endAdornment="@"
-            placeholder="e.g. renewable-energy-researchers, icpepr3"
-            autoFocus
-          />
-        </FormControl>
-        <FormMessage />
-        <FormDescription className="pt-2">
-          A slug is a short, unique identifier used in the URL for your
-          organization’s page. It helps make your web address easier to find and
-          share.
-        </FormDescription>
-      </FormItem>
-    </Form>
+    <FormItem>
+      <FormControl>
+        <Input
+          endAdornment="@"
+          placeholder="e.g. renewable-energy-researchers, icpepr3"
+          autoFocus
+          {...control.register("slug")}
+        />
+      </FormControl>
+      <FormMessage />
+      <FormDescription className="pt-2">
+        A slug is a short, unique identifier used in the URL for your
+        organization’s page. It helps make your web address easier to find and
+        share.
+      </FormDescription>
+    </FormItem>
   );
 }
