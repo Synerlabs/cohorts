@@ -82,6 +82,7 @@ export default function PrimaryCategoryForm() {
                 className="flex flex-col gap-4 h-[calc(100vh-300px)] max-h-[400px] overflow-y-auto py-1 -mx-1"
                 onValueChange={field.onChange}
                 defaultValue={field.value}
+                required
               >
                 {options.map((option, index) => (
                   <FormItem className="px-1" key={index}>

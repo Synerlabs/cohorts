@@ -28,6 +28,7 @@ export default function CreateCohortForm() {
         <Input
           placeholder="e.g. Association of Computer Science Students"
           autoFocus
+          required
           {...control.register("name")}
         />
       </FormControl>

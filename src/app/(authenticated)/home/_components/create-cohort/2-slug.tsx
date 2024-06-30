@@ -29,6 +29,7 @@ export default function SlugForm() {
           endAdornment="@"
           placeholder="e.g. renewable-energy-researchers, icpepr3"
           autoFocus
+          required
           {...control.register("slug")}
         />
       </FormControl>
