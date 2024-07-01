@@ -1,14 +1,11 @@
-import { redirect } from "next/navigation";
+import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 
-import { createClient } from "@/lib/utils/supabase/server";
-
-export default async function PrivatePage() {
-  const supabase = createClient();
-
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data?.user) {
-    redirect("/");
-  }
-
-  return <p>Hello {data.user.email}</p>;
+async function OrgHomePage({ user, org }: OrgAccessHOCProps) {
+  return (
+    <p>
+      Hello {user?.email} {JSON.stringify(org)}
+    </p>
+  );
 }
+
+export default withOrgAccess(OrgHomePage);

@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { signout } from "@/app/(authenticated)/home/_actions/sign-out.action";
+import { signout } from "@/app/(authenticated)/(main)/home/_actions/sign-out.action";
 import { useActionState } from "react";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 

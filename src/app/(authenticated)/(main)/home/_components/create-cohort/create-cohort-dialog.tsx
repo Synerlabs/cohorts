@@ -1,8 +1,8 @@
 "use client";
 import { DialogContent } from "@/components/ui/dialog";
-import { cohortWizardData } from "@/app/(authenticated)/home/_components/create-cohort/data";
+import { cohortWizardData } from "@/app/(authenticated)/(main)/home/_components/create-cohort/data";
 import { StepProvider } from "@/lib/context/step.provider";
-import CreateCohortForm from "@/app/(authenticated)/home/_components/create-cohort/create-cohort-form";
+import CreateCohortForm from "@/app/(authenticated)/(main)/home/_components/create-cohort/create-cohort-form";
 
 export default function CreateCohortDialog() {
   return (

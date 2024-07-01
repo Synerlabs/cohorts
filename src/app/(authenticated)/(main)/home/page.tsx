@@ -1,27 +1,12 @@
-import { redirect } from "next/navigation";
-
 import { createClient } from "@/lib/utils/supabase/server";
-import CreateCohortCta from "@/app/(authenticated)/home/_components/create-cohort/create-cohort-cta";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import CreateCohortCta from "@/app/(authenticated)/(main)/home/_components/create-cohort/create-cohort-cta";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Marquee from "@/components/magicui/marquee";
+import { AuthHOCProps, withAuth } from "@/lib/hoc/auth";
 
-export default async function PrivatePage() {
-  const supabase = createClient();
-
-  const { data, error } = await supabase.auth.getUser();
-  if (error || !data?.user) {
-    redirect("/");
-  }
-
+async function PrivatePage({ user }: AuthHOCProps) {
   const reviews = [
     {
       name: "ICpEP Region 3",
@@ -108,7 +93,7 @@ export default async function PrivatePage() {
   return (
     <div className="flex flex-col justify-center w-full gap-8">
       <div className="max-w-screen-lg">
-        <h2>Hello {data?.user?.user_metadata?.first_name}</h2>
+        <h2>Hello {user?.user_metadata?.first_name}</h2>
       </div>
 
       <div className="grid grid-cols-3 gap-4 w-full">
@@ -143,3 +128,5 @@ export default async function PrivatePage() {
     </div>
   );
 }
+
+export default withAuth(PrivatePage);

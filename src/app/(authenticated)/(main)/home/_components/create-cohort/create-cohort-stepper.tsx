@@ -1,4 +1,4 @@
-import Step from "@/app/(authenticated)/home/_components/create-cohort/step";
+import Step from "@/app/(authenticated)/(main)/home/_components/create-cohort/step";
 
 export default function CreateCohortStepper({ activeStep }) {
   const steps = [

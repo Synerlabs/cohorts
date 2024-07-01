@@ -15,7 +15,6 @@ export async function createCohortAction(
   // Validate formData using Zod
   const parsedFormData = createCohortSchema.safeParse(formData);
   if (!parsedFormData.success) {
-    console.log(parsedFormData.error.errors);
     return { error: parsedFormData.error.errors };
   }
 

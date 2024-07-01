@@ -13,7 +13,11 @@ import {
 import { Home, LineChart, Package, ShoppingCart, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
-export function Sidebar() {
+type SidebarProps = {
+  org?: string;
+};
+
+export function Sidebar({ org }: SidebarProps) {
   return (
     <div className="flex h-screen hidden sm:block">
       <aside className="fixed inset-y-0 left-0 z-10 flex w-14 flex-col border-r bg-background sm:flex">
@@ -110,7 +114,7 @@ export function Sidebar() {
           <div className="flex h-full max-h-screen flex-col gap-2">
             <div className="flex-1">
               <div className="pt-6 pl-6 pb-4">
-                <h4>cohorts.</h4>
+                <h4>{org ?? "cohorts."}</h4>
               </div>
               <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
                 <Link

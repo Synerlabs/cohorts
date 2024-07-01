@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import CreateCohortForm from "@/app/(authenticated)/home/_components/create-cohort/0-full-name";
+import CreateCohortForm from "@/app/(authenticated)/(main)/home/_components/create-cohort/0-full-name";
 import { DialogBody } from "next/dist/client/components/react-dev-overlay/internal/components/Dialog";
 import {
   FormControl,
@@ -27,7 +27,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import CreateCohortDialog from "@/app/(authenticated)/home/_components/create-cohort/create-cohort-dialog";
+import CreateCohortDialog from "@/app/(authenticated)/(main)/home/_components/create-cohort/create-cohort-dialog";
 
 export default function CreateCohortCta() {
   return (

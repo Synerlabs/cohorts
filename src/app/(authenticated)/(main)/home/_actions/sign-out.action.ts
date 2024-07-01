@@ -10,7 +10,6 @@ export const signout = async () => {
   const { error } = await supabase.auth.signOut();
 
   if (error) {
-    console.log("ERROR!", error);
     return { error: error.message };
   }
 

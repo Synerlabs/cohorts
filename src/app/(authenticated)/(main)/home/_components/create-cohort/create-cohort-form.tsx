@@ -1,4 +1,4 @@
-import CreateCohortStepper from "@/app/(authenticated)/home/_components/create-cohort/create-cohort-stepper";
+import CreateCohortStepper from "@/app/(authenticated)/(main)/home/_components/create-cohort/create-cohort-stepper";
 import {
   DialogDescription,
   DialogFooter,
@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/ui/loading-button";
 import { FormProvider, useForm } from "react-hook-form";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
-import { createCohortAction } from "@/app/(authenticated)/home/_actions/create-cohort.action";
-import { cohortWizardData } from "@/app/(authenticated)/home/_components/create-cohort/data";
+import { createCohortAction } from "@/app/(authenticated)/(main)/home/_actions/create-cohort.action";
+import { cohortWizardData } from "@/app/(authenticated)/(main)/home/_components/create-cohort/data";
 import useStep, { useIsFinalStep } from "@/lib/hooks/step.hook";
 import {
   CreateCohort,

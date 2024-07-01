@@ -14,7 +14,6 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         get(name: string) {
-          console.log("GETTING COOKIE from middlware", name);
           return request.cookies.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
