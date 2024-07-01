@@ -24,7 +24,14 @@ export function withOrgAccess(Component: any) {
         .single();
       AuthServerContext.org = data;
     }
-    return <Component user={user} org={AuthServerContext.org} {...props} />;
+    return (
+      <Component
+        user={user}
+        org={AuthServerContext.org}
+        params={params}
+        {...props}
+      />
+    );
   }
 
   return withAuth(WithOrgAccess);

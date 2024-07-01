@@ -3,11 +3,12 @@ import { redirect } from "next/navigation";
 import React from "react";
 import { User } from "@supabase/auth-js";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
+import { PageProps } from "@/lib/types/next";
 
 export type AuthHOCProps = {
   user: User;
   params?: any;
-};
+} & PageProps;
 
 export function withAuth(Component: any) {
   return async function WithAuth(props: any) {
