@@ -4,6 +4,7 @@ import React from "react";
 import { User } from "@supabase/auth-js";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 import { PageProps } from "@/lib/types/next";
+import { getCurrentUser } from "@/services/user.service";
 
 export type AuthHOCProps = {
   user: User;
@@ -15,17 +16,12 @@ export function withAuth(Component: any) {
     const AuthServerContext = getAuthenticatedServerContext();
 
     if (!AuthServerContext.user) {
-      const supabase = createClient();
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
+      const response = await getCurrentUser();
+      if (response.error) {
         redirect("/");
       }
 
-      AuthServerContext.user = user;
+      AuthServerContext.user = response.data;
     }
 
     return <Component user={AuthServerContext.user} {...props} />;

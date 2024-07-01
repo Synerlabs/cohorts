@@ -1,9 +1,8 @@
-import { createClient } from "@/lib/utils/supabase/server";
 import { redirect } from "next/navigation";
 import React from "react";
-import { User } from "@supabase/auth-js";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 import { AuthHOCProps, withAuth } from "@/lib/hoc/auth";
+import { getOrgBySlug } from "@/services/org.service";
 
 export type OrgAccessHOCProps = {
   org: any;
@@ -14,15 +13,13 @@ export function withOrgAccess(Component: any) {
     const AuthServerContext = getAuthenticatedServerContext();
 
     if (!AuthServerContext.org) {
-      const supabase = createClient();
       const { orgSlug } = params;
       const slug = decodeURIComponent(orgSlug).replace("@", "");
-      const { data, error } = await supabase
-        .from("group")
-        .select("name")
-        .eq("slug", slug)
-        .single();
-      AuthServerContext.org = data;
+      const response = await getOrgBySlug(slug);
+      if (response.error) {
+        redirect("/");
+      }
+      AuthServerContext.org = response.data;
     }
     return (
       <Component
