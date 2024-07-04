@@ -17,11 +17,11 @@ export function withAuth(Component: any) {
 
     if (!AuthServerContext.user) {
       const response = await getCurrentUser();
-      if (response.error) {
+      if (response.error || !response.data?.user) {
         redirect("/");
       }
 
-      AuthServerContext.user = response.data;
+      AuthServerContext.user = response.data.user;
     }
 
     return <Component user={AuthServerContext.user} {...props} />;

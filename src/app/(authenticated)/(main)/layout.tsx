@@ -20,7 +20,7 @@ export default async function RootLayout({
   return (
     <>
       <MainSidebar />
-      <div className="flex flex-col gap-4 py-4 flex-1">
+      <div className="flex flex-col gap-4 py-4 flex-1 sm:pl-16">
         <Header user={user} />
         <main className="px-6">{children}</main>
       </div>

@@ -4,7 +4,7 @@ export async function getOrgBySlug(slug: string) {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("group")
-    .select("name")
+    .select()
     .eq("slug", slug)
     .single();
 

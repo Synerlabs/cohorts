@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "@/app/globals.css";
 import Header from "@/app/(authenticated)/_components/header";
-import { createClient } from "@/lib/utils/supabase/server";
 import { MainSidebar } from "@/app/(authenticated)/_components/sidebar-container";
 import { OrgSidebar } from "@/app/(authenticated)/_components/org-sidebar";
 import React from "react";
@@ -13,21 +12,19 @@ export const metadata: Metadata = {
   description: "Community management system",
 };
 
-async function OrgLayout({
-  children,
-  params,
-}: Readonly<{
+type OrgLayoutProps = {
   children: React.ReactNode;
   params: { orgSlug: string };
-}>) {
+};
+
+async function OrgLayout({ children, params }: Readonly<OrgLayoutProps>) {
   const AuthServerContext = getAuthenticatedServerContext();
   const { org } = AuthServerContext;
 
-  console.log("4544", AuthServerContext);
   return (
     <>
       <MainSidebar>
-        <OrgSidebar org={org?.name} />
+        <OrgSidebar org={org} />
       </MainSidebar>
       <div className="flex flex-col gap-4 py-4 flex-1">
         <Header user={AuthServerContext.user} />
