@@ -7,8 +7,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input as AltInput } from "@/components/ui/alt-input";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import React, { useActionState, useRef } from "react";
 import { FormProvider, useForm, useFormState } from "react-hook-form";
 import {
@@ -25,15 +25,18 @@ import { Camelized } from "humps";
 import { updateCohortDetailsAction } from "@/app/(authenticated)/(main)/home/_actions/update-cohort-details.action";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import LoadingButton from "@/components/ui/loading-button";
+import { updateSlugAction } from "@/app/(authenticated)/(main)/home/_actions/update-slug.action";
+import ConfirmSlugUpdate from "@/app/(authenticated)/[orgSlug]/(org-pages)/settings/_components/confirm-slug-update";
+import { Button } from "@/components/ui/button";
 
-export default function OrgForm({
+export default function SlugForm({
   className,
   defaultValues,
 }: React.HTMLAttributes<HTMLDivElement> & {
   defaultValues: Camelized<Tables<"group">>;
 }) {
-  const [state, updateCohortDetails, pending] = useToastActionState(
-    updateCohortDetailsAction,
+  const [state, updateSlug, pending] = useToastActionState(
+    updateSlugAction,
     { form: defaultValues },
     null,
     {
@@ -49,12 +52,11 @@ export default function OrgForm({
       <Card className={className}>
         <form
           ref={formRef}
-          action={updateCohortDetails}
+          action={updateSlug}
           onSubmit={(evt) => {
             evt.preventDefault();
             form.handleSubmit(() => {
-              console.log(new FormData(formRef.current!));
-              updateCohortDetails(new FormData(formRef.current!));
+              updateSlug(new FormData(formRef.current!));
             })(evt);
           }}
         >
@@ -64,54 +66,21 @@ export default function OrgForm({
             {...form.register("id")}
           />
           <CardHeader>
-            <CardTitle>Community Details</CardTitle>
+            <CardTitle>Slug</CardTitle>
             <CardDescription>
-              Used to identify your community and to help others find you.
+              Used to identify your cohort and to help others find you.
             </CardDescription>
           </CardHeader>
           <CardContent className={"flex flex-col gap-4"}>
             <FormField
-              name={"name"}
+              name={"slug"}
               render={({ field }) => (
                 <FormItem>
-                  <Label htmlFor="name">Community Name</Label>
                   <FormControl>
-                    <Input
-                      placeholder="e.g. Association of Computer Science Students"
+                    <AltInput
+                      startAdornment="@"
+                      placeholder="mySite"
                       required
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name={"alternateName"}
-              render={({ field }) => (
-                <FormItem>
-                  <Label htmlFor="alternateName">Alternate Name</Label>
-                  <FormControl>
-                    <Input
-                      placeholder="e.g. Aldub R3, NASA, FedEx"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              name={"description"}
-              render={({ field }) => (
-                <FormItem>
-                  <Label htmlFor="description">Description</Label>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Tell us about your community"
                       {...field}
                     />
                   </FormControl>
@@ -121,9 +90,18 @@ export default function OrgForm({
             />
           </CardContent>
           <CardFooter className="border-t px-6 py-4">
-            <LoadingButton loading={pending} disabled={!form.formState.isDirty}>
-              Update Details
-            </LoadingButton>
+            <ConfirmSlugUpdate
+              confirmBtn={
+                <LoadingButton
+                  loading={pending}
+                  onClick={() => formRef.current?.requestSubmit()}
+                >
+                  Update Slug
+                </LoadingButton>
+              }
+            >
+              <Button disabled={!form.formState.isDirty}>Update Slug</Button>
+            </ConfirmSlugUpdate>
           </CardFooter>
         </form>
       </Card>

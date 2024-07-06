@@ -17,7 +17,7 @@ type SidebarProps = {
 
 export function OrgSidebar({ org }: SidebarProps) {
   return (
-    <div className="grid min-h-screen w-full lg:grid-cols-[200px_1fr] pl-[55px]">
+    <div className="grid min-h-screen w-full lg:grid-cols-[200px_1fr]">
       <div className="hidden border-r bg-muted/40 lg:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex-1">

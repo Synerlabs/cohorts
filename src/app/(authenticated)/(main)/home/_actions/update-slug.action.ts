@@ -12,14 +12,15 @@ import { Tables } from "@/lib/types/database.types";
 import snakecaseKeys from "snakecase-keys";
 import { groupUpdateSchema } from "@/lib/types/zod-schemas";
 
-export async function updateCohortDetailsAction(
+export async function updateSlugAction(
   currentState: z.infer<typeof groupUpdateSchema>,
   data: FormData,
 ) {
   const formData = snakecaseKeys(Object.fromEntries(data));
   const parsedFormData = groupUpdateSchema
-    .pick({ name: true, id: true, alternate_name: true, description: true })
+    .pick({ slug: true, id: true })
     .safeParse(formData);
+
   if (!parsedFormData.success) {
     return { error: parsedFormData.error.errors };
   }
@@ -42,6 +43,6 @@ export async function updateCohortDetailsAction(
   if (error) {
     return { form: formData, error: error.message };
   } else {
-    return { success: true };
+    redirect(`/@${parsedFormData.data.slug}/settings`);
   }
 }

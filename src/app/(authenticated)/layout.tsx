@@ -23,7 +23,11 @@ async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return <div className="flex min-h-screen w-full bg-muted/40">{children}</div>;
+  return (
+    <div className="flex h-screen w-full bg-muted/40 overflow-hidden">
+      {children}
+    </div>
+  );
 }
 
 export default withAuth(RootLayout);

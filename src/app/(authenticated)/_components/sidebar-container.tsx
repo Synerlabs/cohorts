@@ -21,13 +21,13 @@ export default function SidebarContainer({
 }: {
   children: React.ReactNode;
 }) {
-  return <div className="flex h-screen hidden sm:block">{children}</div>;
+  return <div className="h-screen hidden sm:flex">{children}</div>;
 }
 
 export function MainSidebar({ children }: { children?: React.ReactNode }) {
   return (
     <SidebarContainer>
-      <aside className="fixed inset-y-0 left-0 z-10 flex w-14 flex-col border-r bg-background sm:flex">
+      <div className="flex w-14 flex-col border-r bg-background sm:flex">
         <nav className="flex flex-col items-center gap-4 px-2 sm:py-5">
           <TooltipProvider>
             <Link
@@ -115,8 +115,10 @@ export function MainSidebar({ children }: { children?: React.ReactNode }) {
             </Tooltip>
           </TooltipProvider>
         </nav>
-      </aside>
-      {children}
+      </div>
+      <div className="flex flex-col border-r sm:flex bg-muted/40">
+        {children}
+      </div>
     </SidebarContainer>
   );
 }
