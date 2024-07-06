@@ -13,8 +13,8 @@ export default function LoadingButton({
   ...props
 }: LoadingButtonProps) {
   return (
-    <Button {...props} disabled={loading}>
-      {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : children}
+    <Button {...props} disabled={loading || props.disabled}>
+      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {children}
     </Button>
   );
 }

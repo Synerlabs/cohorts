@@ -16,7 +16,7 @@ export function withOrgAccess(Component: any) {
       const { orgSlug } = params;
       const slug = decodeURIComponent(orgSlug).replace("@", "");
       const response = await getOrgBySlug(slug);
-      if (response.error) {
+      if (response.error || !response.data) {
         redirect("/");
       }
       AuthServerContext.org = response.data;

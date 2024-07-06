@@ -1,7 +1,12 @@
 import { useActionState, useEffect } from "react";
 import { toast } from "@/components/ui/use-toast";
 
-export default function useToastActionState(action, initialState?, permalink?) {
+export default function useToastActionState(
+  action,
+  initialState?,
+  permalink?,
+  options?,
+) {
   const [state, ...rest] = useActionState(action, initialState, permalink);
 
   useEffect(() => {
@@ -13,6 +18,12 @@ export default function useToastActionState(action, initialState?, permalink?) {
             ? (state.error as string)
             : JSON.stringify(state.error),
         variant: "destructive",
+      });
+    }
+    if (state?.success) {
+      toast({
+        title: options?.successTitle || "Success",
+        description: options?.successDescription || "",
       });
     }
   }, [state]);

@@ -10,6 +10,7 @@
     "db:migrate": "npx supabase migration up",
     "db:reset": "npx supabase db reset",
     "db:diff": "npx supabase db diff --schema public",
+    "zod:generate": "bunx supabase-to-zod --input src/lib/types/database.types.ts --output src/lib/types/zod-schemas.ts",
     "supabase:start": "npx supabase start"
   },
   "dependencies": {
@@ -24,7 +25,9 @@
     "@radix-ui/react-tooltip": "^1.0.7",
     "@supabase/ssr": "^0.3.0",
     "@supabase/supabase-js": "^2.43.5",
+    "@types/humps": "^2.0.6",
     "@types/js-cookie": "^3.0.6",
+    "camelcase-keys": "^9.1.3",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "framer-motion": "^11.2.10",
@@ -34,6 +37,8 @@
     "react": "^19.0.0-rc-fb9a90fa48-20240614",
     "react-dom": "^19.0.0-rc-fb9a90fa48-20240614",
     "react-hook-form": "^7.52.0",
+    "snakecase-keys": "^8.0.1",
+    "supabase-to-zod": "^1.0.7",
     "tailwind-merge": "^2.3.0",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.23.8"
