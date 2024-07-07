@@ -78,6 +78,41 @@ export type Database = {
           },
         ]
       }
+      group_roles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          group_id: string | null
+          id: string
+          role_name: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          group_id?: string | null
+          id?: string
+          role_name?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          group_id?: string | null
+          id?: string
+          role_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_group_roles_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -113,6 +148,68 @@ export type Database = {
           },
         ]
       }
+      role_permissions: {
+        Row: {
+          id: number
+          permission: Database["public"]["Enums"]["app_permission"]
+          role_id: string
+        }
+        Insert: {
+          id?: number
+          permission: Database["public"]["Enums"]["app_permission"]
+          role_id: string
+        }
+        Update: {
+          id?: number
+          permission?: Database["public"]["Enums"]["app_permission"]
+          role_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_role_permissions_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "group_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          group_role_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          group_role_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          group_role_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_user_roles_group_role_id_fkey"
+            columns: ["group_role_id"]
+            isOneToOne: false
+            referencedRelation: "group_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -121,7 +218,11 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      app_permission:
+        | "group.edit"
+        | "group.delete"
+        | "group.members.invite"
+        | "group.members.approve"
     }
     CompositeTypes: {
       [_ in never]: never

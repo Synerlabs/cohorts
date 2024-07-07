@@ -9,20 +9,16 @@ import {
 } from "@/components/ui/card";
 import { Input as AltInput } from "@/components/ui/alt-input";
 import { Input } from "@/components/ui/input";
-import React, { useActionState, useRef } from "react";
+import React, { useRef } from "react";
 import { FormProvider, useForm, useFormState } from "react-hook-form";
 import {
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
-import { updateCohortDetailsAction } from "@/app/(authenticated)/(main)/home/_actions/update-cohort-details.action";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import LoadingButton from "@/components/ui/loading-button";
 import { updateSlugAction } from "@/app/(authenticated)/(main)/home/_actions/update-slug.action";

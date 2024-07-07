@@ -23,8 +23,9 @@ export default function ConfirmSlugUpdate({
         <AlertDialogHeader>
           <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. This will permanently delete your
-            account and remove your data from our servers.
+            This action cannot be undone. This will permanently change your slug
+            and all links to the previous slug will be broken. The slug will
+            then be available for others to claim.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

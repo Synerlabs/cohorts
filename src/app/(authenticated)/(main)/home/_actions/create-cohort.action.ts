@@ -40,11 +40,64 @@ export async function createCohortAction(
         created_by: user.id,
       },
     ])
-    .select();
+    .select()
+    .single();
 
   if (error) {
     return { form: formData, error: error.message };
   } else {
+    // setup group roles
+    const { data: groupRoles, error: groupRolesError } = await supabase
+      .from("group_roles")
+      .insert([
+        {
+          group_id: data.id,
+          role_name: "admin",
+          description: "Admin role for the group",
+        },
+        {
+          group_id: data.id,
+          role_name: "member",
+          description: "Member role for the group",
+        },
+      ])
+      .select();
+
+    // setup role permissions
+    if (groupRoles) {
+      const { data: rolePermissions, error: rolePermissionsError } =
+        await supabase
+          .from("role_permissions")
+          .insert([
+            {
+              role_id: groupRoles[0].id,
+              permission: "group.edit",
+            },
+            {
+              role_id: groupRoles[0].id,
+              permission: "group.delete",
+            },
+            {
+              role_id: groupRoles[0].id,
+              permission: "group.members.invite",
+            },
+            {
+              role_id: groupRoles[0].id,
+              permission: "group.members.approve",
+            },
+          ])
+          .select();
+      // add user to group
+      const { data: userGroup, error: userGroupError } = await supabase
+        .from("user_roles")
+        .insert([
+          {
+            group_role_id: groupRoles[0].id,
+            user_id: user.id,
+          },
+        ])
+        .select();
+    }
     redirect(`@${formData.slug}`);
   }
 }

@@ -43,7 +43,7 @@ export const groupUpdateSchema = z.object({
   created_at: z.string().optional(),
   created_by: z.string().optional(),
   description: z.string().optional().nullable(),
-  id: z.string(),
+  id: z.string().optional(),
   name: z.string().optional(),
   parent_id: z.string().optional().nullable(),
   slug: z.string().optional(),
@@ -56,6 +56,43 @@ export const groupRelationshipsSchema = z.tuple([
     columns: z.tuple([z.literal("created_by")]),
     isOneToOne: z.literal(false),
     referencedRelation: z.literal("users"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const groupRolesRowSchema = z.object({
+  created_at: z.string(),
+  created_by: z.string().nullable(),
+  description: z.string().nullable(),
+  group_id: z.string().nullable(),
+  id: z.string(),
+  role_name: z.string().nullable(),
+});
+
+export const groupRolesInsertSchema = z.object({
+  created_at: z.string().optional(),
+  created_by: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  role_name: z.string().optional().nullable(),
+});
+
+export const groupRolesUpdateSchema = z.object({
+  created_at: z.string().optional(),
+  created_by: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  role_name: z.string().optional().nullable(),
+});
+
+export const groupRolesRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("public_group_roles_group_id_fkey"),
+    columns: z.tuple([z.literal("group_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);
@@ -96,3 +133,76 @@ export const profilesRelationshipsSchema = z.tuple([
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);
+
+export const appPermissionSchema = z.union([
+  z.literal("group.edit"),
+  z.literal("group.delete"),
+  z.literal("group.members.invite"),
+  z.literal("group.members.approve"),
+]);
+
+export const rolePermissionsInsertSchema = z.object({
+  id: z.number().optional(),
+  permission: appPermissionSchema,
+  role_id: z.string(),
+});
+
+export const rolePermissionsUpdateSchema = z.object({
+  id: z.number().optional(),
+  permission: appPermissionSchema.optional(),
+  role_id: z.string().optional(),
+});
+
+export const rolePermissionsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("public_role_permissions_role_id_fkey"),
+    columns: z.tuple([z.literal("role_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group_roles"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const userRolesRowSchema = z.object({
+  created_at: z.string(),
+  group_role_id: z.string(),
+  id: z.string(),
+  user_id: z.string(),
+});
+
+export const userRolesInsertSchema = z.object({
+  created_at: z.string().optional(),
+  group_role_id: z.string(),
+  id: z.string().optional(),
+  user_id: z.string(),
+});
+
+export const userRolesUpdateSchema = z.object({
+  created_at: z.string().optional(),
+  group_role_id: z.string().optional(),
+  id: z.string().optional(),
+  user_id: z.string().optional(),
+});
+
+export const userRolesRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("public_user_roles_group_role_id_fkey"),
+    columns: z.tuple([z.literal("group_role_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group_roles"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("public_user_roles_user_id_fkey"),
+    columns: z.tuple([z.literal("user_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("users"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const rolePermissionsRowSchema = z.object({
+  id: z.number(),
+  permission: appPermissionSchema,
+  role_id: z.string(),
+});

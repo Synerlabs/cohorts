@@ -5,6 +5,7 @@ import {
   Package,
   Settings,
   ShoppingCart,
+  SquareUserRound,
   Users,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +23,7 @@ export function OrgSidebar({ org }: SidebarProps) {
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex-1">
             <div className="pt-6 pl-6 pb-4">
-              <h4>{org.alternateName ?? org.name ?? "cohorts."}</h4>
+              <h4>{org.alternateName || org.name || "cohorts."}</h4>
             </div>
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               <Link
@@ -31,6 +32,13 @@ export function OrgSidebar({ org }: SidebarProps) {
               >
                 <Home className="h-4 w-4" />
                 Dashboard
+              </Link>
+              <Link
+                href={`/@${org.slug}/roles`}
+                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+              >
+                <SquareUserRound className="h-4 w-4" />
+                Roles & Permissions
               </Link>
               <Link
                 href={`/@${org.slug}/settings`}
