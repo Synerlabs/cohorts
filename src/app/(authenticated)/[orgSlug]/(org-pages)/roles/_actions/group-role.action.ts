@@ -1,8 +1,13 @@
 "use server";
 import snakecaseKeys from "snakecase-keys";
-import { groupRolesInsertSchema } from "@/lib/types/zod-schemas";
+import {
+  groupRolesInsertSchema,
+  groupRolesUpdateSchema,
+  rolePermissionsInsertSchema,
+} from "@/lib/types/zod-schemas";
 import { createClient } from "@/lib/utils/supabase/server";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 
 type PrevState = {
   message?: string;
@@ -12,12 +17,17 @@ type PrevState = {
 
 export async function createGroupRoleAction(
   prevState: PrevState,
-  form: FormData,
+  form:
+    | z.infer<typeof groupRolesInsertSchema>
+    | z.infer<typeof groupRolesUpdateSchema>,
 ) {
-  const formData = snakecaseKeys(Object.fromEntries(form));
-  const parsedFormData = groupRolesInsertSchema.safeParse(formData);
+  const formData = snakecaseKeys(form);
+  const parsedFormData = formData.id
+    ? groupRolesUpdateSchema.safeParse(formData)
+    : groupRolesInsertSchema.safeParse(formData);
 
   if (!parsedFormData.success) {
+    console.error(parsedFormData.error.errors);
     return { issues: parsedFormData.error.errors };
   }
 
@@ -30,9 +40,10 @@ export async function createGroupRoleAction(
   if (!user || userError) {
     return { error: userError || "You must be logged in to update a cohort" };
   }
+
   const { data, error } = await supabase
     .from("group_roles")
-    .insert(parsedFormData.data)
+    .upsert(parsedFormData.data)
     .select("id")
     .single();
 

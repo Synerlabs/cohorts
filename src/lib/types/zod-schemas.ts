@@ -66,6 +66,7 @@ export const groupRolesRowSchema = z.object({
   description: z.string().nullable(),
   group_id: z.string().nullable(),
   id: z.string(),
+  permissions: z.array(z.string()).nullable(),
   role_name: z.string().nullable(),
 });
 
@@ -75,6 +76,7 @@ export const groupRolesInsertSchema = z.object({
   description: z.string().optional().nullable(),
   group_id: z.string().optional().nullable(),
   id: z.string().optional(),
+  permissions: z.array(z.string()).optional().nullable(),
   role_name: z.string().optional().nullable(),
 });
 
@@ -84,6 +86,7 @@ export const groupRolesUpdateSchema = z.object({
   description: z.string().optional().nullable(),
   group_id: z.string().optional().nullable(),
   id: z.string().optional(),
+  permissions: z.array(z.string()).optional().nullable(),
   role_name: z.string().optional().nullable(),
 });
 

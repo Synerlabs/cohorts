@@ -38,7 +38,7 @@ export async function updateSlugAction(
   const { data: groupData, error } = await supabase
     .from("group")
     .update({ ...parsedFormData.data, created_by: user.id })
-    .eq("id", parsedFormData.data.id);
+    .eq("id", parsedFormData.data.id!);
 
   if (error) {
     return { form: formData, error: error.message };

@@ -85,6 +85,7 @@ export type Database = {
           description: string | null
           group_id: string | null
           id: string
+          permissions: string[] | null
           role_name: string | null
         }
         Insert: {
@@ -93,6 +94,7 @@ export type Database = {
           description?: string | null
           group_id?: string | null
           id?: string
+          permissions?: string[] | null
           role_name?: string | null
         }
         Update: {
@@ -101,6 +103,7 @@ export type Database = {
           description?: string | null
           group_id?: string | null
           id?: string
+          permissions?: string[] | null
           role_name?: string | null
         }
         Relationships: [
