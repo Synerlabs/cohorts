@@ -27,6 +27,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { groupRolesRowSchema } from "@/lib/types/zod-schemas";
 import { z } from "zod";
 import PermissionsRow from "@/app/(authenticated)/[orgSlug]/(org-pages)/roles/create/_components/permissions-row";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { useRouter } from "next/router";
+import { usePathname } from "next/navigation";
 
 export default function GroupRoleForm({
   groupId,
@@ -41,6 +45,7 @@ export default function GroupRoleForm({
     description: undefined,
     permissions: [],
   };
+  const pathName = usePathname();
   const form = useForm({ defaultValues });
   const formRef = useRef<HTMLFormElement>(null);
   const [state, createGroupRole, pending] = useToastActionState(
@@ -55,13 +60,17 @@ export default function GroupRoleForm({
         onSubmit={(evt) => {
           evt.preventDefault();
           form.handleSubmit((e) => {
-            console.log(e);
             createGroupRole(e);
           })(evt);
         }}
       >
         <div className="flex md:max-w-screen-md w-full mt-4">
           <h2>{role ? "Edit Role" : "Create Role"}</h2>
+          <Button size="sm" className="ml-auto" variant="outline" asChild>
+            <Link href={pathName + `/users`} passHref>
+              Manage Users
+            </Link>
+          </Button>
         </div>
         <Card className="md:max-w-screen-md w-full">
           <CardHeader>
@@ -106,6 +115,7 @@ export default function GroupRoleForm({
               variant="outline"
               className="w-full"
               {...field}
+              value={field.value || []}
               onValueChange={field.onChange}
               defaultValue={field.value ?? undefined}
             >

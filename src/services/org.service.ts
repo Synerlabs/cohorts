@@ -86,3 +86,19 @@ export async function getOrgRolePermissions(id: string) {
     return camelcaseKeys(data);
   }
 }
+
+export async function getOrgRoleUsers({ id }: { id: string }) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select(
+      `id, created_at, group_role_id, user_id, profile:user_id ( first_name, last_name, avatar_url )`,
+    )
+    .eq("group_role_id", id);
+
+  if (error) {
+    throw error;
+  } else {
+    return camelcaseKeys(data);
+  }
+}

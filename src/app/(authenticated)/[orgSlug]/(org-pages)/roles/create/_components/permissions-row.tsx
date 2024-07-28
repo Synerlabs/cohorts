@@ -13,14 +13,16 @@ export default function PermissionsRow({
   field: any;
 }) {
   return Object.keys(permissions).map((key) => {
-    const value = permissions[key];
+    const value = permissions[key] || [];
     if (typeof value === "string") {
+      console.log("STRING", value);
       return (
         <ToggleGroupItem name={value} key={value} value={value}>
           {key.charAt(0).toUpperCase() + key.slice(1)}
         </ToggleGroupItem>
       );
     } else if (typeof value === "object") {
+      console.log("OBJECT", value);
       return (
         <TableRow key={key} className="hover:bg-gray-100">
           <TableCell className="font-semibold">
@@ -38,6 +40,5 @@ export default function PermissionsRow({
         </TableRow>
       );
     }
-    return null;
   });
 }
