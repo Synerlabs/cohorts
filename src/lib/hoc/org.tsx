@@ -14,7 +14,7 @@ export type OrgAccessOptions = {
   allowNonMember?: boolean;
 };
 
-export function withOrgAccess(Component: any, options: OrgAccessOptions) {
+export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
   async function WithOrgAccess({ user, params, ...props }: AuthHOCProps) {
     const AuthServerContext = getAuthenticatedServerContext();
     const { permissions, allowNonMember } = options || {};
