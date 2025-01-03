@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { MainHero } from "@/app/(public)/(home)/components/hero";
+import React from "react";
 
 export default function PublicLayout({
   children,

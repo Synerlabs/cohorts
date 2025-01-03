@@ -10,4 +10,4 @@ async function OrgHomePage({ params, searchParams, org }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(OrgHomePage, { allowNonMember: true });
+export default withOrgAccess(OrgHomePage, { allowGuest: true });

@@ -11,13 +11,12 @@ export type OrgAccessHOCProps = {
 
 export type OrgAccessOptions = {
   permissions?: string[];
-  allowNonMember?: boolean;
+  allowGuest?: boolean;
   redirectUnauthenticated?: string;
 };
 
 export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
-  const { permissions, allowNonMember, redirectUnauthenticated } =
-    options || {};
+  const { permissions, allowGuest, redirectUnauthenticated } = options || {};
   async function WithOrgAccess({ user, params, ...props }: AuthHOCProps) {
     const AuthServerContext = getAuthenticatedServerContext();
 
@@ -26,6 +25,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       const slug = decodeURIComponent(orgSlug).replace("@", "");
       const response = await getOrgBySlug(slug);
       if (response.error || !response.data) {
+        console.log(`withOrgAccess - redirect`);
         redirect("/");
       }
       AuthServerContext.org = response.data;
@@ -35,7 +35,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       redirect(redirectUnauthenticated);
     }
 
-    if (!allowNonMember) {
+    if (!allowGuest) {
       const userGroups = await getUserOrgs({ id: user.id });
 
       if (!userGroups.includes(AuthServerContext.org.id)) {
@@ -74,5 +74,5 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     );
   }
 
-  return allowNonMember ? WithOrgAccess : withAuth(WithOrgAccess);
+  return withAuth(WithOrgAccess, { allowGuest });
 }

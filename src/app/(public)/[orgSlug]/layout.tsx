@@ -4,6 +4,7 @@ import React from "react";
 function PublicLayout({
   children,
   org,
+  user,
 }: OrgAccessHOCProps & {
   children: React.ReactNode;
 }) {
@@ -17,4 +18,4 @@ function PublicLayout({
   );
 }
 
-export default withOrgAccess(PublicLayout, { allowNonMember: true });
+export default withOrgAccess(PublicLayout, { allowGuest: true });
