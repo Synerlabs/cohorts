@@ -1,4 +1,5 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
+import React from "react";
 
 function PublicLayout({
   children,
@@ -16,4 +17,4 @@ function PublicLayout({
   );
 }
 
-export default withOrgAccess(PublicLayout);
+export default withOrgAccess(PublicLayout, { allowNonMember: true });
