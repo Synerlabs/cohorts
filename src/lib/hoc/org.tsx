@@ -46,7 +46,7 @@ export function withOrgAccess(
       return [...acc, ...role.permissions];
     }, []);
     AuthServerContext.userPermissions = userPermissions;
-    if (permissions) {
+    if (permissions && permissions.length > 0) {
       if (
         !userPermissions?.some((permission) => permissions.includes(permission))
       ) {

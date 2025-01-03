@@ -7,6 +7,7 @@ import {
   CreateCohort,
   createCohortSchema,
 } from "@/lib/types/create-cohort.type";
+import { permissions } from "@/lib/types/permissions";
 
 export async function createCohortAction(
   currentState: CreateCohort,
@@ -54,6 +55,23 @@ export async function createCohortAction(
           group_id: data.id,
           role_name: "admin",
           description: "Admin role for the group",
+          permissions: [
+            permissions.permissions.edit,
+            permissions.permissions.view,
+            permissions.permissions.delete,
+            permissions.group.create,
+            permissions.group.edit,
+            permissions.group.view,
+            permissions.group.delete,
+            permissions.members.edit,
+            permissions.members.view,
+            permissions.members.delete,
+            permissions.members.add,
+            permissions.roles.view,
+            permissions.roles.create,
+            permissions.roles.delete,
+            permissions.roles.edit,
+          ],
         },
         {
           group_id: data.id,
