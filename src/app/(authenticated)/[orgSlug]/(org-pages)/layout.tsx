@@ -34,4 +34,4 @@ async function OrgLayout({ children, params }: Readonly<OrgLayoutProps>) {
   );
 }
 
-export default withOrgAccess(OrgLayout, [], true);
+export default withOrgAccess(OrgLayout, { allowNonMember: true });

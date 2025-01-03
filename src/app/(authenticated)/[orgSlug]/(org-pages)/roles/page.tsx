@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import AddRoleBtn from "@/app/(authenticated)/[orgSlug]/(org-pages)/roles/_components/add-role-btn";
+import { permissions } from "@/lib/types/permissions";
 
 async function RolesPage({ org }: OrgAccessHOCProps) {
   const roles = await getOrgRoles({ id: org.id });
@@ -41,4 +42,6 @@ async function RolesPage({ org }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(RolesPage, ["group.roles.view"]);
+export default withOrgAccess(RolesPage, {
+  permissions: [permissions.roles.view],
+});

@@ -9,13 +9,15 @@ export type OrgAccessHOCProps = {
   org: any;
 } & AuthHOCProps;
 
-export function withOrgAccess(
-  Component: any,
-  permissions?: string[],
-  allowNonMember?: boolean,
-) {
+export type OrgAccessOptions = {
+  permissions?: string[];
+  allowNonMember?: boolean;
+};
+
+export function withOrgAccess(Component: any, options: OrgAccessOptions) {
   async function WithOrgAccess({ user, params, ...props }: AuthHOCProps) {
     const AuthServerContext = getAuthenticatedServerContext();
+    const { permissions, allowNonMember } = options || {};
 
     if (!AuthServerContext.org) {
       const { orgSlug } = params;
