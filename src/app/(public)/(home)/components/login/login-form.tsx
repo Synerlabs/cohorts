@@ -15,8 +15,19 @@ import { Label } from "@/components/ui/label";
 import { loginAction } from "@/app/(public)/(home)/actions/login.action";
 import { AlertCircle, Loader2 } from "lucide-react";
 
-export function LoginForm() {
+export type LoginFormProps = {
+  redirect?: string;
+};
+
+export function LoginForm({ redirect }: LoginFormProps) {
   const [state, login, pending] = useActionState(loginAction, null);
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    formData.append("redirect", redirect || ""); // this will be sanitized in the action
+    login(formData);
+  };
 
   return (
     <Card className="w-[369px]">
@@ -27,7 +38,7 @@ export function LoginForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form>
+        <form onSubmit={handleSubmit}>
           <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="email">Email</Label>
@@ -58,7 +69,7 @@ export function LoginForm() {
                 <span>{state?.error}</span>
               </div>
             )}
-            <Button formAction={login} className="w-full" disabled={pending}>
+            <Button type="submit" className="w-full" disabled={pending}>
               {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Login
             </Button>

@@ -1,5 +1,7 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import React from "react";
+import Link from "next/link";
+import AvatarDropdown from "@/app/(authenticated)/_components/avatar-dropdown";
 
 function PublicLayout({
   children,
@@ -9,12 +11,31 @@ function PublicLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 py-4 flex-1 overflow-y-auto w-full max-w-screen-xl mx-auto">
-      <div>
-        <h2>{org.name}</h2>
+    <>
+      <div className="flex xl:max-w-screen-xl w-full justify-between items-center">
+        <div className="flex">
+          <span className="text-[30px] font-bold tracking-tighter">
+            {org.alternateName || org.name}
+          </span>
+        </div>
+
+        <nav className="flex gap-8">
+          <Link href={`/@${org.slug}`}>Home</Link>
+          <Link href={`/about`}>About</Link>
+          <Link href={`/contact`}>Contact</Link>
+          {user ? (
+            <div className="-mt-2">
+              <AvatarDropdown user={user} />
+            </div>
+          ) : (
+            <Link href={"/sign-up"}>Sign Up</Link>
+          )}
+        </nav>
       </div>
-      {children}
-    </div>
+      <main className="sm:mx-auto sm:w-full sm:max-w-md md:max-w-screen-md lg:max-w-screen-lg flex-1 flex">
+        {children}
+      </main>
+    </>
   );
 }
 

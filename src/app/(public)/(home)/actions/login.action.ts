@@ -18,9 +18,11 @@ export async function loginAction(
   const supabase = createClient();
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
+  const redirectTo = formData.get("redirect") as string | null; // Get the redirect value
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
+  console.log(currentState, formData);
+
+  // Validate the inputs and sanitize redirect if needed
   const data = {
     email,
     password,
@@ -32,6 +34,8 @@ export async function loginAction(
     return { email, password, error: error.message };
   } else {
     revalidatePath("/", "layout");
-    redirect("/home");
+
+    // Use redirectTo if available, otherwise fallback to /home
+    redirect(redirectTo || "/home");
   }
 }

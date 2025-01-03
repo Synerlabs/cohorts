@@ -4,9 +4,11 @@ import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenti
 import { AuthHOCProps, withAuth } from "@/lib/hoc/auth";
 import { getOrgBySlug } from "@/services/org.service";
 import { getUserOrgs, getUserRoles } from "@/services/user.service";
+import { Camelized } from "humps";
+import { Tables } from "@/lib/types/database.types";
 
 export type OrgAccessHOCProps = {
-  org: any;
+  org: Camelized<Tables<"group">>;
 } & AuthHOCProps;
 
 export type OrgAccessOptions = {
