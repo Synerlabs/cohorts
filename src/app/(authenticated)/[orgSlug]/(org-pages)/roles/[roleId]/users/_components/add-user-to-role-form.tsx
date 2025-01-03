@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { FormField } from "@/components/ui/form";
 import { FormProvider, useForm } from "react-hook-form";
-import { Suspense, useRef } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { addRoleUserAction } from "@/app/(authenticated)/[orgSlug]/(org-pages)/roles/[roleId]/users/_actions/role-user.action";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import LoadingButton from "@/components/ui/loading-button";
@@ -37,14 +37,17 @@ export default function AddUserToRoleForm({ users, groupRoleId }) {
     },
   );
   const formRef = useRef<HTMLFormElement>(null);
+  const [AddOpen, setAddOpen] = useState(false);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    addRoleUser(e);
-  };
+  useEffect(() => {
+    if (AddOpen) {
+      form.reset();
+    }
+  }, [AddOpen, form]);
+
   return (
     <FormProvider {...form}>
-      <Dialog>
+      <Dialog open={AddOpen} onOpenChange={setAddOpen}>
         <DialogTrigger asChild>
           <Button size="sm">
             <PlusCircle className="h-4 w-4 mr-2" />
@@ -121,10 +124,20 @@ export default function AddUserToRoleForm({ users, groupRoleId }) {
               />
             </DialogBody>
             <DialogFooter>
-              <Button variant="outline" size="sm">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setAddOpen(false)}
+              >
                 Cancel
               </Button>
-              <LoadingButton type="submit" size="sm" loading={pending}>
+              <LoadingButton
+                type="submit"
+                size="sm"
+                loading={pending}
+                disabled={!form.formState.isDirty}
+              >
                 Save
               </LoadingButton>
             </DialogFooter>

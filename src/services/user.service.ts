@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/utils/supabase/server";
+import { id } from "postcss-selector-parser";
+import camelcaseKeys from "camelcase-keys";
 
 export async function getCurrentUser() {
   const supabase = createClient();
@@ -51,5 +53,41 @@ export async function getUserByProvider({ provider }: { provider: string }) {
     return { error: error.message };
   } else {
     return { data };
+  }
+}
+
+export async function getUserRoles({
+  id,
+  groupId,
+}: {
+  id: string;
+  groupId: string;
+}) {
+  console.log("GET USER ROLES", id, groupId);
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select("group_roles (role_name, description, permissions)")
+    .eq("user_id", id)
+    .eq("group_roles.group_id", groupId);
+
+  if (error) {
+    throw error;
+  } else {
+    return data?.map((d) => camelcaseKeys(d));
+  }
+}
+
+export async function getUserOrgs({ id }: { id: string }) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("group_users")
+    .select("group (id)")
+    .eq("user_id", id);
+
+  if (error) {
+    throw error;
+  } else {
+    return data?.map((d) => d.group_roles.group_id);
   }
 }

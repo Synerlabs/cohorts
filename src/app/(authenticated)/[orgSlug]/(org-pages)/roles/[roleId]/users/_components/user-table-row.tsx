@@ -78,14 +78,8 @@ export default function UserTableRow({ userRole }: { userRole: any }) {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel
-                className="w-full"
-                onClick={() => deleteState?.handlePrevious()}
-              >
-                Cancel
-              </AlertDialogCancel>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
               <LoadingButton
-                className="w-full"
                 onClick={handleDelete}
                 variant="destructive"
                 loading={deletePending}

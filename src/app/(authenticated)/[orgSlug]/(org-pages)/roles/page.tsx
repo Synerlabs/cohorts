@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
+import AddRoleBtn from "@/app/(authenticated)/[orgSlug]/(org-pages)/roles/_components/add-role-btn";
 
 async function RolesPage({ org }: OrgAccessHOCProps) {
   const roles = await getOrgRoles({ id: org.id });
@@ -19,12 +20,7 @@ async function RolesPage({ org }: OrgAccessHOCProps) {
       <div className="flex flex-col gap-4 w-full justify-center items-center align-middle">
         <div className="flex md:max-w-screen-md w-full mt-4">
           <h2>Roles & Permissions</h2>
-          <Button className="ml-auto" size="sm" variant="outline" asChild>
-            <Link href={`/@${org.slug}/roles/create`}>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add Role
-            </Link>
-          </Button>
+          <AddRoleBtn org={org} />
         </div>
         {roles.map((role) => (
           <Link
@@ -45,4 +41,4 @@ async function RolesPage({ org }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(RolesPage);
+export default withOrgAccess(RolesPage, ["group.roles.view"]);

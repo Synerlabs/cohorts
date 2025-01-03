@@ -8,6 +8,7 @@ export const getAuthenticatedServerContext: () => {
   org: any;
   calledByPage: boolean;
   user: any;
+  userPermissions: string[];
 } = cache(() => ({
   createdAt: Date.now().toString(),
   org: null,
@@ -15,4 +16,5 @@ export const getAuthenticatedServerContext: () => {
   calledByLayout: false,
   calledByPage: false,
   calledByNested: false,
+  userPermissions: [],
 }));

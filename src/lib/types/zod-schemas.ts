@@ -100,6 +100,47 @@ export const groupRolesRelationshipsSchema = z.tuple([
   }),
 ]);
 
+export const groupUsersRowSchema = z.object({
+  created_at: z.string(),
+  created_by: z.string().nullable(),
+  group_id: z.string().nullable(),
+  id: z.string(),
+  user_id: z.string().nullable(),
+});
+
+export const groupUsersInsertSchema = z.object({
+  created_at: z.string().optional(),
+  created_by: z.string().optional().nullable(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  user_id: z.string().optional().nullable(),
+});
+
+export const groupUsersUpdateSchema = z.object({
+  created_at: z.string().optional(),
+  created_by: z.string().optional().nullable(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  user_id: z.string().optional().nullable(),
+});
+
+export const groupUsersRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("public_group_users_group_id_fkey"),
+    columns: z.tuple([z.literal("group_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("group"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("public_group_users_user_id_fkey"),
+    columns: z.tuple([z.literal("user_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("profiles"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
 export const profilesRowSchema = z.object({
   avatar_url: z.string().nullable(),
   first_name: z.string().nullable(),
@@ -199,7 +240,7 @@ export const userRolesRelationshipsSchema = z.tuple([
     foreignKeyName: z.literal("public_user_roles_user_id_fkey"),
     columns: z.tuple([z.literal("user_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("users"),
+    referencedRelation: z.literal("profiles"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);

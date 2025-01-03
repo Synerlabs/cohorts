@@ -102,3 +102,60 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
     return camelcaseKeys(data);
   }
 }
+
+export async function getOrgMembers({ id }: { id: string }) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("user_roles")
+    .select(
+      `id, created_at, group_role_id, user_id, profile:user_id ( first_name, last_name, avatar_url )`,
+    )
+    .eq("group_role_id", id);
+
+  if (error) {
+    throw error;
+  } else {
+    return camelcaseKeys(data);
+  }
+}
+
+type PaginationOptions = {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  orderBy?: string;
+  orderDirection?: "asc" | "desc";
+};
+
+export async function getOrgMemberById(id: string, options: PaginationOptions) {
+  const limit = options.limit || 10;
+  const offset = options.offset || 0;
+  const orderBy = options.orderBy || "created_at";
+
+  const supabase = createClient();
+  const { data, count, error } = await supabase
+    .from("group_users")
+    .select(
+      `id, created_at, group_id, user_id, profile:user_id ( first_name, last_name, avatar_url )`,
+      { count: "exact" },
+    )
+    .eq("group_id", id)
+    .range(offset * limit, (limit + 1) * offset)
+    .order(orderBy, { ascending: options.orderDirection === "asc" });
+
+  if (error) {
+    throw error;
+  } else {
+    return {
+      data: camelcaseKeys(data),
+      totalCount: count,
+      pagination: {
+        limit,
+        offset,
+        orderBy,
+        orderDirection: options.orderDirection,
+        totalCount: data.length,
+      },
+    };
+  }
+}

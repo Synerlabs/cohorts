@@ -33,6 +33,7 @@ export async function signUpAction(
 
   const { error } = await supabase.auth.signUp(data);
   if (error) {
+    console.log(error.message);
     return {
       email,
       password,
