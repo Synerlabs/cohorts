@@ -88,6 +88,6 @@ export async function getUserOrgs({ id }: { id: string }) {
   if (error) {
     throw error;
   } else {
-    return data?.map((d) => d.group_roles.group_id);
+    return data?.map((d) => d?.group?.id);
   }
 }

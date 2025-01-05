@@ -9,6 +9,7 @@ import { Tables } from "@/lib/types/database.types";
 
 export type OrgAccessHOCProps = {
   org: Camelized<Tables<"group">>;
+  isGuest: boolean;
 } & AuthHOCProps;
 
 export type OrgAccessOptions = {
@@ -36,11 +37,11 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     if (redirectUnauthenticated && !user) {
       redirect(redirectUnauthenticated);
     }
+    const userGroups = user ? await getUserOrgs({ id: user.id }) : [];
+    const isGuest = !userGroups.includes(AuthServerContext.org.id);
 
     if (!allowGuest) {
-      const userGroups = await getUserOrgs({ id: user.id });
-
-      if (!userGroups.includes(AuthServerContext.org.id)) {
+      if (isGuest) {
         // redirect(`/@${AuthServerContext.org.slug}/join`);
       }
 
@@ -70,6 +71,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       <Component
         user={user}
         org={AuthServerContext.org}
+        isGuest={isGuest}
         params={params}
         {...props}
       />

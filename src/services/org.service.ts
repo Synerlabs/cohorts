@@ -29,6 +29,21 @@ export async function getOrgBySlug(slug: string) {
   }
 }
 
+export async function getOrgById(id: string) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("group")
+    .select()
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    return { error: error.message };
+  } else {
+    return { data: camelcaseKeys(data) };
+  }
+}
+
 export async function getOrgRoles({ id }: { id: string }) {
   const supabase = createClient();
   const { data, error } = await supabase
@@ -116,6 +131,30 @@ export async function getOrgMembers({ id }: { id: string }) {
     throw error;
   } else {
     return camelcaseKeys(data);
+  }
+}
+
+export async function createOrgMember({
+  userId,
+  groupId,
+}: {
+  userId: string;
+  groupId: string;
+}) {
+  const supabase = createClient();
+  const { data: member, error } = await supabase
+    .from("group_users")
+    .insert({
+      user_id: userId,
+      group_id: groupId,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    throw error;
+  } else {
+    return member;
   }
 }
 

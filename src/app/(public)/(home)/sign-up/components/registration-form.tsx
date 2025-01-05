@@ -12,11 +12,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signUpAction } from "@/app/(public)/(home)/actions/sign-up.action";
-import { useActionState } from "react";
+import React, { useActionState } from "react";
 import { AlertCircle, CircleCheckBig, Loader2 } from "lucide-react";
 
-export function RegistrationForm() {
+export type RegistrationFormProps = {
+  orgId?: string;
+};
+
+export function RegistrationForm({ orgId }: RegistrationFormProps) {
   const [state, signup, pending] = useActionState(signUpAction, null);
+
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    orgId && formData.append("orgId", orgId); // this will be sanitized in the action
+    signup(formData);
+  };
 
   return state?.success ? (
     <Card className="w-[369px] h-[494px] flex items-center justify-center">
@@ -41,7 +52,7 @@ export function RegistrationForm() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form action={signup}>
+        <form onSubmit={handleSubmit}>
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
