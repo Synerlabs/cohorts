@@ -28,7 +28,7 @@ function PublicLayout({
               <AvatarDropdown user={user} />
             </div>
           ) : (
-            <Link href={"/sign-up"}>Sign Up</Link>
+            <Link href={`/@${org.slug}/join`}>Join</Link>
           )}
         </nav>
       </div>
