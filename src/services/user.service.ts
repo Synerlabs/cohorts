@@ -105,8 +105,7 @@ export async function getGroupUser({
     .from("group_users")
     .select("*")
     .eq("user_id", userId)
-    .eq("group_id", groupId)
-    .single();
+    .eq("group_id", groupId);
 
   if (error) {
     console.log("Error fetching group user:", error);
@@ -115,5 +114,5 @@ export async function getGroupUser({
     };
   }
 
-  return data ? camelcaseKeys(data) : null;
+  return data[0] ? camelcaseKeys(data[0]) : null;
 }

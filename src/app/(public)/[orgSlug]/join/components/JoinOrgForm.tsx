@@ -2,7 +2,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
-import { useActionState } from "react";
+import { startTransition, useActionState } from "react";
 import { joinGroupAction } from "@/app/(public)/[orgSlug]/join/actions/join.action";
 
 type JoinOrgFormProps = {
@@ -20,8 +20,9 @@ export function JoinOrgForm({ org, userId }: JoinOrgFormProps) {
     const formData = new FormData();
     formData.append("groupId", org.id);
     formData.append("userId", userId);
-    
-    await join(formData);
+    startTransition(async () => {
+      await join(formData);
+    });
   };
 
   return (
