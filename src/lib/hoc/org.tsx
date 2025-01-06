@@ -30,10 +30,11 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
 
     if (!AuthServerContext.org) {
       const { orgSlug } = await params;
+      console.log("ORG SLUG", orgSlug);
       const slug = decodeURIComponent(orgSlug).replace("@", "");
       const response = await getOrgBySlug(slug);
       if (response.error || !response.data) {
-        console.log(`withOrgAccess - redirect`);
+        console.log(`withOrgAccess - redirect`, response);
         redirect("/");
       }
       AuthServerContext.org = response.data;

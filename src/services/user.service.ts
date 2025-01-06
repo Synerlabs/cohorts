@@ -63,7 +63,6 @@ export async function getUserRoles({
   id: string;
   groupId: string;
 }) {
-  console.log("GET USER ROLES", id, groupId);
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("user_roles")
@@ -110,8 +109,10 @@ export async function getGroupUser({
     .single();
 
   if (error) {
-    console.error("Error fetching group user:", error);
-    return null;
+    console.log("Error fetching group user:", error);
+    return {
+      error: error.message,
+    };
   }
 
   return data ? camelcaseKeys(data) : null;

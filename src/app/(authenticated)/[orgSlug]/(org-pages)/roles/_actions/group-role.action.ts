@@ -18,10 +18,11 @@ type PrevState = {
 export async function createGroupRoleAction(
   prevState: PrevState,
   form:
-    | z.infer<typeof groupRolesInsertSchema>
-    | z.infer<typeof groupRolesUpdateSchema>,
+    | (z.infer<typeof groupRolesInsertSchema> & { redirectTo?: string })
+    | (z.infer<typeof groupRolesUpdateSchema> & { redirectTo?: string }),
 ) {
-  const formData = snakecaseKeys(form);
+  const { redirectTo, ...formDataWithoutRedirect } = form;
+  const formData = snakecaseKeys(formDataWithoutRedirect);
   const parsedFormData = formData.id
     ? groupRolesUpdateSchema.safeParse(formData)
     : groupRolesInsertSchema.safeParse(formData);
@@ -48,8 +49,19 @@ export async function createGroupRoleAction(
     .single();
 
   if (error) {
-    return { issues: error, message: error.message };
+    return { 
+      success: false,
+      issues: error, 
+      message: error.message 
+    };
   } else {
-    redirect(`./${data.id}`);
+    if (form.redirectTo) {
+      redirect(`${form.redirectTo}/${data.id}`);
+    }
+    return { 
+      success: true,
+      message: "Group role created successfully",
+      id: data.id
+    };
   }
 }

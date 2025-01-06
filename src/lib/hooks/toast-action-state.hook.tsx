@@ -1,6 +1,6 @@
 import { useActionState } from "react";
 import { toast } from "@/components/ui/use-toast";
-import { startTransition } from "react";
+import { startTransition, useEffect } from "react";
 
 type ToastOptions = {
   successTitle?: string;
@@ -9,15 +9,21 @@ type ToastOptions = {
 
 export default function useToastActionState<
   T extends { error?: string | any; success?: boolean },
->(action: (...args: any[]) => Promise<T>, options?: ToastOptions) {
-  const [state, dispatch, pending] = useActionState(action, null);
+>(
+  action: (...args: any[]) => Promise<T>,
+  initialState?: Awaited<T | undefined>,
+  permalink?: string,
+  options?: ToastOptions,
+) {
+  const [state, dispatch, pending] = useActionState(
+    action,
+    initialState,
+    permalink,
+  );
 
-  const wrappedAction = async (...args: any[]) => {
-    startTransition(async () => {
-      const result = await dispatch(...args);
-      console.log(result);
-      if (state?.error) {
-        console.log("DO TOAST");
+  useEffect(() => {
+    if (state) {
+      if (state.error) {
         toast({
           title: "Error",
           description:
@@ -26,18 +32,18 @@ export default function useToastActionState<
               : JSON.stringify(state.error),
           variant: "destructive",
         });
-      } else if (state?.success) {
+      } else if (state.success) {
         toast({
           title: options?.successTitle || "Success",
           description: options?.successDescription || "",
         });
-      } else {
-        toast({
-          title: "Something went wrong",
-          description: "Action completed successfully",
-        });
       }
-      return result;
+    }
+  }, [state, options]);
+
+  const wrappedAction = async (...args: any[]) => {
+    startTransition(async () => {
+      await dispatch(...args);
     });
   };
 

@@ -35,9 +35,13 @@ import { usePathname } from "next/navigation";
 export default function GroupRoleForm({
   groupId,
   role,
+  onSuccess,
+  redirectTo,
 }: {
   groupId: string;
   role?: z.infer<typeof groupRolesRowSchema>;
+  onSuccess?: (data: { id: string }) => void;
+  redirectTo?: string;
 }) {
   const defaultValues = role ?? {
     groupId,
@@ -54,9 +58,9 @@ export default function GroupRoleForm({
 
   const submitHandler = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    form.handleSubmit((e) => {
+    form.handleSubmit((formData) => {
       startTransition(() => {
-        createGroupRole(e);
+        createGroupRole({ ...formData, redirectTo });
       });
     })(e);
   };
@@ -119,10 +123,8 @@ export default function GroupRoleForm({
               type="multiple"
               variant="outline"
               className="w-full"
-              {...field}
-              value={field.value || []}
+              value={field.value}
               onValueChange={field.onChange}
-              defaultValue={field.value ?? undefined}
             >
               <Card className="md:max-w-screen-md w-full">
                 <CardHeader>

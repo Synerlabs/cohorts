@@ -35,7 +35,6 @@ export default function OrgForm({
   const [state, updateCohortDetails, pending] = useToastActionState(
     updateCohortDetailsAction,
     { form: defaultValues },
-    null,
     {
       successTitle: "Success",
       successDescription:
