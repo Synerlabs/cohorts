@@ -43,11 +43,11 @@ export default function GroupRoleForm({
   onSuccess?: (data: { id: string }) => void;
   redirectTo?: string;
 }) {
-  const defaultValues = role ?? {
+  const defaultValues = {
     groupId,
-    roleName: undefined,
-    description: undefined,
-    permissions: [],
+    roleName: role?.roleName || "",
+    description: role?.description || "",
+    permissions: role?.permissions || [],
   };
   const pathName = usePathname();
   const form = useForm({ defaultValues });
@@ -123,7 +123,7 @@ export default function GroupRoleForm({
               type="multiple"
               variant="outline"
               className="w-full"
-              value={field.value}
+              value={field.value || []}
               onValueChange={field.onChange}
             >
               <Card className="md:max-w-screen-md w-full">
