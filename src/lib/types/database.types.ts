@@ -68,15 +68,7 @@ export type Database = {
           slug?: string
           type?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "public_group_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       group_roles: {
         Row: {
@@ -87,6 +79,7 @@ export type Database = {
           id: string
           permissions: string[] | null
           role_name: string | null
+          type: Database["public"]["Enums"]["group_role_type"] | null
         }
         Insert: {
           created_at?: string
@@ -96,6 +89,7 @@ export type Database = {
           id?: string
           permissions?: string[] | null
           role_name?: string | null
+          type?: Database["public"]["Enums"]["group_role_type"] | null
         }
         Update: {
           created_at?: string
@@ -105,6 +99,7 @@ export type Database = {
           id?: string
           permissions?: string[] | null
           role_name?: string | null
+          type?: Database["public"]["Enums"]["group_role_type"] | null
         }
         Relationships: [
           {
@@ -142,7 +137,7 @@ export type Database = {
           {
             foreignKeyName: "public_group_users_group_id_fkey"
             columns: ["group_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "group"
             referencedColumns: ["id"]
           },
@@ -180,15 +175,7 @@ export type Database = {
           updated_at?: string | null
           username?: string | null
         }
-        Relationships: [
-          {
-            foreignKeyName: "profiles_id_fkey"
-            columns: ["id"]
-            isOneToOne: true
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       role_permissions: {
         Row: {
@@ -221,18 +208,21 @@ export type Database = {
           created_at: string
           group_role_id: string
           id: string
+          is_active: boolean | null
           user_id: string
         }
         Insert: {
           created_at?: string
           group_role_id: string
           id?: string
+          is_active?: boolean | null
           user_id: string
         }
         Update: {
           created_at?: string
           group_role_id?: string
           id?: string
+          is_active?: boolean | null
           user_id?: string
         }
         Relationships: [
@@ -265,6 +255,7 @@ export type Database = {
         | "group.delete"
         | "group.members.invite"
         | "group.members.approve"
+      group_role_type: "GUEST" | "MEMBER"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -352,5 +343,20 @@ export type Enums<
   ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
     ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof PublicSchema["CompositeTypes"]
+    | { schema: keyof Database },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
+  ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
+    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
 

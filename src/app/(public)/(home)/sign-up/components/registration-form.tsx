@@ -14,13 +14,31 @@ import { Label } from "@/components/ui/label";
 import { signUpAction } from "@/app/(public)/(home)/actions/sign-up.action";
 import React, { useActionState } from "react";
 import { AlertCircle, CircleCheckBig, Loader2 } from "lucide-react";
+import { useUser } from "@/lib/context/UserContext";
 
 export type RegistrationFormProps = {
   orgId?: string;
 };
 
 export function RegistrationForm({ orgId }: RegistrationFormProps) {
+  const { user } = useUser();
   const [state, signup, pending] = useActionState(signUpAction, null);
+
+  if (user) {
+    return (
+      <Card className="w-[369px]">
+        <CardHeader>
+          <CardTitle className="text-xl flex flex-col items-center gap-4">
+            <CircleCheckBig className="text-green-500" size={40} />
+            Already Signed In
+          </CardTitle>
+          <CardDescription className="text-center">
+            You are already signed in as {user.email}
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

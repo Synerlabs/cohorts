@@ -3,14 +3,17 @@ import React from "react";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 import { AuthHOCProps, withAuth } from "@/lib/hoc/auth";
 import { getOrgBySlug } from "@/services/org.service";
-import { getUserOrgs, getUserRoles } from "@/services/user.service";
+import { getUserOrgs, getUserRoles, getGroupUser } from "@/services/user.service";
 import { Camelized } from "humps";
 import { Tables } from "@/lib/types/database.types";
 
 export type OrgAccessHOCProps = {
   org: Camelized<Tables<"group">>;
+  user?: User;
   isGuest: boolean;
-} & AuthHOCProps;
+  userRoles?: Array<{ isActive: boolean }>;
+  groupUser?: { id: string; isActive: boolean } | null;
+};
 
 export type OrgAccessOptions = {
   permissions?: string[];
@@ -37,34 +40,17 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     if (redirectUnauthenticated && !user) {
       redirect(redirectUnauthenticated);
     }
-    const userGroups = user ? await getUserOrgs({ id: user.id }) : [];
-    const isGuest = !userGroups.includes(AuthServerContext.org.id);
 
-    if (!allowGuest) {
-      if (isGuest) {
-        // redirect(`/@${AuthServerContext.org.slug}/join`);
-      }
+    const [userRoles, groupUser] = await Promise.all([
+      user ? getUserRoles({ id: user.id, groupId: AuthServerContext.org.id }) : [],
+      user ? getGroupUser({ userId: user.id, groupId: AuthServerContext.org.id }) : null
+    ]);
 
-      const userRoles = await getUserRoles({
-        id: user.id,
-        groupId: AuthServerContext.org.id,
-      });
+    const isGuest = !userRoles?.find((role) => role.isActive) && 
+                   (!groupUser || !groupUser.isActive);
 
-      const roles = userRoles.map((role) => role.groupRoles);
-      const userPermissions = roles.reduce((acc: string[], role) => {
-        if (!role?.permissions) return acc;
-        return [...acc, ...role.permissions];
-      }, []);
-      AuthServerContext.userPermissions = userPermissions;
-      if (permissions && permissions.length > 0) {
-        if (
-          !userPermissions?.some((permission) =>
-            permissions.includes(permission),
-          )
-        ) {
-          return <h1>You do not have permission to view this page</h1>;
-        }
-      }
+    if (!allowGuest && isGuest) {
+      // Your existing guest handling logic
     }
 
     return (
@@ -72,6 +58,8 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
         user={user}
         org={AuthServerContext.org}
         isGuest={isGuest}
+        userRoles={userRoles}
+        groupUser={groupUser}
         params={params}
         {...props}
       />

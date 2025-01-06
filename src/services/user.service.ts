@@ -67,7 +67,9 @@ export async function getUserRoles({
   const supabase = createClient();
   const { data, error } = await supabase
     .from("user_roles")
-    .select("group_roles (role_name, description, permissions)")
+    .select(
+      "group_roles (role_name, description, permissions), isActive:is_active",
+    )
     .eq("user_id", id)
     .eq("group_roles.group_id", groupId);
 
@@ -90,4 +92,21 @@ export async function getUserOrgs({ id }: { id: string }) {
   } else {
     return data?.map((d) => d?.group?.id);
   }
+}
+
+export async function getGroupUser({ userId, groupId }: { userId: string; groupId: string }) {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("group_users")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("group_id", groupId)
+    .single();
+
+  if (error) {
+    console.error('Error fetching group user:', error);
+    return null;
+  }
+
+  return data ? camelcaseKeys(data) : null;
 }
