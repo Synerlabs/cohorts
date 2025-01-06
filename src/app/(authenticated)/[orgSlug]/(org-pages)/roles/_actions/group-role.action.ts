@@ -31,7 +31,7 @@ export async function createGroupRoleAction(
     return { issues: parsedFormData.error.errors };
   }
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     error: userError,
     data: { user },

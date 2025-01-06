@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { headers, cookies } from 'next/headers'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/utils/supabase/server'
 import { UserProvider } from '@/lib/context/UserContext'
 
 const inter = Inter({ subsets: ["latin"] });
@@ -18,13 +18,13 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const supabase = createServerComponentClient({ cookies })
-  const { data: { session } } = await supabase.auth.getSession()
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
 
   return (
     <html lang="en">
       <body className={inter.className}>
-        <UserProvider initialSession={session}>
+        <UserProvider initialUser={user}>
           {children}
           <Toaster />
         </UserProvider>

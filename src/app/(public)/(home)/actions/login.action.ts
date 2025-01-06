@@ -15,7 +15,7 @@ export async function loginAction(
   currentState: CurrentState | null,
   formData: FormData,
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const redirectTo = formData.get("redirect") as string | null; // Get the redirect value

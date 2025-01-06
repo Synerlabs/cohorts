@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import LoadingButton from "@/components/ui/loading-button";
 import { FormProvider, useForm, useFormContext } from "react-hook-form";
-import { useRef } from "react";
+import { startTransition, useRef } from "react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { createGroupRoleAction } from "@/app/(authenticated)/[orgSlug]/(org-pages)/roles/_actions/group-role.action";
 import { permissions } from "@/lib/types/permissions";
@@ -51,18 +51,23 @@ export default function GroupRoleForm({
   const [state, createGroupRole, pending] = useToastActionState(
     createGroupRoleAction,
   );
+
+  const submitHandler = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    form.handleSubmit((e) => {
+      startTransition(() => {
+        createGroupRole(e);
+      });
+    })(e);
+  };
+
   return (
     <FormProvider {...form}>
       <form
         className="flex flex-col gap-4 w-full justify-center items-center align-middle"
         ref={formRef}
         action={createGroupRole}
-        onSubmit={(evt) => {
-          evt.preventDefault();
-          form.handleSubmit((e) => {
-            createGroupRole(e);
-          })(evt);
-        }}
+        onSubmit={submitHandler}
       >
         <div className="flex md:max-w-screen-md w-full mt-4">
           <h2>{role ? "Edit Role" : "Create Role"}</h2>

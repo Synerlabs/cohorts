@@ -44,12 +44,12 @@ export default function CreateCohortForm() {
         </div>
         <DialogHeader>
           <DialogTitle>{details[step].title}</DialogTitle>
-          <DialogDescription>
+          <div>
             <h3 className="text-accent-foreground mb-2">
               {details[step].description}
             </h3>
             <h5>{details[step].subDescription}</h5>
-          </DialogDescription>
+          </div>
         </DialogHeader>
         <DialogBody className="flex-1">
           <ActiveComponent />

@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { User } from "@supabase/auth-js";
+import { UserRole } from "@/lib/hoc/auth";
 
 export const getAuthenticatedServerContext: () => {
   calledByNested: boolean;
@@ -8,6 +9,7 @@ export const getAuthenticatedServerContext: () => {
   org: any;
   calledByPage: boolean;
   user: any;
+  groupRoles: any;
   userPermissions: string[];
 } = cache(() => ({
   createdAt: Date.now().toString(),
@@ -16,5 +18,6 @@ export const getAuthenticatedServerContext: () => {
   calledByLayout: false,
   calledByPage: false,
   calledByNested: false,
+  groupRoles: [],
   userPermissions: [],
 }));

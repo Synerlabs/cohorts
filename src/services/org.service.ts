@@ -2,9 +2,11 @@ import { createClient } from "@/lib/utils/supabase/server";
 import camelcaseKeys from "camelcase-keys";
 import { Camelized } from "humps";
 import { Tables } from "@/lib/types/database.types";
+import { permissions } from "@/lib/types/permissions";
+import { CreateCohort } from "@/lib/types/create-cohort.type";
 
 export async function getOrgs() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.from("group").select().limit(10);
 
   if (error) {
@@ -15,7 +17,7 @@ export async function getOrgs() {
 }
 
 export async function getOrgBySlug(slug: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("group")
     .select()
@@ -30,7 +32,7 @@ export async function getOrgBySlug(slug: string) {
 }
 
 export async function getOrgById(id: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("group")
     .select()
@@ -45,7 +47,7 @@ export async function getOrgById(id: string) {
 }
 
 export async function getOrgRoles({ id }: { id: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("group_roles")
     .select()
@@ -59,7 +61,7 @@ export async function getOrgRoles({ id }: { id: string }) {
 }
 
 export async function createOrgRole(data: Camelized<Tables<"group_roles">>) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: role, error } = await supabase
     .from("group_roles")
     .insert(data)
@@ -74,7 +76,7 @@ export async function createOrgRole(data: Camelized<Tables<"group_roles">>) {
 }
 
 export async function getOrgRoleById(id: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("group_roles")
     .select()
@@ -89,7 +91,7 @@ export async function getOrgRoleById(id: string) {
 }
 
 export async function getOrgRolePermissions(id: string) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("role_permissions")
     .select()
@@ -103,7 +105,7 @@ export async function getOrgRolePermissions(id: string) {
 }
 
 export async function getOrgRoleUsers({ id }: { id: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("user_roles")
     .select(
@@ -119,7 +121,7 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
 }
 
 export async function getOrgMembers({ id }: { id: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("group_users")
     .select(
@@ -141,7 +143,7 @@ export async function createOrgMember({
   userId: string;
   groupId: string;
 }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: member, error } = await supabase
     .from("group_users")
     .insert({
@@ -171,7 +173,7 @@ export async function getOrgMemberById(id: string, options: PaginationOptions) {
   const offset = options.offset || 0;
   const orderBy = options.orderBy || "created_at";
 
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, count, error } = await supabase
     .from("group_users")
     .select(
@@ -197,4 +199,112 @@ export async function getOrgMemberById(id: string, options: PaginationOptions) {
       },
     };
   }
+}
+
+type CreateOrgResult = {
+  error?: string;
+  data?: any;
+};
+
+export async function createOrg(
+  formData: CreateCohort,
+  userId: string
+): Promise<CreateOrgResult> {
+  const supabase = await createClient();
+
+  // Start transaction
+  const { data, error } = await supabase.auth.getSession();
+  if (error) return { error: "Authentication error" };
+
+  const { data: org, error: orgError } = await supabase.from("group")
+    .insert([{
+      name: formData.name,
+      alternate_name: formData.alternateName,
+      slug: formData.slug,
+      description: formData.description,
+      type: formData.type,
+      created_by: userId,
+    }])
+    .select()
+    .single();
+
+  if (orgError || !org) {
+    return { error: orgError?.message || "Failed to create organization" };
+  }
+
+  // Add user to org
+  const { error: orgUserError } = await supabase
+    .from("group_users")
+    .insert([{
+      group_id: org.id,
+      user_id: userId,
+      is_active: true,
+    }]);
+
+  if (orgUserError) {
+    // Rollback org creation
+    await supabase.from("group").delete().eq("id", org.id);
+    return { error: "Failed to add user to organization" };
+  }
+
+  // Setup org roles
+  const { data: orgRoles, error: orgRolesError } = await supabase
+    .from("group_roles")
+    .insert([
+      {
+        group_id: org.id,
+        role_name: "admin",
+        description: "Admin role for the organization",
+        permissions: [
+          permissions.permissions.edit,
+          permissions.permissions.view,
+          permissions.permissions.delete,
+          permissions.group.create,
+          permissions.group.edit,
+          permissions.group.view,
+          permissions.group.delete,
+          permissions.members.edit,
+          permissions.members.view,
+          permissions.members.delete,
+          permissions.members.add,
+          permissions.roles.view,
+          permissions.roles.create,
+          permissions.roles.delete,
+          permissions.roles.edit,
+        ],
+      },
+      {
+        group_id: org.id,
+        role_name: "member",
+        description: "Member role for the organization",
+      },
+    ])
+    .select();
+
+  if (orgRolesError || !orgRoles) {
+    // Rollback previous operations
+    await supabase.from("group_users").delete().eq("group_id", org.id);
+    await supabase.from("group").delete().eq("id", org.id);
+    return { error: "Failed to create organization roles" };
+  }
+
+  // Assign admin role to creator
+  const { error: userRoleError } = await supabase
+    .from("user_roles")
+    .insert([{
+      group_role_id: orgRoles[0].id, // admin role
+      user_id: userId,
+      is_active: true,
+    }]);
+
+  if (userRoleError) {
+    // Rollback all previous operations
+    await supabase.from("user_roles").delete().eq("group_role_id", orgRoles[0].id);
+    await supabase.from("group_roles").delete().eq("group_id", org.id);
+    await supabase.from("group_users").delete().eq("group_id", org.id);
+    await supabase.from("group").delete().eq("id", org.id);
+    return { error: "Failed to assign admin role" };
+  }
+
+  return { data: org };
 }

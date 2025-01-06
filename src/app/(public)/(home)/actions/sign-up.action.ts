@@ -18,7 +18,7 @@ export async function signUpAction(
   currentState: CurrentState,
   formData: FormData,
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const firstName = formData.get("firstName") as string;

@@ -3,7 +3,7 @@ import { id } from "postcss-selector-parser";
 import camelcaseKeys from "camelcase-keys";
 
 export async function getCurrentUser() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
 
   if (error) {
@@ -14,7 +14,7 @@ export async function getCurrentUser() {
 }
 
 export async function getUsers() {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.from("profiles").select("*");
 
   if (error) {
@@ -25,7 +25,7 @@ export async function getUsers() {
 }
 
 export async function getUser({ id }: { id: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser(id);
 
   if (error) {
@@ -36,7 +36,7 @@ export async function getUser({ id }: { id: string }) {
 }
 
 export async function getUserByEmail({ email }: { email: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.auth.getUserByEmail(email);
 
   if (error) {
@@ -46,7 +46,7 @@ export async function getUserByEmail({ email }: { email: string }) {
   }
 }
 export async function getUserByProvider({ provider }: { provider: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase.auth.getUserByProvider(provider);
 
   if (error) {
@@ -64,11 +64,11 @@ export async function getUserRoles({
   groupId: string;
 }) {
   console.log("GET USER ROLES", id, groupId);
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("user_roles")
     .select(
-      "group_roles (role_name, description, permissions), isActive:is_active",
+      "group_roles (role_name, description, permissions), group_role_id, isActive:is_active",
     )
     .eq("user_id", id)
     .eq("group_roles.group_id", groupId);
@@ -81,7 +81,7 @@ export async function getUserRoles({
 }
 
 export async function getUserOrgs({ id }: { id: string }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("group_users")
     .select("group (id)")
@@ -94,8 +94,14 @@ export async function getUserOrgs({ id }: { id: string }) {
   }
 }
 
-export async function getGroupUser({ userId, groupId }: { userId: string; groupId: string }) {
-  const supabase = createClient();
+export async function getGroupUser({
+  userId,
+  groupId,
+}: {
+  userId: string;
+  groupId: string;
+}) {
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("group_users")
     .select("*")
@@ -104,7 +110,7 @@ export async function getGroupUser({ userId, groupId }: { userId: string; groupI
     .single();
 
   if (error) {
-    console.error('Error fetching group user:', error);
+    console.error("Error fetching group user:", error);
     return null;
   }
 

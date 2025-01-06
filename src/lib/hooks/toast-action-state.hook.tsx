@@ -1,32 +1,45 @@
-import { useActionState, useEffect } from "react";
+import { useActionState } from "react";
 import { toast } from "@/components/ui/use-toast";
+import { startTransition } from "react";
 
-export default function useToastActionState(
-  action,
-  initialState?,
-  permalink?,
-  options?,
-) {
-  const [state, ...rest] = useActionState(action, initialState, permalink);
+type ToastOptions = {
+  successTitle?: string;
+  successDescription?: string;
+};
 
-  useEffect(() => {
-    if (state?.error) {
-      toast({
-        title: "Error",
-        description:
-          typeof state.error === "string"
-            ? (state.error as string)
-            : JSON.stringify(state.error),
-        variant: "destructive",
-      });
-    }
-    if (state?.success) {
-      toast({
-        title: options?.successTitle || "Success",
-        description: options?.successDescription || "",
-      });
-    }
-  }, [state]);
+export default function useToastActionState<
+  T extends { error?: string | any; success?: boolean },
+>(action: (...args: any[]) => Promise<T>, options?: ToastOptions) {
+  const [state, dispatch, pending] = useActionState(action, null);
 
-  return [state, ...rest];
+  const wrappedAction = async (...args: any[]) => {
+    startTransition(async () => {
+      const result = await dispatch(...args);
+      console.log(result);
+      if (state?.error) {
+        console.log("DO TOAST");
+        toast({
+          title: "Error",
+          description:
+            typeof state.error === "string"
+              ? state.error
+              : JSON.stringify(state.error),
+          variant: "destructive",
+        });
+      } else if (state?.success) {
+        toast({
+          title: options?.successTitle || "Success",
+          description: options?.successDescription || "",
+        });
+      } else {
+        toast({
+          title: "Something went wrong",
+          description: "Action completed successfully",
+        });
+      }
+      return result;
+    });
+  };
+
+  return [state, wrappedAction, pending] as const;
 }

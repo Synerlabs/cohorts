@@ -13,7 +13,7 @@ export async function addRoleUserAction(
   prevState: PrevState,
   form: { userIds: string[]; groupRoleId: string },
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     error: userError,
     data: { user },
@@ -45,7 +45,7 @@ export async function removeRoleUserAction(
   prevState: PrevState,
   form: { id: string },
 ) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const {
     error: userError,
     data: { user },

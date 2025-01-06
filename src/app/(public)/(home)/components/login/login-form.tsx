@@ -1,7 +1,6 @@
 "use client";
 import { useActionState } from "react";
 import Link from "next/link";
-
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,19 +13,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { loginAction } from "@/app/(public)/(home)/actions/login.action";
 import { AlertCircle, Loader2 } from "lucide-react";
+import { startTransition } from "react";
 
 export type LoginFormProps = {
   redirect?: string;
 };
 
 export function LoginForm({ redirect }: LoginFormProps) {
-  const [state, login, pending] = useActionState(loginAction, null);
+  const [state, action, pending] = useActionState(loginAction, null);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    formData.append("redirect", redirect || ""); // this will be sanitized in the action
-    login(formData);
+    startTransition(() => {
+      const formData = new FormData(event.currentTarget);
+      formData.append("redirect", redirect || "");
+      action(formData);
+    });
   };
 
   return (
