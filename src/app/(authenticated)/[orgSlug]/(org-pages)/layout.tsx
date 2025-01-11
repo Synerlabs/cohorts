@@ -28,11 +28,10 @@ async function OrgLayout({ children, params }: Readonly<OrgLayoutProps>) {
       </MainSidebar>
       <div className="flex flex-col gap-4 py-4 flex-1 overflow-y-auto">
         <Header user={AuthServerContext.user} baseUrl={`${org.slug}`} />
-        fasdfadf
         <main className="px-6">{children}</main>
       </div>
     </>
   );
 }
 
-export default withOrgAccess(OrgLayout, { allowNonMember: true });
+export default withOrgAccess(OrgLayout, { allowGuest: true });
