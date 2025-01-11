@@ -21,11 +21,12 @@ function PublicLayout({
 
         <nav className="flex gap-8">
           <Link href={`/@${org.slug}`}>Home</Link>
-          <Link href={`/about`}>About</Link>
-          <Link href={`/contact`}>Contact</Link>
+          <Link href={`/@${org.slug}/dashboard`}>Dashboard</Link>
+          <Link href={`/@${org.slug}/about`}>About</Link>
+          <Link href={`/@${org.slug}/contact`}>Contact</Link>
           {user ? (
             <div className="-mt-2">
-              <AvatarDropdown user={user} />
+              <AvatarDropdown user={user} baseUrl={`${org.slug}`} />
             </div>
           ) : (
             <Link href={`/@${org.slug}/join`}>Join</Link>

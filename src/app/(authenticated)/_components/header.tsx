@@ -35,9 +35,15 @@ import AvatarDropdown from "@/app/(authenticated)/_components/avatar-dropdown";
 
 type HeaderProps = {
   user: User | null;
+  /**
+   * Optional base URL for logout redirection
+   * If provided, user will be redirected to this URL after logout
+   * @example "/@org-slug"
+   */
+  baseUrl?: string;
 };
 
-export default function Header({ user }: HeaderProps) {
+export default function Header({ user, baseUrl }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
       <Sheet>
@@ -121,7 +127,7 @@ export default function Header({ user }: HeaderProps) {
           className="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[336px]"
         />
       </div>
-      {user && <AvatarDropdown user={user} />}
+      {user && <AvatarDropdown user={user} baseUrl={baseUrl} />}
     </header>
   );
 }

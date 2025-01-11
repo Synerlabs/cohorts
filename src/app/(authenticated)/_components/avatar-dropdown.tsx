@@ -1,3 +1,5 @@
+"use client";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,15 +9,31 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import Link from "next/link";
 import { User } from "@supabase/auth-js";
 import { UserIcon } from "lucide-react";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 
 type AvatarDropdownProps = {
   user: User;
+  baseUrl?: string;
 };
 
-export default function AvatarDropdown({ user }: AvatarDropdownProps) {
+export default function AvatarDropdown({ user, baseUrl }: AvatarDropdownProps) {
+  const supabase = createClientComponentClient();
+
+  const handleSignOut = async () => {
+    try {
+      // Extract orgSlug from baseUrl if it exists
+      const logoutUrl = baseUrl 
+        ? `/auth/logout?orgSlug=${baseUrl}`
+        : '/auth/logout';
+        console.log(logoutUrl);
+      window.location.href = logoutUrl;
+    } catch (e) {
+      console.error("Exception during sign out:", e);
+    }
+  };
+
   const firstName = user.user_metadata?.first_name;
   const lastName = user.user_metadata?.last_name;
   const hasName = firstName && lastName;
@@ -27,7 +45,6 @@ export default function AvatarDropdown({ user }: AvatarDropdownProps) {
 
   return (
     <DropdownMenu>
-      {/*{JSON.stringify(user)}*/}
       <DropdownMenuTrigger asChild>
         <Avatar className="cursor-pointer">
           <AvatarImage src="https://github.com/shadcn.pngx" />
@@ -45,9 +62,9 @@ export default function AvatarDropdown({ user }: AvatarDropdownProps) {
         <DropdownMenuItem>Settings</DropdownMenuItem>
         <DropdownMenuItem>Support</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <Link href="/auth/logout">
-          <DropdownMenuItem>Logout</DropdownMenuItem>
-        </Link>
+        <DropdownMenuItem onSelect={handleSignOut}>
+          Sign Out
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
