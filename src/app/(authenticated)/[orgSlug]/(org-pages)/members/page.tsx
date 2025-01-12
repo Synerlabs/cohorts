@@ -7,8 +7,9 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
+  const _searchParams = searchParams || {};
   const members = await getOrgMembers({ id: org.id });
-  const tab = (searchParams?.tab || "members") as string;
+  const tab = (_searchParams?.tab || "members") as string;
 
   return (
     <>
@@ -33,4 +34,4 @@ async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(MembersPage, [permissions.members.view]);
+export default withOrgAccess(MembersPage, {permissions: [permissions.members.view]});

@@ -48,7 +48,7 @@ export default function GroupRoleForm({
     roleName: role?.roleName || "",
     description: role?.description || "",
     permissions: role?.permissions || [],
-    ...(role?.id ? { id: role.id } : {})
+    ...(role?.id ? { id: role.id } : {}),
   };
   const pathName = usePathname();
   const form = useForm({ defaultValues });
@@ -60,13 +60,13 @@ export default function GroupRoleForm({
   const submitHandler = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     form.handleSubmit((formData) => {
-      startTransition(() => {
+      startTransition(async () => {
         const submissionData = {
           ...formData,
           ...(role?.id ? { id: role.id } : {}),
-          redirectTo
+          redirectTo,
         };
-        createGroupRole(submissionData);
+        await createGroupRole(submissionData);
       });
     })(e);
   };
