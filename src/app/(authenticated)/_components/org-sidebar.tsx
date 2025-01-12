@@ -33,7 +33,7 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
     },
     userPermissions?.includes(permissions.memberships.view) && {
       name: "Memberships",
-      href: `/@${org.slug}/memberships`,
+      href: `/@${org.slug}/membership`,
       icon: <Package className="h-4 w-4" />,
     },
     userPermissions?.includes(permissions.roles.view) && {

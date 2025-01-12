@@ -48,6 +48,7 @@ export default function GroupRoleForm({
     roleName: role?.roleName || "",
     description: role?.description || "",
     permissions: role?.permissions || [],
+    ...(role?.id ? { id: role.id } : {})
   };
   const pathName = usePathname();
   const form = useForm({ defaultValues });
@@ -60,7 +61,12 @@ export default function GroupRoleForm({
     e.preventDefault();
     form.handleSubmit((formData) => {
       startTransition(() => {
-        createGroupRole({ ...formData, redirectTo });
+        const submissionData = {
+          ...formData,
+          ...(role?.id ? { id: role.id } : {}),
+          redirectTo
+        };
+        createGroupRole(submissionData);
       });
     })(e);
   };

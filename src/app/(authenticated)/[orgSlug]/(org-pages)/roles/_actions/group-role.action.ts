@@ -17,12 +17,9 @@ type PrevState = {
 
 export async function createGroupRoleAction(
   prevState: PrevState,
-  form:
-    | (z.infer<typeof groupRolesInsertSchema> & { redirectTo?: string })
-    | (z.infer<typeof groupRolesUpdateSchema> & { redirectTo?: string }),
+  form: z.infer<typeof groupRolesInsertSchema> | z.infer<typeof groupRolesUpdateSchema>
 ) {
-  const { redirectTo, ...formDataWithoutRedirect } = form;
-  const formData = snakecaseKeys(formDataWithoutRedirect);
+  const formData = snakecaseKeys(form);
   const parsedFormData = formData.id
     ? groupRolesUpdateSchema.safeParse(formData)
     : groupRolesInsertSchema.safeParse(formData);
@@ -33,13 +30,20 @@ export async function createGroupRoleAction(
   }
 
   const supabase = await createClient();
-  const {
-    error: userError,
-    data: { user },
-  } = await supabase.auth.getUser();
+  
+  // First get the org slug
+  const { data: org, error: orgError } = await supabase
+    .from('groups')
+    .select('slug')
+    .eq('id', parsedFormData.data.group_id)
+    .single();
 
-  if (!user || userError) {
-    return { error: userError || "You must be logged in to update a cohort" };
+  if (orgError) {
+    return { 
+      success: false,
+      issues: orgError, 
+      message: orgError.message 
+    };
   }
 
   const { data, error } = await supabase
@@ -54,14 +58,12 @@ export async function createGroupRoleAction(
       issues: error, 
       message: error.message 
     };
-  } else {
-    if (form.redirectTo) {
-      redirect(`${form.redirectTo}/${data.id}`);
-    }
-    return { 
-      success: true,
-      message: "Group role created successfully",
-      id: data.id
-    };
   }
+  
+  revalidatePath(`/${org.slug}/roles`);
+  return { 
+    success: true,
+    message: "Group role created successfully",
+    id: data.id
+  };
 }

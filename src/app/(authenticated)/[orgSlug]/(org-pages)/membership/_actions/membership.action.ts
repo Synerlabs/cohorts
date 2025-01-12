@@ -75,6 +75,6 @@ export async function createMembershipAction(data: CreateMembershipData) {
     if (roleError) throw roleError;
   }
 
-  revalidatePath("/[orgSlug]/memberships");
+  revalidatePath("/@myOrg/membership");
   return membership;
 } 
