@@ -1,14 +1,27 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { RegistrationForm } from "@/app/(public)/(home)/sign-up/components/registration-form";
 import { JoinOrgForm } from "./components/JoinOrgForm";
+import { MembershipSelection } from "./components/MembershipSelection";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { createClient } from "@/lib/utils/supabase/server";
 
-function JoinPage({ org, user, isGuest, userRoles, groupUser }: OrgAccessHOCProps) {
+async function getMemberships(groupId: string) {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from('membership')
+    .select('*')
+    .eq('group_id', groupId)
+    .eq('is_active', true)
+    .order('price', { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+async function JoinPage({ org, user, isGuest, userRoles, groupUser }: OrgAccessHOCProps) {
   if (!user) {
     return <RegistrationForm orgId={org.id} />;
   }
-
-  console.log(JSON.stringify(userRoles));
 
   if (isGuest) {
     const hasPendingRole = userRoles?.some(role => !role.isActive);
@@ -26,6 +39,12 @@ function JoinPage({ org, user, isGuest, userRoles, groupUser }: OrgAccessHOCProp
           </CardHeader>
         </Card>
       );
+    }
+
+    const memberships = await getMemberships(org.id);
+    
+    if (memberships && memberships.length > 0) {
+      return <MembershipSelection org={org} userId={user.id} memberships={memberships} />;
     }
 
     return <JoinOrgForm org={org} userId={user.id} />;
