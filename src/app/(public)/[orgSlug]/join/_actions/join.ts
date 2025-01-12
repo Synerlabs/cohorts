@@ -4,22 +4,37 @@ import { createClient } from "@/lib/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-interface JoinWithMembershipParams {
-  groupId: string;
-  userId: string;
-  membershipId: string;
-}
+type State = {
+  message?: string;
+  success?: boolean;
+} | null;
 
-export async function joinOrgWithMembership({
-  groupId,
-  userId,
-  membershipId
-}: JoinWithMembershipParams) {
+export async function joinOrgWithMembership(
+  prevState: State,
+  formData: FormData
+): Promise<State> {
+  console.log('FormData received:', {
+    groupId: formData.get('groupId'),
+    userId: formData.get('userId'),
+    membershipId: formData.get('membershipId')
+  });
+
+  const groupId = formData.get('groupId');
+  const userId = formData.get('userId');
+  const membershipId = formData.get('membershipId');
+
+  if (!groupId || !userId || !membershipId) {
+    return {
+      success: false,
+      message: 'Missing required fields'
+    };
+  }
+
   const supabase = await createClient();
 
   // First get the org slug for revalidation
   const { data: org, error: orgError } = await supabase
-    .from('groups')
+    .from('group')
     .select('slug')
     .eq('id', groupId)
     .single();
@@ -49,7 +64,7 @@ export async function joinOrgWithMembership({
 
   // Create the membership request
   const { error: membershipError } = await supabase
-    .from('group_user_memberships')
+    .from('user_membership')
     .insert({
       group_id: groupId,
       user_id: userId,
@@ -64,8 +79,8 @@ export async function joinOrgWithMembership({
     };
   }
 
-  revalidatePath(`/${org.slug}/join`);
+  revalidatePath(`/@${org.slug}/join`);
   
   // Redirect to pending page or dashboard
-  redirect(`/${org.slug}/join/pending`);
+//   redirect(`/${org.slug}/join/pending`);
 } 

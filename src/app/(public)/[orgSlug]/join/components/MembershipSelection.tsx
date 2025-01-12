@@ -9,7 +9,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useActionState } from "react";
 import { joinOrgWithMembership } from "../_actions/join";
 
 interface MembershipSelectionProps {
@@ -29,19 +30,18 @@ interface MembershipSelectionProps {
 
 export function MembershipSelection({ org, userId, memberships }: MembershipSelectionProps) {
   const [selectedMembership, setSelectedMembership] = useState<string | null>(null);
-  const [joining, setJoining] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [state, action, pending] = useActionState(joinOrgWithMembership, null);
 
-  const handleJoin = async (membershipId: string) => {
-    setJoining(true);
-    try {
-      await joinOrgWithMembership({
-        groupId: org.id,
-        userId,
-        membershipId
-      });
-    } finally {
-      setJoining(false);
-    }
+  const handleJoin = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    startTransition(() => {
+        const formData = new FormData(event.currentTarget);
+        formData.append('groupId', org.id);
+        formData.append('userId', userId);
+        console.log(formData);
+        action(formData);
+    });
   };
 
   if (memberships.length === 0) {
@@ -55,6 +55,11 @@ export function MembershipSelection({ org, userId, memberships }: MembershipSele
         <p className="text-muted-foreground">
           Select a membership plan to join {org.name}
         </p>
+        {state?.message && (
+          <p className={`mt-2 ${state.success ? 'text-green-600' : 'text-red-600'}`}>
+            {state.message}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -79,13 +84,16 @@ export function MembershipSelection({ org, userId, memberships }: MembershipSele
               </div>
             </CardContent>
             <CardFooter>
-              <Button 
-                className="w-full"
-                onClick={() => handleJoin(membership.id)}
-                disabled={joining}
-              >
-                {joining ? 'Processing...' : 'Select Plan'}
-              </Button>
+              <form onSubmit={handleJoin} className="w-full">
+                <input type="hidden" name="membershipId" value={membership.id} />
+                <Button 
+                  className="w-full"
+                  type="submit"
+                  disabled={pending}
+                >
+                  {pending ? 'Processing...' : 'Select Plan'}
+                </Button>
+              </form>
             </CardFooter>
           </Card>
         ))}
