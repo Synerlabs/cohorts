@@ -56,10 +56,21 @@ export async function signUpAction(
     };
   } else {
     if (org?.data && user?.user) {
-      const { id } = await createOrgMember({
-        groupId: org.data.id,
-        userId: user?.user?.id,
-      });
+      // Check for active memberships
+      const { data: memberships } = await supabase
+        .from('membership')
+        .select('id')
+        .eq('group_id', org.data.id)
+        .eq('is_active', true)
+        .limit(1);
+
+      // Only create org member if no memberships exist
+      if (!memberships?.length) {
+        await createOrgMember({
+          groupId: org.data.id,
+          userId: user.user.id,
+        });
+      }
     }
     return {
       success: true,
