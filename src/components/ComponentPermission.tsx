@@ -12,7 +12,6 @@ export function ComponentPermission({
 }: ComponentPermissionProps) {
   const AuthServerContext = getAuthenticatedServerContext();
   const { user, userPermissions } = AuthServerContext;
-  console.log("userPermissions", userPermissions);
   if (!user) {
     return <></>;
   }

@@ -19,6 +19,12 @@ export const permissions = {
     edit: "group.members.edit",
     delete: "group.members.delete",
   },
+  memberships: {
+    view: "group.memberships.view",
+    create: "group.memberships.create",
+    edit: "group.memberships.edit",
+    delete: "group.memberships.delete",
+  },
   roles: {
     view: "group.roles.view",
     create: "group.roles.create",

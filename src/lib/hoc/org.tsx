@@ -54,11 +54,9 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     ]);
 
     // Update AuthServerContext with org-specific roles and permissions
-    console.log(userRoles);
     AuthServerContext.groupRoles = userRoles || [];
     AuthServerContext.userPermissions =
       userRoles?.reduce((acc: string[], role) => {
-        console.log(role);
         return [...acc, ...(role?.groupRoles?.permissions || [])];
       }, []) || [];
 

@@ -8,3 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDate(dateString: string): string {
   return new Date(dateString).toISOString().split('T')[0];
 }
+
+export function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+}

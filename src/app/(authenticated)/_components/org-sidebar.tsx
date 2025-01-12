@@ -20,7 +20,6 @@ type SidebarProps = {
 
 export async function OrgSidebar({ org, user }: SidebarProps) {
   const { userPermissions } = getAuthenticatedServerContext();
-  console.log(userPermissions);
   const links = [
     {
       name: "Dashboard",
@@ -31,6 +30,11 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       name: "Members",
       href: `/@${org.slug}/members`,
       icon: <Users className="h-4 w-4" />,
+    },
+    userPermissions?.includes(permissions.memberships.view) && {
+      name: "Memberships",
+      href: `/@${org.slug}/memberships`,
+      icon: <Package className="h-4 w-4" />,
     },
     userPermissions?.includes(permissions.roles.view) && {
       name: "Roles & Permissions",
