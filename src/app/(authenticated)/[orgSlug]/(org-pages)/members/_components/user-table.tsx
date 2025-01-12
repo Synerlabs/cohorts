@@ -7,24 +7,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import UserTableRow from "./user-table-row";
+import UserTableRow, { User, UserProfile } from "./user-table-row";
 
-interface Member {
-  id: string;
-  role: string;
-  user: {
-    id: string;
-    createdAt: string;
-    userId: string;
-    profile: {
-      first_name: string | null;
-      last_name: string | null;
-      avatar_url: string | null;
-    };
-  };
-}
-
-export default function UserTable({ members }: { members: Member[] }) {
+export default function UserTable({ users }: { users: User[] }) {
   return (
     <div className="rounded-md border">
       <Table>
@@ -36,11 +21,11 @@ export default function UserTable({ members }: { members: Member[] }) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {members?.map((member) => (
+          {users?.map((user) => (
             <UserTableRow
-              key={member.id}
-              user={member.user}
-              role={member.role}
+              key={user.id}
+              user={user}
+        
             />
           ))}
         </TableBody>

@@ -3,19 +3,21 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-interface UserProfile {
+export interface User {
+  id: string;
+    createdAt: string;
+    userId: string | null;
+    profile: UserProfile | null;
+}
+
+export interface UserProfile {
   first_name: string | null;
   last_name: string | null;
   avatar_url: string | null;
 }
 
 interface UserTableRowProps {
-  user: {
-    id: string;
-    createdAt: string;
-    userId: string;
-    profile: UserProfile;
-  };
+  user: User;
   role: string;
 }
 
