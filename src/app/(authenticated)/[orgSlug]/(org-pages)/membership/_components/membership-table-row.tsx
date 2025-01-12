@@ -10,13 +10,17 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatDate } from "@/lib/utils";
+import MembershipDialog from "./membership-dialog";
+import { useState } from "react";
 
 interface MembershipTableRowProps {
   membership: Membership;
 }
 
 export default function MembershipTableRow({ membership }: MembershipTableRowProps) {
-  const currentVersion = membership.current_version;
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  // const currentVersion = membership.current_version;
+  const currentVersion = true;
   
   if (!currentVersion) return null;
 
@@ -64,7 +68,10 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>
+            <DropdownMenuItem onSelect={(e) => {
+              e.preventDefault();
+              setIsEditOpen(true);
+            }}>
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </DropdownMenuItem>
@@ -74,6 +81,13 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+
+        <MembershipDialog 
+          orgId={membership.group_id}
+          membership={membership}
+          open={isEditOpen}
+          onOpenChange={setIsEditOpen}
+        />
       </TableCell>
     </TableRow>
   );

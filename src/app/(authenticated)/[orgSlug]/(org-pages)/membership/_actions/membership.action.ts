@@ -1,7 +1,28 @@
 "use server";
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/utils/supabase/server";
+import { z } from "zod";
+import snakecaseKeys from "snakecase-keys";
+
+const membershipSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  price: z.number().min(0, "Price must be 0 or greater"),
+  duration_months: z.number().min(1, "Duration must be at least 1 month"),
+  group_id: z.string(),
+});
+
+const membershipUpdateSchema = membershipSchema
+  .extend({
+    id: z.string(),
+  })
+  .omit({ group_id: true });
+
+type PrevState = {
+  message?: string;
+  issues?: any[];
+  fields?: any[];
+} | null;
 
 export type Membership = {
   id: string;
@@ -15,12 +36,15 @@ export type Membership = {
   created_by: string;
 };
 
-export async function getMembershipsAction(orgId: string): Promise<Membership[]> {
-  const supabase = createClient();
+export async function getMembershipsAction(
+  orgId: string,
+): Promise<Membership[]> {
+  const supabase = await createClient();
 
   const { data: memberships, error } = await supabase
     .from("membership")
-    .select(`
+    .select(
+      `
       *,
       membership_role (
         group_role_id,
@@ -29,7 +53,8 @@ export async function getMembershipsAction(orgId: string): Promise<Membership[]>
           id
         )
       )
-    `)
+    `,
+    )
     .eq("group_id", orgId)
     .order("created_at", { ascending: false });
 
@@ -37,44 +62,133 @@ export async function getMembershipsAction(orgId: string): Promise<Membership[]>
   return memberships;
 }
 
-export type CreateMembershipData = {
-  name: string;
-  description?: string;
-  price: number;
-  duration_months: number;
-  group_id: string;
-  role_ids: string[];
-};
+export async function createMembershipAction(
+  prevState: PrevState,
+  formData: FormData,
+) {
+  const rawFormData = Object.fromEntries(formData.entries());
+  const formDataObj = {
+    ...rawFormData,
+    price: Number(rawFormData.price),
+    duration_months: Number(rawFormData.duration_months),
+  };
 
-export async function createMembershipAction(data: CreateMembershipData) {
+  const parsedFormData = membershipSchema.safeParse(formDataObj);
+
+  if (!parsedFormData.success) {
+    return {
+      issues: parsedFormData.error.errors,
+      message: "Validation failed",
+    };
+  }
+
   const supabase = await createClient();
 
-  const { data: membership, error } = await supabase
+  const { data: org, error: orgError } = await supabase
+    .from("group")
+    .select("slug")
+    .eq("id", parsedFormData.data.group_id)
+    .single();
+
+  if (orgError) {
+    return {
+      success: false,
+      issues: orgError,
+      message: orgError.message,
+    };
+  }
+
+  const { data, error } = await supabase
     .from("membership")
-    .insert({
-      name: data.name,
-      description: data.description,
-      price: data.price,
-      duration_months: data.duration_months,
-      group_id: data.group_id,
-    })
+    .insert(snakecaseKeys(parsedFormData.data))
     .select()
     .single();
 
-  if (error) throw error;
-
-  // Create membership role associations
-  if (data.role_ids.length > 0) {
-    const { error: roleError } = await supabase.from("membership_role").insert(
-      data.role_ids.map((roleId) => ({
-        membership_id: membership.id,
-        group_role_id: roleId,
-      }))
-    );
-
-    if (roleError) throw roleError;
+  if (error) {
+    return {
+      success: false,
+      issues: error,
+      message: error.message,
+    };
   }
 
-  revalidatePath("/@myOrg/membership");
-  return membership;
-} 
+  revalidatePath(`/${org.slug}/membership`);
+  return {
+    success: true,
+    message: "Membership created successfully",
+    data,
+  };
+}
+
+export async function updateMembershipAction(
+  prevState: PrevState,
+  formData: FormData,
+) {
+  const rawFormData = Object.fromEntries(formData.entries());
+  const formDataObj = {
+    ...rawFormData,
+    price: Number(rawFormData.price),
+    duration_months: Number(rawFormData.duration_months),
+  };
+
+  const parsedFormData = membershipUpdateSchema.safeParse(formDataObj);
+
+  if (!parsedFormData.success) {
+    return {
+      issues: parsedFormData.error.errors,
+      message: "Validation failed",
+    };
+  }
+
+  const supabase = await createClient();
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("membership")
+    .select("group_id")
+    .eq("id", parsedFormData.data.id)
+    .single();
+
+  if (membershipError) {
+    return {
+      success: false,
+      issues: membershipError,
+      message: membershipError.message,
+    };
+  }
+
+  const { data: org, error: orgError } = await supabase
+    .from("group")
+    .select("slug")
+    .eq("id", membership.group_id)
+    .single();
+
+  if (orgError) {
+    return {
+      success: false,
+      issues: orgError,
+      message: orgError.message,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("membership")
+    .update(snakecaseKeys(parsedFormData.data))
+    .eq("id", parsedFormData.data.id)
+    .select()
+    .single();
+
+  if (error) {
+    return {
+      success: false,
+      issues: error,
+      message: error.message,
+    };
+  }
+
+  revalidatePath(`/${org.slug}/membership`);
+  return {
+    success: true,
+    message: "Membership updated successfully",
+    data,
+  };
+}

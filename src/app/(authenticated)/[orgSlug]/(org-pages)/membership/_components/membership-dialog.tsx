@@ -21,10 +21,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useState } from "react";
-import { useServerAction } from "@/lib/hooks/use-server-action";
-import { createMembershipAction } from "../_actions/membership.action";
-// import { toast } from "sonner";
+import React, { useState, startTransition } from "react";
+import { useActionState as useActionState } from "react";
+import {
+  createMembershipAction,
+  updateMembershipAction,
+} from "../_actions/membership.action";
+import { Membership } from "@/types/database.types";
+import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -33,53 +37,76 @@ const formSchema = z.object({
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
 });
 
-interface CreateMembershipDialogProps {
-  children: React.ReactNode;
+interface MembershipDialogProps {
+  children?: React.ReactNode;
   orgId: string;
+  membership?: Membership;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  trigger?: React.ReactNode;
 }
 
-export default function CreateMembershipDialog({
+export default function MembershipDialog({
   children,
   orgId,
-}: CreateMembershipDialogProps) {
-  const [open, setOpen] = useState(false);
-  const { execute: createMembership, loading } = useServerAction(createMembershipAction);
+  membership,
+  open,
+  onOpenChange,
+  trigger,
+}: MembershipDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isEditing = !!membership;
+  
+  const isControlled = open !== undefined;
+  const isOpen = isControlled ? open : internalOpen;
+  const setIsOpen = isControlled ? onOpenChange : setInternalOpen;
+  
+  const [state, action, pending] = useActionState(
+    isEditing ? updateMembershipAction : createMembershipAction,
+    null
+  );
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
-      description: "",
-      price: 0,
-      duration_months: 1,
+      name: membership?.name || "",
+      description: membership?.description || "",
+      price: membership?.current_version?.price || 0,
+      duration_months: membership?.current_version?.duration_months || 1,
     },
   });
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
-    try {
-      await createMembership({
-        ...values,
-        group_id: orgId,
-        role_ids: [], // TODO: Add role selection
-      });
-      setOpen(false);
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    startTransition(() => {
+      const formData = new FormData(event.currentTarget);
+      if (isEditing) {
+        formData.append("id", membership.id);
+      } else {
+        formData.append("group_id", orgId);
+      }
+      action(formData);
+    });
+
+    if (!state?.error) {
+      setIsOpen(false);
       form.reset();
-      // toast.success("Membership created successfully");
-    } catch (error) {
-      // toast.error("Failed to create membership");
-      console.error(error);
     }
-  }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        {trigger || children}
+      </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Create New Membership</DialogTitle>
+          <DialogTitle>
+            {isEditing ? "Edit Membership" : "Create New Membership"}
+          </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -140,12 +167,16 @@ export default function CreateMembershipDialog({
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create Membership"}
+            {state?.error && (
+              <div className="text-sm text-red-500">{state.error}</div>
+            )}
+            <Button type="submit" disabled={pending}>
+              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEditing ? "Save Changes" : "Create Membership"}
             </Button>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
   );
-} 
+}

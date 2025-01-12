@@ -3,7 +3,7 @@ import { permissions } from "@/lib/types/permissions";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import MembershipTable from "./_components/membership-table";
-import CreateMembershipDialog from "./_components/create-membership-dialog";
+import MembershipDialog from "./_components/membership-dialog";
 import { Suspense } from "react";
 import { getMembershipsAction } from "./_actions/membership.action";
 import { getMemberships } from "@/services/membership.service";
@@ -20,12 +20,12 @@ async function MembershipsPage({ org }: OrgAccessHOCProps) {
             Create and manage membership tiers for your organization.
           </p>
         </div>
-        <CreateMembershipDialog orgId={org.id}>
+        <MembershipDialog orgId={org.id}>
           <Button>
             <Plus className="mr-2 h-4 w-4" />
             New Membership
           </Button>
-        </CreateMembershipDialog>
+        </MembershipDialog>
       </div>
 
       <Suspense fallback={<div>Loading...</div>}>
