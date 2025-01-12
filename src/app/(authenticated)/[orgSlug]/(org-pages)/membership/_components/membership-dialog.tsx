@@ -106,7 +106,11 @@ export default function MembershipDialog({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form 
+            onSubmit={handleSubmit} 
+            className="space-y-4"
+            autoComplete="off"
+          >
             <FormField
               control={form.control}
               name="name"
@@ -114,7 +118,7 @@ export default function MembershipDialog({
                 <FormItem>
                   <FormLabel>Name</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input {...field} autoComplete="off" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -127,7 +131,7 @@ export default function MembershipDialog({
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Textarea {...field} />
+                    <Textarea {...field} autoComplete="off" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -143,6 +147,7 @@ export default function MembershipDialog({
                     <Input
                       type="number"
                       {...field}
+                      autoComplete="off"
                       onChange={(e) => field.onChange(Number(e.target.value))}
                     />
                   </FormControl>
