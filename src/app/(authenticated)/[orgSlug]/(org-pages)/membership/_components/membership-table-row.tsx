@@ -12,10 +12,18 @@ import {
 import { formatDate } from "@/lib/utils";
 import MembershipDialog from "./membership-dialog";
 import { useState } from "react";
+import { MembershipActivationType } from "@/lib/types/membership";
 
 interface MembershipTableRowProps {
   membership: Membership;
 }
+
+const activationTypeLabels = {
+  [MembershipActivationType.AUTOMATIC]: 'Automatic',
+  [MembershipActivationType.REVIEW_REQUIRED]: 'Review Required',
+  [MembershipActivationType.PAYMENT_REQUIRED]: 'Payment Required',
+  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Review then Payment',
+};
 
 export default function MembershipTableRow({ membership }: MembershipTableRowProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -58,6 +66,11 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
           className="capitalize"
         >
           {membership.is_active ? "Active" : "Inactive"}
+        </Badge>
+      </TableCell>
+      <TableCell className="hidden md:table-cell">
+        <Badge variant="secondary" className="capitalize">
+          {activationTypeLabels[membership.activation_type]}
         </Badge>
       </TableCell>
       <TableCell className="text-right">

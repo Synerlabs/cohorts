@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/utils/supabase/server";
 import { z } from "zod";
 import snakecaseKeys from "snakecase-keys";
+import { MembershipActivationType, Membership } from "@/lib/types/membership";
 
 const membershipSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -10,6 +11,8 @@ const membershipSchema = z.object({
   price: z.number().min(0, "Price must be 0 or greater"),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
   group_id: z.string(),
+  activation_type: z.nativeEnum(MembershipActivationType).default(MembershipActivationType.AUTOMATIC),
+  is_active: z.boolean().default(true),
 });
 
 const membershipUpdateSchema = membershipSchema
@@ -23,18 +26,6 @@ type PrevState = {
   issues?: any[];
   fields?: any[];
 } | null;
-
-export type Membership = {
-  id: string;
-  name: string;
-  description: string | null;
-  price: number;
-  duration_months: number;
-  is_active: boolean;
-  created_at: string;
-  group_id: string;
-  created_by: string;
-};
 
 export async function getMembershipsAction(
   orgId: string,
@@ -71,6 +62,8 @@ export async function createMembershipAction(
     ...rawFormData,
     price: Number(rawFormData.price),
     duration_months: Number(rawFormData.duration_months),
+    is_active: true,
+    activation_type: formData.get("activation_type") || MembershipActivationType.AUTOMATIC,
   };
 
   const parsedFormData = membershipSchema.safeParse(formDataObj);
@@ -129,9 +122,13 @@ export async function updateMembershipAction(
     ...rawFormData,
     price: Number(rawFormData.price),
     duration_months: Number(rawFormData.duration_months),
+    is_active: true,
+    activation_type: rawFormData.activation_type || MembershipActivationType.AUTOMATIC,
   };
 
   const parsedFormData = membershipUpdateSchema.safeParse(formDataObj);
+
+  console.log("Activation type", parsedFormData.data?.activation_type);
 
   if (!parsedFormData.success) {
     return {
@@ -178,6 +175,7 @@ export async function updateMembershipAction(
     .single();
 
   if (error) {
+    console.log("Error", error);
     return {
       success: false,
       issues: error,

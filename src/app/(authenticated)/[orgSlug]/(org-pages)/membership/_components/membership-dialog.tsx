@@ -29,12 +29,21 @@ import {
 } from "../_actions/membership.action";
 import { Membership } from "@/types/database.types";
 import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { MembershipActivationType } from "@/lib/types/membership";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   price: z.number().min(0, "Price must be 0 or greater"),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
+  activation_type: z.nativeEnum(MembershipActivationType),
 });
 
 interface MembershipDialogProps {
@@ -71,20 +80,28 @@ export default function MembershipDialog({
     defaultValues: {
       name: membership?.name || "",
       description: membership?.description || "",
-      price: membership?.current_version?.price || 0,
-      duration_months: membership?.current_version?.duration_months || 1,
+      price: membership?.price || 0,
+      duration_months: membership?.duration_months || 1,
+      activation_type: membership?.activation_type || MembershipActivationType.AUTOMATIC,
     },
   });
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleSubmit = form.handleSubmit((values) => {
     startTransition(() => {
-      const formData = new FormData(event.currentTarget);
+      const formData = new FormData();
+      
+      // Append all form values to FormData
+      Object.entries(values).forEach(([key, value]) => {
+        formData.append(key, value.toString());
+      });
+
+      // Append additional data
       if (isEditing) {
         formData.append("id", membership.id);
       } else {
         formData.append("group_id", orgId);
       }
+
       action(formData);
     });
 
@@ -92,7 +109,7 @@ export default function MembershipDialog({
       setIsOpen(false);
       form.reset();
     }
-  };
+  });
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -165,9 +182,56 @@ export default function MembershipDialog({
                     <Input
                       type="number"
                       {...field}
+                      autoComplete="off"
                       onChange={(e) => field.onChange(Number(e.target.value))}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="activation_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Activation Type</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select activation type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={MembershipActivationType.AUTOMATIC}>
+                        Automatic Activation
+                        <span className="text-xs text-muted-foreground block">
+                          Member becomes active immediately upon joining
+                        </span>
+                      </SelectItem>
+                      <SelectItem value={MembershipActivationType.REVIEW_REQUIRED}>
+                        Requires Review
+                        <span className="text-xs text-muted-foreground block">
+                          Admin must approve membership application
+                        </span>
+                      </SelectItem>
+                      <SelectItem value={MembershipActivationType.PAYMENT_REQUIRED}>
+                        Payment Required
+                        <span className="text-xs text-muted-foreground block">
+                          Member must pay before becoming active
+                        </span>
+                      </SelectItem>
+                      <SelectItem value={MembershipActivationType.REVIEW_THEN_PAYMENT}>
+                        Review then Payment
+                        <span className="text-xs text-muted-foreground block">
+                          Admin approval required before payment
+                        </span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
