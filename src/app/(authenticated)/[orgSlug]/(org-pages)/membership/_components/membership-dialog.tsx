@@ -22,7 +22,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 import React, { useState, startTransition } from "react";
-import { useActionState as useActionState } from "react";
+import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import {
   createMembershipAction,
   updateMembershipAction,
@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MembershipActivationType } from "@/lib/types/membership";
+import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -70,9 +71,16 @@ export default function MembershipDialog({
   const isOpen = isControlled ? open : internalOpen;
   const setIsOpen = isControlled ? onOpenChange : setInternalOpen;
   
-  const [state, action, pending] = useActionState(
+  const [state, action, pending] = useToastActionState(
     isEditing ? updateMembershipAction : createMembershipAction,
-    null
+    null,
+    undefined,
+    {
+      successTitle: isEditing ? "Membership Updated" : "Membership Created",
+      successDescription: isEditing 
+        ? "The membership has been updated successfully"
+        : "New membership has been created successfully"
+    }
   );
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -105,17 +113,25 @@ export default function MembershipDialog({
       action(formData);
     });
 
-    if (!state?.error) {
+    if (state?.success === true) {
       setIsOpen(false);
       form.reset();
     }
   });
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        {trigger || children}
-      </DialogTrigger>
+    <Dialog 
+      open={isOpen} 
+      onOpenChange={(open) => {
+        if (!state || state.success) {
+          setIsOpen(open);
+          if (!open) {
+            form.reset();
+          }
+        }
+      }}
+    >
+      <DialogTrigger asChild>{trigger || children}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
@@ -236,9 +252,6 @@ export default function MembershipDialog({
                 </FormItem>
               )}
             />
-            {state?.error && (
-              <div className="text-sm text-red-500">{state.error}</div>
-            )}
             <Button type="submit" disabled={pending}>
               {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEditing ? "Save Changes" : "Create Membership"}

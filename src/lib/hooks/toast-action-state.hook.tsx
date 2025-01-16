@@ -1,6 +1,6 @@
 import { useActionState } from "react";
 import { toast } from "@/components/ui/use-toast";
-import { startTransition, useEffect } from "react";
+import { startTransition, useEffect, useRef } from "react";
 
 type ToastOptions = {
   successTitle?: string;
@@ -21,8 +21,11 @@ export default function useToastActionState<
     permalink,
   );
 
+  const previousState = useRef<typeof state>();
+
   useEffect(() => {
-    if (state) {
+    // Only show toast if state has changed and it's a final state (success or error)
+    if (state && state !== previousState.current && (state.success || state.error)) {
       if (state.error) {
         toast({
           title: "Error",
@@ -39,6 +42,7 @@ export default function useToastActionState<
         });
       }
     }
+    previousState.current = state;
   }, [state, options]);
 
   const wrappedAction = async (...args: any[]) => {

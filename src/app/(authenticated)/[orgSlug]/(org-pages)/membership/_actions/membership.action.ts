@@ -53,6 +53,20 @@ export async function getMembershipsAction(
   return memberships;
 }
 
+function validateActivationType(price: number, activationType: MembershipActivationType) {
+  if (price === 0) {
+    if (activationType === MembershipActivationType.PAYMENT_REQUIRED || 
+        activationType === MembershipActivationType.REVIEW_THEN_PAYMENT) {
+      return "Free memberships cannot require payment";
+    }
+  } else {
+    if (activationType === MembershipActivationType.AUTOMATIC) {
+      return "Paid memberships must require payment, review, or both";
+    }
+  }
+  return null;
+}
+
 export async function createMembershipAction(
   prevState: PrevState,
   formData: FormData,
@@ -66,12 +80,25 @@ export async function createMembershipAction(
     activation_type: formData.get("activation_type") || MembershipActivationType.AUTOMATIC,
   };
 
+  // Validate activation type based on price
+  const validationError = validateActivationType(
+    formDataObj.price, 
+    formDataObj.activation_type as MembershipActivationType
+  );
+
+  if (validationError) {
+    return {
+      error: validationError,
+      success: false,
+    };
+  }
+
   const parsedFormData = membershipSchema.safeParse(formDataObj);
 
   if (!parsedFormData.success) {
     return {
-      issues: parsedFormData.error.errors,
-      message: "Validation failed",
+      error: parsedFormData.error.errors[0].message,
+      success: false,
     };
   }
 
@@ -85,9 +112,8 @@ export async function createMembershipAction(
 
   if (orgError) {
     return {
+      error: orgError.message,
       success: false,
-      issues: orgError,
-      message: orgError.message,
     };
   }
 
@@ -99,16 +125,14 @@ export async function createMembershipAction(
 
   if (error) {
     return {
+      error: error.message,
       success: false,
-      issues: error,
-      message: error.message,
     };
   }
 
   revalidatePath(`/${org.slug}/membership`);
   return {
     success: true,
-    message: "Membership created successfully",
     data,
   };
 }
@@ -126,67 +150,76 @@ export async function updateMembershipAction(
     activation_type: rawFormData.activation_type || MembershipActivationType.AUTOMATIC,
   };
 
-  const parsedFormData = membershipUpdateSchema.safeParse(formDataObj);
+  // Validate activation type based on price
+  const validationError = validateActivationType(
+    formDataObj.price, 
+    formDataObj.activation_type as MembershipActivationType
+  );
 
-  console.log("Activation type", parsedFormData.data?.activation_type);
+  if (validationError) {
+    return {
+      error: validationError,
+      success: false,
+    };
+  }
+
+  const parsedFormData = membershipUpdateSchema.safeParse(formDataObj);
 
   if (!parsedFormData.success) {
     return {
-      issues: parsedFormData.error.errors,
-      message: "Validation failed",
+      error: parsedFormData.error.errors[0].message,
+      success: false,
     };
   }
 
   const supabase = await createClient();
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("membership")
-    .select("group_id")
-    .eq("id", parsedFormData.data.id)
-    .single();
+  try {
+    const { data: membership, error: membershipError } = await supabase
+      .from("membership")
+      .select("group_id")
+      .eq("id", parsedFormData.data.id)
+      .single();
 
-  if (membershipError) {
+    if (membershipError) throw membershipError;
+
+    const { data: org, error: orgError } = await supabase
+      .from("group")
+      .select("slug")
+      .eq("id", membership.group_id)
+      .single();
+
+    if (orgError) throw orgError;
+
+    const { data, error } = await supabase
+      .from("membership")
+      .update(snakecaseKeys(parsedFormData.data))
+      .eq("id", parsedFormData.data.id)
+      .select()
+      .single();
+
+    if (error) {
+      // Handle database constraint violations
+      if (error.code === '23514') { // PostgreSQL check constraint violation
+        return {
+          error: "Invalid activation type for this membership price",
+          success: false,
+        };
+      }
+      throw error;
+    }
+
+    revalidatePath(`/${org.slug}/membership`);
     return {
+      success: true,
+      data,
+    };
+
+  } catch (error: any) {
+    console.error(error);
+    return {
+      error: error.message || "An error occurred while updating the membership",
       success: false,
-      issues: membershipError,
-      message: membershipError.message,
     };
   }
-
-  const { data: org, error: orgError } = await supabase
-    .from("group")
-    .select("slug")
-    .eq("id", membership.group_id)
-    .single();
-
-  if (orgError) {
-    return {
-      success: false,
-      issues: orgError,
-      message: orgError.message,
-    };
-  }
-
-  const { data, error } = await supabase
-    .from("membership")
-    .update(snakecaseKeys(parsedFormData.data))
-    .eq("id", parsedFormData.data.id)
-    .select()
-    .single();
-
-  if (error) {
-    console.log("Error", error);
-    return {
-      success: false,
-      issues: error,
-      message: error.message,
-    };
-  }
-
-  revalidatePath(`/${org.slug}/membership`);
-  return {
-    success: true,
-    message: "Membership updated successfully",
-    data,
-  };
 }
