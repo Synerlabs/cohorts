@@ -223,3 +223,66 @@ export async function updateMembershipAction(
     };
   }
 }
+
+export async function deleteMembershipAction(
+  prevState: PrevState,
+  formData: FormData,
+) {
+  const membershipId = formData.get('id') as string;
+  const groupId = formData.get('group_id') as string;
+
+  if (!membershipId || !groupId) {
+    return {
+      error: "Missing required fields",
+      success: false,
+    };
+  }
+
+  const supabase = await createClient();
+
+  try {
+    const { data: org, error: orgError } = await supabase
+      .from("group")
+      .select("slug")
+      .eq("id", groupId)
+      .single();
+
+    if (orgError) throw orgError;
+
+    // Check if membership has any active users
+    const { count, error: countError } = await supabase
+      .from("user_membership")
+      .select("*", { count: 'exact', head: true })
+      .eq("membership_id", membershipId)
+      .eq("is_active", true);
+
+    if (countError) throw countError;
+
+    if (count && count > 0) {
+      return {
+        error: "Cannot delete membership with active users",
+        success: false,
+      };
+    }
+
+    // Delete membership
+    const { error } = await supabase
+      .from("membership")
+      .delete()
+      .eq("id", membershipId);
+
+    if (error) throw error;
+
+    revalidatePath(`/${org.slug}/membership`);
+    return {
+      success: true,
+    };
+
+  } catch (error: any) {
+    console.error(error);
+    return {
+      error: error.message || "An error occurred while deleting the membership",
+      success: false,
+    };
+  }
+}

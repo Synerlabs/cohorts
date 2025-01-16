@@ -16,4 +16,5 @@ export type Membership = {
   group_id: string;
   created_by: string;
   activation_type: MembershipActivationType;
+  member_count?: number;
 }; 
