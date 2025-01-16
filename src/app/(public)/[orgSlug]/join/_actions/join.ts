@@ -1,16 +1,18 @@
 'use server';
 
+import { MembershipActivationType } from "@/lib/types/membership";
 import { createClient } from "@/lib/utils/supabase/server";
+import { getMembershipDetails, validateMembershipActivation, getOrgSlug, createGroupUser, createUserMembership, statusMessages } from "@/services/join.service";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 type State = {
   message?: string;
-  success?: boolean;
-} | null;
+  error?: string;
+  success: boolean;
+};
 
 export async function joinOrgWithMembership(
-  prevState: State,
+  prevState: State | null,
   formData: FormData
 ): Promise<State> {
   try {
@@ -48,7 +50,7 @@ export async function joinOrgWithMembership(
 
     // Create user associations
     await createGroupUser(groupId, userId, isInitiallyActive);
-    await createUserMembership(userId, membershipId, isInitiallyActive);
+    await createUserMembership(userId, membershipId, isInitiallyActive, groupId);
 
     revalidatePath(`/@${org.slug}/join`);
 

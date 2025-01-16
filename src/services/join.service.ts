@@ -15,17 +15,30 @@ export function validateMembershipActivation(price: number, activationType: Memb
   return null;
 }
 
-export async function getMembershipDetails(membershipId: string) {
+interface MembershipDetails {
+  price: number;
+  activation_type: MembershipActivationType;
+  group_id: string;
+}
+
+export async function getMembershipDetails(membershipId: string): Promise<MembershipDetails> {
   const supabase = await createClient();
   
   const { data, error } = await supabase
     .from('membership')
-    .select('activation_type, price')
+    .select('*')
     .eq('id', membershipId)
     .single();
 
   if (error) throw error;
-  return data;
+  if (!data) throw new Error('Membership not found');
+
+  const membership = data as any;
+  return {
+    price: membership.price,
+    activation_type: membership.activation_type || MembershipActivationType.AUTOMATIC,
+    group_id: membership.group_id
+  };
 }
 
 export async function getOrgSlug(groupId: string) {
@@ -58,7 +71,8 @@ export async function createGroupUser(groupId: string, userId: string, isActive:
 export async function createUserMembership(
   userId: string, 
   membershipId: string, 
-  isActive: boolean
+  isActive: boolean,
+  groupId: string
 ) {
   const supabase = await createClient();
   
@@ -67,6 +81,7 @@ export async function createUserMembership(
     .insert([{
       user_id: userId,
       membership_id: membershipId,
+      group_id: groupId,
       is_active: isActive,
       starts_at: new Date().toISOString(),
       created_by: userId

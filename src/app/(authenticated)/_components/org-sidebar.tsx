@@ -7,6 +7,7 @@ import {
   ShoppingCart,
   SquareUserRound,
   Users,
+  InboxIcon,
 } from "lucide-react";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
@@ -35,6 +36,11 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       name: "Memberships",
       href: `/@${org.slug}/membership`,
       icon: <Package className="h-4 w-4" />,
+    },
+    userPermissions?.includes(permissions.members.edit) && {
+      name: "Applications",
+      href: `/@${org.slug}/applications`,
+      icon: <InboxIcon className="h-4 w-4" />,
     },
     userPermissions?.includes(permissions.roles.view) && {
       name: "Roles & Permissions",
@@ -69,37 +75,6 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
                     </Link>
                   ),
               )}
-              {/*<Link*/}
-              {/*  href="#"*/}
-              {/*  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"*/}
-              {/*>*/}
-              {/*  <ShoppingCart className="h-4 w-4" />*/}
-              {/*  Orders*/}
-              {/*  <Badge className="ml-auto flex h-6 w-6 shrink-0 items-center justify-center rounded-full">*/}
-              {/*    6*/}
-              {/*  </Badge>*/}
-              {/*</Link>*/}
-              {/*<Link*/}
-              {/*  href="#"*/}
-              {/*  className="flex items-center gap-3 rounded-lg bg-muted px-3 py-2 text-primary transition-all hover:text-primary"*/}
-              {/*>*/}
-              {/*  <Package className="h-4 w-4" />*/}
-              {/*  Products{" "}*/}
-              {/*</Link>*/}
-              {/*<Link*/}
-              {/*  href="#"*/}
-              {/*  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"*/}
-              {/*>*/}
-              {/*  <Users className="h-4 w-4" />*/}
-              {/*  Customers*/}
-              {/*</Link>*/}
-              {/*<Link*/}
-              {/*  href="#"*/}
-              {/*  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"*/}
-              {/*>*/}
-              {/*  <LineChart className="h-4 w-4" />*/}
-              {/*  Analytics*/}
-              {/*</Link>*/}
             </nav>
           </div>
         </div>

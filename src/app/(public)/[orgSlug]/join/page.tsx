@@ -4,18 +4,24 @@ import { JoinOrgForm } from "./components/JoinOrgForm";
 import { MembershipSelection } from "./components/MembershipSelection";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { createClient } from "@/lib/utils/supabase/server";
+import { MembershipActivationType, MembershipRow } from "@/lib/types/membership";
 
-async function getMemberships(groupId: string) {
+async function getMemberships(groupId: string): Promise<MembershipRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('membership')
-    .select('*')
+    .select()
     .eq('group_id', groupId)
     .eq('is_active', true)
     .order('price', { ascending: true });
 
   if (error) throw error;
-  return data;
+  if (!data) return [];
+
+  return data.map(row => ({
+    ...row,
+    activation_type: (row as any).activation_type || MembershipActivationType.AUTOMATIC
+  })) as MembershipRow[];
 }
 
 async function JoinPage({ org, user, isGuest, userRoles, groupUser }: OrgAccessHOCProps) {
@@ -44,7 +50,17 @@ async function JoinPage({ org, user, isGuest, userRoles, groupUser }: OrgAccessH
     const memberships = await getMemberships(org.id);
     
     if (memberships && memberships.length > 0) {
-      return <MembershipSelection org={org} userId={user.id} memberships={memberships} />;
+      return (
+        <MembershipSelection 
+          org={{
+            id: org.id,
+            name: org.name,
+            slug: org.slug
+          }} 
+          userId={user.id} 
+          memberships={memberships}
+        />
+      );
     }
 
     return <JoinOrgForm org={org} userId={user.id} />;
@@ -62,4 +78,4 @@ async function JoinPage({ org, user, isGuest, userRoles, groupUser }: OrgAccessH
   );
 }
 
-export default withOrgAccess(JoinPage, { allowGuest: true });
+export default withOrgAccess(JoinPage);

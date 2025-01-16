@@ -10,13 +10,17 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useState, useTransition } from "react";
-import { useActionState } from "react";
+import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { joinOrgWithMembership } from "../_actions/join";
+import { MembershipActivationType } from "@/lib/types/membership";
+import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
 
 interface MembershipSelectionProps {
   org: {
     id: string;
     name: string;
+    slug: string;
   };
   userId: string;
   memberships: {
@@ -24,23 +28,51 @@ interface MembershipSelectionProps {
     name: string;
     description: string | null;
     price: number;
-    interval: string;
+    duration_months: number;
+    activation_type: MembershipActivationType;
   }[];
 }
+
+const activationTypeLabels = {
+  [MembershipActivationType.AUTOMATIC]: 'Automatic Activation',
+  [MembershipActivationType.REVIEW_REQUIRED]: 'Requires Review',
+  [MembershipActivationType.PAYMENT_REQUIRED]: 'Payment Required',
+  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Review then Payment',
+} as const;
+
+const activationTypeDescriptions = {
+  [MembershipActivationType.AUTOMATIC]: 'You will become a member immediately',
+  [MembershipActivationType.REVIEW_REQUIRED]: 'An admin will review your application',
+  [MembershipActivationType.PAYMENT_REQUIRED]: 'Payment required to activate membership',
+  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Admin approval required before payment',
+} as const;
+
+type JoinState = {
+  success: boolean;
+  message?: string;
+  error?: string;
+};
 
 export function MembershipSelection({ org, userId, memberships }: MembershipSelectionProps) {
   const [selectedMembership, setSelectedMembership] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [state, action, pending] = useActionState(joinOrgWithMembership, null);
+  const router = useRouter();
+  const [state, action] = useToastActionState<JoinState>(joinOrgWithMembership, { success: false });
 
   const handleJoin = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     startTransition(() => {
-        const formData = new FormData(event.currentTarget);
-        formData.append('groupId', org.id);
-        formData.append('userId', userId);
-        console.log(formData);
-        action(formData);
+      const formData = new FormData(event.currentTarget);
+      formData.append('groupId', org.id);
+      formData.append('userId', userId);
+      action(formData).then((result) => {
+        if (result?.success) {
+          const membership = memberships.find(m => m.id === formData.get('membershipId'));
+          if (membership?.activation_type === MembershipActivationType.PAYMENT_REQUIRED) {
+            router.push(`/@${org.slug}/join/payment?membership=${membership.id}`);
+          }
+        }
+      });
     });
   };
 
@@ -60,6 +92,11 @@ export function MembershipSelection({ org, userId, memberships }: MembershipSele
             {state.message}
           </p>
         )}
+        {state?.error && (
+          <p className="mt-2 text-red-600">
+            {state.error}
+          </p>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -75,12 +112,26 @@ export function MembershipSelection({ org, userId, memberships }: MembershipSele
               <CardTitle>{membership.name}</CardTitle>
               <CardDescription>{membership.description}</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <div className="text-2xl font-bold">
-                ${membership.price}
-                <span className="text-sm font-normal text-muted-foreground">
-                  /{membership.interval}
-                </span>
+                {membership.price === 0 ? (
+                  <span>Free</span>
+                ) : (
+                  <>
+                    ${membership.price}
+                    <span className="text-sm font-normal text-muted-foreground">
+                      /{membership.duration_months} months
+                    </span>
+                  </>
+                )}
+              </div>
+              <div>
+                <Badge variant="secondary" className="mb-2">
+                  {activationTypeLabels[membership.activation_type]}
+                </Badge>
+                <p className="text-sm text-muted-foreground">
+                  {activationTypeDescriptions[membership.activation_type]}
+                </p>
               </div>
             </CardContent>
             <CardFooter>
@@ -89,9 +140,9 @@ export function MembershipSelection({ org, userId, memberships }: MembershipSele
                 <Button 
                   className="w-full"
                   type="submit"
-                  disabled={pending}
+                  disabled={isPending}
                 >
-                  {pending ? 'Processing...' : 'Select Plan'}
+                  {isPending ? 'Processing...' : 'Select Plan'}
                 </Button>
               </form>
             </CardFooter>
