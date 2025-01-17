@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { approveApplication, rejectApplication } from "@/services/applications.service";
 import { createClient } from "@/lib/utils/supabase/server";
+import { checkPermissions } from "@/lib/utils/permissions";
+import { permissions } from "@/lib/types/permissions";
 
 type MembershipWithGroup = {
   group: {
@@ -15,6 +17,15 @@ export async function approveApplicationAction(
   formData: FormData,
 ) {
   try {
+    // Check permissions
+    const hasPermission = await checkPermissions([permissions.applications.approve]);
+    if (!hasPermission) {
+      return {
+        error: "You don't have permission to approve applications",
+        success: false,
+      };
+    }
+
     const applicationId = formData.get('id') as string;
     if (!applicationId) {
       return {
@@ -56,6 +67,15 @@ export async function rejectApplicationAction(
   formData: FormData,
 ) {
   try {
+    // Check permissions
+    const hasPermission = await checkPermissions([permissions.applications.reject]);
+    if (!hasPermission) {
+      return {
+        error: "You don't have permission to reject applications",
+        success: false,
+      };
+    }
+
     const applicationId = formData.get('id') as string;
     if (!applicationId) {
       return {

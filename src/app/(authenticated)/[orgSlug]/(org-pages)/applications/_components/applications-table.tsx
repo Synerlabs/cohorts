@@ -17,6 +17,8 @@ import { approveApplicationAction, rejectApplicationAction } from "../_actions/a
 import { Badge } from "@/components/ui/badge";
 import { MembershipActivationType } from "@/lib/types/membership";
 import { useRouter } from "next/navigation";
+import { ComponentPermission } from "@/components/ComponentPermission";
+import { permissions } from "@/lib/types/permissions";
 
 interface ApplicationsTableProps {
   applications: Application[];
@@ -125,20 +127,24 @@ export default function ApplicationsTable({ applications, showActions = true }: 
               </TableCell>
               {showActions && (
                 <TableCell className="text-right space-x-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleApprove(application.id)}
-                  >
-                    <Check className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleReject(application.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  <ComponentPermission requiredPermissions={[permissions.applications.approve]}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleApprove(application.id)}
+                    >
+                      <Check className="h-4 w-4" />
+                    </Button>
+                  </ComponentPermission>
+                  <ComponentPermission requiredPermissions={[permissions.applications.reject]}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleReject(application.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </ComponentPermission>
                 </TableCell>
               )}
             </TableRow>

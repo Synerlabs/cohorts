@@ -64,4 +64,4 @@ async function ApplicationsPage({ org, searchParams }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(ApplicationsPage, {permissions: [permissions.members.edit]}); 
+export default withOrgAccess(ApplicationsPage, {permissions: [permissions.applications.view]}); 
