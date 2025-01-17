@@ -29,6 +29,13 @@ export async function joinOrgWithMembership(
 
     // Get and validate membership
     const membership = await getMembershipDetails(membershipId);
+    if (!membership) {
+      return {
+        success: false,
+        error: 'Membership not found'
+      };
+    }
+
     const validationError = validateMembershipActivation(
       membership.price, 
       membership.activation_type
@@ -46,13 +53,13 @@ export async function joinOrgWithMembership(
       membership.activation_type === MembershipActivationType.AUTOMATIC;
 
     // Get org for revalidation
-    const org = await getOrgSlug(groupId);
+    const { slug } = await getOrgSlug(groupId);
 
     // Create user associations
     await createGroupUser(groupId, userId, isInitiallyActive);
     await createUserMembership(userId, membershipId, isInitiallyActive, groupId);
 
-    revalidatePath(`/@${org.slug}/join`);
+    revalidatePath(`/@${slug}/join`);
 
     return {
       success: true,

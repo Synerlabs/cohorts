@@ -1,4 +1,8 @@
-create or replace view "public"."applications_view" as
+-- Drop existing view
+drop view if exists "public"."applications_view";
+
+-- Create updated view
+create view "public"."applications_view" as
   select 
     um.id,
     um.user_id,
@@ -7,6 +11,7 @@ create or replace view "public"."applications_view" as
     um.is_active,
     um.created_at,
     um.approved_at,
+    um.rejected_at,
     jsonb_build_object(
       'id', p.id,
       'first_name', p.first_name,

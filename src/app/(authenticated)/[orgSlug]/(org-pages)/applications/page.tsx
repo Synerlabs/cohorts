@@ -1,15 +1,29 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { permissions } from "@/lib/types/permissions";
-import { getPendingApplications } from "@/services/applications.service";
+import { getPendingApplications, getApprovedApplications, getRejectedApplications } from "@/services/applications.service";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { Suspense } from "react";
 import ApplicationsTable from "./_components/applications-table";
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function ApplicationsPage({ org, searchParams }: OrgAccessHOCProps) {
   const _searchParams = searchParams || {};
-  const applications = await getPendingApplications(org.id);
   const tab = (_searchParams?.tab || "pending") as string;
+
+  let applications;
+  switch (tab) {
+    case "approved":
+      applications = await getApprovedApplications(org.id);
+      break;
+    case "rejected":
+      applications = await getRejectedApplications(org.id);
+      break;
+    default:
+      applications = await getPendingApplications(org.id);
+  }
 
   return (
     <>
@@ -40,9 +54,10 @@ async function ApplicationsPage({ org, searchParams }: OrgAccessHOCProps) {
         </Tabs>
 
         <Suspense fallback={<div>Loading...</div>}>
-          {tab === "pending" && (
-            <ApplicationsTable applications={applications} />
-          )}
+          <ApplicationsTable 
+            applications={applications} 
+            showActions={tab === "pending"} 
+          />
         </Suspense>
       </div>
     </>

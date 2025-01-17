@@ -1,76 +1,93 @@
 'use server';
 
 import { revalidatePath } from "next/cache";
-import { getPendingApplications as getApplications, approveApplication, rejectApplication } from "@/services/applications.service";
+import { approveApplication, rejectApplication } from "@/services/applications.service";
+import { createClient } from "@/lib/utils/supabase/server";
 
-export async function getPendingApplications(groupId: string) {
-  return getApplications(groupId);
-}
-
-type State = {
-  success: boolean;
-  error?: string;
-  message?: string;
+type MembershipWithGroup = {
+  group: {
+    slug: string;
+  };
 };
 
 export async function approveApplicationAction(
-  prevState: State | null,
-  formData: FormData
-): Promise<State> {
+  prevState: { success?: boolean } | undefined,
+  formData: FormData,
+) {
   try {
-    const applicationId = formData.get('applicationId') as string;
-    const orgSlug = formData.get('orgSlug') as string;
-
-    if (!applicationId || !orgSlug) {
+    const applicationId = formData.get('id') as string;
+    if (!applicationId) {
       return {
+        error: "Application ID is required",
         success: false,
-        error: 'Missing required fields'
       };
     }
 
-    await approveApplication(applicationId);
-    revalidatePath(`/@${orgSlug}/applications`);
+    const application = await approveApplication(applicationId);
+
+    // Get org slug for revalidation
+    const supabase = await createClient();
+    const { data: membership } = await supabase
+      .from('user_membership')
+      .select('group:group_id(slug)')
+      .eq('id', applicationId)
+      .single() as { data: MembershipWithGroup | null };
+
+    if (membership?.group?.slug) {
+      // Revalidate both the specific page and the layout
+      revalidatePath(`/@${membership.group.slug}/applications`);
+      revalidatePath('/', 'layout');
+    }
 
     return {
       success: true,
-      message: 'Application approved successfully'
     };
   } catch (error: any) {
-    console.error('Approve error:', error);
+    console.error(error);
     return {
+      error: error.message || "An error occurred while approving the application",
       success: false,
-      error: error.message || 'Failed to approve application'
     };
   }
 }
 
 export async function rejectApplicationAction(
-  prevState: State | null,
-  formData: FormData
-): Promise<State> {
+  prevState: { success?: boolean } | undefined,
+  formData: FormData,
+) {
   try {
-    const applicationId = formData.get('applicationId') as string;
-    const orgSlug = formData.get('orgSlug') as string;
-
-    if (!applicationId || !orgSlug) {
+    const applicationId = formData.get('id') as string;
+    if (!applicationId) {
       return {
+        error: "Application ID is required",
         success: false,
-        error: 'Missing required fields'
       };
     }
 
+    // Get org slug for revalidation before deleting
+    const supabase = await createClient();
+    const { data: membership } = await supabase
+      .from('user_membership')
+      .select('group:group_id(slug)')
+      .eq('id', applicationId)
+      .single() as { data: MembershipWithGroup | null };
+
     await rejectApplication(applicationId);
-    revalidatePath(`/@${orgSlug}/applications`);
+
+    if (membership?.group?.slug) {
+      // Revalidate both the specific page and the layout
+      revalidatePath(`/@${membership.group.slug}/applications`);
+      revalidatePath('/', 'layout');
+    }
 
     return {
       success: true,
-      message: 'Application rejected successfully'
     };
   } catch (error: any) {
-    console.error('Reject error:', error);
+    console.error(error);
     return {
+      error: error.message || "An error occurred while rejecting the application",
       success: false,
-      error: error.message || 'Failed to reject application'
     };
   }
 } 

@@ -13,12 +13,14 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Check, X } from "lucide-react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
-import { approveApplicationAction, rejectApplicationAction } from "../_actions/applications.action";
+import { approveApplicationAction, rejectApplicationAction } from "../_actions/applications";
 import { Badge } from "@/components/ui/badge";
 import { MembershipActivationType } from "@/lib/types/membership";
+import { useRouter } from "next/navigation";
 
 interface ApplicationsTableProps {
   applications: Application[];
+  showActions?: boolean;
 }
 
 const activationTypeLabels = {
@@ -28,21 +30,41 @@ const activationTypeLabels = {
   [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Review then Payment',
 } as const;
 
-export default function ApplicationsTable({ applications }: ApplicationsTableProps) {
-  const [approveState, approveAction] = useToastActionState(approveApplicationAction, { success: false }, undefined, {
+type ActionResult = {
+  success: boolean;
+  error?: string;
+};
+
+export default function ApplicationsTable({ applications, showActions = true }: ApplicationsTableProps) {
+  const router = useRouter();
+  const [approveState, approveAction] = useToastActionState<ActionResult>(approveApplicationAction, undefined, undefined, {
     successTitle: "Application Approved",
     successDescription: "The membership application has been approved successfully"
   });
 
-  const [rejectState, rejectAction] = useToastActionState(rejectApplicationAction, { success: false }, undefined, {
+  const [rejectState, rejectAction] = useToastActionState<ActionResult>(rejectApplicationAction, undefined, undefined, {
     successTitle: "Application Rejected",
     successDescription: "The membership application has been rejected successfully"
   });
 
+  const handleApprove = async (applicationId: string) => {
+    const formData = new FormData();
+    formData.append('id', applicationId);
+    await approveAction(formData);
+    router.refresh();
+  };
+
+  const handleReject = async (applicationId: string) => {
+    const formData = new FormData();
+    formData.append('id', applicationId);
+    await rejectAction(formData);
+    router.refresh();
+  };
+
   if (!applications?.length) {
     return (
       <div className="text-center py-4 text-gray-500">
-        No pending applications
+        No applications found
       </div>
     );
   }
@@ -58,7 +80,9 @@ export default function ApplicationsTable({ applications }: ApplicationsTablePro
             <TableHead>Activation Type</TableHead>
             <TableHead>Applied</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="text-right">Actions</TableHead>
+            {showActions && (
+              <TableHead className="text-right">Actions</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -89,7 +113,9 @@ export default function ApplicationsTable({ applications }: ApplicationsTablePro
                 {formatDate(application.created_at)}
               </TableCell>
               <TableCell>
-                {application.is_active ? (
+                {application.rejected_at ? (
+                  <Badge variant="destructive">Rejected</Badge>
+                ) : application.is_active ? (
                   <Badge variant="outline">Active</Badge>
                 ) : application.approved_at ? (
                   <Badge variant="secondary">Pending Payment</Badge>
@@ -97,30 +123,24 @@ export default function ApplicationsTable({ applications }: ApplicationsTablePro
                   <Badge variant="secondary">Pending Review</Badge>
                 )}
               </TableCell>
-              <TableCell className="text-right space-x-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const formData = new FormData();
-                    formData.append('id', application.id);
-                    approveAction(formData);
-                  }}
-                >
-                  <Check className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => {
-                    const formData = new FormData();
-                    formData.append('id', application.id);
-                    rejectAction(formData);
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </TableCell>
+              {showActions && (
+                <TableCell className="text-right space-x-2">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleApprove(application.id)}
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleReject(application.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </TableCell>
+              )}
             </TableRow>
           ))}
         </TableBody>
