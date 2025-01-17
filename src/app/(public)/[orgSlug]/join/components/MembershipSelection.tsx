@@ -51,44 +51,36 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
   };
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Select a Membership</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Choose a membership type to join the organization.</p>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {memberships.map((membership) => (
-          <Card key={membership.id}>
-            <CardHeader>
-              <CardTitle>{membership.name}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <p className="text-2xl font-bold">
-                  {membership.price === 0 ? 'Free' : `$${membership.price}`}
-                </p>
-                {membership.duration_months > 0 && (
-                  <p className="text-sm text-muted-foreground">
-                    {membership.duration_months} month{membership.duration_months !== 1 ? 's' : ''}
-                  </p>
-                )}
-              </div>
-              <Button
-                className="w-full"
-                onClick={() => handleSubmit(membership.id)}
-                disabled={isPending}
-              >
-                {isPending ? 'Processing...' : 'Select'}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      {memberships.map((membership) => (
+        <Card key={membership.id} className="flex flex-col">
+          <CardHeader>
+            <CardTitle>{membership.name}</CardTitle>
+            {membership.duration_months > 0 && (
+              <CardDescription>
+                {membership.duration_months} month{membership.duration_months !== 1 ? 's' : ''}
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent className="flex-grow">
+            <p className="text-3xl font-bold mb-4">
+              {membership.price === 0 ? 'Free' : `$${membership.price}`}
+            </p>
+            {membership.description && (
+              <p className="text-sm text-muted-foreground">{membership.description}</p>
+            )}
+          </CardContent>
+          <CardFooter>
+            <Button
+              className="w-full"
+              onClick={() => handleSubmit(membership.id)}
+              disabled={isPending}
+            >
+              {isPending ? 'Processing...' : 'Select'}
+            </Button>
+          </CardFooter>
+        </Card>
+      ))}
     </div>
   );
 } 

@@ -1,6 +1,7 @@
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { withOrgAccess } from "@/lib/hoc/org";
 
-export default function PaymentPage() {
+function PaymentPage() {
   return (
     <Card className="w-[600px]">
       <CardHeader>
@@ -12,3 +13,5 @@ export default function PaymentPage() {
     </Card>
   );
 } 
+
+export default withOrgAccess(PaymentPage);

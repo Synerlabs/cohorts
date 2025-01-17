@@ -7,34 +7,35 @@ import { getCurrentUser } from "@/services/user.service";
 import { getUserMembership } from "@/services/join.service";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
+import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
+import { MembershipActivationType } from "@/lib/types/membership";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type CamelizedGroup = Camelized<Tables<"group">>;
 
-async function getMembershipData(orgSlug: string) {
-  const { data, error } = await getOrgBySlug(orgSlug);
-  if (error || !data) redirect('/404');
-
-  const memberships = await getMemberships({ orgId: data.id });
-  return { org: data as CamelizedGroup, memberships };
+async function getMembershipData(orgId: string) {
+  const memberships = await getMemberships({ orgId });
+  return memberships;
 }
 
-export default async function JoinPage({ params }: { params: { orgSlug: string } }) {
+async function JoinPage({ org, params }: OrgAccessHOCProps) {
   const { data, error } = await getCurrentUser();
-  const { org, memberships } = await getMembershipData(params.orgSlug);
+  const memberships = await getMembershipData(org.id);
 
   if (error || !data?.user) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Please log in to join {org.name}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>You must be logged in to join this organization.</p>
-        </CardContent>
-      </Card>
+      <div className="container max-w-4xl py-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Please log in to join {org.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p>You must be logged in to join this organization.</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -42,41 +43,67 @@ export default async function JoinPage({ params }: { params: { orgSlug: string }
 
   // If user has an active membership, redirect to org page
   if (userMembership?.is_active) {
-    redirect(`/@${params.orgSlug}`);
+    redirect(`/@${org.slug}`);
   }
 
-  // If user has a pending application (not rejected)
-  if (userMembership && !userMembership.rejected_at && !userMembership.approved_at) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Pending Application</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>Your application to join {org.name} is currently under review.</p>
-        </CardContent>
-      </Card>
-    );
+  // If user has a pending application
+  if (userMembership && !userMembership.rejected_at) {
+    // If application is approved and requires payment, redirect to payment page
+    if (userMembership.approved_at && 
+      (userMembership.membership.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
+       userMembership.membership.activation_type === MembershipActivationType.REVIEW_THEN_PAYMENT)) {
+      redirect(`/@${org.slug}/join/payment`);
+    }
+
+    // If application is pending review
+    if (!userMembership.approved_at) {
+      return (
+        <div className="container max-w-4xl py-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Pending Application</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Your application to join {org.name} is currently under review.</p>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
   }
 
   // If user has a rejected membership or no membership, show membership selection
   return (
-    <div className="space-y-4">
-      {userMembership?.rejected_at && (
+    <div className="container max-w-4xl py-6">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Previous Application Rejected</CardTitle>
+            <CardTitle>Join {org.name}</CardTitle>
           </CardHeader>
           <CardContent>
-            <p>Your previous application was rejected. You may reapply with a different membership type below.</p>
+            <p>Select a membership type to join this organization.</p>
           </CardContent>
         </Card>
-      )}
-      <MembershipSelection 
-        memberships={memberships} 
-        groupId={org.id} 
-        userId={data.user.id} 
-      />
+
+        {userMembership?.rejected_at && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Previous Application Rejected</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p>Your previous application was rejected. You may reapply with a different membership type below.</p>
+            </CardContent>
+          </Card>
+        )}
+
+        <MembershipSelection 
+          memberships={memberships} 
+          groupId={org.id} 
+          userId={data.user.id} 
+        />
+      </div>
     </div>
   );
 }
+
+export default withOrgAccess(JoinPage);
