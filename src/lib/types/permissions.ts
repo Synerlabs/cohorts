@@ -25,6 +25,14 @@ export const permissions = {
     view: "memberships.view",
     manage: "memberships.manage",
   },
+  applications: {
+    view: "applications.view",
+    create: "applications.create",
+    edit: "applications.edit",
+    delete: "applications.delete",
+    approve: "applications.approve",
+    reject: "applications.reject",
+  },
 } as const;
 
 export type OrgAccessOptions = {

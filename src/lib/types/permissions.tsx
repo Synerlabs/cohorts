@@ -1,9 +1,10 @@
-// const permissions as enum
+import React from 'react';
 import {
   BuildingIcon,
   FolderKeyIcon,
   SquareUserRound,
   UsersIcon,
+  FileTextIcon,
 } from "lucide-react";
 
 export const permissions = {
@@ -25,6 +26,14 @@ export const permissions = {
     edit: "group.memberships.edit",
     delete: "group.memberships.delete",
   },
+  applications: {
+    view: "group.applications.view",
+    create: "group.applications.create",
+    edit: "group.applications.edit",
+    delete: "group.applications.delete",
+    approve: "group.applications.approve",
+    reject: "group.applications.reject",
+  },
   roles: {
     view: "group.roles.view",
     create: "group.roles.create",
@@ -43,6 +52,8 @@ export const permissionModuleDescriptions = {
   members: "Manage group members",
   roles: "Manage group roles",
   permissions: "Manage group role permissions",
+  memberships: "Manage group memberships",
+  applications: "Manage group applications",
 };
 
 export const permissionModuleIcons = {
@@ -50,6 +61,8 @@ export const permissionModuleIcons = {
   members: <UsersIcon className="h-5 w-5" />,
   roles: <SquareUserRound className="h-5 w-5" />,
   permissions: <FolderKeyIcon className="h-5 w-5" />,
+  memberships: <UsersIcon className="h-5 w-5" />,
+  applications: <FileTextIcon className="h-5 w-5" />,
 };
 
 // type for permissionModuleIcons
@@ -58,8 +71,17 @@ export type PermissionGroup = keyof typeof permissions;
 
 export type Permissions = typeof permissions;
 
-const flattenPermissions = (permissions, prefix = "") => {
-  return Object.keys(permissions).reduce((acc, key) => {
+// Fix the flattenPermissions function type
+interface PermissionItem {
+  label: string;
+  value: string;
+}
+
+const flattenPermissions = (
+  permissions: Record<string, any>, 
+  prefix = ""
+): PermissionItem[] => {
+  return Object.keys(permissions).reduce<PermissionItem[]>((acc, key) => {
     const value = permissions[key];
     const newKey = prefix ? `${prefix}.${key}` : key;
     if (typeof value === "string") {

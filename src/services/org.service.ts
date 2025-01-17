@@ -257,21 +257,34 @@ export async function createOrg(
         role_name: "admin",
         description: "Admin role for the organization",
         permissions: [
-          permissions.permissions.edit,
-          permissions.permissions.view,
-          permissions.permissions.delete,
+          // Group permissions
+          permissions.group.view,
           permissions.group.create,
           permissions.group.edit,
-          permissions.group.view,
           permissions.group.delete,
-          permissions.members.edit,
+          // Members permissions
           permissions.members.view,
-          permissions.members.delete,
           permissions.members.add,
+          permissions.members.edit,
+          permissions.members.delete,
+          // Roles permissions
           permissions.roles.view,
           permissions.roles.create,
-          permissions.roles.delete,
           permissions.roles.edit,
+          permissions.roles.delete,
+          // Permissions management
+          permissions.permissions.view,
+          permissions.permissions.assign,
+          // Memberships
+          permissions.memberships.view,
+          permissions.memberships.manage,
+          // Applications
+          permissions.applications.view,
+          permissions.applications.create,
+          permissions.applications.edit,
+          permissions.applications.delete,
+          permissions.applications.approve,
+          permissions.applications.reject,
         ],
       },
       {
