@@ -1,6 +1,10 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { id } from "postcss-selector-parser";
 import camelcaseKeys from "camelcase-keys";
+import type { Database } from "@/lib/types/database.types";
+
+type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
+type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
 
 export async function getCurrentUser() {
   const supabase = await createClient();
@@ -62,21 +66,21 @@ export async function getUserRoles({
 }: {
   id: string;
   groupId: string;
-}) {
+}): Promise<(UserRole & { group_roles: GroupRole | null })[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("user_roles")
     .select(
-      "group_roles (role_name, description, permissions), group_role_id, isActive:is_active",
+      "*, group_roles (*)",
     )
     .eq("user_id", id)
     .eq("group_roles.group_id", groupId);
 
   if (error) {
     throw error;
-  } else {
-    return data?.map((d) => camelcaseKeys(d));
   }
+
+  return data || [];
 }
 
 export async function getUserOrgs({ id }: { id: string }) {

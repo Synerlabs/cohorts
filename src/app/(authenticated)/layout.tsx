@@ -20,9 +20,12 @@ export const metadata: Metadata = {
 
 async function RootLayout({
   children,
+  params,
 }: Readonly<{
   children: React.ReactNode;
+  params: any;
 }>) {
+  params = await params;
   return (
     <div className="flex h-screen w-full bg-muted/40 overflow-hidden">
       {children}
@@ -30,4 +33,4 @@ async function RootLayout({
   );
 }
 
-export default withAuth(RootLayout);
+export default withAuth(RootLayout, { redirectUnauthenticated: "/" });

@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/services/user.service";
 
 export type AuthHOCOptions = {
   allowGuest?: boolean;
+  redirectUnauthenticated?: string | ((params: any) => string | Promise<string>);
 };
 
 export type AuthHOCProps = {
@@ -26,9 +27,12 @@ export function withAuth(
       const response = await getCurrentUser();
       if ((response.error || !response.data?.user) && !options.allowGuest) {
         console.log(
-          `withAuth - Redirecting to home: [allowGuest: ${options.allowGuest}]`,
+          `withAuth - Redirecting: [allowGuest: ${options.allowGuest}]`,
         );
-        redirect("/");
+        const redirectPath = typeof options.redirectUnauthenticated === 'function' 
+          ? await options.redirectUnauthenticated(props.params)
+          : options.redirectUnauthenticated || "/";
+        redirect(redirectPath);
       }
 
       if (response && response.data && response.data.user)

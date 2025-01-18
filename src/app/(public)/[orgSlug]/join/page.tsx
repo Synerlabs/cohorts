@@ -106,4 +106,4 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(JoinPage);
+export default withOrgAccess(JoinPage, { allowGuest: true });

@@ -1,18 +1,22 @@
-import { redirect } from "next/navigation";
+import { redirect, notFound } from "next/navigation";
 import React from "react";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 import { AuthHOCProps, withAuth } from "@/lib/hoc/auth";
 import { getOrgBySlug } from "@/services/org.service";
 import { getUserRoles, getGroupUser } from "@/services/user.service";
 import { Camelized } from "humps";
-import { Tables } from "@/lib/types/database.types";
+import { Database, Tables } from "@/lib/types/database.types";
 import { PageProps } from "../types/next";
+import { User } from "@supabase/auth-helpers-nextjs";
+
+type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
+type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
 
 export type OrgAccessHOCProps = {
   org: Camelized<Tables<"group">>;
   user?: User;
   isGuest: boolean;
-  userRoles?: Array<{ isActive: boolean }>;
+  userRoles?: (UserRole & { group_roles: GroupRole | null })[];
   groupUser?: { id: string; isActive: boolean } | null;
 } & PageProps;
 
@@ -25,23 +29,25 @@ export type OrgAccessOptions = {
 export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
   const { permissions, allowGuest, redirectUnauthenticated } = options || {};
 
-  async function WithOrgAccess({ user, params, ...props }: AuthHOCProps) {
+  async function WithOrgAccess({ user, params: paramsPromise, ...props }: AuthHOCProps) {
     const AuthServerContext = getAuthenticatedServerContext();
+    const params = await paramsPromise;
 
     if (!AuthServerContext.org) {
-      const { orgSlug } = await params;
+      const { orgSlug } = params;
       console.log("ORG SLUG", orgSlug);
-      const slug = decodeURIComponent(orgSlug).replace("@", "");
+      const slug = decodeURIComponent(orgSlug).replace(/^@/, "");
+      console.log("GETTING ORG BY SLUG", slug);
       const response = await getOrgBySlug(slug);
       if (response.error || !response.data) {
-        console.log(`withOrgAccess - redirect`, response);
-        redirect("/");
+        console.log(`withOrgAccess - not found`, response);
+        return notFound();
       }
       AuthServerContext.org = response.data;
     }
 
-    if (redirectUnauthenticated && !user) {
-      redirect(redirectUnauthenticated);
+    if (!user && !allowGuest) {
+      redirect(`/@${AuthServerContext.org.slug}`);
     }
 
     const [userRoles, groupUser] = await Promise.all([
@@ -57,11 +63,14 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     AuthServerContext.groupRoles = userRoles || [];
     AuthServerContext.userPermissions =
       userRoles?.reduce((acc: string[], role) => {
-        return [...acc, ...(role?.groupRoles?.permissions || [])];
+        if (role.group_roles?.permissions) {
+          return [...acc, ...role.group_roles.permissions];
+        }
+        return acc;
       }, []) || [];
 
     const isGuest =
-      !userRoles?.find((role) => role.isActive) &&
+      !userRoles?.find((role) => role.is_active) &&
       (!groupUser || !groupUser.isActive);
 
     if (!allowGuest && isGuest) {
