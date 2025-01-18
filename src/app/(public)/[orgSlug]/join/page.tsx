@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MembershipSelection } from "./components/MembershipSelection";
 import { getOrgBySlug } from "@/services/org.service";
 import { getMemberships } from "@/services/membership.service";
@@ -9,6 +8,7 @@ import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { MembershipActivationType } from "@/lib/types/membership";
+import { RegistrationForm } from "@/app/(public)/(home)/sign-up/components/registration-form";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -26,15 +26,16 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
 
   if (error || !data?.user) {
     return (
-      <div className="container max-w-4xl py-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Please log in to join {org.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>You must be logged in to join this organization.</p>
-          </CardContent>
-        </Card>
+      <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
+        <div className="w-full max-w-lg space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold tracking-tight">Join {org.name}</h1>
+            <p className="text-sm text-muted-foreground mb-6">Create an account to join this organization.</p>
+          </div>
+          <div className="flex justify-center">
+            <RegistrationForm orgId={org.id} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -58,15 +59,13 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
     // If application is pending review
     if (!userMembership.approved_at) {
       return (
-        <div className="container max-w-4xl py-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Pending Application</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Your application to join {org.name} is currently under review.</p>
-            </CardContent>
-          </Card>
+        <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
+          <div className="w-full max-w-lg space-y-6">
+            <div className="text-center">
+              <h1 className="text-2xl font-semibold tracking-tight">Pending Application</h1>
+              <p className="text-sm text-muted-foreground">Your application to join {org.name} is currently under review.</p>
+            </div>
+          </div>
         </div>
       );
     }
@@ -74,26 +73,18 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
 
   // If user has a rejected membership or no membership, show membership selection
   return (
-    <div className="container max-w-4xl py-6">
-      <div className="space-y-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Join {org.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Select a membership type to join this organization.</p>
-          </CardContent>
-        </Card>
+    <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
+      <div className="w-full space-y-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">Join {org.name}</h1>
+          <p className="text-sm text-muted-foreground">Select a membership type to join this organization.</p>
+        </div>
 
         {userMembership?.rejected_at && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Previous Application Rejected</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Your previous application was rejected. You may reapply with a different membership type below.</p>
-            </CardContent>
-          </Card>
+          <div className="bg-destructive/10 p-4 rounded-lg text-center max-w-lg mx-auto">
+            <h2 className="font-semibold text-destructive mb-2">Previous Application Rejected</h2>
+            <p className="text-sm">Your previous application was rejected. You may reapply with a different membership type below.</p>
+          </div>
         )}
 
         <MembershipSelection 
