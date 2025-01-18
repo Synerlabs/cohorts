@@ -17,6 +17,7 @@ export type OrgAccessHOCProps = {
   isGuest: boolean;
   userRoles?: (UserRole & { group_roles: GroupRole | null })[];
   groupUser?: { id: string; isActive: boolean } | null;
+  userPermissions: string[];
 } & PageProps;
 
 export type OrgAccessOptions = {
@@ -91,6 +92,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
         isGuest={isGuest}
         userRoles={userRoles}
         groupUser={groupUser}
+        userPermissions={AuthServerContext.userPermissions}
         params={params}
         {...props}
       />

@@ -9,7 +9,7 @@ import ApplicationsTable from "./_components/applications-table";
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-async function ApplicationsPage({ org, searchParams }: OrgAccessHOCProps) {
+async function ApplicationsPage({ org, searchParams, userPermissions }: OrgAccessHOCProps) {
   const _searchParams = searchParams || {};
   const tab = (_searchParams?.tab || "pending") as string;
 
@@ -57,6 +57,7 @@ async function ApplicationsPage({ org, searchParams }: OrgAccessHOCProps) {
           <ApplicationsTable 
             applications={applications} 
             showActions={tab === "pending"} 
+            userPermissions={userPermissions}
           />
         </Suspense>
       </div>

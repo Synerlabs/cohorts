@@ -23,6 +23,7 @@ import { permissions } from "@/lib/types/permissions";
 interface ApplicationsTableProps {
   applications: Application[];
   showActions?: boolean;
+  userPermissions: string[];
 }
 
 const activationTypeLabels = {
@@ -37,7 +38,7 @@ type ActionResult = {
   error?: string;
 };
 
-export default function ApplicationsTable({ applications, showActions = true }: ApplicationsTableProps) {
+export default function ApplicationsTable({ applications, showActions = true, userPermissions }: ApplicationsTableProps) {
   const router = useRouter();
   const [approveState, approveAction] = useToastActionState<ActionResult>(approveApplicationAction, undefined, undefined, {
     successTitle: "Application Approved",
@@ -61,6 +62,12 @@ export default function ApplicationsTable({ applications, showActions = true }: 
     formData.append('id', applicationId);
     await rejectAction(formData);
     router.refresh();
+  };
+
+  const hasPermission = (requiredPermissions: string[]) => {
+    return userPermissions.some((permission) =>
+      requiredPermissions.includes(permission)
+    );
   };
 
   if (!applications?.length) {
@@ -127,7 +134,7 @@ export default function ApplicationsTable({ applications, showActions = true }: 
               </TableCell>
               {showActions && (
                 <TableCell className="text-right space-x-2">
-                  <ComponentPermission requiredPermissions={[permissions.applications.approve]}>
+                  {hasPermission([permissions.applications.approve]) && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -135,8 +142,8 @@ export default function ApplicationsTable({ applications, showActions = true }: 
                     >
                       <Check className="h-4 w-4" />
                     </Button>
-                  </ComponentPermission>
-                  <ComponentPermission requiredPermissions={[permissions.applications.reject]}>
+                  )}
+                  {hasPermission([permissions.applications.reject]) && (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -144,7 +151,7 @@ export default function ApplicationsTable({ applications, showActions = true }: 
                     >
                       <X className="h-4 w-4" />
                     </Button>
-                  </ComponentPermission>
+                  )}
                 </TableCell>
               )}
             </TableRow>
