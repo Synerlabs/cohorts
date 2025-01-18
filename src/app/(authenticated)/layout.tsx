@@ -9,7 +9,7 @@ import { MainSidebar } from "@/app/(authenticated)/_components/sidebar-container
 import { OrgSidebar } from "@/app/(authenticated)/_components/org-sidebar";
 import React from "react";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
-import { withAuth } from "@/lib/hoc/auth";
+import { getCachedCurrentUser } from "@/lib/utils/cache";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: "Community management system",
 };
 
-async function RootLayout({
+export default async function RootLayout({
   children,
   params,
 }: Readonly<{
@@ -26,11 +26,18 @@ async function RootLayout({
   params: any;
 }>) {
   params = await params;
+  const AuthServerContext = getAuthenticatedServerContext();
+
+  if (!AuthServerContext.user) {
+    const response = await getCachedCurrentUser();
+    if (response && response.data && response.data.user) {
+      AuthServerContext.user = response.data.user;
+    }
+  }
+  
   return (
     <div className="flex h-screen w-full bg-muted/40 overflow-hidden">
       {children}
     </div>
   );
 }
-
-export default withAuth(RootLayout, { redirectUnauthenticated: "/" });

@@ -1,13 +1,12 @@
 import { redirect, notFound } from "next/navigation";
 import React from "react";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
-import { AuthHOCProps, withAuth } from "@/lib/hoc/auth";
-import { getOrgBySlug } from "@/services/org.service";
 import { getUserRoles, getGroupUser } from "@/services/user.service";
 import { Camelized } from "humps";
 import { Database, Tables } from "@/lib/types/database.types";
 import { PageProps } from "../types/next";
 import { User } from "@supabase/auth-helpers-nextjs";
+import { getCachedOrgBySlug, getCachedCurrentUser } from "@/lib/utils/cache";
 
 type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
 type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
@@ -29,16 +28,17 @@ export type OrgAccessOptions = {
 export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
   const { permissions, allowGuest, redirectUnauthenticated } = options || {};
 
-  async function WithOrgAccess({ user, params: paramsPromise, ...props }: AuthHOCProps) {
+  return async function WithOrgAccess(props: any) {
     const AuthServerContext = getAuthenticatedServerContext();
-    const params = await paramsPromise;
+    const params = await props.params;
 
+    // Check org exists first
     if (!AuthServerContext.org) {
       const { orgSlug } = params;
       console.log("ORG SLUG", orgSlug);
       const slug = decodeURIComponent(orgSlug).replace(/^@/, "");
       console.log("GETTING ORG BY SLUG", slug);
-      const response = await getOrgBySlug(slug);
+      const response = await getCachedOrgBySlug(slug);
       if (response.error || !response.data) {
         console.log(`withOrgAccess - not found`, response);
         return notFound();
@@ -46,16 +46,23 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       AuthServerContext.org = response.data;
     }
 
-    if (!user && !allowGuest) {
-      redirect(`/@${AuthServerContext.org.slug}`);
+    // Check authentication after we have the org
+    if (!AuthServerContext.user) {
+      const response = await getCachedCurrentUser();
+      if ((response.error || !response.data?.user) && !allowGuest) {
+        redirect(`/@${AuthServerContext.org.slug}`);
+      }
+      if (response && response.data && response.data.user) {
+        AuthServerContext.user = response.data.user;
+      }
     }
 
     const [userRoles, groupUser] = await Promise.all([
-      user
-        ? getUserRoles({ id: user.id, groupId: AuthServerContext.org.id })
+      AuthServerContext.user
+        ? getUserRoles({ id: AuthServerContext.user.id, groupId: AuthServerContext.org.id })
         : [],
-      user
-        ? getGroupUser({ userId: user.id, groupId: AuthServerContext.org.id })
+      AuthServerContext.user
+        ? getGroupUser({ userId: AuthServerContext.user.id, groupId: AuthServerContext.org.id })
         : null,
     ]);
 
@@ -79,7 +86,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
 
     return (
       <Component
-        user={user}
+        user={AuthServerContext.user}
         org={AuthServerContext.org}
         isGuest={isGuest}
         userRoles={userRoles}
@@ -89,6 +96,4 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       />
     );
   }
-
-  return withAuth(WithOrgAccess, { allowGuest });
 }
