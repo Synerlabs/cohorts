@@ -30,9 +30,12 @@ function PublicLayout({
           <Link href={"/about"}>About</Link>
           <Link href={"/contact"}>Contact</Link>
           {user ? (
-            <div className="-mt-2">
-              <AvatarDropdown user={user} />
-            </div>
+            <>
+              <Link href={"/dashboard"}>Dashboard</Link>
+              <div className="-mt-2">
+                <AvatarDropdown user={user} />
+              </div>
+            </>
           ) : (
             <Link href={"/sign-up"}>Sign Up</Link>
           )}

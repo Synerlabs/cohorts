@@ -21,7 +21,7 @@ async function OrgHomePage({ user, org, isGuest }: OrgAccessHOCProps) {
         </div>
         {!user && (
           <div className="w-[369px]">
-            <LoginForm redirect={`/@${org.slug}/dashboard`} />
+            <LoginForm redirect={`/@${org.slug}/dashboard`} orgSlug={org.slug} />
           </div>
         )}
       </div>

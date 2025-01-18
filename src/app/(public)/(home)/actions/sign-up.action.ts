@@ -37,8 +37,8 @@ export async function signUpAction(
         first_name: firstName,
         last_name: lastName,
       },
-      emailRedirectTo: org
-        ? `http://127.0.0.1:3000/@${org?.data?.slug}`
+      emailRedirectTo: org?.data
+        ? `http://127.0.0.1:3001/@${org.data.slug}?firstLogin=true`
         : undefined,
     },
   };

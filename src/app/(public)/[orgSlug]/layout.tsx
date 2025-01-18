@@ -21,7 +21,7 @@ function PublicLayout({
 
         <nav className="flex gap-8">
           <Link href={`/@${org.slug}`}>Home</Link>
-          <Link href={`/@${org.slug}/dashboard`}>Dashboard</Link>
+          {user && <Link href={`/@${org.slug}/dashboard`}>Dashboard</Link>}
           <Link href={`/@${org.slug}/about`}>About</Link>
           <Link href={`/@${org.slug}/contact`}>Contact</Link>
           {user ? (

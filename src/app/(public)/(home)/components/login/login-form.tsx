@@ -17,9 +17,10 @@ import { startTransition } from "react";
 
 export type LoginFormProps = {
   redirect?: string;
+  orgSlug?: string;
 };
 
-export function LoginForm({ redirect }: LoginFormProps) {
+export function LoginForm({ redirect, orgSlug }: LoginFormProps) {
   const [state, action, pending] = useActionState(loginAction, null);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -81,7 +82,7 @@ export function LoginForm({ redirect }: LoginFormProps) {
           </div>
           <div className="mt-4 text-center text-sm">
             Don&apos;t have an account?{" "}
-            <Link href="/sign-up" className="underline">
+            <Link href={orgSlug ? `/@${orgSlug}/join` : "/sign-up"} className="underline">
               Sign up
             </Link>
           </div>
