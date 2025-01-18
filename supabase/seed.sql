@@ -1,0 +1,224 @@
+--INSERT INTO
+--    auth.users (
+--        instance_id,
+--        id,
+--        aud,
+--        role,
+--        email,
+--        encrypted_password,
+--        email_confirmed_at,
+--        recovery_sent_at,
+--        last_sign_in_at,
+--        raw_app_meta_data,
+--        raw_user_meta_data,
+--        created_at,
+--        updated_at,
+--        confirmation_token,
+--        email_change,
+--        email_change_token_new,
+--        recovery_token
+--    ) (
+--        select
+--            '00000000-0000-0000-0000-000000000000',
+--            'b94a7828-797e-403e-a40b-f93d6e4690ab',
+--            'authenticated',
+--            'authenticated',
+--            'jan.manaloto@cohorts.com',
+--            crypt ('password123', gen_salt ('bf')),
+--            current_timestamp,
+--            current_timestamp,
+--            current_timestamp,
+--            '{"provider":"email","providers":["email"]}',
+--            '{"first_name": "Jan", "last_name": "Manaloto"}',
+--            current_timestamp,
+--            current_timestamp,
+--            '',
+--            '',
+--            '',
+--            ''
+--        FROM
+--            generate_series(1, 1)
+--    );
+--
+---- test user email identities
+--INSERT INTO
+--    auth.identities (
+--        id,
+--        user_id,
+--        identity_data,
+--        provider,
+--        last_sign_in_at,
+--        created_at,
+--        updated_at
+--    ) (
+--        select
+--            uuid_generate_v4 (),
+--            id,
+--            format('{"sub":"%s","email":"%s"}', id::text, email)::jsonb,
+--            'email',
+--            current_timestamp,
+--            current_timestamp,
+--            current_timestamp
+--        from
+--            auth.users
+--    );
+--
+--
+---- Create test users
+--WITH first_names AS (
+--    SELECT unnest(ARRAY[
+--        'John', 'Jane', 'Michael', 'Emily',
+--        'Daniel', 'Sarah', 'David', 'Laura',
+--        'Robert', 'Linda', 'Mark', 'Jessica',
+--        'Paul', 'Stephanie', 'Peter', 'Lisa',
+--        'Andrew', 'Kim', 'Christopher', 'Anne',
+--        'Thomas', 'Amanda', 'Benjamin', 'Rebecca',
+--        'Nathan', 'Megan', 'Matthew', 'Virginia',
+--        'Steven', 'Rachel', 'Justin', 'Heather',
+--        'Jacob', 'Amber', 'William', 'Crystal',
+--        'John Paul', 'Mark Erenz', 'Dane', 'Jeriel Francis',
+--        'Jeeyo', 'Edmond', 'Jansen Dale', 'Dan Joseph',
+--        'Hazel Mae', 'Karla Elaine', 'Joash', 'Joshua',
+--        'Alexander', 'Aiden', 'Alicia', 'Allison',
+--        'Arthur', 'Bella', 'Blake', 'Brandon',
+--        'Brianna', 'Caleb', 'Cameron', 'Catherine',
+--        'Charles', 'Charlotte', 'Chloe', 'Christian',
+--        'Claire', 'Connor', 'Diana', 'Dominic',
+--        'Eleanor', 'Elijah', 'Ella', 'Ethan',
+--        'Gabriel', 'Grace', 'Hannah', 'Henry',
+--        'Isaac', 'Isabella', 'Jack', 'Jackson',
+--        'James', 'Jasmine', 'Jayden', 'Jordan',
+--        'Joseph', 'Julia', 'Julian', 'Katherine',
+--        'Kevin', 'Liam', 'Lucas', 'Madison',
+--        'Mason', 'Mia', 'Natalie', 'Nicholas',
+--        'Noah', 'Oliver', 'Olivia', 'Penelope',
+--        'Ryan', 'Samuel', 'Savannah', 'Sophia',
+--        'Sophie', 'Stella', 'Theodore', 'Victoria',
+--        'Wyatt', 'Zachary', 'Zoey', 'Ava',
+--        'Brooke', 'Brooklyn', 'Camila', 'Charlie',
+--        'Colton', 'Delilah', 'Easton', 'Eva',
+--        'Everett', 'Finn', 'Gianna', 'Grace',
+--        'Grayson', 'Hadley', 'Harper', 'Hazel',
+--        'Hudson', 'Hunter', 'Jameson', 'Jayce',
+--        'Jordan', 'Josiah', 'Kaylee', 'Kennedy',
+--        'Kinsley', 'Leah', 'Lincoln', 'Lydia',
+--        'Mackenzie', 'Madeline', 'Paisley', 'Peyton',
+--        'Reagan', 'Riley', 'Scarlett', 'Skylar',
+--        'Sloane', 'Violet', 'Wesley', 'Willow'
+--    ]) AS first_name
+--),
+--last_names AS (
+--    SELECT unnest(ARRAY[
+--        'Doe', 'Smith', 'Johnson', 'Davis',
+--        'Wilson', 'Miller', 'Brown', 'Moore',
+--        'Taylor', 'Anderson', 'Martinez', 'Rodriguez',
+--        'Lopez', 'Perez', 'Gonzalez', 'Romero',
+--        'Dela Cruz', 'Manaloto', 'Olavario', 'Duque',
+--        'Mercado', 'Garcia', 'Medina', 'Cordova',
+--        'Lalic', 'Garido', 'Pulido', 'Palisoc',
+--        'Clemente', 'Dyogi', 'Catalan', 'Cabal',
+--        'Solis', 'Galang', 'Maniacup', 'Borje',
+--        'Sanchez', 'Santos', 'Bautista', 'Aquino',
+--        'Mendoza', 'Fernandez', 'Castillo', 'Reyes',
+--        'Torres', 'Estrada', 'Rivera', 'Abella',
+--        'Pascual', 'Legaspi', 'Espiritu', 'De Guzman',
+--        'Lim', 'Ang', 'Tan', 'Ong',
+--        'Chua', 'Yap', 'Sy', 'Go',
+--        'Cruz', 'Del Rosario', 'Dela Rosa', 'Dela Cruz',
+--        'Ramos', 'Sison', 'Mariano', 'Marquez',
+--        'Gomez', 'Gonzales', 'Velasquez', 'Villanueva',
+--        'Morales', 'Vergara', 'Tolentino', 'Concepcion',
+--        'Panganiban', 'Madrid', 'Maceda', 'Jacinto',
+--        'Montoya', 'Enriquez', 'Santiago', 'Luna',
+--        'Santillan', 'Roxas', 'Gatdula', 'Fajardo',
+--        'Banaag', 'Calderon', 'Salazar', 'Carpio',
+--        'Custodio', 'Santiago', 'Lucas', 'Francisco',
+--        'Magno', 'Cruzat', 'Ramos', 'Aranas'
+--    ]) AS last_name
+--),
+--domain_list AS (
+--    SELECT unnest(ARRAY[
+--        'example.com', 'test.com', 'demo.com', 'sample.com', 'email.com',
+--        'professional.test', 'cohorts.test', 'gmail.test', 'apple.test', 'school.edu.ph'
+--    ]) AS domain
+--),
+--email_combinations AS (
+--    SELECT
+--        first_name,
+--        last_name,
+--        LOWER(CONCAT(first_name, '.', last_name, '@', domain)) AS email,
+--        ROW_NUMBER() OVER (PARTITION BY CONCAT(first_name, '.', last_name) ORDER BY domain) AS rn
+--    FROM
+--        first_names,
+--        last_names,
+--        domain_list
+--)
+--INSERT INTO
+--    auth.users (
+--        instance_id,
+--        id,
+--        aud,
+--        role,
+--        email,
+--        encrypted_password,
+--        email_confirmed_at,
+--        recovery_sent_at,
+--        last_sign_in_at,
+--        raw_app_meta_data,
+--        raw_user_meta_data,
+--        created_at,
+--        updated_at,
+--        confirmation_token,
+--        email_change,
+--        email_change_token_new,
+--        recovery_token
+--    )
+--SELECT
+--    '00000000-0000-0000-0000-000000000000',
+--    uuid_generate_v4(),
+--    'authenticated',
+--    'authenticated',
+--    CASE
+--        WHEN rn = 1 THEN email
+--        ELSE CONCAT(email, rn)
+--    END AS email,
+--    crypt('password123', gen_salt('bf')),
+--    current_timestamp,
+--    current_timestamp,
+--    current_timestamp,
+--    '{"provider":"email","providers":["email"]}',
+--    format('{"firstName":"%s","lastName":"%s"}', first_name, last_name)::jsonb,
+--    current_timestamp,
+--    current_timestamp,
+--    '',
+--    '',
+--    '',
+--    ''
+--FROM
+--    email_combinations;
+--
+--
+---- test user email identities
+--INSERT INTO
+--    auth.identities (
+--        id,
+--        user_id,
+--        provider_id,
+--        identity_data,
+--        provider,
+--        last_sign_in_at,
+--        created_at,
+--        updated_at
+--    ) (
+--        SELECT
+--            uuid_generate_v4(),
+--            id,
+--            id,
+--            format('{"sub":"%s","email":"%s"}', id::text, email)::jsonb,
+--            'email',
+--            current_timestamp,
+--            current_timestamp,
+--            current_timestamp
+--        FROM
+--            auth.users
+--    );
