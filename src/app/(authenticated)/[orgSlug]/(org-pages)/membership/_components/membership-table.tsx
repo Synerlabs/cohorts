@@ -1,43 +1,62 @@
 "use client";
 
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Membership } from "@/types/database.types";
-import MembershipTableRow from "./membership-table-row";
+import { MembershipTier } from "@/lib/types/membership";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Edit } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import MembershipForm from "./membership-form";
 
 interface MembershipTableProps {
-  memberships: Membership[];
+  tiers: MembershipTier[];
+  groupId: string;
 }
 
-export default function MembershipTable({ memberships }: MembershipTableProps) {
+export default function MembershipTable({ tiers, groupId }: MembershipTableProps) {
   return (
-    <div className="rounded-md border">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="w-[300px]">Name</TableHead>
-            <TableHead>Price</TableHead>
-            <TableHead className="hidden sm:table-cell">Duration</TableHead>
-            <TableHead className="hidden md:table-cell">Members</TableHead>
-            <TableHead className="hidden md:table-cell">Status</TableHead>
-            <TableHead className="w-[70px]"></TableHead>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Name</TableHead>
+          <TableHead>Description</TableHead>
+          <TableHead>Price</TableHead>
+          <TableHead>Activation</TableHead>
+          <TableHead>Members</TableHead>
+          <TableHead className="w-[100px]">Actions</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {tiers.map((tier) => (
+          <TableRow key={tier.id}>
+            <TableCell>{tier.name}</TableCell>
+            <TableCell>{tier.description}</TableCell>
+            <TableCell>
+              {tier.price === 0 ? "Free" : `$${tier.price.toFixed(2)}`}
+            </TableCell>
+            <TableCell className="capitalize">
+              {tier.activation_type.toLowerCase()}
+            </TableCell>
+            <TableCell>{tier.member_count || 0}</TableCell>
+            <TableCell>
+              <Sheet>
+                <SheetTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent>
+                  <SheetHeader>
+                    <SheetTitle>Edit Membership Tier</SheetTitle>
+                  </SheetHeader>
+                  <div className="mt-4">
+                    <MembershipForm groupId={groupId} tier={tier} />
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </TableCell>
           </TableRow>
-        </TableHeader>
-        <TableBody>
-          {memberships.map((membership) => (
-            <MembershipTableRow 
-              key={membership.id} 
-              membership={membership} 
-            />
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+        ))}
+      </TableBody>
+    </Table>
   );
 } 

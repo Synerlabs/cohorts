@@ -52,7 +52,7 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
         )}
       </TableCell>
       <TableCell className="hidden sm:table-cell">
-        {membership.duration_months} months
+        {membership.duration_months} month{membership.duration_months !== 1 ? 's' : ''}
       </TableCell>
       <TableCell className="hidden md:table-cell">
         {membership.member_count || 0}

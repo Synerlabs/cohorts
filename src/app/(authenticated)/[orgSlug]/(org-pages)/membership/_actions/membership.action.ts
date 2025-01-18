@@ -3,19 +3,18 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/utils/supabase/server";
 import { z } from "zod";
 import snakecaseKeys from "snakecase-keys";
-import { MembershipActivationType, Membership } from "@/lib/types/membership";
+import { MembershipActivationType, MembershipTier } from "@/lib/types/membership";
 
-const membershipSchema = z.object({
+const membershipTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   price: z.number().min(0, "Price must be 0 or greater"),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
   group_id: z.string(),
   activation_type: z.nativeEnum(MembershipActivationType).default(MembershipActivationType.AUTOMATIC),
-  is_active: z.boolean().default(true),
 });
 
-const membershipUpdateSchema = membershipSchema
+const membershipTierUpdateSchema = membershipTierSchema
   .extend({
     id: z.string(),
   })
@@ -27,39 +26,40 @@ type PrevState = {
   fields?: any[];
 } | null;
 
-export async function getMembershipsAction(
+export async function getMembershipTiersAction(
   orgId: string,
-): Promise<Membership[]> {
+): Promise<MembershipTier[]> {
   const supabase = await createClient();
 
-  const { data: memberships, error } = await supabase
-    .from("membership")
-    .select(
-      `
+  const { data: tiers, error } = await supabase
+    .from("membership_tier")
+    .select(`
       *,
-      membership_role (
-        group_role_id,
-        group_roles (
-          name,
-          id
-        )
+      memberships (
+        id
       )
-    `,
-    )
+    `)
     .eq("group_id", orgId)
     .order("created_at", { ascending: false });
 
   if (error) throw error;
-  return memberships;
+
+  // Add member count to each tier
+  return tiers.map(tier => ({
+    ...tier,
+    member_count: tier.memberships?.length || 0
+  }));
 }
 
 function validateActivationType(price: number, activationType: MembershipActivationType) {
   if (price === 0) {
+    // Free memberships can only be automatic or review_required
     if (activationType === MembershipActivationType.PAYMENT_REQUIRED || 
         activationType === MembershipActivationType.REVIEW_THEN_PAYMENT) {
       return "Free memberships cannot require payment";
     }
   } else {
+    // Paid memberships must require payment, review, or both
     if (activationType === MembershipActivationType.AUTOMATIC) {
       return "Paid memberships must require payment, review, or both";
     }
@@ -67,7 +67,7 @@ function validateActivationType(price: number, activationType: MembershipActivat
   return null;
 }
 
-export async function createMembershipAction(
+export async function createMembershipTierAction(
   prevState: PrevState,
   formData: FormData,
 ) {
@@ -75,8 +75,6 @@ export async function createMembershipAction(
   const formDataObj = {
     ...rawFormData,
     price: Number(rawFormData.price),
-    duration_months: Number(rawFormData.duration_months),
-    is_active: true,
     activation_type: formData.get("activation_type") || MembershipActivationType.AUTOMATIC,
   };
 
@@ -93,7 +91,7 @@ export async function createMembershipAction(
     };
   }
 
-  const parsedFormData = membershipSchema.safeParse(formDataObj);
+  const parsedFormData = membershipTierSchema.safeParse(formDataObj);
 
   if (!parsedFormData.success) {
     return {
@@ -118,7 +116,7 @@ export async function createMembershipAction(
   }
 
   const { data, error } = await supabase
-    .from("membership")
+    .from("membership_tier")
     .insert(snakecaseKeys(parsedFormData.data))
     .select()
     .single();
@@ -137,7 +135,7 @@ export async function createMembershipAction(
   };
 }
 
-export async function updateMembershipAction(
+export async function updateMembershipTierAction(
   prevState: PrevState,
   formData: FormData,
 ) {
@@ -145,8 +143,6 @@ export async function updateMembershipAction(
   const formDataObj = {
     ...rawFormData,
     price: Number(rawFormData.price),
-    duration_months: Number(rawFormData.duration_months),
-    is_active: true,
     activation_type: rawFormData.activation_type || MembershipActivationType.AUTOMATIC,
   };
 
@@ -163,7 +159,7 @@ export async function updateMembershipAction(
     };
   }
 
-  const parsedFormData = membershipUpdateSchema.safeParse(formDataObj);
+  const parsedFormData = membershipTierUpdateSchema.safeParse(formDataObj);
 
   if (!parsedFormData.success) {
     return {
@@ -175,24 +171,24 @@ export async function updateMembershipAction(
   const supabase = await createClient();
 
   try {
-    const { data: membership, error: membershipError } = await supabase
-      .from("membership")
+    const { data: tier, error: tierError } = await supabase
+      .from("membership_tier")
       .select("group_id")
       .eq("id", parsedFormData.data.id)
       .single();
 
-    if (membershipError) throw membershipError;
+    if (tierError) throw tierError;
 
     const { data: org, error: orgError } = await supabase
       .from("group")
       .select("slug")
-      .eq("id", membership.group_id)
+      .eq("id", tier.group_id)
       .single();
 
     if (orgError) throw orgError;
 
     const { data, error } = await supabase
-      .from("membership")
+      .from("membership_tier")
       .update(snakecaseKeys(parsedFormData.data))
       .eq("id", parsedFormData.data.id)
       .select()
@@ -218,70 +214,7 @@ export async function updateMembershipAction(
   } catch (error: any) {
     console.error(error);
     return {
-      error: error.message || "An error occurred while updating the membership",
-      success: false,
-    };
-  }
-}
-
-export async function deleteMembershipAction(
-  prevState: PrevState,
-  formData: FormData,
-) {
-  const membershipId = formData.get('id') as string;
-  const groupId = formData.get('group_id') as string;
-
-  if (!membershipId || !groupId) {
-    return {
-      error: "Missing required fields",
-      success: false,
-    };
-  }
-
-  const supabase = await createClient();
-
-  try {
-    const { data: org, error: orgError } = await supabase
-      .from("group")
-      .select("slug")
-      .eq("id", groupId)
-      .single();
-
-    if (orgError) throw orgError;
-
-    // Check if membership has any active users
-    const { count, error: countError } = await supabase
-      .from("user_membership")
-      .select("*", { count: 'exact', head: true })
-      .eq("membership_id", membershipId)
-      .eq("is_active", true);
-
-    if (countError) throw countError;
-
-    if (count && count > 0) {
-      return {
-        error: "Cannot delete membership with active users",
-        success: false,
-      };
-    }
-
-    // Delete membership
-    const { error } = await supabase
-      .from("membership")
-      .delete()
-      .eq("id", membershipId);
-
-    if (error) throw error;
-
-    revalidatePath(`/${org.slug}/membership`);
-    return {
-      success: true,
-    };
-
-  } catch (error: any) {
-    console.error(error);
-    return {
-      error: error.message || "An error occurred while deleting the membership",
+      error: error.message || "An error occurred while updating the membership tier",
       success: false,
     };
   }

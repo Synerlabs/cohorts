@@ -1,38 +1,52 @@
-import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
-import { permissions } from "@/lib/types/permissions";
+import { getOrgBySlug } from "@/services/org.service";
+import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import MembershipForm from "./_components/membership-form";
 import MembershipTable from "./_components/membership-table";
-import MembershipDialog from "./_components/membership-dialog";
-import { Suspense } from "react";
-import { getMembershipsAction } from "./_actions/membership.action";
-import { getMemberships } from "@/services/membership.service";
+import { getMembershipTiersAction } from "./_actions/membership.action";
 
-async function MembershipsPage({ org }: OrgAccessHOCProps) {
-  const memberships = await getMemberships({ orgId: org.id });
+interface MembershipPageProps {
+  params: {
+    orgSlug: string;
+  };
+}
+
+export default async function MembershipPage({ params }: MembershipPageProps) {
+  const { data: org, error } = await getOrgBySlug(params.orgSlug);
+
+  if (error || !org) {
+    notFound();
+  }
+
+  const tiers = await getMembershipTiersAction(org.id);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Memberships</h1>
-          <p className="text-sm text-muted-foreground">
-            Create and manage membership tiers for your organization.
-          </p>
-        </div>
-        <MembershipDialog orgId={org.id}>
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            New Membership
-          </Button>
-        </MembershipDialog>
+        <h2 className="text-2xl font-semibold">Membership Tiers</h2>
+        <Sheet>
+          <SheetTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Create Tier
+            </Button>
+          </SheetTrigger>
+          <SheetContent>
+            <SheetHeader>
+              <SheetTitle>Create Membership Tier</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <MembershipForm groupId={org.id} />
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
 
-      <Suspense fallback={<div>Loading...</div>}>
-        <MembershipTable memberships={memberships} />
-      </Suspense>
+      <div className="rounded-md border">
+        <MembershipTable tiers={tiers} groupId={org.id} />
+      </div>
     </div>
   );
 }
-
-export default withOrgAccess(MembershipsPage);

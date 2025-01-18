@@ -34,6 +34,54 @@ export type Database = {
   }
   public: {
     Tables: {
+      applications: {
+        Row: {
+          approved_at: string | null
+          created_at: string
+          group_user_id: string
+          id: string
+          rejected_at: string | null
+          status: string
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          created_at?: string
+          group_user_id: string
+          id?: string
+          rejected_at?: string | null
+          status?: string
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          created_at?: string
+          group_user_id?: string
+          id?: string
+          rejected_at?: string | null
+          status?: string
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_group_user_id_fkey"
+            columns: ["group_user_id"]
+            isOneToOne: false
+            referencedRelation: "group_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tier"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group: {
         Row: {
           alternate_name: string | null
@@ -114,92 +162,66 @@ export type Database = {
       group_users: {
         Row: {
           created_at: string
-          created_by: string | null
-          group_id: string | null
+          group_id: string
           id: string
-          is_active: boolean | null
-          user_id: string | null
+          is_active: boolean
+          updated_at: string
+          user_id: string
         }
         Insert: {
           created_at?: string
-          created_by?: string | null
-          group_id?: string | null
+          group_id: string
           id?: string
-          is_active?: boolean | null
-          user_id?: string | null
+          is_active?: boolean
+          updated_at?: string
+          user_id: string
         }
         Update: {
           created_at?: string
-          created_by?: string | null
-          group_id?: string | null
+          group_id?: string
           id?: string
-          is_active?: boolean | null
-          user_id?: string | null
+          is_active?: boolean
+          updated_at?: string
+          user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "public_group_users_group_id_fkey"
+            foreignKeyName: "group_users_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "group"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "public_group_users_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
       }
-      membership: {
+      member_ids: {
         Row: {
           created_at: string
-          created_by: string
-          description: string | null
-          duration_months: number
-          group_id: string
+          group_user_id: string
           id: string
-          is_active: boolean
-          name: string
-          price: number
+          member_id: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
-          created_by?: string
-          description?: string | null
-          duration_months?: number
-          group_id: string
+          group_user_id: string
           id?: string
-          is_active?: boolean
-          name: string
-          price?: number
+          member_id: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
-          created_by?: string
-          description?: string | null
-          duration_months?: number
-          group_id?: string
+          group_user_id?: string
           id?: string
-          is_active?: boolean
-          name?: string
-          price?: number
+          member_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "membership_created_by_fkey"
-            columns: ["created_by"]
+            foreignKeyName: "member_ids_group_user_id_fkey"
+            columns: ["group_user_id"]
             isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "membership_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "group"
+            referencedRelation: "group_users"
             referencedColumns: ["id"]
           },
         ]
@@ -231,11 +253,93 @@ export type Database = {
             referencedRelation: "group_roles"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      membership_tier: {
+        Row: {
+          activation_type: string
+          created_at: string
+          description: string | null
+          group_id: string
+          id: string
+          name: string
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          activation_type?: string
+          created_at?: string
+          description?: string | null
+          group_id: string
+          id?: string
+          name: string
+          price: number
+          updated_at?: string
+        }
+        Update: {
+          activation_type?: string
+          created_at?: string
+          description?: string | null
+          group_id?: string
+          id?: string
+          name?: string
+          price?: number
+          updated_at?: string
+        }
+        Relationships: [
           {
-            foreignKeyName: "membership_role_membership_id_fkey"
-            columns: ["membership_id"]
+            foreignKeyName: "membership_tier_group_id_fkey"
+            columns: ["group_id"]
             isOneToOne: false
-            referencedRelation: "membership"
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      memberships: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          group_user_id: string
+          id: string
+          is_active: boolean
+          start_date: string
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          group_user_id: string
+          id?: string
+          is_active?: boolean
+          start_date: string
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          group_user_id?: string
+          id?: string
+          is_active?: boolean
+          start_date?: string
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "memberships_group_user_id_fkey"
+            columns: ["group_user_id"]
+            isOneToOne: false
+            referencedRelation: "group_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tier"
             referencedColumns: ["id"]
           },
         ]
@@ -293,61 +397,6 @@ export type Database = {
           },
         ]
       }
-      user_membership: {
-        Row: {
-          created_at: string
-          created_by: string
-          expires_at: string | null
-          id: string
-          is_active: boolean
-          membership_id: string
-          starts_at: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string
-          expires_at?: string | null
-          id?: string
-          is_active?: boolean
-          membership_id: string
-          starts_at?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string
-          expires_at?: string | null
-          id?: string
-          is_active?: boolean
-          membership_id?: string
-          starts_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "user_membership_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_membership_membership_id_fkey"
-            columns: ["membership_id"]
-            isOneToOne: false
-            referencedRelation: "membership"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_membership_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_roles: {
         Row: {
           created_at: string
@@ -389,7 +438,36 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      applications_view: {
+        Row: {
+          approved_at: string | null
+          created_at: string | null
+          group_id: string | null
+          id: string | null
+          is_active: boolean | null
+          rejected_at: string | null
+          tier_data: Json | null
+          tier_id: string | null
+          user_data: Json | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tier"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_users_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       [_ in never]: never
@@ -401,6 +479,11 @@ export type Database = {
         | "group.members.invite"
         | "group.members.approve"
       group_role_type: "GUEST" | "MEMBER"
+      membership_activation_type:
+        | "automatic"
+        | "review_required"
+        | "payment_required"
+        | "review_then_payment"
     }
     CompositeTypes: {
       [_ in never]: never
