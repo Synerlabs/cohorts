@@ -74,7 +74,8 @@ export async function createMembershipTierAction(
   const rawFormData = Object.fromEntries(formData.entries());
   const formDataObj = {
     ...rawFormData,
-    price: Number(rawFormData.price),
+    price: Number(formData.get("price")),
+    duration_months: Number(formData.get("duration_months")),
     activation_type: formData.get("activation_type") || MembershipActivationType.AUTOMATIC,
   };
 
@@ -143,6 +144,7 @@ export async function updateMembershipTierAction(
   const formDataObj = {
     ...rawFormData,
     price: Number(rawFormData.price),
+    duration_months: Number(rawFormData.duration_months),
     activation_type: rawFormData.activation_type || MembershipActivationType.AUTOMATIC,
   };
 

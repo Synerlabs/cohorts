@@ -122,13 +122,8 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
 }
 
 export async function getOrgMembers({ id }: { id: string }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("group_users")
-    .select(
-      `id, created_at, user_id, profile:user_id ( first_name, last_name, avatar_url )`,
-    )
-    .eq("group_id", id);
+  const supabase = await createServiceRoleClient();
+  const { data, error } = await supabase.rpc('get_group_members', { group_id: id });
 
   if (error) {
     throw error;
