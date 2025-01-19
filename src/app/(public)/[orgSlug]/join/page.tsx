@@ -9,6 +9,9 @@ import { Camelized } from "humps";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { MembershipActivationType } from "@/lib/types/membership";
 import { RegistrationForm } from "@/app/(public)/(home)/sign-up/components/registration-form";
+import { Button } from "@/components/ui/button";
+import { CreditCard } from "lucide-react";
+import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -49,11 +52,37 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
 
   // If user has a pending application
   if (userMembership && !userMembership.rejected_at) {
-    // If application is approved and requires payment, redirect to payment page
-    if (userMembership.approved_at && 
+    // If application is approved and requires payment
+    if (userMembership.status === "pending_payment" && 
       (userMembership.membership.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
        userMembership.membership.activation_type === MembershipActivationType.REVIEW_THEN_PAYMENT)) {
-      redirect(`/@${org.slug}/join/payment`);
+      return (
+        <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
+          <div className="w-full max-w-lg space-y-6">
+            <div className="text-center">
+              <h1 className="text-2xl font-semibold tracking-tight">Complete Your Membership</h1>
+              <p className="text-sm text-muted-foreground mb-6">
+                Your application has been approved. Complete the payment to activate your membership.
+              </p>
+            </div>
+            <div className="bg-muted/50 p-6 rounded-lg space-y-4">
+              <div className="space-y-2">
+                <h2 className="font-medium">Membership Details</h2>
+                <div className="text-sm text-muted-foreground">
+                  <p>Tier: {userMembership.membership.name}</p>
+                  <p>Price: ${userMembership.membership.price}</p>
+                </div>
+              </div>
+              <Button className="w-full" asChild>
+                <Link href={`/@${org.slug}/join/payment`}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Complete Payment (${userMembership.membership.price})
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
     }
 
     // If application is pending review

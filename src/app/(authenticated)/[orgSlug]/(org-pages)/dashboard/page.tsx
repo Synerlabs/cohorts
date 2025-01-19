@@ -1,6 +1,9 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import { getUserMembership } from "@/services/join.service";
+import { CreditCard } from "lucide-react";
+import { MembershipActivationType } from "@/lib/types/membership";
 
 async function OrgHomePage({
   user,
@@ -9,6 +12,12 @@ async function OrgHomePage({
   params,
   searchParams,
 }: OrgAccessHOCProps) {
+  const userMembership = user ? await getUserMembership(user.id, org.id) : null;
+  const hasPendingPayment = userMembership && 
+    userMembership.status === "pending_payment" && 
+    (userMembership.membership.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
+     userMembership.membership.activation_type === MembershipActivationType.REVIEW_THEN_PAYMENT);
+
   return (
     <div className="space-y-6">
       <div>
@@ -18,7 +27,22 @@ async function OrgHomePage({
         </p>
       </div>
 
-      {isGuest && (
+      {hasPendingPayment && (
+        <div className="bg-muted/50 p-4 rounded-lg">
+          <h2 className="text-lg font-semibold mb-2">Complete Your Membership</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Your application has been approved. Complete the payment of ${userMembership.membership.price} to activate your membership.
+          </p>
+          <Button asChild>
+            <Link href={`/@${org.slug}/join/payment`}>
+              <CreditCard className="mr-2 h-4 w-4" />
+              Complete Payment (${userMembership.membership.price})
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {isGuest && !hasPendingPayment && (
         <div className="bg-muted/50 p-4 rounded-lg">
           <h2 className="text-lg font-semibold mb-2">Join {org.name}</h2>
           <p className="text-sm text-muted-foreground mb-4">
