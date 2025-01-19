@@ -121,15 +121,26 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
   }
 }
 
-export async function getOrgMembers({ id }: { id: string }) {
+export async function getOrgMembers({ id, isActive = true }: { id: string; isActive?: boolean }) {
   const supabase = await createServiceRoleClient();
   const { data, error } = await supabase
     .from("group_users")
     .select(
-      `id, created_at, user_id, profile:user_id ( first_name, last_name, avatar_url )`,
+      `
+        id, 
+        created_at, 
+        user_id,
+        is_active,
+        profile:user_id (
+          first_name,
+          last_name,
+          avatar_url
+        )
+      `,
       { count: "exact" }
     )
-    .eq("group_id", id);
+    .eq("group_id", id)
+    .eq("is_active", isActive);
 
   if (error) {
     throw error;
@@ -146,20 +157,57 @@ export async function createOrgMember({
   groupId: string;
 }) {
   const supabase = await createClient();
+
+  // Check if the user is the group creator
+  const { data: group } = await supabase
+    .from("group")
+    .select("created_by")
+    .eq("id", groupId)
+    .single();
+
+  const isCreator = group?.created_by === userId;
+
+  // If creator, activate immediately
+  if (isCreator) {
+    const { data: member, error } = await supabase
+      .from("group_users")
+      .insert({
+        user_id: userId,
+        group_id: groupId,
+        is_active: true
+      })
+      .select("id")
+      .single();
+
+    if (error) throw error;
+    return member;
+  }
+
+  // For joiners, check membership tiers
+  const { data: tiers } = await supabase
+    .from("membership_tier")
+    .select("*")
+    .eq("group_id", groupId);
+
+  // Determine if should activate:
+  // - No tiers = activate
+  // - Single automatic tier = activate
+  // - Multiple tiers or non-automatic tier = don't activate
+  const shouldActivate = !tiers?.length || 
+    (tiers.length === 1 && tiers[0].is_automatic);
+
   const { data: member, error } = await supabase
     .from("group_users")
     .insert({
       user_id: userId,
       group_id: groupId,
+      is_active: shouldActivate
     })
     .select("id")
     .single();
 
-  if (error) {
-    throw error;
-  } else {
-    return member;
-  }
+  if (error) throw error;
+  return member;
 }
 
 type PaginationOptions = {
