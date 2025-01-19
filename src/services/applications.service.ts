@@ -88,60 +88,43 @@ export async function getPendingApplications(groupId: string): Promise<Applicati
 export async function approveApplication(applicationId: string) {
   const supabase = await createClient();
 
+  // Get application details
   const { data: application, error: applicationError } = await supabase
-    .from('applications_view')
-    .select()
+    .from('applications')
+    .select(`
+      *,
+      membership_tier!inner (
+        activation_type,
+        price
+      )
+    `)
     .eq('id', applicationId)
     .single();
 
   if (applicationError) throw applicationError;
   if (!application) throw new Error('Application not found');
 
-  const activationType = (application as ApplicationView).membership_data.activation_type as MembershipActivationType;
-  const price = (application as ApplicationView).membership_data.price;
+  const activationType = application.membership_tier.activation_type as MembershipActivationType;
+  const price = application.membership_tier.price;
 
   // Only activate if it's free or doesn't require payment
   const shouldActivate = price === 0 || 
     (activationType !== MembershipActivationType.PAYMENT_REQUIRED && 
      activationType !== MembershipActivationType.REVIEW_THEN_PAYMENT);
 
-  console.log('Approval Debug:', {
-    applicationId,
-    price,
-    activationType,
-    shouldActivate,
-    application
+  // Update application status
+  const newStatus = activationType === MembershipActivationType.REVIEW_THEN_PAYMENT 
+    ? 'pending_payment' 
+    : 'approved';
+
+  // Start transaction
+  const { error: updateError } = await supabase.rpc('approve_application', { 
+    p_application_id: applicationId,
+    p_new_status: newStatus,
+    p_should_activate: shouldActivate
   });
 
-  // First check if we can find the record
-  const { data: membership, error: membershipError } = await supabase
-    .from('user_membership')
-    .select('*')
-    .eq('id', applicationId)
-    .single();
-
-  console.log('Found membership:', membership);
-
-  if (membershipError) {
-    console.error('Membership Error:', membershipError);
-    throw membershipError;
-  }
-
-  // Now try to update it
-  const { error: updateError } = await supabase
-    .from('user_membership')
-    .update({
-      is_active: shouldActivate,
-      approved_at: new Date().toISOString()
-    })
-    .eq('id', applicationId)
-    .eq('user_id', application.user_id)
-    .eq('membership_id', application.membership_id);
-
-  if (updateError) {
-    console.error('Update Error:', updateError);
-    throw updateError;
-  }
+  if (updateError) throw updateError;
 
   // Fetch the updated record
   const { data: updatedApplication, error: fetchError } = await supabase
@@ -150,28 +133,19 @@ export async function approveApplication(applicationId: string) {
     .eq('id', applicationId)
     .single();
 
-  if (fetchError) {
-    console.error('Fetch Error:', fetchError);
-    throw fetchError;
-  }
-
-  console.log('Update Debug:', { updateError, updatedApplication });
-
+  if (fetchError) throw fetchError;
   return updatedApplication as ApplicationView;
 }
 
 export async function rejectApplication(applicationId: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase
-    .from('user_membership')
-    .update({
-      is_active: false,
-      rejected_at: new Date().toISOString()
-    })
-    .eq('id', applicationId);
+  // Start transaction
+  const { error: updateError } = await supabase.rpc('reject_application', { 
+    p_application_id: applicationId
+  });
 
-  if (error) throw error;
+  if (updateError) throw updateError;
 
   // Fetch the updated record
   const { data: updatedApplication, error: fetchError } = await supabase
@@ -180,11 +154,7 @@ export async function rejectApplication(applicationId: string) {
     .eq('id', applicationId)
     .single();
 
-  if (fetchError) {
-    console.error('Fetch Error:', fetchError);
-    throw fetchError;
-  }
-
+  if (fetchError) throw fetchError;
   return updatedApplication as ApplicationView;
 }
 

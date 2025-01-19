@@ -242,10 +242,19 @@ export async function createGroupUser(groupId: string, userId: string, isActive:
   return data;
 }
 
-export async function createUserMembership(userId: string, tierId: string, isActive: boolean, groupId: string) {
+export async function createUserMembership(userId: string, tierId: string, groupId: string) {
   const supabase = await createClient();
 
-  // First get the group_user record
+  // Get membership tier details
+  const { data: tier, error: tierError } = await supabase
+    .from('membership_tier')
+    .select('*')
+    .eq('id', tierId)
+    .single();
+
+  if (tierError) throw tierError;
+
+  // First get or create the group_user record
   const { data: groupUser, error: groupUserError } = await supabase
     .from('group_users')
     .select('id')
@@ -253,19 +262,125 @@ export async function createUserMembership(userId: string, tierId: string, isAct
     .eq('group_id', groupId)
     .single();
 
-  if (groupUserError) throw groupUserError;
+  let groupUserId;
+  if (groupUserError && groupUserError.code === 'PGRST116') {
+    // Create new group_user
+    const { data: newGroupUser, error: createError } = await supabase
+      .from('group_users')
+      .insert({
+        user_id: userId,
+        group_id: groupId,
+        is_active: tier.activation_type === 'automatic'
+      })
+      .select('id')
+      .single();
+
+    if (createError) throw createError;
+    groupUserId = newGroupUser.id;
+  } else if (groupUserError) {
+    throw groupUserError;
+  } else {
+    groupUserId = groupUser.id;
+  }
+
+  // Determine initial membership status based on activation type
+  let membershipStatus;
+  switch (tier.activation_type) {
+    case 'automatic':
+      membershipStatus = 'approved';
+      break;
+    case 'review_required':
+      membershipStatus = 'pending';
+      break;
+    case 'payment_required':
+      membershipStatus = 'pending_payment';
+      break;
+    case 'review_then_payment':
+      membershipStatus = 'pending';
+      break;
+    default:
+      membershipStatus = 'pending';
+  }
 
   // Create the membership
   const { error: membershipError } = await supabase
     .from('memberships')
     .insert({
-      group_user_id: groupUser.id,
+      group_user_id: groupUserId,
       tier_id: tierId,
-      is_active: isActive,
-      start_date: new Date().toISOString()
+      is_active: tier.activation_type === 'automatic',
+      status: membershipStatus,
+      start_date: tier.activation_type === 'automatic' ? new Date().toISOString() : null
     });
 
   if (membershipError) throw membershipError;
+
+  // Create the application
+  const { error: applicationError } = await supabase
+    .from('applications')
+    .insert({
+      group_user_id: groupUserId,
+      tier_id: tierId,
+      status: membershipStatus
+    });
+
+  if (applicationError) throw applicationError;
+}
+
+export async function approveApplication(applicationId: string) {
+  const supabase = await createClient();
+
+  // Get application details
+  const { data: application, error: appError } = await supabase
+    .from('applications')
+    .select(`
+      *,
+      membership_tier!inner (
+        activation_type
+      )
+    `)
+    .eq('id', applicationId)
+    .single();
+
+  if (appError) throw appError;
+
+  // Update application status
+  const newStatus = application.membership_tier.activation_type === 'review_then_payment' 
+    ? 'pending_payment' 
+    : 'approved';
+
+  const shouldActivate = application.membership_tier.activation_type === 'review_required';
+
+  // Start transaction
+  const { error: updateError } = await supabase.rpc('approve_application', { 
+    p_application_id: applicationId,
+    p_new_status: newStatus,
+    p_should_activate: shouldActivate
+  });
+
+  if (updateError) throw updateError;
+}
+
+export async function completePayment(applicationId: string) {
+  const supabase = await createClient();
+
+  // Start transaction
+  const { error: updateError } = await supabase.rpc('complete_payment', { 
+    p_application_id: applicationId
+  });
+
+  if (updateError) throw updateError;
+}
+
+export async function rejectApplication(applicationId: string) {
+  const supabase = await createClient();
+
+  // Start transaction
+  const { error: updateError } = await supabase.rpc('reject_application', { 
+    p_application_id: applicationId
+  });
+
+  if (updateError) throw updateError;
 }
 
 export async function getMembershipDetails(tierId: string): Promise<{

@@ -98,23 +98,35 @@ export async function approveApplicationAction(
       };
     }
 
-    // Get org slug for permission check
+    // Get org data for permission check and revalidation
     const supabase = await createClient();
-    const { data: membership } = await supabase
-      .from('user_membership')
-      .select('group:group_id(slug)')
+    const result = await supabase
+      .from('applications_view')
+      .select('group')
       .eq('id', applicationId)
-      .single() as { data: MembershipWithGroup | null };
+      .single();
 
-    if (!membership?.group?.slug) {
+    console.log('Application query result:', result);
+
+    if (result.error) {
+      console.error('Supabase error:', result.error);
+      return {
+        error: result.error.message || "Could not find organization",
+        success: false,
+      };
+    }
+
+    const application = result.data;
+    if (!application?.group?.id || !application?.group?.slug) {
+      console.log('Organization not found:', { application });
       return {
         error: "Could not find organization",
         success: false,
       };
     }
 
-    // Check permissions
-    const hasPermission = await checkUserPermissions([permissions.applications.approve], membership.group.slug);
+    // Check permissions using group slug
+    const hasPermission = await checkUserPermissions([permissions.applications.approve], application.group.slug);
     if (!hasPermission) {
       return {
         error: "You don't have permission to approve applications",
@@ -124,8 +136,8 @@ export async function approveApplicationAction(
 
     await approveApplication(applicationId);
 
-    // Revalidate both the specific page and the layout
-    revalidatePath(`/@${membership.group.slug}/applications`);
+    // Revalidate using group slug
+    revalidatePath(`/@${application.group.slug}/applications`);
     revalidatePath('/', 'layout');
 
     return {
@@ -162,23 +174,35 @@ export async function rejectApplicationAction(
       };
     }
 
-    // Get org slug for permission check and revalidation
+    // Get org data for permission check and revalidation
     const supabase = await createClient();
-    const { data: membership } = await supabase
-      .from('user_membership')
-      .select('group:group_id(slug)')
+    const result = await supabase
+      .from('applications_view')
+      .select('group')
       .eq('id', applicationId)
-      .single() as { data: MembershipWithGroup | null };
+      .single();
 
-    if (!membership?.group?.slug) {
+    console.log('Application query result:', result);
+
+    if (result.error) {
+      console.error('Supabase error:', result.error);
+      return {
+        error: result.error.message || "Could not find organization",
+        success: false,
+      };
+    }
+
+    const application = result.data;
+    if (!application?.group?.id || !application?.group?.slug) {
+      console.log('Organization not found:', { application });
       return {
         error: "Could not find organization",
         success: false,
       };
     }
 
-    // Check permissions
-    const hasPermission = await checkUserPermissions([permissions.applications.reject], membership.group.slug);
+    // Check permissions using group slug
+    const hasPermission = await checkUserPermissions([permissions.applications.reject], application.group.slug);
     if (!hasPermission) {
       return {
         error: "You don't have permission to reject applications",
@@ -188,8 +212,8 @@ export async function rejectApplicationAction(
 
     await rejectApplication(applicationId);
 
-    // Revalidate both the specific page and the layout
-    revalidatePath(`/@${membership.group.slug}/applications`);
+    // Revalidate using group slug
+    revalidatePath(`/@${application.group.slug}/applications`);
     revalidatePath('/', 'layout');
 
     return {

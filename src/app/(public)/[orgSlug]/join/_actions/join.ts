@@ -88,7 +88,7 @@ export async function joinOrgWithMembership(
     }
 
     // Create membership using the existing or new group_user_id
-    await createUserMembership(userId, membershipId, isInitiallyActive, groupId);
+    await createUserMembership(userId, membershipId, groupId);
 
     revalidatePath(`/@${slug}/join`);
 

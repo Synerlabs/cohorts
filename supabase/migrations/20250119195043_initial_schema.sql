@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS "public"."applications" (
     "rejected_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    CONSTRAINT "applications_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'approved'::"text", 'rejected'::"text"])))
+    CONSTRAINT "applications_status_check" CHECK (("status" = ANY (ARRAY['pending'::"text", 'pending_payment'::"text", 'approved'::"text", 'rejected'::"text"])))
 );
 
 CREATE TABLE IF NOT EXISTS "public"."group_users" (
@@ -103,11 +103,15 @@ CREATE TABLE IF NOT EXISTS "public"."memberships" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "group_user_id" "uuid" NOT NULL,
     "tier_id" "uuid" NOT NULL,
-    "start_date" "date" NOT NULL,
+    "start_date" "date",
     "end_date" "date",
-    "is_active" boolean DEFAULT true NOT NULL,
+    "is_active" boolean DEFAULT false NOT NULL,
+    "status" text DEFAULT 'pending'::text NOT NULL,
+    "approved_at" timestamp with time zone,
+    "rejected_at" timestamp with time zone,
     "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL
+    "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    CONSTRAINT "memberships_status_check" CHECK (("status" = ANY (ARRAY['pending'::text, 'pending_payment'::text, 'approved'::text, 'rejected'::text])))
 );
 
 CREATE TABLE IF NOT EXISTS "public"."profiles" (
@@ -249,3 +253,100 @@ ALTER TABLE ONLY "public"."group_roles"
 ALTER TABLE "public"."group_users" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."group_roles" DISABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."user_roles" DISABLE ROW LEVEL SECURITY;
+
+-- Function to approve application
+CREATE OR REPLACE FUNCTION public.approve_application(
+    p_application_id uuid,
+    p_new_status text,
+    p_should_activate boolean
+) RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+AS $$
+BEGIN
+    -- Update application
+    UPDATE public.applications
+    SET status = p_new_status,
+        approved_at = CASE WHEN p_new_status = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
+    WHERE id = p_application_id;
+
+    -- Update membership
+    UPDATE public.memberships m
+    SET status = p_new_status,
+        is_active = CASE WHEN p_should_activate THEN true ELSE is_active END,
+        start_date = CASE WHEN p_should_activate THEN CURRENT_DATE ELSE start_date END,
+        approved_at = CASE WHEN p_new_status = 'approved' THEN CURRENT_TIMESTAMP ELSE NULL END
+    FROM public.applications a
+    WHERE a.id = p_application_id
+    AND a.group_user_id = m.group_user_id
+    AND a.tier_id = m.tier_id;
+
+    -- Update group_user if activating
+    IF p_should_activate THEN
+        UPDATE public.group_users gu
+        SET is_active = true
+        FROM public.applications a
+        WHERE a.id = p_application_id
+        AND a.group_user_id = gu.id;
+    END IF;
+END;
+$$;
+
+-- Function to complete payment
+CREATE OR REPLACE FUNCTION public.complete_payment(
+    p_application_id uuid
+) RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+AS $$
+BEGIN
+    -- Update application
+    UPDATE public.applications
+    SET status = 'approved',
+        approved_at = CURRENT_TIMESTAMP
+    WHERE id = p_application_id;
+
+    -- Update membership and activate
+    UPDATE public.memberships m
+    SET status = 'approved',
+        is_active = true,
+        start_date = CURRENT_DATE,
+        approved_at = CURRENT_TIMESTAMP
+    FROM public.applications a
+    WHERE a.id = p_application_id
+    AND a.group_user_id = m.group_user_id
+    AND a.tier_id = m.tier_id;
+
+    -- Activate group_user
+    UPDATE public.group_users gu
+    SET is_active = true
+    FROM public.applications a
+    WHERE a.id = p_application_id
+    AND a.group_user_id = gu.id;
+END;
+$$;
+
+-- Function to reject application
+CREATE OR REPLACE FUNCTION public.reject_application(
+    p_application_id uuid
+) RETURNS void
+    LANGUAGE plpgsql
+    SECURITY DEFINER
+AS $$
+BEGIN
+    -- Update application
+    UPDATE public.applications
+    SET status = 'rejected',
+        rejected_at = CURRENT_TIMESTAMP
+    WHERE id = p_application_id;
+
+    -- Update membership
+    UPDATE public.memberships m
+    SET status = 'rejected',
+        rejected_at = CURRENT_TIMESTAMP
+    FROM public.applications a
+    WHERE a.id = p_application_id
+    AND a.group_user_id = m.group_user_id
+    AND a.tier_id = m.tier_id;
+END;
+$$;
