@@ -5,7 +5,7 @@ import { Database } from "@/types/database.types";
 export type Application = {
   id: string;
   user_id: string;
-  membership_id: string;
+  tier_id: string;
   group_id: string;
   is_active: boolean;
   created_at: string;
@@ -15,20 +15,27 @@ export type Application = {
   user: {
     id: string;
     email: string;
+    first_name: string | null;
+    last_name: string | null;
     full_name: string;
   };
-  membership: {
+  tier: {
     id: string;
     name: string;
     price: number;
     activation_type: MembershipActivationType;
+  };
+  group: {
+    id: string;
+    name: string;
+    slug: string;
   };
 };
 
 type ApplicationView = {
   id: string;
   user_id: string;
-  membership_id: string;
+  tier_id: string;
   group_id: string;
   is_active: boolean;
   created_at: string;
@@ -37,16 +44,20 @@ type ApplicationView = {
   status: 'pending' | 'pending_payment' | 'approved' | 'rejected';
   user_data: {
     id: string;
-    first_name: string | null;
-    last_name: string | null;
     email: string;
+    full_name: string;
   };
-  membership_data: {
+  tier_data: {
     id: string;
     name: string;
     price: number;
     activation_type: string;
     duration_months: number;
+  };
+  group: {
+    id: string;
+    name: string;
+    slug: string;
   };
 };
 
@@ -66,7 +77,7 @@ export async function getPendingApplications(groupId: string): Promise<Applicati
   return (data as ApplicationView[]).map(row => ({
     id: row.id,
     user_id: row.user_id,
-    membership_id: row.membership_id,
+    tier_id: row.tier_id,
     group_id: row.group_id,
     is_active: row.is_active,
     created_at: row.created_at,
@@ -76,14 +87,17 @@ export async function getPendingApplications(groupId: string): Promise<Applicati
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
-      full_name: `${row.user_data.first_name} ${row.user_data.last_name}`.trim()
+      first_name: row.user_data.full_name.split(' ')[0],
+      last_name: row.user_data.full_name.split(' ').slice(1).join(' '),
+      full_name: row.user_data.full_name
     },
-    membership: {
-      id: row.membership_data.id,
-      name: row.membership_data.name,
-      price: row.membership_data.price,
-      activation_type: (row.membership_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
-    }
+    tier: {
+      id: row.tier_data.id,
+      name: row.tier_data.name,
+      price: row.tier_data.price,
+      activation_type: (row.tier_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
+    },
+    group: row.group
   }));
 }
 
@@ -176,7 +190,7 @@ export async function getPendingPaymentApplications(groupId: string): Promise<Ap
   return (data as ApplicationView[]).map(row => ({
     id: row.id,
     user_id: row.user_id,
-    membership_id: row.membership_id,
+    tier_id: row.tier_id,
     group_id: row.group_id,
     is_active: row.is_active,
     created_at: row.created_at,
@@ -186,14 +200,17 @@ export async function getPendingPaymentApplications(groupId: string): Promise<Ap
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
-      full_name: `${row.user_data.first_name} ${row.user_data.last_name}`.trim()
+      first_name: row.user_data.full_name.split(' ')[0],
+      last_name: row.user_data.full_name.split(' ').slice(1).join(' '),
+      full_name: row.user_data.full_name
     },
-    membership: {
-      id: row.membership_data.id,
-      name: row.membership_data.name,
-      price: row.membership_data.price,
-      activation_type: (row.membership_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
-    }
+    tier: {
+      id: row.tier_data.id,
+      name: row.tier_data.name,
+      price: row.tier_data.price,
+      activation_type: (row.tier_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
+    },
+    group: row.group
   }));
 }
 
@@ -214,7 +231,7 @@ export async function getApprovedApplications(groupId: string): Promise<Applicat
   return (data as ApplicationView[]).map(row => ({
     id: row.id,
     user_id: row.user_id,
-    membership_id: row.membership_id,
+    tier_id: row.tier_id,
     group_id: row.group_id,
     is_active: row.is_active,
     created_at: row.created_at,
@@ -224,14 +241,17 @@ export async function getApprovedApplications(groupId: string): Promise<Applicat
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
-      full_name: `${row.user_data.first_name} ${row.user_data.last_name}`.trim()
+      first_name: row.user_data.full_name.split(' ')[0],
+      last_name: row.user_data.full_name.split(' ').slice(1).join(' '),
+      full_name: row.user_data.full_name
     },
-    membership: {
-      id: row.membership_data.id,
-      name: row.membership_data.name,
-      price: row.membership_data.price,
-      activation_type: (row.membership_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
-    }
+    tier: {
+      id: row.tier_data.id,
+      name: row.tier_data.name,
+      price: row.tier_data.price,
+      activation_type: (row.tier_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
+    },
+    group: row.group
   }));
 }
 
@@ -251,7 +271,7 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
   return (data as ApplicationView[]).map(row => ({
     id: row.id,
     user_id: row.user_id,
-    membership_id: row.membership_id,
+    tier_id: row.tier_id,
     group_id: row.group_id,
     is_active: row.is_active,
     created_at: row.created_at,
@@ -261,13 +281,16 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
-      full_name: `${row.user_data.first_name} ${row.user_data.last_name}`.trim()
+      first_name: row.user_data.full_name.split(' ')[0],
+      last_name: row.user_data.full_name.split(' ').slice(1).join(' '),
+      full_name: row.user_data.full_name
     },
-    membership: {
-      id: row.membership_data.id,
-      name: row.membership_data.name,
-      price: row.membership_data.price,
-      activation_type: (row.membership_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
-    }
+    tier: {
+      id: row.tier_data.id,
+      name: row.tier_data.name,
+      price: row.tier_data.price,
+      activation_type: (row.tier_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
+    },
+    group: row.group
   }));
 } 

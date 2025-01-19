@@ -19,6 +19,7 @@ import { MembershipActivationType } from "@/lib/types/membership";
 import { useRouter } from "next/navigation";
 import { ComponentPermission } from "@/components/ComponentPermission";
 import { permissions } from "@/lib/types/permissions";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface ApplicationsTableProps {
   applications: Application[];
@@ -32,6 +33,21 @@ const activationTypeLabels = {
   [MembershipActivationType.PAYMENT_REQUIRED]: 'Payment Required',
   [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Review then Payment',
 } as const;
+
+const getBadgeVariant = (activationType: MembershipActivationType) => {
+  switch (activationType) {
+    case MembershipActivationType.AUTOMATIC:
+      return 'default'
+    case MembershipActivationType.REVIEW_REQUIRED:
+      return 'secondary'
+    case MembershipActivationType.PAYMENT_REQUIRED:
+      return 'outline'
+    case MembershipActivationType.REVIEW_THEN_PAYMENT:
+      return 'destructive'
+    default:
+      return 'default'
+  }
+}
 
 type ActionResult = {
   success: boolean;
@@ -78,6 +94,8 @@ export default function ApplicationsTable({ applications, showActions = true, us
     );
   }
 
+  console.log(applications);
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -98,24 +116,34 @@ export default function ApplicationsTable({ applications, showActions = true, us
           {applications.map((application) => (
             <TableRow key={application.id}>
               <TableCell>
-                <div className="font-medium">{application.user.full_name}</div>
-                <div className="text-sm text-muted-foreground">
-                  {application.user.email}
+                <div className="flex items-center gap-4">
+                  <Avatar>
+                    <AvatarFallback>
+                      {application.user.first_name?.[0]}
+                      {application.user.last_name?.[0]}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex flex-col">
+                    <span className="font-medium">
+                      {application.user.full_name}
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {application.user.email}
+                    </span>
+                  </div>
                 </div>
               </TableCell>
               <TableCell>
-                {application.membership.name}
+                {application.tier.name}
               </TableCell>
               <TableCell>
-                {application.membership.price === 0 ? (
-                  <Badge variant="secondary">Free</Badge>
-                ) : (
-                  <div>${application.membership.price}</div>
+                {application.tier.price > 0 && (
+                  <span>${application.tier.price}</span>
                 )}
               </TableCell>
               <TableCell>
-                <Badge variant="secondary">
-                  {activationTypeLabels[application.membership.activation_type]}
+                <Badge variant={getBadgeVariant(application.tier.activation_type)}>
+                  {application.tier.activation_type}
                 </Badge>
               </TableCell>
               <TableCell>
