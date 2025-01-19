@@ -187,6 +187,9 @@ ALTER TABLE ONLY "public"."applications"
 ALTER TABLE ONLY "public"."group_users"
     ADD CONSTRAINT "group_users_pkey" PRIMARY KEY ("id");
 
+ALTER TABLE ONLY "public"."group_users"
+    ADD CONSTRAINT "group_users_group_id_user_id_key" UNIQUE ("group_id", "user_id");
+
 ALTER TABLE ONLY "public"."membership_tier"
     ADD CONSTRAINT "membership_tier_pkey" PRIMARY KEY ("id");
 

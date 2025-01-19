@@ -158,6 +158,18 @@ export async function createOrgMember({
 }) {
   const supabase = await createClient();
 
+  // First check if user is already a member (active or inactive)
+  const { data: existingMembers, error: existingError } = await supabase
+    .from("group_users")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("group_id", groupId);
+
+  if (existingError) throw existingError;
+  if (existingMembers && existingMembers.length > 0) {
+    return existingMembers[0];
+  }
+
   // Check if the user is the group creator
   const { data: group } = await supabase
     .from("group")
@@ -176,7 +188,7 @@ export async function createOrgMember({
         group_id: groupId,
         is_active: true
       })
-      .select("id")
+      .select()
       .single();
 
     if (error) throw error;
@@ -203,7 +215,7 @@ export async function createOrgMember({
       group_id: groupId,
       is_active: shouldActivate
     })
-    .select("id")
+    .select()
     .single();
 
   if (error) throw error;

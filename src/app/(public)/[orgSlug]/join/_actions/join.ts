@@ -27,6 +27,20 @@ export async function joinOrgWithMembership(
       };
     }
 
+    const supabase = await createClient();
+
+    // First get the existing group_user record
+    const { data: groupUser, error: groupUserError } = await supabase
+      .from('group_users')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('group_id', groupId)
+      .single();
+
+    if (groupUserError && groupUserError.code !== 'PGRST116') {
+      throw groupUserError;
+    }
+
     // Get and validate membership
     const membership = await getMembershipDetails(membershipId);
     if (!membership) {
@@ -55,8 +69,25 @@ export async function joinOrgWithMembership(
     // Get org for revalidation
     const { slug } = await getOrgSlug(groupId);
 
-    // Create user associations
-    await createGroupUser(groupId, userId, isInitiallyActive);
+    let groupUserId = groupUser?.id;
+
+    // Only create group_user if it doesn't exist
+    if (!groupUserId) {
+      const { data: newGroupUser, error: createError } = await supabase
+        .from('group_users')
+        .insert({
+          user_id: userId,
+          group_id: groupId,
+          is_active: isInitiallyActive
+        })
+        .select('id')
+        .single();
+
+      if (createError) throw createError;
+      groupUserId = newGroupUser.id;
+    }
+
+    // Create membership using the existing or new group_user_id
     await createUserMembership(userId, membershipId, isInitiallyActive, groupId);
 
     revalidatePath(`/@${slug}/join`);
