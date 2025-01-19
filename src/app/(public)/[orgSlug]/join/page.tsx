@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { MembershipSelection } from "./components/MembershipSelection";
 import { getOrgBySlug } from "@/services/org.service";
-import { getMemberships } from "@/services/membership.service";
+import { getMembershipTiers } from "@/services/membership.service";
 import { getCurrentUser } from "@/services/user.service";
 import { getUserMembership } from "@/services/join.service";
 import { Tables } from "@/lib/types/database.types";
@@ -16,7 +16,7 @@ export const revalidate = 0;
 type CamelizedGroup = Camelized<Tables<"group">>;
 
 async function getMembershipData(orgId: string) {
-  const memberships = await getMemberships({ orgId });
+  const memberships = await getMembershipTiers({ orgId });
   return memberships;
 }
 

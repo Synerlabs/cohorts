@@ -87,3 +87,27 @@ export async function deleteMembershipTier(id: string) {
 
   if (error) throw error;
 }
+
+export async function getMemberships({ orgId }: { orgId: string }): Promise<MembershipTier[]> {
+  const supabase = await createClient();
+
+  const { data: tiers, error } = await supabase
+    .from("membership_tier")
+    .select(`
+      *,
+      memberships (
+        id
+      )
+    `)
+    .eq("group_id", orgId)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  // Add member count to each tier
+  return tiers.map(tier => ({
+    ...tier,
+    member_count: tier.memberships?.length || 0
+  }));
+}

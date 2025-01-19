@@ -34,14 +34,14 @@ export function validateMembershipActivation(
   price: number,
   activationType: MembershipActivationType
 ): string | null {
-  // Free memberships must be immediate
-  if (price === 0 && activationType === MembershipActivationType.MANUAL) {
-    return 'Free memberships must be immediate';
+  // Free memberships must be automatic
+  if (price === 0 && activationType !== MembershipActivationType.AUTOMATIC) {
+    return 'Free memberships must be automatic';
   }
 
-  // Paid memberships must be manual
-  if (price > 0 && activationType === MembershipActivationType.IMMEDIATE) {
-    return 'Paid memberships must be manual';
+  // Paid memberships must require payment or review
+  if (price > 0 && activationType === MembershipActivationType.AUTOMATIC) {
+    return 'Paid memberships must require payment, review, or both';
   }
 
   return null;
@@ -131,5 +131,166 @@ export async function getMembership(
     throw error;
   }
   
+  return data;
+}
+
+export async function getUserMembership(userId: string, groupId: string) {
+  const supabase = await createClient();
+  
+  // First get the group_user record
+  const { data: groupUser, error: groupUserError } = await supabase
+    .from('group_users')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('group_id', groupId)
+    .single();
+
+  if (groupUserError) {
+    if (groupUserError.code === 'PGRST116') return null; // No group user found
+    throw groupUserError;
+  }
+
+  // Then get the latest membership for this group user
+  const { data: membership, error: membershipError } = await supabase
+    .from('memberships')
+    .select(`
+      *,
+      membership:tier_id (
+        name,
+        price,
+        activation_type
+      )
+    `)
+    .eq('group_user_id', groupUser.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (membershipError) {
+    if (membershipError.code === 'PGRST116') return null; // No membership found
+    throw membershipError;
+  }
+
+  // If no active membership, check for applications
+  if (!membership || !membership.is_active) {
+    const { data: application, error: applicationError } = await supabase
+      .from('applications')
+      .select(`
+        *,
+        membership:tier_id (
+          name,
+          price,
+          activation_type
+        )
+      `)
+      .eq('group_user_id', groupUser.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (applicationError && applicationError.code !== 'PGRST116') {
+      throw applicationError;
+    }
+
+    if (application) {
+      return {
+        ...application,
+        is_active: false
+      };
+    }
+  }
+
+  return membership;
+}
+
+export const statusMessages = {
+  [MembershipActivationType.AUTOMATIC]: 'You have been automatically approved. Welcome!',
+  [MembershipActivationType.REVIEW_REQUIRED]: 'Your application is pending review.',
+  [MembershipActivationType.PAYMENT_REQUIRED]: 'Please complete payment to join.',
+  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Your application is pending review. Once approved, you will be asked to complete payment.',
+};
+
+export async function getOrgSlug(groupId: string): Promise<{ slug: string }> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('group')
+    .select('slug')
+    .eq('id', groupId)
+    .single();
+
+  if (error) throw error;
+  if (!data) throw new Error('Organization not found');
+
+  return data;
+}
+
+export async function createGroupUser(groupId: string, userId: string, isActive: boolean = false) {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from('group_users')
+    .insert({
+      group_id: groupId,
+      user_id: userId,
+      is_active: isActive
+    })
+    .select('id')
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function createUserMembership(userId: string, tierId: string, isActive: boolean, groupId: string) {
+  const supabase = await createClient();
+
+  // First get the group_user record
+  const { data: groupUser, error: groupUserError } = await supabase
+    .from('group_users')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('group_id', groupId)
+    .single();
+
+  if (groupUserError) throw groupUserError;
+
+  // Create the membership
+  const { error: membershipError } = await supabase
+    .from('memberships')
+    .insert({
+      group_user_id: groupUser.id,
+      tier_id: tierId,
+      is_active: isActive,
+      start_date: new Date().toISOString()
+    });
+
+  if (membershipError) throw membershipError;
+}
+
+export async function getMembershipDetails(tierId: string): Promise<{
+  id: string;
+  name: string;
+  price: number;
+  activation_type: MembershipActivationType;
+  group_id: string;
+} | null> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('membership_tier')
+    .select(`
+      id,
+      name,
+      price,
+      activation_type,
+      group_id
+    `)
+    .eq('id', tierId)
+    .single();
+
+  if (error) throw error;
+  if (!data) return null;
+
   return data;
 } 

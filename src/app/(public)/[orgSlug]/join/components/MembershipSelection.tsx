@@ -12,12 +12,12 @@ import {
 import { useState, useTransition } from "react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { joinOrgWithMembership } from "../_actions/join";
-import { Membership } from "@/lib/types/membership";
+import { MembershipTier } from "@/lib/types/membership";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 
 interface MembershipSelectionProps {
-  memberships: Membership[];
+  memberships: MembershipTier[];
   groupId: string;
   userId: string;
 }
