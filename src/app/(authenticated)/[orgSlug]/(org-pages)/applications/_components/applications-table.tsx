@@ -124,10 +124,10 @@ export default function ApplicationsTable({ applications, showActions = true, us
               <TableCell>
                 {application.rejected_at ? (
                   <Badge variant="destructive">Rejected</Badge>
-                ) : application.is_active ? (
-                  <Badge variant="outline">Active</Badge>
-                ) : application.approved_at ? (
+                ) : application.status === 'pending_payment' ? (
                   <Badge variant="secondary">Pending Payment</Badge>
+                ) : application.status === 'approved' ? (
+                  <Badge variant="outline">Active</Badge>
                 ) : (
                   <Badge variant="secondary">Pending Review</Badge>
                 )}

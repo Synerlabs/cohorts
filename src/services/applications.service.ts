@@ -11,6 +11,7 @@ export type Application = {
   created_at: string;
   approved_at: string | null;
   rejected_at: string | null;
+  status: 'pending' | 'pending_payment' | 'approved' | 'rejected';
   user: {
     id: string;
     email: string;
@@ -33,6 +34,7 @@ type ApplicationView = {
   created_at: string;
   approved_at: string | null;
   rejected_at: string | null;
+  status: 'pending' | 'pending_payment' | 'approved' | 'rejected';
   user_data: {
     id: string;
     first_name: string | null;
@@ -55,8 +57,7 @@ export async function getPendingApplications(groupId: string): Promise<Applicati
     .from('applications_view')
     .select()
     .eq('group_id', groupId)
-    .or(`is_active.eq.false,and(approved_at.not.is.null,or(membership_data->>'activation_type'.eq.'payment_required',membership_data->>'activation_type'.eq.'review_then_payment'))`)
-    .is('rejected_at', null)
+    .eq('status', 'pending')
     .order('created_at', { ascending: false });
 
   if (error) throw error;
@@ -71,6 +72,7 @@ export async function getPendingApplications(groupId: string): Promise<Applicati
     created_at: row.created_at,
     approved_at: row.approved_at,
     rejected_at: row.rejected_at,
+    status: row.status,
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
@@ -158,6 +160,43 @@ export async function rejectApplication(applicationId: string) {
   return updatedApplication as ApplicationView;
 }
 
+export async function getPendingPaymentApplications(groupId: string): Promise<Application[]> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('applications_view')
+    .select()
+    .eq('group_id', groupId)
+    .eq('status', 'pending_payment')
+    .order('approved_at', { ascending: false });
+
+  if (error) throw error;
+  if (!data) return [];
+
+  return (data as ApplicationView[]).map(row => ({
+    id: row.id,
+    user_id: row.user_id,
+    membership_id: row.membership_id,
+    group_id: row.group_id,
+    is_active: row.is_active,
+    created_at: row.created_at,
+    approved_at: row.approved_at,
+    rejected_at: row.rejected_at,
+    status: row.status,
+    user: {
+      id: row.user_data.id,
+      email: row.user_data.email,
+      full_name: `${row.user_data.first_name} ${row.user_data.last_name}`.trim()
+    },
+    membership: {
+      id: row.membership_data.id,
+      name: row.membership_data.name,
+      price: row.membership_data.price,
+      activation_type: (row.membership_data.activation_type as MembershipActivationType) || MembershipActivationType.AUTOMATIC
+    }
+  }));
+}
+
 export async function getApprovedApplications(groupId: string): Promise<Application[]> {
   const supabase = await createClient();
   
@@ -165,7 +204,7 @@ export async function getApprovedApplications(groupId: string): Promise<Applicat
     .from('applications_view')
     .select()
     .eq('group_id', groupId)
-    .not('approved_at', 'is', null)
+    .eq('status', 'approved')
     .is('rejected_at', null)
     .order('approved_at', { ascending: false });
 
@@ -181,6 +220,7 @@ export async function getApprovedApplications(groupId: string): Promise<Applicat
     created_at: row.created_at,
     approved_at: row.approved_at,
     rejected_at: row.rejected_at,
+    status: row.status,
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
@@ -217,6 +257,7 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
     created_at: row.created_at,
     approved_at: row.approved_at,
     rejected_at: row.rejected_at,
+    status: row.status,
     user: {
       id: row.user_data.id,
       email: row.user_data.email,

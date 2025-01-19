@@ -1,6 +1,6 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { permissions } from "@/lib/types/permissions";
-import { getPendingApplications, getApprovedApplications, getRejectedApplications } from "@/services/applications.service";
+import { getPendingApplications, getApprovedApplications, getRejectedApplications, getPendingPaymentApplications } from "@/services/applications.service";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -17,6 +17,9 @@ async function ApplicationsPage({ org, searchParams, userPermissions }: OrgAcces
   switch (tab) {
     case "approved":
       applications = await getApprovedApplications(org.id);
+      break;
+    case "pending_payment":
+      applications = await getPendingPaymentApplications(org.id);
       break;
     case "rejected":
       applications = await getRejectedApplications(org.id);
@@ -39,6 +42,11 @@ async function ApplicationsPage({ org, searchParams, userPermissions }: OrgAcces
           <TabsList>
             <TabsTrigger value="pending" asChild>
               <Link href={`/@${org.slug}/applications`}>Pending</Link>
+            </TabsTrigger>
+            <TabsTrigger value="pending_payment" asChild>
+              <Link href={`/@${org.slug}/applications?tab=pending_payment`}>
+                Pending Payment
+              </Link>
             </TabsTrigger>
             <TabsTrigger value="approved" asChild>
               <Link href={`/@${org.slug}/applications?tab=approved`}>
