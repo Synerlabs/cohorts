@@ -40,9 +40,11 @@ export type Database = {
           created_at: string
           group_user_id: string
           id: string
+          order_id: string | null
           rejected_at: string | null
           status: string
           tier_id: string
+          type: string
           updated_at: string
         }
         Insert: {
@@ -50,9 +52,11 @@ export type Database = {
           created_at?: string
           group_user_id: string
           id?: string
+          order_id?: string | null
           rejected_at?: string | null
           status?: string
           tier_id: string
+          type?: string
           updated_at?: string
         }
         Update: {
@@ -60,9 +64,11 @@ export type Database = {
           created_at?: string
           group_user_id?: string
           id?: string
+          order_id?: string | null
           rejected_at?: string | null
           status?: string
           tier_id?: string
+          type?: string
           updated_at?: string
         }
         Relationships: [
@@ -74,10 +80,17 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "applications_tier_id_fkey"
-            columns: ["tier_id"]
+            foreignKeyName: "applications_order_id_fkey"
+            columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "membership_tier"
+            referencedRelation: "membership_applications_view"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "applications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -151,7 +164,7 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "public_group_roles_group_id_fkey"
+            foreignKeyName: "group_roles_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "group"
@@ -192,6 +205,13 @@ export type Database = {
             referencedRelation: "group"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "group_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       member_ids: {
@@ -226,106 +246,50 @@ export type Database = {
           },
         ]
       }
-      membership_role: {
-        Row: {
-          created_at: string
-          group_role_id: string
-          id: string
-          membership_id: string
-        }
-        Insert: {
-          created_at?: string
-          group_role_id: string
-          id?: string
-          membership_id: string
-        }
-        Update: {
-          created_at?: string
-          group_role_id?: string
-          id?: string
-          membership_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "membership_role_group_role_id_fkey"
-            columns: ["group_role_id"]
-            isOneToOne: false
-            referencedRelation: "group_roles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      membership_tier: {
+      membership_tiers: {
         Row: {
           activation_type: string
-          created_at: string
-          description: string | null
-          group_id: string
-          id: string
-          name: string
-          price: number
-          updated_at: string
+          duration_months: number
+          product_id: string
         }
         Insert: {
-          activation_type?: string
-          created_at?: string
-          description?: string | null
-          group_id: string
-          id?: string
-          name: string
-          price: number
-          updated_at?: string
+          activation_type: string
+          duration_months?: number
+          product_id: string
         }
         Update: {
           activation_type?: string
-          created_at?: string
-          description?: string | null
-          group_id?: string
-          id?: string
-          name?: string
-          price?: number
-          updated_at?: string
+          duration_months?: number
+          product_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "membership_tier_group_id_fkey"
-            columns: ["group_id"]
-            isOneToOne: false
-            referencedRelation: "group"
+            foreignKeyName: "membership_tiers_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
       }
       memberships: {
         Row: {
-          created_at: string
           end_date: string | null
           group_user_id: string
-          id: string
-          is_active: boolean
-          start_date: string
-          tier_id: string
-          updated_at: string
+          order_id: string
+          start_date: string | null
         }
         Insert: {
-          created_at?: string
           end_date?: string | null
           group_user_id: string
-          id?: string
-          is_active?: boolean
-          start_date: string
-          tier_id: string
-          updated_at?: string
+          order_id: string
+          start_date?: string | null
         }
         Update: {
-          created_at?: string
           end_date?: string | null
           group_user_id?: string
-          id?: string
-          is_active?: boolean
-          start_date?: string
-          tier_id?: string
-          updated_at?: string
+          order_id?: string
+          start_date?: string | null
         }
         Relationships: [
           {
@@ -336,10 +300,111 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "memberships_tier_id_fkey"
-            columns: ["tier_id"]
+            foreignKeyName: "memberships_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "membership_applications_view"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "memberships_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          amount: number
+          completed_at: string | null
+          created_at: string
+          currency: string
+          id: string
+          product_id: string
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          completed_at?: string | null
+          created_at?: string
+          currency: string
+          id?: string
+          product_id: string
+          status: string
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          id?: string
+          product_id?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_product_id_fkey"
+            columns: ["product_id"]
             isOneToOne: false
-            referencedRelation: "membership_tier"
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          created_at: string
+          currency: string
+          description: string | null
+          group_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          price: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          group_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          price?: number
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          group_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
             referencedColumns: ["id"]
           },
         ]
@@ -371,92 +436,77 @@ export type Database = {
         }
         Relationships: []
       }
-      role_permissions: {
-        Row: {
-          id: number
-          permission: Database["public"]["Enums"]["app_permission"]
-          role_id: string
-        }
-        Insert: {
-          id?: number
-          permission: Database["public"]["Enums"]["app_permission"]
-          role_id: string
-        }
-        Update: {
-          id?: number
-          permission?: Database["public"]["Enums"]["app_permission"]
-          role_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "public_role_permissions_role_id_fkey"
-            columns: ["role_id"]
-            isOneToOne: false
-            referencedRelation: "group_roles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_roles: {
         Row: {
           created_at: string
           group_role_id: string
           id: string
-          is_active: boolean | null
+          is_active: boolean
+          updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           group_role_id: string
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
+          updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           group_role_id?: string
           id?: string
-          is_active?: boolean | null
+          is_active?: boolean
+          updated_at?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "public_user_roles_group_role_id_fkey"
+            foreignKeyName: "user_roles_group_role_id_fkey"
             columns: ["group_role_id"]
             isOneToOne: false
             referencedRelation: "group_roles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "public_user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
       }
     }
     Views: {
-      applications_view: {
+      membership_applications_view: {
         Row: {
+          activation_type: string | null
+          amount: number | null
+          application_id: string | null
+          application_status: string | null
           approved_at: string | null
-          created_at: string | null
+          currency: string | null
+          duration_months: number | null
+          end_date: string | null
           group_id: string | null
-          id: string | null
-          is_active: boolean | null
+          group_user_id: string | null
+          order_id: string | null
+          order_status: string | null
+          payment_completed_at: string | null
+          product_currency: string | null
+          product_description: string | null
+          product_id: string | null
+          product_name: string | null
+          product_price: number | null
           rejected_at: string | null
-          tier_data: Json | null
-          tier_id: string | null
+          start_date: string | null
+          submitted_at: string | null
+          type: string | null
+          updated_at: string | null
           user_data: Json | null
           user_id: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "applications_tier_id_fkey"
-            columns: ["tier_id"]
+            foreignKeyName: "applications_group_user_id_fkey"
+            columns: ["group_user_id"]
             isOneToOne: false
-            referencedRelation: "membership_tier"
+            referencedRelation: "group_users"
             referencedColumns: ["id"]
           },
           {
@@ -466,11 +516,51 @@ export type Database = {
             referencedRelation: "group"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "group_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
     Functions: {
-      [_ in never]: never
+      approve_application: {
+        Args: {
+          p_application_id: string
+          p_new_status: string
+          p_should_activate: boolean
+        }
+        Returns: undefined
+      }
+      complete_payment: {
+        Args: {
+          p_application_id: string
+        }
+        Returns: undefined
+      }
+      get_group_members: {
+        Args: {
+          group_id: string
+        }
+        Returns: {
+          id: string
+          created_at: string
+          user_id: string
+          email: string
+          first_name: string
+          last_name: string
+          avatar_url: string
+        }[]
+      }
+      reject_application: {
+        Args: {
+          p_application_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_permission:

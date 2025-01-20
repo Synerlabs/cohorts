@@ -1,8 +1,8 @@
 'use server';
 
-import { MembershipActivationType } from "@/lib/types/membership";
 import { createClient } from "@/lib/utils/supabase/server";
-import { getMembershipDetails, validateMembershipActivation, getOrgSlug, createGroupUser, createUserMembership, statusMessages } from "@/services/join.service";
+import { ProductService } from "@/services/product.service";
+import { ApplicationService } from "@/services/application.service";
 import { revalidatePath } from "next/cache";
 
 type State = {
@@ -18,9 +18,9 @@ export async function joinOrgWithMembership(
   try {
     const groupId = formData.get('groupId') as string;
     const userId = formData.get('userId') as string;
-    const membershipId = formData.get('membershipId') as string;
+    const productId = formData.get('membershipId') as string;
 
-    if (!groupId || !userId || !membershipId) {
+    if (!groupId || !userId || !productId) {
       return {
         success: false,
         error: 'Missing required fields'
@@ -41,33 +41,27 @@ export async function joinOrgWithMembership(
       throw groupUserError;
     }
 
-    // Get and validate membership
-    const membership = await getMembershipDetails(membershipId);
-    if (!membership) {
+    // Get and validate membership tier product
+    const product = await ProductService.getMembershipTier(productId);
+    if (!product) {
       return {
         success: false,
-        error: 'Membership not found'
-      };
-    }
-
-    const validationError = validateMembershipActivation(
-      membership.price, 
-      membership.activation_type
-    );
-
-    if (validationError) {
-      return {
-        success: false,
-        error: validationError
+        error: 'Membership tier not found'
       };
     }
 
     // Determine initial active state
-    const isInitiallyActive = membership.price === 0 && 
-      membership.activation_type === MembershipActivationType.AUTOMATIC;
+    const isInitiallyActive = product.price === 0 && 
+      product.membership_tier.activation_type === 'automatic';
 
     // Get org for revalidation
-    const { slug } = await getOrgSlug(groupId);
+    const { data: org, error: orgError } = await supabase
+      .from('group')
+      .select('slug')
+      .eq('id', groupId)
+      .single();
+
+    if (orgError) throw orgError;
 
     let groupUserId = groupUser?.id;
 
@@ -87,14 +81,24 @@ export async function joinOrgWithMembership(
       groupUserId = newGroupUser.id;
     }
 
-    // Create membership using the existing or new group_user_id
-    await createUserMembership(userId, membershipId, groupId);
+    // Create application using the existing or new group_user_id
+    const application = await ApplicationService.createMembershipApplication(
+      groupUserId,
+      productId
+    );
 
-    revalidatePath(`/@${slug}/join`);
+    revalidatePath(`/@${org.slug}/join`);
+
+    const statusMessages = {
+      'automatic': 'You have been automatically approved. Welcome!',
+      'review_required': 'Your application is pending review.',
+      'payment_required': 'Please complete payment to join.',
+      'review_then_payment': 'Your application is pending review. Once approved, you will be asked to complete payment.',
+    };
 
     return {
       success: true,
-      message: statusMessages[membership.activation_type]
+      message: statusMessages[product.membership_tier.activation_type]
     };
 
   } catch (error: any) {

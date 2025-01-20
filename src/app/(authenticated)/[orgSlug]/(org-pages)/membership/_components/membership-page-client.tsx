@@ -6,10 +6,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import MembershipForm from "./membership-form";
 import MembershipTable from "./membership-table";
 import { useState } from "react";
-import { MembershipTier } from "@/lib/types/membership";
+import { IMembershipTierProduct } from "@/lib/types/product";
 
 interface MembershipPageClientProps {
-  tiers: MembershipTier[];
+  tiers: IMembershipTierProduct[];
   groupId: string;
 }
 

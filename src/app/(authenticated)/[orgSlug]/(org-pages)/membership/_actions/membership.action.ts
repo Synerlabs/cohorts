@@ -3,7 +3,8 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/utils/supabase/server";
 import { z } from "zod";
 import snakecaseKeys from "snakecase-keys";
-import { MembershipActivationType, MembershipTier, Currency } from "@/lib/types/membership";
+import { ProductService } from "@/services/product.service";
+import { IMembershipTierProduct } from "@/lib/types/product";
 
 const membershipTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -12,7 +13,7 @@ const membershipTierSchema = z.object({
   currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
   group_id: z.string(),
-  activation_type: z.nativeEnum(MembershipActivationType).default(MembershipActivationType.AUTOMATIC),
+  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment']).default('automatic'),
 });
 
 const membershipTierUpdateSchema = membershipTierSchema
@@ -29,39 +30,20 @@ type PrevState = {
 
 export async function getMembershipTiersAction(
   orgId: string,
-): Promise<MembershipTier[]> {
-  const supabase = await createClient();
-
-  const { data: tiers, error } = await supabase
-    .from("membership_tier")
-    .select(`
-      *,
-      memberships (
-        id
-      )
-    `)
-    .eq("group_id", orgId)
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-
-  // Add member count to each tier
-  return tiers.map(tier => ({
-    ...tier,
-    member_count: tier.memberships?.length || 0
-  }));
+): Promise<IMembershipTierProduct[]> {
+  return await ProductService.getMembershipTiers(orgId);
 }
 
-function validateActivationType(price: number, activationType: MembershipActivationType) {
+function validateActivationType(price: number, activationType: string) {
   if (price === 0) {
     // Free memberships can't require payment
-    if (activationType === MembershipActivationType.PAYMENT_REQUIRED || 
-        activationType === MembershipActivationType.REVIEW_THEN_PAYMENT) {
+    if (activationType === 'payment_required' || 
+        activationType === 'review_then_payment') {
       return "Free memberships cannot require payment";
     }
   } else {
     // Paid memberships must require payment, review, or both
-    if (activationType === MembershipActivationType.AUTOMATIC) {
+    if (activationType === 'automatic') {
       return "Paid memberships must require payment, review, or both";
     }
   }
@@ -77,14 +59,14 @@ export async function createMembershipTierAction(
     ...rawFormData,
     price: Number(formData.get("price")), // Price is already in cents from the form
     duration_months: Number(formData.get("duration_months")),
-    activation_type: formData.get("activation_type") || MembershipActivationType.AUTOMATIC,
+    activation_type: formData.get("activation_type") || 'automatic',
     currency: formData.get("currency") || "USD",
   };
 
   // Validate activation type based on price
   const validationError = validateActivationType(
     formDataObj.price, 
-    formDataObj.activation_type as MembershipActivationType
+    formDataObj.activation_type as string
   );
 
   if (validationError) {
@@ -118,24 +100,30 @@ export async function createMembershipTierAction(
     };
   }
 
-  const { data, error } = await supabase
-    .from("membership_tier")
-    .insert(snakecaseKeys(parsedFormData.data))
-    .select()
-    .single();
+  try {
+    const product = await ProductService.createMembershipTier(
+      parsedFormData.data.group_id,
+      {
+        name: parsedFormData.data.name,
+        description: parsedFormData.data.description,
+        price: parsedFormData.data.price,
+        currency: parsedFormData.data.currency,
+        duration_months: parsedFormData.data.duration_months,
+        activation_type: parsedFormData.data.activation_type,
+      }
+    );
 
-  if (error) {
+    revalidatePath(`/@${org.slug}/membership`);
     return {
-      error: error.message,
+      success: true,
+      data: product,
+    };
+  } catch (error: any) {
+    return {
+      error: error.message || "Failed to create membership tier",
       success: false,
     };
   }
-
-  revalidatePath(`/${org.slug}/membership`);
-  return {
-    success: true,
-    data,
-  };
 }
 
 export async function updateMembershipTierAction(
@@ -147,14 +135,14 @@ export async function updateMembershipTierAction(
     ...rawFormData,
     price: Number(rawFormData.price), // Price is already in cents from the form
     duration_months: Number(rawFormData.duration_months),
-    activation_type: rawFormData.activation_type || MembershipActivationType.AUTOMATIC,
+    activation_type: rawFormData.activation_type || 'automatic',
     currency: rawFormData.currency || "USD",
   };
 
   // Validate activation type based on price
   const validationError = validateActivationType(
     formDataObj.price, 
-    formDataObj.activation_type as MembershipActivationType
+    formDataObj.activation_type as string
   );
 
   if (validationError) {
@@ -176,13 +164,13 @@ export async function updateMembershipTierAction(
   const supabase = await createClient();
 
   try {
-    const { data: tier, error: tierError } = await supabase
-      .from("membership_tier")
+    const { data: tier } = await supabase
+      .from("products")
       .select("group_id")
       .eq("id", parsedFormData.data.id)
       .single();
 
-    if (tierError) throw tierError;
+    if (!tier) throw new Error("Membership tier not found");
 
     const { data: org, error: orgError } = await supabase
       .from("group")
@@ -192,28 +180,22 @@ export async function updateMembershipTierAction(
 
     if (orgError) throw orgError;
 
-    const { data, error } = await supabase
-      .from("membership_tier")
-      .update(snakecaseKeys(parsedFormData.data))
-      .eq("id", parsedFormData.data.id)
-      .select()
-      .single();
-
-    if (error) {
-      // Handle database constraint violations
-      if (error.code === '23514') { // PostgreSQL check constraint violation
-        return {
-          error: "Invalid activation type for this membership price",
-          success: false,
-        };
+    const product = await ProductService.updateMembershipTier(
+      parsedFormData.data.id,
+      {
+        name: parsedFormData.data.name,
+        description: parsedFormData.data.description,
+        price: parsedFormData.data.price,
+        currency: parsedFormData.data.currency,
+        duration_months: parsedFormData.data.duration_months,
+        activation_type: parsedFormData.data.activation_type,
       }
-      throw error;
-    }
+    );
 
-    revalidatePath(`/${org.slug}/membership`);
+    revalidatePath(`/@${org.slug}/membership`);
     return {
       success: true,
-      data,
+      data: product,
     };
 
   } catch (error: any) {

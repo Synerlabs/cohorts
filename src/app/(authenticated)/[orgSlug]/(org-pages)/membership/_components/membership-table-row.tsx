@@ -13,18 +13,33 @@ import { formatDate } from "@/lib/utils";
 import MembershipDialog from "./membership-dialog";
 import DeleteMembershipDialog from "./delete-membership-dialog";
 import { useState } from "react";
-import { Membership, MembershipActivationType } from "@/lib/types/membership";
+import { IMembershipTierProduct } from "@/lib/types/product";
+import { Currency } from "@/lib/types/membership";
 
 interface MembershipTableRowProps {
-  membership: Membership;
+  membership: IMembershipTierProduct;
 }
 
 const activationTypeLabels = {
-  [MembershipActivationType.AUTOMATIC]: 'Automatic',
-  [MembershipActivationType.REVIEW_REQUIRED]: 'Review Required',
-  [MembershipActivationType.PAYMENT_REQUIRED]: 'Payment Required',
-  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Review then Payment',
+  'automatic': 'Automatic',
+  'review_required': 'Review Required',
+  'payment_required': 'Payment Required',
+  'review_then_payment': 'Review then Payment',
 } as const;
+
+const currencySymbols: Record<Currency, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  CAD: 'C$',
+  AUD: 'A$'
+};
+
+function formatPrice(price: number, currency: Currency): string {
+  if (price === 0) return "Free";
+  const amount = (price / 100).toFixed(2);
+  return `${currencySymbols[currency]}${amount}`;
+}
 
 export default function MembershipTableRow({ membership }: MembershipTableRowProps) {
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -42,7 +57,7 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
           <Badge variant="secondary">Free</Badge>
         ) : (
           <div>
-            <div>${membership.price}</div>
+            <div>{formatPrice(membership.price, membership.currency)}</div>
             {membership.created_at && (
               <div className="text-xs text-muted-foreground">
                 Updated {formatDate(membership.created_at)}
@@ -52,10 +67,10 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
         )}
       </TableCell>
       <TableCell className="hidden sm:table-cell">
-        {membership.duration_months} month{membership.duration_months !== 1 ? 's' : ''}
+        {membership.membership_tier.duration_months} month{membership.membership_tier.duration_months !== 1 ? 's' : ''}
       </TableCell>
       <TableCell className="hidden md:table-cell">
-        {membership.member_count || 0}
+        0
       </TableCell>
       <TableCell className="hidden md:table-cell">
         <Badge
@@ -67,7 +82,7 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
       </TableCell>
       <TableCell className="hidden md:table-cell">
         <Badge variant="secondary" className="capitalize">
-          {activationTypeLabels[membership.activation_type]}
+          {activationTypeLabels[membership.membership_tier.activation_type]}
         </Badge>
       </TableCell>
       <TableCell className="text-right">

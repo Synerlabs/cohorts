@@ -24,10 +24,10 @@ import * as z from "zod";
 import React, { useState, startTransition } from "react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import {
-  createMembershipAction,
-  updateMembershipAction,
+  createMembershipTierAction,
+  updateMembershipTierAction,
 } from "../_actions/membership.action";
-import { Membership } from "@/types/database.types";
+import { IMembershipTierProduct } from "@/lib/types/product";
 import { Loader2 } from "lucide-react";
 import {
   Select,
@@ -36,7 +36,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { MembershipActivationType } from "@/lib/types/membership";
 import { cn } from "@/lib/utils";
 
 const formSchema = z.object({
@@ -44,13 +43,13 @@ const formSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, "Price must be 0 or greater"),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
-  activation_type: z.nativeEnum(MembershipActivationType),
+  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment'] as const),
 });
 
 interface MembershipDialogProps {
   children?: React.ReactNode;
   orgId: string;
-  membership?: Membership;
+  membership?: IMembershipTierProduct;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
   trigger?: React.ReactNode;
@@ -72,8 +71,8 @@ export default function MembershipDialog({
   const setIsOpen = isControlled ? onOpenChange : setInternalOpen;
   
   const [state, action, pending] = useToastActionState(
-    isEditing ? updateMembershipAction : createMembershipAction,
-    null,
+    isEditing ? updateMembershipTierAction : createMembershipTierAction,
+    undefined,
     undefined,
     {
       successTitle: isEditing ? "Membership Updated" : "Membership Created",
@@ -89,8 +88,8 @@ export default function MembershipDialog({
       name: membership?.name || "",
       description: membership?.description || "",
       price: membership?.price || 0,
-      duration_months: membership?.duration_months || 1,
-      activation_type: membership?.activation_type || MembershipActivationType.AUTOMATIC,
+      duration_months: membership?.membership_tier?.duration_months || 1,
+      activation_type: membership?.membership_tier?.activation_type || 'automatic',
     },
   });
 
@@ -114,7 +113,7 @@ export default function MembershipDialog({
     });
 
     if (state?.success === true) {
-      setIsOpen(false);
+      setIsOpen?.(false);
       form.reset();
     }
   });
@@ -124,7 +123,7 @@ export default function MembershipDialog({
       open={isOpen} 
       onOpenChange={(open) => {
         if (!state || state.success) {
-          setIsOpen(open);
+          setIsOpen?.(open);
           if (!open) {
             form.reset();
           }
@@ -222,25 +221,25 @@ export default function MembershipDialog({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value={MembershipActivationType.AUTOMATIC}>
+                      <SelectItem value="automatic">
                         Automatic Activation
                         <span className="text-xs text-muted-foreground block">
                           Member becomes active immediately upon joining
                         </span>
                       </SelectItem>
-                      <SelectItem value={MembershipActivationType.REVIEW_REQUIRED}>
+                      <SelectItem value="review_required">
                         Requires Review
                         <span className="text-xs text-muted-foreground block">
                           Admin must approve membership application
                         </span>
                       </SelectItem>
-                      <SelectItem value={MembershipActivationType.PAYMENT_REQUIRED}>
+                      <SelectItem value="payment_required">
                         Payment Required
                         <span className="text-xs text-muted-foreground block">
                           Member must pay before becoming active
                         </span>
                       </SelectItem>
-                      <SelectItem value={MembershipActivationType.REVIEW_THEN_PAYMENT}>
+                      <SelectItem value="review_then_payment">
                         Review then Payment
                         <span className="text-xs text-muted-foreground block">
                           Admin approval required before payment
@@ -252,9 +251,22 @@ export default function MembershipDialog({
                 </FormItem>
               )}
             />
-            <Button type="submit" disabled={pending}>
-              {pending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEditing ? "Save Changes" : "Create Membership"}
+            <Button
+              type="submit"
+              className={cn(
+                "w-full",
+                pending && "cursor-not-allowed opacity-50"
+              )}
+              disabled={pending}
+            >
+              {pending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {isEditing ? "Updating..." : "Creating..."}
+                </>
+              ) : (
+                <>{isEditing ? "Update Membership" : "Create Membership"}</>
+              )}
             </Button>
           </form>
         </Form>

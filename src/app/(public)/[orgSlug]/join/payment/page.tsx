@@ -1,6 +1,6 @@
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { withOrgAccess, OrgAccessHOCProps } from "@/lib/hoc/org";
-import { getUserMembership } from "@/services/join.service";
+import { ApplicationService } from "@/services/application.service";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CreditCard } from "lucide-react";
@@ -10,17 +10,17 @@ async function PaymentPage({ org, user }: OrgAccessHOCProps) {
     redirect(`/@${org.slug}/join`);
   }
 
-  const userMembership = await getUserMembership(user.id, org.id);
+  // Get user's applications
+  const applications = await ApplicationService.getUserMembershipApplications(user.id);
+  const latestApplication = applications[0];
   
   // Redirect if:
-  // 1. No membership exists
-  // 2. Membership is rejected
-  // 3. Membership is not approved yet
-  // 4. Membership is already active
-  if (!userMembership || 
-      userMembership.rejected_at || 
-      !userMembership.approved_at || 
-      userMembership.is_active) {
+  // 1. No application exists
+  // 2. Application is rejected
+  // 3. Application is not in pending_payment status
+  if (!latestApplication || 
+      latestApplication.rejected_at || 
+      latestApplication.status !== 'pending_payment') {
     redirect(`/@${org.slug}/join`);
   }
 
@@ -37,8 +37,8 @@ async function PaymentPage({ org, user }: OrgAccessHOCProps) {
           <div className="border-b pb-4">
             <h3 className="font-medium mb-2">Membership Details</h3>
             <div className="text-sm text-muted-foreground">
-              <p>Tier: {userMembership.membership.name}</p>
-              <p>Price: ${userMembership.membership.price}</p>
+              <p>Tier: {latestApplication.product_data?.name}</p>
+              <p>Price: ${latestApplication.product_data?.price ? latestApplication.product_data.price / 100 : 0}</p>
             </div>
           </div>
           <div>
@@ -51,7 +51,7 @@ async function PaymentPage({ org, user }: OrgAccessHOCProps) {
         <CardFooter>
           <Button className="w-full" size="lg">
             <CreditCard className="mr-2 h-4 w-4" />
-            Pay ${userMembership.membership.price}
+            Pay ${latestApplication.product_data?.price ? latestApplication.product_data.price / 100 : 0}
           </Button>
         </CardFooter>
       </Card>

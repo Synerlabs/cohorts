@@ -15,7 +15,6 @@ import { Check, X } from "lucide-react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { approveApplicationAction, rejectApplicationAction } from "../_actions/applications";
 import { Badge } from "@/components/ui/badge";
-import { MembershipActivationType } from "@/lib/types/membership";
 import { useRouter } from "next/navigation";
 import { ComponentPermission } from "@/components/ComponentPermission";
 import { permissions } from "@/lib/types/permissions";
@@ -28,21 +27,21 @@ interface ApplicationsTableProps {
 }
 
 const activationTypeLabels = {
-  [MembershipActivationType.AUTOMATIC]: 'Automatic',
-  [MembershipActivationType.REVIEW_REQUIRED]: 'Review Required',
-  [MembershipActivationType.PAYMENT_REQUIRED]: 'Payment Required',
-  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Review then Payment',
+  'automatic': 'Automatic',
+  'review_required': 'Review Required',
+  'payment_required': 'Payment Required',
+  'review_then_payment': 'Review then Payment',
 } as const;
 
-const getBadgeVariant = (activationType: MembershipActivationType) => {
+const getBadgeVariant = (activationType: string) => {
   switch (activationType) {
-    case MembershipActivationType.AUTOMATIC:
+    case 'automatic':
       return 'default'
-    case MembershipActivationType.REVIEW_REQUIRED:
+    case 'review_required':
       return 'secondary'
-    case MembershipActivationType.PAYMENT_REQUIRED:
+    case 'payment_required':
       return 'outline'
-    case MembershipActivationType.REVIEW_THEN_PAYMENT:
+    case 'review_then_payment':
       return 'destructive'
     default:
       return 'default'

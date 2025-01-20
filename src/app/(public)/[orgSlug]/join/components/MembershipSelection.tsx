@@ -12,12 +12,12 @@ import {
 import { useState, useTransition } from "react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { joinOrgWithMembership } from "../_actions/join";
-import { MembershipTier } from "@/lib/types/membership";
+import { IMembershipTierProduct } from "@/lib/types/product";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 
 interface MembershipSelectionProps {
-  memberships: MembershipTier[];
+  memberships: IMembershipTierProduct[];
   groupId: string;
   userId: string;
 }
@@ -56,15 +56,15 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
         <Card key={membership.id} className="flex flex-col">
           <CardHeader>
             <CardTitle>{membership.name}</CardTitle>
-            {membership.duration_months > 0 && (
+            {membership.membership_tier.duration_months > 0 && (
               <CardDescription>
-                {membership.duration_months} month{membership.duration_months !== 1 ? 's' : ''}
+                {membership.membership_tier.duration_months} month{membership.membership_tier.duration_months !== 1 ? 's' : ''}
               </CardDescription>
             )}
           </CardHeader>
           <CardContent className="flex-grow">
             <p className="text-3xl font-bold mb-4">
-              {membership.price === 0 ? 'Free' : `$${membership.price}`}
+              {membership.price === 0 ? 'Free' : `$${membership.price / 100}`}
             </p>
             {membership.description && (
               <p className="text-sm text-muted-foreground">{membership.description}</p>

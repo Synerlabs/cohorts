@@ -19,9 +19,11 @@ export const applicationsRowSchema = z.object({
   created_at: z.string(),
   group_user_id: z.string(),
   id: z.string(),
+  order_id: z.string().nullable(),
   rejected_at: z.string().nullable(),
   status: z.string(),
   tier_id: z.string(),
+  type: z.string(),
   updated_at: z.string(),
 });
 
@@ -30,9 +32,11 @@ export const applicationsInsertSchema = z.object({
   created_at: z.string().optional(),
   group_user_id: z.string(),
   id: z.string().optional(),
+  order_id: z.string().optional().nullable(),
   rejected_at: z.string().optional().nullable(),
   status: z.string().optional(),
   tier_id: z.string(),
+  type: z.string().optional(),
   updated_at: z.string().optional(),
 });
 
@@ -41,9 +45,11 @@ export const applicationsUpdateSchema = z.object({
   created_at: z.string().optional(),
   group_user_id: z.string().optional(),
   id: z.string().optional(),
+  order_id: z.string().optional().nullable(),
   rejected_at: z.string().optional().nullable(),
   status: z.string().optional(),
   tier_id: z.string().optional(),
+  type: z.string().optional(),
   updated_at: z.string().optional(),
 });
 
@@ -56,10 +62,17 @@ export const applicationsRelationshipsSchema = z.tuple([
     referencedColumns: z.tuple([z.literal("id")]),
   }),
   z.object({
-    foreignKeyName: z.literal("applications_tier_id_fkey"),
-    columns: z.tuple([z.literal("tier_id")]),
+    foreignKeyName: z.literal("applications_order_id_fkey"),
+    columns: z.tuple([z.literal("order_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("membership_tier"),
+    referencedRelation: z.literal("membership_applications_view"),
+    referencedColumns: z.tuple([z.literal("order_id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("applications_order_id_fkey"),
+    columns: z.tuple([z.literal("order_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("orders"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);
@@ -131,7 +144,7 @@ export const groupRolesUpdateSchema = z.object({
 
 export const groupRolesRelationshipsSchema = z.tuple([
   z.object({
-    foreignKeyName: z.literal("public_group_roles_group_id_fkey"),
+    foreignKeyName: z.literal("group_roles_group_id_fkey"),
     columns: z.tuple([z.literal("group_id")]),
     isOneToOne: z.literal(false),
     referencedRelation: z.literal("group"),
@@ -174,6 +187,13 @@ export const groupUsersRelationshipsSchema = z.tuple([
     referencedRelation: z.literal("group"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
+  z.object({
+    foreignKeyName: z.literal("group_users_user_id_fkey"),
+    columns: z.tuple([z.literal("user_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("profiles"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
 ]);
 
 export const memberIdsRowSchema = z.object({
@@ -210,111 +230,53 @@ export const memberIdsRelationshipsSchema = z.tuple([
   }),
 ]);
 
-export const membershipRoleRowSchema = z.object({
-  created_at: z.string(),
-  group_role_id: z.string(),
-  id: z.string(),
-  membership_id: z.string(),
-});
-
-export const membershipRoleInsertSchema = z.object({
-  created_at: z.string().optional(),
-  group_role_id: z.string(),
-  id: z.string().optional(),
-  membership_id: z.string(),
-});
-
-export const membershipRoleUpdateSchema = z.object({
-  created_at: z.string().optional(),
-  group_role_id: z.string().optional(),
-  id: z.string().optional(),
-  membership_id: z.string().optional(),
-});
-
-export const membershipRoleRelationshipsSchema = z.tuple([
-  z.object({
-    foreignKeyName: z.literal("membership_role_group_role_id_fkey"),
-    columns: z.tuple([z.literal("group_role_id")]),
-    isOneToOne: z.literal(false),
-    referencedRelation: z.literal("group_roles"),
-    referencedColumns: z.tuple([z.literal("id")]),
-  }),
-]);
-
-export const membershipTierRowSchema = z.object({
+export const membershipTiersRowSchema = z.object({
   activation_type: z.string(),
-  created_at: z.string(),
-  description: z.string().nullable(),
-  group_id: z.string(),
-  id: z.string(),
-  name: z.string(),
-  price: z.number(),
-  updated_at: z.string(),
+  duration_months: z.number(),
+  product_id: z.string(),
 });
 
-export const membershipTierInsertSchema = z.object({
+export const membershipTiersInsertSchema = z.object({
+  activation_type: z.string(),
+  duration_months: z.number().optional(),
+  product_id: z.string(),
+});
+
+export const membershipTiersUpdateSchema = z.object({
   activation_type: z.string().optional(),
-  created_at: z.string().optional(),
-  description: z.string().optional().nullable(),
-  group_id: z.string(),
-  id: z.string().optional(),
-  name: z.string(),
-  price: z.number(),
-  updated_at: z.string().optional(),
+  duration_months: z.number().optional(),
+  product_id: z.string().optional(),
 });
 
-export const membershipTierUpdateSchema = z.object({
-  activation_type: z.string().optional(),
-  created_at: z.string().optional(),
-  description: z.string().optional().nullable(),
-  group_id: z.string().optional(),
-  id: z.string().optional(),
-  name: z.string().optional(),
-  price: z.number().optional(),
-  updated_at: z.string().optional(),
-});
-
-export const membershipTierRelationshipsSchema = z.tuple([
+export const membershipTiersRelationshipsSchema = z.tuple([
   z.object({
-    foreignKeyName: z.literal("membership_tier_group_id_fkey"),
-    columns: z.tuple([z.literal("group_id")]),
-    isOneToOne: z.literal(false),
-    referencedRelation: z.literal("group"),
+    foreignKeyName: z.literal("membership_tiers_product_id_fkey"),
+    columns: z.tuple([z.literal("product_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("products"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);
 
 export const membershipsRowSchema = z.object({
-  created_at: z.string(),
   end_date: z.string().nullable(),
   group_user_id: z.string(),
-  id: z.string(),
-  is_active: z.boolean(),
-  start_date: z.string(),
-  tier_id: z.string(),
-  updated_at: z.string(),
+  order_id: z.string(),
+  start_date: z.string().nullable(),
 });
 
 export const membershipsInsertSchema = z.object({
-  created_at: z.string().optional(),
   end_date: z.string().optional().nullable(),
   group_user_id: z.string(),
-  id: z.string().optional(),
-  is_active: z.boolean().optional(),
-  start_date: z.string(),
-  tier_id: z.string(),
-  updated_at: z.string().optional(),
+  order_id: z.string(),
+  start_date: z.string().optional().nullable(),
 });
 
 export const membershipsUpdateSchema = z.object({
-  created_at: z.string().optional(),
   end_date: z.string().optional().nullable(),
   group_user_id: z.string().optional(),
-  id: z.string().optional(),
-  is_active: z.boolean().optional(),
-  start_date: z.string().optional(),
-  tier_id: z.string().optional(),
-  updated_at: z.string().optional(),
+  order_id: z.string().optional(),
+  start_date: z.string().optional().nullable(),
 });
 
 export const membershipsRelationshipsSchema = z.tuple([
@@ -326,10 +288,115 @@ export const membershipsRelationshipsSchema = z.tuple([
     referencedColumns: z.tuple([z.literal("id")]),
   }),
   z.object({
-    foreignKeyName: z.literal("memberships_tier_id_fkey"),
-    columns: z.tuple([z.literal("tier_id")]),
+    foreignKeyName: z.literal("memberships_order_id_fkey"),
+    columns: z.tuple([z.literal("order_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("membership_applications_view"),
+    referencedColumns: z.tuple([z.literal("order_id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("memberships_order_id_fkey"),
+    columns: z.tuple([z.literal("order_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("orders"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const ordersRowSchema = z.object({
+  amount: z.number(),
+  completed_at: z.string().nullable(),
+  created_at: z.string(),
+  currency: z.string(),
+  id: z.string(),
+  product_id: z.string(),
+  status: z.string(),
+  type: z.string(),
+  updated_at: z.string(),
+  user_id: z.string(),
+});
+
+export const ordersInsertSchema = z.object({
+  amount: z.number(),
+  completed_at: z.string().optional().nullable(),
+  created_at: z.string().optional(),
+  currency: z.string(),
+  id: z.string().optional(),
+  product_id: z.string(),
+  status: z.string(),
+  type: z.string(),
+  updated_at: z.string().optional(),
+  user_id: z.string(),
+});
+
+export const ordersUpdateSchema = z.object({
+  amount: z.number().optional(),
+  completed_at: z.string().optional().nullable(),
+  created_at: z.string().optional(),
+  currency: z.string().optional(),
+  id: z.string().optional(),
+  product_id: z.string().optional(),
+  status: z.string().optional(),
+  type: z.string().optional(),
+  updated_at: z.string().optional(),
+  user_id: z.string().optional(),
+});
+
+export const ordersRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("orders_product_id_fkey"),
+    columns: z.tuple([z.literal("product_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("membership_tier"),
+    referencedRelation: z.literal("products"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const productsRowSchema = z.object({
+  created_at: z.string(),
+  currency: z.string(),
+  description: z.string().nullable(),
+  group_id: z.string().nullable(),
+  id: z.string(),
+  is_active: z.boolean(),
+  name: z.string(),
+  price: z.number(),
+  type: z.string(),
+  updated_at: z.string(),
+});
+
+export const productsInsertSchema = z.object({
+  created_at: z.string().optional(),
+  currency: z.string().optional(),
+  description: z.string().optional().nullable(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  is_active: z.boolean().optional(),
+  name: z.string(),
+  price: z.number().optional(),
+  type: z.string(),
+  updated_at: z.string().optional(),
+});
+
+export const productsUpdateSchema = z.object({
+  created_at: z.string().optional(),
+  currency: z.string().optional(),
+  description: z.string().optional().nullable(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  is_active: z.boolean().optional(),
+  name: z.string().optional(),
+  price: z.number().optional(),
+  type: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const productsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("products_group_id_fkey"),
+    columns: z.tuple([z.literal("group_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);
@@ -363,40 +430,12 @@ export const profilesUpdateSchema = z.object({
 
 export const profilesRelationshipsSchema = z.tuple([]);
 
-export const appPermissionSchema = z.union([
-  z.literal("group.edit"),
-  z.literal("group.delete"),
-  z.literal("group.members.invite"),
-  z.literal("group.members.approve"),
-]);
-
-export const rolePermissionsInsertSchema = z.object({
-  id: z.number().optional(),
-  permission: appPermissionSchema,
-  role_id: z.string(),
-});
-
-export const rolePermissionsUpdateSchema = z.object({
-  id: z.number().optional(),
-  permission: appPermissionSchema.optional(),
-  role_id: z.string().optional(),
-});
-
-export const rolePermissionsRelationshipsSchema = z.tuple([
-  z.object({
-    foreignKeyName: z.literal("public_role_permissions_role_id_fkey"),
-    columns: z.tuple([z.literal("role_id")]),
-    isOneToOne: z.literal(false),
-    referencedRelation: z.literal("group_roles"),
-    referencedColumns: z.tuple([z.literal("id")]),
-  }),
-]);
-
 export const userRolesRowSchema = z.object({
   created_at: z.string(),
   group_role_id: z.string(),
   id: z.string(),
-  is_active: z.boolean().nullable(),
+  is_active: z.boolean(),
+  updated_at: z.string(),
   user_id: z.string(),
 });
 
@@ -404,7 +443,8 @@ export const userRolesInsertSchema = z.object({
   created_at: z.string().optional(),
   group_role_id: z.string(),
   id: z.string().optional(),
-  is_active: z.boolean().optional().nullable(),
+  is_active: z.boolean().optional(),
+  updated_at: z.string().optional(),
   user_id: z.string(),
 });
 
@@ -412,46 +452,55 @@ export const userRolesUpdateSchema = z.object({
   created_at: z.string().optional(),
   group_role_id: z.string().optional(),
   id: z.string().optional(),
-  is_active: z.boolean().optional().nullable(),
+  is_active: z.boolean().optional(),
+  updated_at: z.string().optional(),
   user_id: z.string().optional(),
 });
 
 export const userRolesRelationshipsSchema = z.tuple([
   z.object({
-    foreignKeyName: z.literal("public_user_roles_group_role_id_fkey"),
+    foreignKeyName: z.literal("user_roles_group_role_id_fkey"),
     columns: z.tuple([z.literal("group_role_id")]),
     isOneToOne: z.literal(false),
     referencedRelation: z.literal("group_roles"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
-  z.object({
-    foreignKeyName: z.literal("public_user_roles_user_id_fkey"),
-    columns: z.tuple([z.literal("user_id")]),
-    isOneToOne: z.literal(false),
-    referencedRelation: z.literal("profiles"),
-    referencedColumns: z.tuple([z.literal("id")]),
-  }),
 ]);
 
-export const applicationsViewRowSchema = z.object({
+export const membershipApplicationsViewRowSchema = z.object({
+  activation_type: z.string().nullable(),
+  amount: z.number().nullable(),
+  application_id: z.string().nullable(),
+  application_status: z.string().nullable(),
   approved_at: z.string().nullable(),
-  created_at: z.string().nullable(),
+  currency: z.string().nullable(),
+  duration_months: z.number().nullable(),
+  end_date: z.string().nullable(),
   group_id: z.string().nullable(),
-  id: z.string().nullable(),
-  is_active: z.boolean().nullable(),
+  group_user_id: z.string().nullable(),
+  order_id: z.string().nullable(),
+  order_status: z.string().nullable(),
+  payment_completed_at: z.string().nullable(),
+  product_currency: z.string().nullable(),
+  product_description: z.string().nullable(),
+  product_id: z.string().nullable(),
+  product_name: z.string().nullable(),
+  product_price: z.number().nullable(),
   rejected_at: z.string().nullable(),
-  tier_data: jsonSchema.nullable(),
-  tier_id: z.string().nullable(),
+  start_date: z.string().nullable(),
+  submitted_at: z.string().nullable(),
+  type: z.string().nullable(),
+  updated_at: z.string().nullable(),
   user_data: jsonSchema.nullable(),
   user_id: z.string().nullable(),
 });
 
-export const applicationsViewRelationshipsSchema = z.tuple([
+export const membershipApplicationsViewRelationshipsSchema = z.tuple([
   z.object({
-    foreignKeyName: z.literal("applications_tier_id_fkey"),
-    columns: z.tuple([z.literal("tier_id")]),
+    foreignKeyName: z.literal("applications_group_user_id_fkey"),
+    columns: z.tuple([z.literal("group_user_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("membership_tier"),
+    referencedRelation: z.literal("group_users"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
   z.object({
@@ -461,6 +510,20 @@ export const applicationsViewRelationshipsSchema = z.tuple([
     referencedRelation: z.literal("group"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
+  z.object({
+    foreignKeyName: z.literal("group_users_user_id_fkey"),
+    columns: z.tuple([z.literal("user_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("profiles"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const appPermissionSchema = z.union([
+  z.literal("group.edit"),
+  z.literal("group.delete"),
+  z.literal("group.members.invite"),
+  z.literal("group.members.approve"),
 ]);
 
 export const membershipActivationTypeSchema = z.union([
@@ -479,10 +542,4 @@ export const groupRolesRowSchema = z.object({
   permissions: z.array(z.string()).nullable(),
   role_name: z.string().nullable(),
   type: groupRoleTypeSchema.nullable(),
-});
-
-export const rolePermissionsRowSchema = z.object({
-  id: z.number(),
-  permission: appPermissionSchema,
-  role_id: z.string(),
 });

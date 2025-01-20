@@ -1,25 +1,25 @@
 import { redirect } from "next/navigation";
 import { MembershipSelection } from "./components/MembershipSelection";
 import { getOrgBySlug } from "@/services/org.service";
-import { getMembershipTiers } from "@/services/membership.service";
+import { ProductService } from "@/services/product.service";
+import { ApplicationService } from "@/services/application.service";
 import { getCurrentUser } from "@/services/user.service";
-import { getUserMembership } from "@/services/join.service";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
-import { MembershipActivationType } from "@/lib/types/membership";
 import { RegistrationForm } from "@/app/(public)/(home)/sign-up/components/registration-form";
 import { Button } from "@/components/ui/button";
 import { CreditCard } from "lucide-react";
 import Link from "next/link";
+import { IMembershipTierProduct } from "@/lib/types/product";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type CamelizedGroup = Camelized<Tables<"group">>;
 
-async function getMembershipData(orgId: string) {
-  const memberships = await getMembershipTiers({ orgId });
+async function getMembershipData(orgId: string): Promise<IMembershipTierProduct[]> {
+  const memberships = await ProductService.getMembershipTiers(orgId);
   return memberships;
 }
 
@@ -43,19 +43,14 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
     );
   }
 
-  const userMembership = await getUserMembership(data.user.id, org.id);
+  // Get user's applications
+  const applications = await ApplicationService.getUserMembershipApplications(data.user.id);
+  const latestApplication = applications[0];
 
-  // If user has an active membership, redirect to org page
-  if (userMembership?.is_active) {
-    redirect(`/@${org.slug}`);
-  }
-
-  // If user has a pending application
-  if (userMembership && !userMembership.rejected_at) {
+  // If user has an active application
+  if (latestApplication && !latestApplication.rejected_at) {
     // If application is approved and requires payment
-    if (userMembership.status === "pending_payment" && 
-      (userMembership.membership.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
-       userMembership.membership.activation_type === MembershipActivationType.REVIEW_THEN_PAYMENT)) {
+    if (latestApplication.status === "pending_payment") {
       return (
         <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="w-full max-w-lg space-y-6">
@@ -69,14 +64,14 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
               <div className="space-y-2">
                 <h2 className="font-medium">Membership Details</h2>
                 <div className="text-sm text-muted-foreground">
-                  <p>Tier: {userMembership.membership.name}</p>
-                  <p>Price: ${userMembership.membership.price}</p>
+                  <p>Tier: {latestApplication.product_data?.name}</p>
+                  <p>Price: ${latestApplication.product_data?.price ? latestApplication.product_data.price / 100 : 0}</p>
                 </div>
               </div>
               <Button className="w-full" asChild>
                 <Link href={`/@${org.slug}/join/payment`}>
                   <CreditCard className="mr-2 h-4 w-4" />
-                  Complete Payment (${userMembership.membership.price})
+                  Complete Payment (${latestApplication.product_data?.price ? latestApplication.product_data.price / 100 : 0})
                 </Link>
               </Button>
             </div>
@@ -86,7 +81,7 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
     }
 
     // If application is pending review
-    if (!userMembership.approved_at) {
+    if (latestApplication.status === "pending_review") {
       return (
         <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="w-full max-w-lg space-y-6">
@@ -97,6 +92,11 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
           </div>
         </div>
       );
+    }
+
+    // If application is approved, redirect to org page
+    if (latestApplication.status === "approved") {
+      redirect(`/@${org.slug}`);
     }
   }
 
@@ -109,7 +109,7 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
           <p className="text-sm text-muted-foreground">Select a membership type to join this organization.</p>
         </div>
 
-        {userMembership?.rejected_at && (
+        {latestApplication?.rejected_at && (
           <div className="bg-destructive/10 p-4 rounded-lg text-center max-w-lg mx-auto">
             <h2 className="font-semibold text-destructive mb-2">Previous Application Rejected</h2>
             <p className="text-sm">Your previous application was rejected. You may reapply with a different membership type below.</p>
