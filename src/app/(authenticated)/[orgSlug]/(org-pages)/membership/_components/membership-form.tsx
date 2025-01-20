@@ -160,7 +160,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
               if (isFree && (field.value === MembershipActivationType.PAYMENT_REQUIRED || field.value === MembershipActivationType.REVIEW_THEN_PAYMENT)) {
                 field.onChange(MembershipActivationType.AUTOMATIC);
               }
-              if (!isFree && (field.value === MembershipActivationType.AUTOMATIC || field.value === MembershipActivationType.REVIEW_REQUIRED)) {
+              if (!isFree && field.value === MembershipActivationType.AUTOMATIC) {
                 field.onChange(MembershipActivationType.PAYMENT_REQUIRED);
               }
             }, [isFree, field]);

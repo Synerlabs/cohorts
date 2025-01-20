@@ -34,9 +34,11 @@ export function validateMembershipActivation(
   price: number,
   activationType: MembershipActivationType
 ): string | null {
-  // Free memberships must be automatic
-  if (price === 0 && activationType !== MembershipActivationType.AUTOMATIC) {
-    return 'Free memberships must be automatic';
+  // Free memberships can't require payment
+  if (price === 0 && 
+    (activationType === MembershipActivationType.PAYMENT_REQUIRED || 
+     activationType === MembershipActivationType.REVIEW_THEN_PAYMENT)) {
+    return 'Free memberships cannot require payment';
   }
 
   // Paid memberships must require payment or review
