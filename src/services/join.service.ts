@@ -272,7 +272,7 @@ export async function createUserMembership(userId: string, tierId: string, group
       .insert({
         user_id: userId,
         group_id: groupId,
-        is_active: tier.activation_type === 'automatic'
+        is_active: tier.activation_type === MembershipActivationType.AUTOMATIC
       })
       .select('id')
       .single();
@@ -283,21 +283,30 @@ export async function createUserMembership(userId: string, tierId: string, group
     throw groupUserError;
   } else {
     groupUserId = groupUser.id;
+    // Update existing group_user if activation is automatic
+    if (tier.activation_type === MembershipActivationType.AUTOMATIC) {
+      const { error: updateError } = await supabase
+        .from('group_users')
+        .update({ is_active: true })
+        .eq('id', groupUserId);
+
+      if (updateError) throw updateError;
+    }
   }
 
   // Determine initial membership status based on activation type
   let membershipStatus;
   switch (tier.activation_type) {
-    case 'automatic':
+    case MembershipActivationType.AUTOMATIC:
       membershipStatus = 'approved';
       break;
-    case 'review_required':
+    case MembershipActivationType.REVIEW_REQUIRED:
       membershipStatus = 'pending';
       break;
-    case 'payment_required':
+    case MembershipActivationType.PAYMENT_REQUIRED:
       membershipStatus = 'pending_payment';
       break;
-    case 'review_then_payment':
+    case MembershipActivationType.REVIEW_THEN_PAYMENT:
       membershipStatus = 'pending';
       break;
     default:
@@ -310,9 +319,9 @@ export async function createUserMembership(userId: string, tierId: string, group
     .insert({
       group_user_id: groupUserId,
       tier_id: tierId,
-      is_active: tier.activation_type === 'automatic',
+      is_active: tier.activation_type === MembershipActivationType.AUTOMATIC,
       status: membershipStatus,
-      start_date: tier.activation_type === 'automatic' ? new Date().toISOString() : null
+      start_date: tier.activation_type === MembershipActivationType.AUTOMATIC ? new Date().toISOString() : null
     });
 
   if (membershipError) throw membershipError;
@@ -323,7 +332,8 @@ export async function createUserMembership(userId: string, tierId: string, group
     .insert({
       group_user_id: groupUserId,
       tier_id: tierId,
-      status: membershipStatus
+      status: membershipStatus,
+      approved_at: tier.activation_type === MembershipActivationType.AUTOMATIC ? new Date().toISOString() : null
     });
 
   if (applicationError) throw applicationError;
