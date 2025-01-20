@@ -3,12 +3,13 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/utils/supabase/server";
 import { z } from "zod";
 import snakecaseKeys from "snakecase-keys";
-import { MembershipActivationType, MembershipTier } from "@/lib/types/membership";
+import { MembershipActivationType, MembershipTier, Currency } from "@/lib/types/membership";
 
 const membershipTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   price: z.number().min(0, "Price must be 0 or greater"),
+  currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
   group_id: z.string(),
   activation_type: z.nativeEnum(MembershipActivationType).default(MembershipActivationType.AUTOMATIC),
@@ -53,7 +54,7 @@ export async function getMembershipTiersAction(
 
 function validateActivationType(price: number, activationType: MembershipActivationType) {
   if (price === 0) {
-    // Free memberships can only be automatic or review_required
+    // Free memberships can't require payment
     if (activationType === MembershipActivationType.PAYMENT_REQUIRED || 
         activationType === MembershipActivationType.REVIEW_THEN_PAYMENT) {
       return "Free memberships cannot require payment";
@@ -74,9 +75,10 @@ export async function createMembershipTierAction(
   const rawFormData = Object.fromEntries(formData.entries());
   const formDataObj = {
     ...rawFormData,
-    price: Number(formData.get("price")),
+    price: Number(formData.get("price")), // Price is already in cents from the form
     duration_months: Number(formData.get("duration_months")),
     activation_type: formData.get("activation_type") || MembershipActivationType.AUTOMATIC,
+    currency: formData.get("currency") || "USD",
   };
 
   // Validate activation type based on price
@@ -143,9 +145,10 @@ export async function updateMembershipTierAction(
   const rawFormData = Object.fromEntries(formData.entries());
   const formDataObj = {
     ...rawFormData,
-    price: Number(rawFormData.price),
+    price: Number(rawFormData.price), // Price is already in cents from the form
     duration_months: Number(rawFormData.duration_months),
     activation_type: rawFormData.activation_type || MembershipActivationType.AUTOMATIC,
+    currency: rawFormData.currency || "USD",
   };
 
   // Validate activation type based on price

@@ -5,11 +5,14 @@ export enum MembershipActivationType {
   REVIEW_THEN_PAYMENT = 'review_then_payment'
 }
 
+export type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD';
+
 export type MembershipTier = {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  price: number; // stored in cents
+  currency: Currency;
   duration_months: number;
   activation_type: MembershipActivationType;
   created_at: string;
@@ -21,7 +24,8 @@ export type MembershipTierRow = {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  price: number; // stored in cents
+  currency: Currency;
   duration_months: number;
   activation_type: MembershipActivationType;
   created_at: string;
@@ -32,7 +36,8 @@ export type Membership = {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  price: number; // stored in cents
+  currency: Currency;
   duration_months: number;
   group_id: string;
   group_user_id: string;

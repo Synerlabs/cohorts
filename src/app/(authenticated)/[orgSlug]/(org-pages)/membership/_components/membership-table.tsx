@@ -1,6 +1,6 @@
 "use client";
 
-import { MembershipTier } from "@/lib/types/membership";
+import { MembershipTier, Currency } from "@/lib/types/membership";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Edit } from "lucide-react";
@@ -11,6 +11,20 @@ import { useState } from "react";
 interface MembershipTableProps {
   tiers: MembershipTier[];
   groupId: string;
+}
+
+const currencySymbols: Record<Currency, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  CAD: 'C$',
+  AUD: 'A$'
+};
+
+function formatPrice(price: number, currency: Currency): string {
+  if (price === 0) return "Free";
+  const amount = (price / 100).toFixed(2);
+  return `${currencySymbols[currency]}${amount}`;
 }
 
 export default function MembershipTable({ tiers, groupId }: MembershipTableProps) {
@@ -35,7 +49,7 @@ export default function MembershipTable({ tiers, groupId }: MembershipTableProps
             <TableCell>{tier.name}</TableCell>
             <TableCell>{tier.description}</TableCell>
             <TableCell>
-              {tier.price === 0 ? "Free" : `$${tier.price.toFixed(2)}`}
+              {formatPrice(tier.price, tier.currency)}
             </TableCell>
             <TableCell>
               {tier.duration_months} month{tier.duration_months !== 1 ? 's' : ''}

@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { MembershipActivationType, MembershipTier } from "@/lib/types/membership";
+import { MembershipActivationType, MembershipTier, Currency } from "@/lib/types/membership";
 import { createMembershipTierAction, updateMembershipTierAction } from "../_actions/membership.action";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { useForm } from "react-hook-form";
@@ -14,11 +14,13 @@ import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { startTransition } from "react";
 import React from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
   price: z.number().min(0, "Price must be 0 or greater"),
+  currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
   activation_type: z.nativeEnum(MembershipActivationType),
 });
@@ -28,6 +30,14 @@ interface MembershipFormProps {
   tier?: MembershipTier;
   onSuccess?: () => void;
 }
+
+const currencySymbols: Record<Currency, string> = {
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  CAD: 'C$',
+  AUD: 'A$'
+};
 
 export default function MembershipForm({ groupId, tier, onSuccess }: MembershipFormProps) {
   const [state, action, pending] = useToastActionState(
@@ -47,7 +57,8 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
     defaultValues: {
       name: tier?.name || "",
       description: tier?.description || "",
-      price: tier?.price || 0,
+      price: tier ? tier.price / 100 : 0, // Convert cents to dollars for display
+      currency: tier?.currency || "USD",
       duration_months: tier?.duration_months || 1,
       activation_type: tier?.activation_type || MembershipActivationType.AUTOMATIC,
     },
@@ -68,13 +79,16 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       // Handle each field type appropriately
       formData.append("name", values.name);
       formData.append("description", values.description || "");
-      formData.append("price", values.price.toString());
+      formData.append("price", Math.round(values.price * 100).toString()); // Convert dollars to cents
+      formData.append("currency", values.currency);
       formData.append("duration_months", values.duration_months.toString());
       formData.append("activation_type", values.activation_type);
 
       action(formData);
     });
   });
+
+  const selectedCurrency = form.watch("currency") as Currency;
 
   return (
     <Form {...form}>
@@ -107,26 +121,59 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="price"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Price</FormLabel>
-              <FormControl>
-                <Input 
-                  type="number" 
-                  min="0" 
-                  step="0.01" 
-                  {...field} 
-                  onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
-                  value={field.value}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            control={form.control}
+            name="currency"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Currency</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {Object.entries(currencySymbols).map(([code, symbol]) => (
+                      <SelectItem key={code} value={code}>
+                        {code} ({symbol})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="price"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Price</FormLabel>
+                <FormControl>
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5">
+                      {currencySymbols[selectedCurrency]}
+                    </span>
+                    <Input 
+                      type="number" 
+                      min="0" 
+                      step="0.01" 
+                      className="pl-7"
+                      {...field} 
+                      onChange={e => field.onChange(e.target.value ? parseFloat(e.target.value) : 0)}
+                      value={field.value}
+                    />
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
 
         <FormField
           control={form.control}
