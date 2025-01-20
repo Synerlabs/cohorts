@@ -61,9 +61,24 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       price: tier ? tier.price / 100 : 0, // Convert cents to dollars for display
       currency: tier?.currency || "USD",
       duration_months: tier?.membership_tier?.duration_months || 1,
-      activation_type: tier?.membership_tier?.activation_type || 'automatic',
+      activation_type: (tier?.membership_tier?.activation_type || 'automatic') as 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment',
     },
   });
+
+  // Watch price changes to update activation type
+  const price = form.watch("price");
+  const activationType = form.watch("activation_type");
+  
+  React.useEffect(() => {
+    // If price changes from free to paid
+    if (price > 0 && activationType === 'automatic') {
+      form.setValue('activation_type', 'payment_required' as const);
+    }
+    // If price changes from paid to free and has a payment-related activation type
+    else if (price === 0 && (activationType === 'payment_required' || activationType === 'review_then_payment')) {
+      form.setValue('activation_type', 'automatic' as const);
+    }
+  }, [price, activationType, form]);
 
   if (state?.success && onSuccess) {
     onSuccess();
@@ -89,7 +104,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
     });
   });
 
-  const isFree = form.watch("price") === 0;
+  const isFree = price === 0;
 
   return (
     <Form {...form}>
@@ -202,31 +217,32 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
               <FormControl>
                 <RadioGroup
                   onValueChange={field.onChange}
-                  defaultValue={field.value}
+                  value={field.value}
                   className="space-y-4"
                 >
-                  <div className="flex flex-col space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="automatic" id="automatic" />
-                      <Label htmlFor="automatic">Automatic</Label>
-                    </div>
-                    <p className="text-sm text-muted-foreground ml-6">
-                      Members are granted access immediately
-                    </p>
-                  </div>
+                  {isFree ? (
+                    <>
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="automatic" id="automatic" />
+                          <Label htmlFor="automatic">Automatic</Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Members are granted access immediately
+                        </p>
+                      </div>
 
-                  <div className="flex flex-col space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="review_required" id="review_required" />
-                      <Label htmlFor="review_required">Review Required</Label>
-                    </div>
-                    <p className="text-sm text-muted-foreground ml-6">
-                      Admin must review and approve applications
-                    </p>
-                  </div>
-
-                  {/* Options for paid memberships */}
-                  {!isFree && (
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="review_required" id="review_required" />
+                          <Label htmlFor="review_required">Review Required</Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Admin must review and approve applications
+                        </p>
+                      </div>
+                    </>
+                  ) : (
                     <>
                       <div className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
@@ -250,7 +266,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                           <Label htmlFor="review_then_payment">Review Then Payment</Label>
                         </div>
                         <p className="text-sm text-muted-foreground ml-6">
-                          Admin must review and approve applications before payment is requested
+                          Admin must approve before payment can be made
                         </p>
                       </div>
                     </>
