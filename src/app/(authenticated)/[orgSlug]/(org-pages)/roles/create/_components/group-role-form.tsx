@@ -24,13 +24,21 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { groupRolesRowSchema } from "@/lib/types/zod-schemas";
+import { groupRolesRowSchema, groupRolesInsertSchema } from "@/lib/types/zod-schemas";
 import { z } from "zod";
 import PermissionsRow from "@/app/(authenticated)/[orgSlug]/(org-pages)/roles/create/_components/permissions-row";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { usePathname } from "next/navigation";
+
+type FormData = {
+  groupId: string;
+  roleName: string;
+  description: string;
+  permissions: string[];
+  id?: string;
+};
 
 export default function GroupRoleForm({
   groupId,
@@ -43,15 +51,15 @@ export default function GroupRoleForm({
   onSuccess?: (data: { id: string }) => void;
   redirectTo?: string;
 }) {
-  const defaultValues = {
+  const defaultValues: FormData = {
     groupId,
     roleName: role?.roleName || "",
     description: role?.description || "",
-    permissions: role?.permissions || [],
+    permissions: role?.permissions?.filter(Boolean) || [],
     ...(role?.id ? { id: role.id } : {}),
   };
   const pathName = usePathname();
-  const form = useForm({ defaultValues });
+  const form = useForm<FormData>({ defaultValues });
   const formRef = useRef<HTMLFormElement>(null);
   const [state, createGroupRole, pending] = useToastActionState(
     createGroupRoleAction,
@@ -60,14 +68,11 @@ export default function GroupRoleForm({
   const submitHandler = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     form.handleSubmit((formData) => {
-      startTransition(async () => {
-        const submissionData = {
-          ...formData,
-          ...(role?.id ? { id: role.id } : {}),
-          redirectTo,
-        };
-        await createGroupRole(submissionData);
-      });
+      const submissionData = {
+        ...formData,
+        permissions: formData.permissions?.filter(Boolean) || [],
+      };
+      createGroupRole(submissionData);
     })(e);
   };
 
@@ -76,16 +81,17 @@ export default function GroupRoleForm({
       <form
         className="flex flex-col gap-4 w-full justify-center items-center align-middle"
         ref={formRef}
-        action={createGroupRole}
         onSubmit={submitHandler}
       >
         <div className="flex md:max-w-screen-md w-full mt-4">
           <h2>{role ? "Edit Role" : "Create Role"}</h2>
-          <Button size="sm" className="ml-auto" variant="outline" asChild>
-            <Link href={pathName + `/users`} passHref>
-              Manage Users
-            </Link>
-          </Button>
+          {role && (
+            <Button size="sm" className="ml-auto" variant="outline" asChild>
+              <Link href={pathName + `/users`} passHref>
+                Manage Users
+              </Link>
+            </Button>
+          )}
         </div>
         <Card className="md:max-w-screen-md w-full">
           <CardHeader>
@@ -129,8 +135,8 @@ export default function GroupRoleForm({
               type="multiple"
               variant="outline"
               className="w-full"
-              value={field.value || []}
-              onValueChange={field.onChange}
+              value={field.value?.filter(Boolean) || []}
+              onValueChange={(value) => field.onChange(value?.filter(Boolean) || [])}
             >
               <Card className="md:max-w-screen-md w-full">
                 <CardHeader>
