@@ -76,154 +76,63 @@ async function isApplicationPendingPayment(applicationId: string): Promise<boole
   }
 }
 
-export async function approveApplicationAction(
-  prevState: { success?: boolean } | undefined,
-  formData: FormData,
-) {
+type ActionResponse = {
+  success?: boolean;
+  error?: string;
+};
+
+export async function handleApproveApplication(
+  prevState: ActionResponse | null,
+  data: { id: string }
+): Promise<ActionResponse> {
   try {
-    const applicationId = formData.get('id') as string;
+    const applicationId = data.id;
     if (!applicationId) {
       return {
         error: "Application ID is required",
-        success: false,
-      };
-    }
-
-    // Check if application is pending payment
-    const isPendingPayment = await isApplicationPendingPayment(applicationId);
-    if (isPendingPayment) {
-      return {
-        error: "Cannot approve an application that is pending payment",
-        success: false,
-      };
-    }
-
-    // Get org data for permission check and revalidation
-    const supabase = await createClient();
-    const result = await supabase
-      .from('applications_view')
-      .select('group')
-      .eq('id', applicationId)
-      .single();
-
-    console.log('Application query result:', result);
-
-    if (result.error) {
-      console.error('Supabase error:', result.error);
-      return {
-        error: result.error.message || "Could not find organization",
-        success: false,
-      };
-    }
-
-    const application = result.data;
-    if (!application?.group?.id || !application?.group?.slug) {
-      console.log('Organization not found:', { application });
-      return {
-        error: "Could not find organization",
-        success: false,
-      };
-    }
-
-    // Check permissions using group slug
-    const hasPermission = await checkUserPermissions([permissions.applications.approve], application.group.slug);
-    if (!hasPermission) {
-      return {
-        error: "You don't have permission to approve applications",
-        success: false,
+        success: false
       };
     }
 
     await approveApplication(applicationId);
-
-    // Revalidate using group slug
-    revalidatePath(`/@${application.group.slug}/applications`);
-    revalidatePath('/', 'layout');
+    revalidatePath('/[orgSlug]/applications');
 
     return {
-      success: true,
+      success: true
     };
   } catch (error: any) {
-    console.error(error);
+    console.error('Error approving application:', error);
     return {
-      error: error.message || "An error occurred while approving the application",
-      success: false,
+      error: error.message || 'Failed to approve application',
+      success: false
     };
   }
 }
 
-export async function rejectApplicationAction(
-  prevState: { success?: boolean } | undefined,
-  formData: FormData,
-) {
+export async function handleRejectApplication(
+  prevState: ActionResponse | null,
+  data: { id: string }
+): Promise<ActionResponse> {
   try {
-    const applicationId = formData.get('id') as string;
+    const applicationId = data.id;
     if (!applicationId) {
       return {
         error: "Application ID is required",
-        success: false,
-      };
-    }
-
-    // Check if application is pending payment
-    const isPendingPayment = await isApplicationPendingPayment(applicationId);
-    if (isPendingPayment) {
-      return {
-        error: "Cannot reject an application that is pending payment",
-        success: false,
-      };
-    }
-
-    // Get org data for permission check and revalidation
-    const supabase = await createClient();
-    const result = await supabase
-      .from('applications_view')
-      .select('group')
-      .eq('id', applicationId)
-      .single();
-
-    console.log('Application query result:', result);
-
-    if (result.error) {
-      console.error('Supabase error:', result.error);
-      return {
-        error: result.error.message || "Could not find organization",
-        success: false,
-      };
-    }
-
-    const application = result.data;
-    if (!application?.group?.id || !application?.group?.slug) {
-      console.log('Organization not found:', { application });
-      return {
-        error: "Could not find organization",
-        success: false,
-      };
-    }
-
-    // Check permissions using group slug
-    const hasPermission = await checkUserPermissions([permissions.applications.reject], application.group.slug);
-    if (!hasPermission) {
-      return {
-        error: "You don't have permission to reject applications",
-        success: false,
+        success: false
       };
     }
 
     await rejectApplication(applicationId);
-
-    // Revalidate using group slug
-    revalidatePath(`/@${application.group.slug}/applications`);
-    revalidatePath('/', 'layout');
+    revalidatePath('/[orgSlug]/applications');
 
     return {
-      success: true,
+      success: true
     };
   } catch (error: any) {
-    console.error(error);
+    console.error('Error rejecting application:', error);
     return {
-      error: error.message || "An error occurred while rejecting the application",
-      success: false,
+      error: error.message || 'Failed to reject application',
+      success: false
     };
   }
 } 

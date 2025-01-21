@@ -76,41 +76,26 @@ export async function getPendingApplications(groupId: string): Promise<Applicati
   return (data as ApplicationView[]).map(mapViewToApplication);
 }
 
-export async function approveApplication(applicationId: string) {
+export async function approveApplication(applicationId: string): Promise<Application> {
   const supabase = await createClient();
 
   // Get application details
   const { data: application, error: applicationError } = await supabase
-    .from('applications')
-    .select(`
-      *,
-      product:products!inner (
-        id,
-        name,
-        price,
-        currency,
-        membership_tiers (
-          activation_type,
-          duration_months
-        )
-      )
-    `)
+    .from('membership_applications_view')
+    .select()
     .eq('id', applicationId)
     .single();
 
   if (applicationError) throw applicationError;
   if (!application) throw new Error('Application not found');
 
-  const activationType = application.product.membership_tiers.activation_type;
-  const price = application.product.price;
-
-  // Only activate if it's free or doesn't require payment
-  const shouldActivate = price === 0 || 
-    (activationType !== 'payment_required' && 
-     activationType !== 'review_then_payment');
+  const now = new Date().toISOString();
+  const shouldActivate = application.product_price === 0 || 
+    (application.activation_type !== 'payment_required' && 
+     application.activation_type !== 'review_then_payment');
 
   // Update application status
-  const newStatus = activationType === 'review_then_payment' 
+  const newStatus = application.activation_type === 'review_then_payment' 
     ? 'pending_payment' 
     : 'approved';
 
@@ -118,7 +103,8 @@ export async function approveApplication(applicationId: string) {
   const { error: updateError } = await supabase.rpc('approve_application', { 
     p_application_id: applicationId,
     p_new_status: newStatus,
-    p_should_activate: shouldActivate
+    p_should_activate: shouldActivate,
+    p_approved_at: now
   });
 
   if (updateError) throw updateError;
@@ -134,12 +120,15 @@ export async function approveApplication(applicationId: string) {
   return mapViewToApplication(updatedApplication as ApplicationView);
 }
 
-export async function rejectApplication(applicationId: string) {
+export async function rejectApplication(applicationId: string): Promise<Application> {
   const supabase = await createClient();
+
+  const now = new Date().toISOString();
 
   // Start transaction
   const { error: updateError } = await supabase.rpc('reject_application', { 
-    p_application_id: applicationId
+    p_application_id: applicationId,
+    p_rejected_at: now
   });
 
   if (updateError) throw updateError;

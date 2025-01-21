@@ -13,7 +13,7 @@ import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Check, X, CreditCard } from "lucide-react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
-import { approveApplicationAction, rejectApplicationAction } from "../_actions/applications";
+import { handleApproveApplication, handleRejectApplication } from "../_actions/applications";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { ComponentPermission } from "@/components/ComponentPermission";
@@ -49,8 +49,8 @@ const currencySymbols = {
 
 export function ApplicationsTable({ applications, showActions = true, userPermissions = [] }: ApplicationsTableProps) {
   const router = useRouter();
-  const [approveState, approveDispatch] = useToastActionState<ActionResult>(approveApplicationAction);
-  const [rejectState, rejectDispatch] = useToastActionState<ActionResult>(rejectApplicationAction);
+  const [approveState, approveDispatch] = useToastActionState<ActionResult>(handleApproveApplication);
+  const [rejectState, rejectDispatch] = useToastActionState<ActionResult>(handleRejectApplication);
 
   const canApprove = userPermissions.includes(permissions.applications.approve);
   const canReject = userPermissions.includes(permissions.applications.reject);
@@ -153,7 +153,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => approveDispatch(application.id)}
+                      onClick={() => approveDispatch({ id: application.id })}
                       disabled={Boolean(approveState?.success === false || approveState?.error)}
                     >
                       <Check className="h-4 w-4" />
@@ -163,7 +163,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => rejectDispatch(application.id)}
+                      onClick={() => rejectDispatch({ id: application.id })}
                       disabled={Boolean(rejectState?.success === false || rejectState?.error)}
                     >
                       <X className="h-4 w-4" />
