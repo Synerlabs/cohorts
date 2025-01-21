@@ -44,11 +44,12 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
   }
 
   // Get user's applications
-  const applications = await ApplicationService.getUserMembershipApplications(data.user.id);
+  const applications = await ApplicationService.getUserMembershipApplications(data.user.id, org.id);
   const latestApplication = applications[0];
 
-  // If user has an active application
-  if (latestApplication && !latestApplication.rejected_at) {
+  console.log("LATEST APPLICATION", latestApplication);
+  // If user has an active application for this organization
+  if (latestApplication && !latestApplication.rejected_at && latestApplication.group_id === org.id) {
     // If application is approved and requires payment
     if (latestApplication.status === "pending_payment") {
       return (
@@ -80,8 +81,8 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
       );
     }
 
-    // If application is pending review
-    if (latestApplication.status === "pending_review") {
+    // If application is pending
+    if (latestApplication.status === "pending") {
       return (
         <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
           <div className="w-full max-w-lg space-y-6">

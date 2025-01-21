@@ -10,7 +10,7 @@ export class ApplicationService {
     const { data, error } = await supabase
       .from('membership_applications_view')
       .select('*')
-      .eq('application_id', id)
+      .eq('id', id)
       .single();
 
     if (error) throw error;
@@ -30,13 +30,14 @@ export class ApplicationService {
     return data || [];
   }
 
-  static async getUserMembershipApplications(userId: string): Promise<IMembershipApplication[]> {
+  static async getUserMembershipApplications(userId: string, groupId: string): Promise<IMembershipApplication[]> {
     const supabase = await createClient();
     
     const { data, error } = await supabase
       .from('membership_applications_view')
       .select('*')
       .eq('user_id', userId)
+      .eq('group_id', groupId)
       .order('submitted_at', { ascending: false });
 
     if (error) throw error;
@@ -53,19 +54,29 @@ export class ApplicationService {
     const product = await ProductService.getMembershipTier(productId);
     if (!product) throw new Error('Product not found');
 
+    // Get the user_id from group_users
+    const { data: groupUser, error: groupUserError } = await supabase
+      .from('group_users')
+      .select('user_id')
+      .eq('id', groupUserId)
+      .single();
+
+    if (groupUserError) throw groupUserError;
+    if (!groupUser) throw new Error('Group user not found');
+
     let initialStatus: ApplicationStatus;
     switch (product.membership_tier.activation_type) {
       case 'automatic':
         initialStatus = 'approved';
         break;
       case 'review_required':
-        initialStatus = 'pending_review';
+        initialStatus = 'pending';
         break;
       case 'payment_required':
         initialStatus = 'pending_payment';
         break;
       case 'review_then_payment':
-        initialStatus = 'pending_review';
+        initialStatus = 'pending';
         break;
       default:
         initialStatus = 'pending';
@@ -88,7 +99,7 @@ export class ApplicationService {
     // If payment is required, create an order
     if (product.price > 0 && product.membership_tier.activation_type === 'payment_required') {
       const order = await OrderService.createMembershipOrder(
-        data.user_id,
+        groupUser.user_id,
         productId,
         groupUserId
       );

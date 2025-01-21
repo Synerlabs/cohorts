@@ -79,12 +79,44 @@ export async function createApplication(
 ): Promise<void> {
   const supabase = await createClient();
 
+  // Get the membership tier details first
+  const { data: tier, error: tierError } = await supabase
+    .from('products')
+    .select(`
+      price,
+      membership_tiers!inner (
+        activation_type
+      )
+    `)
+    .eq('id', tierId)
+    .single();
+
+  if (tierError || !tier) {
+    throw new Error('Membership tier not found');
+  }
+
+  const membershipTier = Array.isArray(tier.membership_tiers) 
+    ? tier.membership_tiers[0] 
+    : tier.membership_tiers;
+
+  // Determine initial status based on activation type
+  let status: 'pending' | 'pending_payment';
+  if (tier.price === 0) {
+    status = 'pending';
+  } else if (membershipTier.activation_type === 'payment_required') {
+    status = 'pending_payment';
+  } else if (membershipTier.activation_type === 'review_then_payment') {
+    status = 'pending';
+  } else {
+    status = 'pending';
+  }
+
   const { error } = await supabase
     .from('applications')
     .insert({
       group_user_id: groupUserId,
       tier_id: tierId,
-      status: 'pending'
+      status
     });
 
   if (error) throw error;

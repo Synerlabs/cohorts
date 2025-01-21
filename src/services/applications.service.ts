@@ -36,11 +36,11 @@ export type Application = {
 };
 
 type ApplicationView = {
-  application_id: string;
+  id: string;
   user_id: string;
   product_id: string;
   group_id: string;
-  application_status: 'pending' | 'pending_payment' | 'approved' | 'rejected';
+  status: 'pending' | 'pending_payment' | 'approved' | 'rejected';
   submitted_at: string;
   approved_at: string | null;
   rejected_at: string | null;
@@ -54,6 +54,8 @@ type ApplicationView = {
   product_currency: string;
   duration_months: number;
   activation_type: string;
+  group_name: string;
+  group_slug: string;
 };
 
 export async function getPendingApplications(groupId: string): Promise<Application[]> {
@@ -63,45 +65,13 @@ export async function getPendingApplications(groupId: string): Promise<Applicati
     .from('membership_applications_view')
     .select()
     .eq('group_id', groupId)
-    .eq('application_status', 'pending')
+    .eq('status', 'pending')
     .order('submitted_at', { ascending: false });
 
   if (error) throw error;
   if (!data) return [];
 
-  return (data as ApplicationView[]).map(row => ({
-    id: row.application_id,
-    user_id: row.user_id,
-    product_id: row.product_id,
-    group_id: row.group_id,
-    is_active: false,
-    created_at: row.submitted_at,
-    approved_at: row.approved_at,
-    rejected_at: row.rejected_at,
-    status: row.application_status,
-    user: {
-      id: row.user_data.id,
-      email: row.user_data.email,
-      first_name: row.user_data.full_name.split(' ')[0],
-      last_name: row.user_data.full_name.split(' ').slice(1).join(' '),
-      full_name: row.user_data.full_name
-    },
-    product: {
-      id: row.product_id,
-      name: row.product_name,
-      price: row.product_price,
-      currency: row.product_currency,
-      membership_tier: {
-        activation_type: row.activation_type,
-        duration_months: row.duration_months
-      }
-    },
-    group: {
-      id: row.group_id,
-      name: '', // These fields are not in the view
-      slug: ''
-    }
-  }));
+  return (data as ApplicationView[]).map(mapViewToApplication);
 }
 
 export async function approveApplication(applicationId: string) {
@@ -155,7 +125,7 @@ export async function approveApplication(applicationId: string) {
   const { data: updatedApplication, error: fetchError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('application_id', applicationId)
+    .eq('id', applicationId)
     .single();
 
   if (fetchError) throw fetchError;
@@ -176,7 +146,7 @@ export async function rejectApplication(applicationId: string) {
   const { data: updatedApplication, error: fetchError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('application_id', applicationId)
+    .eq('id', applicationId)
     .single();
 
   if (fetchError) throw fetchError;
@@ -190,7 +160,7 @@ export async function getPendingPaymentApplications(groupId: string): Promise<Ap
     .from('membership_applications_view')
     .select()
     .eq('group_id', groupId)
-    .eq('application_status', 'pending_payment')
+    .eq('status', 'pending_payment')
     .order('approved_at', { ascending: false });
 
   if (error) throw error;
@@ -206,7 +176,7 @@ export async function getApprovedApplications(groupId: string): Promise<Applicat
     .from('membership_applications_view')
     .select()
     .eq('group_id', groupId)
-    .eq('application_status', 'approved')
+    .eq('status', 'approved')
     .is('rejected_at', null)
     .order('approved_at', { ascending: false });
 
@@ -223,7 +193,7 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
     .from('membership_applications_view')
     .select()
     .eq('group_id', groupId)
-    .eq('application_status', 'rejected')
+    .eq('status', 'rejected')
     .not('rejected_at', 'is', null)
     .order('rejected_at', { ascending: false });
 
@@ -235,7 +205,7 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
 
 function mapViewToApplication(row: ApplicationView): Application {
   return {
-    id: row.application_id,
+    id: row.id,
     user_id: row.user_id,
     product_id: row.product_id,
     group_id: row.group_id,
@@ -243,7 +213,7 @@ function mapViewToApplication(row: ApplicationView): Application {
     created_at: row.submitted_at,
     approved_at: row.approved_at,
     rejected_at: row.rejected_at,
-    status: row.application_status,
+    status: row.status,
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
@@ -263,8 +233,8 @@ function mapViewToApplication(row: ApplicationView): Application {
     },
     group: {
       id: row.group_id,
-      name: '', // These fields are not in the view
-      slug: ''
+      name: row.group_name,
+      slug: row.group_slug
     }
   };
 } 

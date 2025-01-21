@@ -4,14 +4,18 @@ import { ApplicationService } from "@/services/application.service";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { CreditCard } from "lucide-react";
+import { getCurrentUser } from "@/services/user.service";
 
 async function PaymentPage({ org, user }: OrgAccessHOCProps) {
   if (!user) {
     redirect(`/@${org.slug}/join`);
   }
 
+  const { data: currentUser } = await getCurrentUser();
+  if (!currentUser?.user) throw new Error('User not found');
+
   // Get user's applications
-  const applications = await ApplicationService.getUserMembershipApplications(user.id);
+  const applications = await ApplicationService.getUserMembershipApplications(user.id, org.id);
   const latestApplication = applications[0];
   
   // Redirect if:
