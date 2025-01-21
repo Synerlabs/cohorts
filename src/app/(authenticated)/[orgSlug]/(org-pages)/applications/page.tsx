@@ -4,7 +4,7 @@ import { getPendingApplications, getApprovedApplications, getRejectedApplication
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { Suspense } from "react";
-import ApplicationsTable from "./_components/applications-table";
+import { ApplicationsTable } from "./_components/applications-table";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
