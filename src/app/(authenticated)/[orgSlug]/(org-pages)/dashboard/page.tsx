@@ -15,8 +15,8 @@ async function OrgHomePage({
   const userMembership = user ? await getUserMembership(user.id, org.id) : null;
   const hasPendingPayment = userMembership && 
     userMembership.status === "pending_payment" && 
-    (userMembership.membership.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
-     userMembership.membership.activation_type === MembershipActivationType.REVIEW_THEN_PAYMENT);
+    (userMembership.product.membership_tiers.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
+     userMembership.product.membership_tiers.activation_type === MembershipActivationType.REVIEW_THEN_PAYMENT);
 
   return (
     <div className="space-y-6">
@@ -31,12 +31,12 @@ async function OrgHomePage({
         <div className="bg-muted/50 p-4 rounded-lg">
           <h2 className="text-lg font-semibold mb-2">Complete Your Membership</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Your application has been approved. Complete the payment of ${userMembership.membership.price} to activate your membership.
+            Your application has been approved. Complete the payment of ${userMembership.product.price / 100} to activate your membership.
           </p>
           <Button asChild>
             <Link href={`/@${org.slug}/join/payment`}>
               <CreditCard className="mr-2 h-4 w-4" />
-              Complete Payment (${userMembership.membership.price})
+              Complete Payment (${userMembership.product.price / 100})
             </Link>
           </Button>
         </div>

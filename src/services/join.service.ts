@@ -208,40 +208,50 @@ export async function getUserMembership(userId: string, groupId: string) {
     throw groupUserError;
   }
 
-  // Then get the latest membership for this group user
-  const { data: membership, error: membershipError } = await supabase
-    .from('memberships')
+  // Then get the latest order for this user
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
     .select(`
       *,
-      membership:tier_id (
+      product:product_id (
+        id,
         name,
         price,
-        activation_type
+        membership_tiers (
+          activation_type,
+          duration_months
+        )
       )
     `)
-    .eq('group_user_id', groupUser.id)
+    .eq('user_id', userId)
+    .eq('type', 'membership')
     .order('created_at', { ascending: false })
     .limit(1)
     .single();
 
-  if (membershipError) {
-    if (membershipError.code === 'PGRST116') return null; // No membership found
-    throw membershipError;
+  if (orderError) {
+    if (orderError.code === 'PGRST116') return null; // No order found
+    throw orderError;
   }
 
-  // If no active membership, check for applications
-  if (!membership || !membership.is_active) {
+  // If no active order, check for applications
+  if (!order || !order.is_active) {
     const { data: application, error: applicationError } = await supabase
       .from('applications')
       .select(`
         *,
-        membership:tier_id (
+        product:tier_id (
+          id,
           name,
           price,
-          activation_type
+          membership_tiers (
+            activation_type,
+            duration_months
+          )
         )
       `)
       .eq('group_user_id', groupUser.id)
+      .eq('type', 'membership')
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -258,7 +268,7 @@ export async function getUserMembership(userId: string, groupId: string) {
     }
   }
 
-  return membership;
+  return order;
 }
 
 export const statusMessages = {
@@ -291,7 +301,7 @@ export async function createGroupUser(groupId: string, userId: string, isActive:
     .insert({
       group_id: groupId,
       user_id: userId,
-      is_active: isActive
+      is_active: isActive // Default to false unless explicitly set to true (e.g., for org creators)
     })
     .select('id')
     .single();
