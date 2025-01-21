@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { MembershipSelection } from "./components/MembershipSelection";
 import { getOrgBySlug } from "@/services/org.service";
 import { ProductService } from "@/services/product.service";
-import { ApplicationService } from "@/services/application.service";
+import { getUserMembershipApplications } from "@/services/applications.service";
 import { getCurrentUser } from "@/services/user.service";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
@@ -44,7 +44,7 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
   }
 
   // Get user's applications
-  const applications = await ApplicationService.getUserMembershipApplications(data.user.id, org.id);
+  const applications = await getUserMembershipApplications(data.user.id, org.id);
   const latestApplication = applications[0];
 
   console.log("LATEST APPLICATION", latestApplication);
@@ -65,14 +65,14 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
               <div className="space-y-2">
                 <h2 className="font-medium">Membership Details</h2>
                 <div className="text-sm text-muted-foreground">
-                  <p>Tier: {latestApplication.product_data?.name}</p>
-                  <p>Price: ${latestApplication.product_data?.price ? latestApplication.product_data.price / 100 : 0}</p>
+                  <p>Tier: {latestApplication.product.name}</p>
+                  <p>Price: ${latestApplication.product.price ? latestApplication.product.price / 100 : 0}</p>
                 </div>
               </div>
               <Button className="w-full" asChild>
                 <Link href={`/@${org.slug}/join/payment`}>
                   <CreditCard className="mr-2 h-4 w-4" />
-                  Complete Payment (${latestApplication.product_data?.price ? latestApplication.product_data.price / 100 : 0})
+                  Complete Payment (${latestApplication.product.price ? latestApplication.product.price / 100 : 0})
                 </Link>
               </Button>
             </div>

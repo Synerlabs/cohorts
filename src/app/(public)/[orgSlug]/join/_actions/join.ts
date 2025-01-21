@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/utils/supabase/server";
 import { ProductService } from "@/services/product.service";
-import { ApplicationService } from "@/services/application.service";
+import { createMembershipApplication } from "@/services/applications.service";
 import { revalidatePath } from "next/cache";
 
 type State = {
@@ -82,10 +82,7 @@ export async function joinOrgWithMembership(
     }
 
     // Create application using the existing or new group_user_id
-    const application = await ApplicationService.createMembershipApplication(
-      groupUserId,
-      productId
-    );
+    await createMembershipApplication(groupUserId, productId);
 
     revalidatePath(`/@${org.slug}/join`);
 
@@ -94,11 +91,11 @@ export async function joinOrgWithMembership(
       'review_required': 'Your application is pending review.',
       'payment_required': 'Please complete payment to join.',
       'review_then_payment': 'Your application is pending review. Once approved, you will be asked to complete payment.',
-    };
+    } as const;
 
     return {
       success: true,
-      message: statusMessages[product.membership_tier.activation_type]
+      message: statusMessages[product.membership_tier.activation_type as keyof typeof statusMessages]
     };
 
   } catch (error: any) {

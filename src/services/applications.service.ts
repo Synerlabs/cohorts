@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { Database } from "@/lib/types/database.types";
+import { OrderService } from "./order.service";
+import { ProductService } from "./product.service";
 
 export type Application = {
   id: string;
@@ -196,6 +198,100 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
     .eq('status', 'rejected')
     .not('rejected_at', 'is', null)
     .order('rejected_at', { ascending: false });
+
+  if (error) throw error;
+  if (!data) return [];
+
+  return (data as ApplicationView[]).map(mapViewToApplication);
+}
+
+export async function createMembershipApplication(
+  groupUserId: string,
+  productId: string
+): Promise<Application> {
+  const supabase = await createClient();
+
+  // Get product details to determine initial status
+  const product = await ProductService.getMembershipTier(productId);
+  if (!product) throw new Error('Product not found');
+
+  // Get the user_id from group_users
+  const { data: groupUser, error: groupUserError } = await supabase
+    .from('group_users')
+    .select('user_id')
+    .eq('id', groupUserId)
+    .single();
+
+  if (groupUserError) throw groupUserError;
+  if (!groupUser) throw new Error('Group user not found');
+
+  let initialStatus: Application['status'];
+  switch (product.membership_tier.activation_type) {
+    case 'automatic':
+      initialStatus = 'approved';
+      break;
+    case 'review_required':
+      initialStatus = 'pending';
+      break;
+    case 'payment_required':
+      initialStatus = 'pending_payment';
+      break;
+    case 'review_then_payment':
+      initialStatus = 'pending';
+      break;
+    default:
+      initialStatus = 'pending';
+  }
+
+  // Create the application
+  const { data, error } = await supabase
+    .from('applications')
+    .insert({
+      type: 'membership',
+      status: initialStatus,
+      group_user_id: groupUserId,
+      tier_id: productId
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  // If payment is required, create an order
+  if (product.price > 0 && product.membership_tier.activation_type === 'payment_required') {
+    const order = await OrderService.createMembershipOrder(
+      groupUser.user_id,
+      productId,
+      groupUserId
+    );
+
+    // Link the order to the application
+    await supabase
+      .from('applications')
+      .update({ order_id: order.id })
+      .eq('id', data.id);
+  }
+
+  // Fetch the created application with all details
+  const { data: application, error: fetchError } = await supabase
+    .from('membership_applications_view')
+    .select()
+    .eq('id', data.id)
+    .single();
+
+  if (fetchError) throw fetchError;
+  return mapViewToApplication(application as ApplicationView);
+}
+
+export async function getUserMembershipApplications(userId: string, groupId: string): Promise<Application[]> {
+  const supabase = await createClient();
+  
+  const { data, error } = await supabase
+    .from('membership_applications_view')
+    .select()
+    .eq('user_id', userId)
+    .eq('group_id', groupId)
+    .order('submitted_at', { ascending: false });
 
   if (error) throw error;
   if (!data) return [];

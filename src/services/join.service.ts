@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { ProductService } from "@/services/product.service";
-import { ApplicationService } from "@/services/application.service";
+import { createMembershipApplication } from "@/services/applications.service";
 import { IMembershipTierProduct } from "@/lib/types/product";
 
 export async function getMembershipTierDetails(tierId: string): Promise<IMembershipTierProduct | null> {
@@ -66,7 +66,7 @@ export async function createUserMembership(userId: string, tierId: string, group
   }
 
   // Create the application
-  await ApplicationService.createMembershipApplication(groupUserId, tierId);
+  await createMembershipApplication(groupUserId, tierId);
 }
 
 export async function getMembershipDetails(tierId: string): Promise<IMembershipTierProduct | null> {
