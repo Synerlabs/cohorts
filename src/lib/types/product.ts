@@ -20,5 +20,5 @@ type MembershipTierRow = Database['public']['Tables']['membership_tiers']['Row']
 
 export interface IMembershipTierProduct extends IProduct {
   type: 'membership_tier';
-  membership_tier: MembershipTierRow | MembershipTierRow[];
+  membership_tier: MembershipTierRow;
 } 

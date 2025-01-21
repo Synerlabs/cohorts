@@ -10,7 +10,7 @@ export class ProductService {
       .from('products')
       .select(`
         *,
-        membership_tiers (
+        membership_tiers!inner (
           activation_type,
           duration_months
         )
@@ -27,10 +27,6 @@ export class ProductService {
       throw new Error('Membership tier not found');
     }
 
-    console.log('Raw membership_tiers:', data.membership_tiers);
-    console.log('Type of membership_tiers:', typeof data.membership_tiers);
-    console.log('Is array:', Array.isArray(data.membership_tiers));
-
     return {
       ...data,
       membership_tier: data.membership_tiers
@@ -44,7 +40,7 @@ export class ProductService {
       .from('products')
       .select(`
         *,
-        membership_tiers (
+        membership_tiers!inner (
           activation_type,
           duration_months
         )
@@ -59,10 +55,6 @@ export class ProductService {
     if (!data) {
       return [];
     }
-
-    console.log('Raw membership_tiers:', data[0]?.membership_tiers);
-    console.log('Type of membership_tiers:', typeof data[0]?.membership_tiers);
-    console.log('Is array:', Array.isArray(data[0]?.membership_tiers));
 
     return data.map(tier => ({
       ...tier,
@@ -172,5 +164,51 @@ export class ProductService {
       ...product,
       membership_tier: membershipTier
     } as IMembershipTierProduct;
+  }
+
+  static async getMembershipTierWithGroup(id: string): Promise<{ group_id: string; exists: boolean }> {
+    const supabase = await createClient();
+    
+    const { data: tier, error } = await supabase
+      .from('products')
+      .select(`
+        group_id,
+        membership_tiers!inner (
+          product_id
+        )
+      `)
+      .eq('id', id)
+      .eq('type', 'membership_tier')
+      .single();
+
+    if (error || !tier) {
+      return { exists: false, group_id: '' };
+    }
+
+    return { exists: true, group_id: tier.group_id };
+  }
+
+  static async deleteMembershipTier(id: string): Promise<void> {
+    const supabase = await createClient();
+    
+    // Delete the membership tier first (due to foreign key constraint)
+    const { error: deleteMemError } = await supabase
+      .from('membership_tiers')
+      .delete()
+      .eq('product_id', id);
+
+    if (deleteMemError) {
+      throw deleteMemError;
+    }
+
+    // Then delete the product
+    const { error: deleteError } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      throw deleteError;
+    }
   }
 } 

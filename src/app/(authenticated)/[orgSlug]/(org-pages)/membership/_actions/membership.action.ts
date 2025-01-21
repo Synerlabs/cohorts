@@ -105,7 +105,7 @@ export async function createMembershipTierAction(
       parsedFormData.data.group_id,
       {
         name: parsedFormData.data.name,
-        description: parsedFormData.data.description,
+        description: parsedFormData.data.description || null,
         price: parsedFormData.data.price,
         currency: parsedFormData.data.currency,
         duration_months: parsedFormData.data.duration_months,
@@ -203,6 +203,61 @@ export async function updateMembershipTierAction(
     return {
       error: error.message || "An error occurred while updating the membership tier",
       success: false,
+    };
+  }
+}
+
+export async function deleteMembershipTierAction(
+  prevState: PrevState,
+  formData: FormData
+) {
+  const tierId = formData.get('id');
+  if (!tierId || typeof tierId !== 'string') {
+    return {
+      success: false,
+      error: "Invalid membership tier ID"
+    };
+  }
+
+  const supabase = await createClient();
+
+  try {
+    // Get the membership tier and verify it exists
+    const { exists, group_id } = await ProductService.getMembershipTierWithGroup(tierId);
+    
+    if (!exists) {
+      return {
+        success: false,
+        error: "Membership tier not found"
+      };
+    }
+
+    const { data: org, error: orgError } = await supabase
+      .from("group")
+      .select("slug")
+      .eq("id", group_id)
+      .single();
+
+    if (orgError) {
+      return {
+        success: false,
+        error: orgError.message
+      };
+    }
+
+    // Delete the membership tier
+    await ProductService.deleteMembershipTier(tierId);
+
+    revalidatePath(`/@${org.slug}/membership`);
+    return {
+      success: true
+    };
+
+  } catch (error: any) {
+    console.error(error);
+    return {
+      success: false,
+      error: error.message || "An error occurred while deleting the membership tier"
     };
   }
 }
