@@ -8,6 +8,7 @@ import {
   SquareUserRound,
   Users,
   InboxIcon,
+  CreditCard,
 } from "lucide-react";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
@@ -41,6 +42,11 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       name: "Applications",
       href: `/@${org.slug}/applications`,
       icon: <InboxIcon className="h-4 w-4" />,
+    },
+    userPermissions?.includes(permissions.members.edit) && {
+      name: "Payments",
+      href: `/@${org.slug}/payments`,
+      icon: <CreditCard className="h-4 w-4" />,
     },
     userPermissions?.includes(permissions.roles.view) && {
       name: "Roles & Permissions",
