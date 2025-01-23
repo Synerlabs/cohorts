@@ -3,75 +3,129 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { uploadProofOfPaymentAction } from '../actions/manual-payment.action';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
+import { createPaymentAction } from '../actions/payment.action';
 
 const formSchema = z.object({
-  file: z.instanceof(File),
+  amount: z.number().min(0),
+  currency: z.string().min(1),
+  proofFile: z.instanceof(File).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 interface ManualPaymentFormProps {
-  paymentId: string;
-  onSuccess?: () => void;
+  orderId: string;
+  orgId: string;
+  expectedAmount: number;
+  currency: string;
 }
 
-export function ManualPaymentForm({ paymentId, onSuccess }: ManualPaymentFormProps) {
-  const { orgSlug } = useParams();
-  const [state, uploadProof] = useToastActionState(uploadProofOfPaymentAction, undefined, undefined, {
-    successTitle: 'Upload Successful',
-    successDescription: 'Proof of payment has been uploaded successfully',
+export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: ManualPaymentFormProps) {
+  const [state, action] = useToastActionState(createPaymentAction, undefined, undefined, {
+    successTitle: "Payment Submitted",
+    successDescription: "Your payment has been submitted for review."
   });
-
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      amount: expectedAmount,
+      currency: currency,
+    },
   });
 
-  const onSubmit = async (values: FormValues) => {
-    await uploadProof({ success: false }, {
-      paymentId,
-      orgId: orgSlug as string,
-      file: values.file,
-    });
-    onSuccess?.();
-  };
+  async function onSubmit(data: FormValues) {
+    if (!orderId) {
+      console.error('Missing orderId');
+      return;
+    }
+
+    const payload = {
+      orderId,
+      orgId,
+      type: 'manual' as const,
+      amount: data.amount,
+      currency: data.currency,
+      proofFile: data.proofFile,
+    };
+    
+    console.log('Submitting payment with payload:', payload);
+    
+    await action(payload);
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Upload Proof of Payment</CardTitle>
-        <CardDescription>Please upload a screenshot or photo of your payment</CardDescription>
+        <CardTitle>Submit Payment</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="file"
-              render={({ field: { onChange } }) => (
+              name="amount"
+              render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Payment Screenshot</FormLabel>
+                  <FormLabel>Amount</FormLabel>
                   <FormControl>
                     <Input
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) onChange(file);
-                      }}
+                      type="number"
+                      step="0.01"
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value))}
                     />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit">Upload Proof</Button>
+            <FormField
+              control={form.control}
+              name="currency"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Currency</FormLabel>
+                  <FormControl>
+                    <Input {...field} readOnly />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="proofFile"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Proof of Payment</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) =>
+                        field.onChange(e.target.files ? e.target.files[0] : null)
+                      }
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit" disabled={state?.loading}>
+              Submit Payment
+            </Button>
           </form>
         </Form>
       </CardContent>

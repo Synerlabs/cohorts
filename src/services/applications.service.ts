@@ -13,6 +13,7 @@ export type Application = {
   approved_at: string | null;
   rejected_at: string | null;
   status: 'pending' | 'pending_payment' | 'approved' | 'rejected';
+  order_id: string | null;
   user: {
     id: string;
     email: string;
@@ -299,6 +300,7 @@ function mapViewToApplication(row: ApplicationView): Application {
     approved_at: row.approved_at,
     rejected_at: row.rejected_at,
     status: row.status,
+    order_id: null,
     user: {
       id: row.user_data.id,
       email: row.user_data.email,

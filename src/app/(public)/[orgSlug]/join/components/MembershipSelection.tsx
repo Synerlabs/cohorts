@@ -9,12 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { joinOrgWithMembership } from "../_actions/join";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { Badge } from "@/components/ui/badge";
-import { useRouter } from "next/navigation";
 
 interface MembershipSelectionProps {
   memberships: IMembershipTierProduct[];
@@ -22,9 +21,15 @@ interface MembershipSelectionProps {
   userId: string;
 }
 
+type JoinState = {
+  success: boolean;
+  message?: string;
+  error?: string;
+};
+
 export function MembershipSelection({ memberships, groupId, userId }: MembershipSelectionProps) {
   const [isPending, startTransition] = useTransition();
-  const [state, action] = useToastActionState(joinOrgWithMembership);
+  const [state, action] = useToastActionState<JoinState>(joinOrgWithMembership);
 
   if (!memberships || memberships.length === 0) {
     return (
@@ -39,7 +44,7 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
     );
   }
 
-  const handleSubmit = (membershipId: string) => {
+  const handleSubmit = async (membershipId: string) => {
     const formData = new FormData();
     formData.set('membershipId', membershipId);
     formData.set('groupId', groupId);

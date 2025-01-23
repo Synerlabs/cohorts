@@ -19,22 +19,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { ManualPayment } from '@/services/manual-payment.service';
+import { Payment } from '@/services/payment.service';
 import {
   approvePaymentAction,
   rejectPaymentAction,
-  getPaymentsByOrderIdAction,
-} from '../actions/manual-payment.action';
+  getPaymentsByOrgIdAction,
+} from '../actions/payment.action';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
 
 interface PaymentManagementProps {
-  orderId: string;
+  orgId: string;
   userId: string;
+  initialPayments: Payment[];
 }
 
-export function PaymentManagement({ orderId, userId }: PaymentManagementProps) {
-  const [payments, setPayments] = useState<ManualPayment[]>([]);
-  const [selectedPayment, setSelectedPayment] = useState<ManualPayment | null>(null);
+export function PaymentManagement({ orgId, userId, initialPayments }: PaymentManagementProps) {
+  const [payments, setPayments] = useState<Payment[]>(initialPayments);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [notes, setNotes] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -48,16 +49,12 @@ export function PaymentManagement({ orderId, userId }: PaymentManagementProps) {
     successDescription: 'The payment has been rejected',
   });
 
-  useEffect(() => {
-    loadPayments();
-  }, [orderId]);
-
   const loadPayments = async () => {
-    const result = await getPaymentsByOrderIdAction(null, { orderId });
+    const result = await getPaymentsByOrgIdAction(null, { orgId });
     setPayments(result);
   };
 
-  const handleApprove = async (payment: ManualPayment) => {
+  const handleApprove = async (payment: Payment) => {
     await approvePayment({ success: false }, {
       paymentId: payment.id,
       userId,
@@ -67,7 +64,7 @@ export function PaymentManagement({ orderId, userId }: PaymentManagementProps) {
     loadPayments();
   };
 
-  const handleReject = async (payment: ManualPayment) => {
+  const handleReject = async (payment: Payment) => {
     if (!notes) {
       return;
     }
@@ -81,19 +78,39 @@ export function PaymentManagement({ orderId, userId }: PaymentManagementProps) {
     loadPayments();
   };
 
+  const renderPaymentProof = (payment: Payment) => {
+    if (payment.type === 'manual' && payment.proofUrl) {
+      return (
+        <a
+          href={payment.proofUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline"
+        >
+          View Proof
+        </a>
+      );
+    }
+    if (payment.type === 'stripe') {
+      return 'Stripe Payment';
+    }
+    return null;
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Manual Payments</CardTitle>
+        <CardTitle>Payments</CardTitle>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Date</TableHead>
+              <TableHead>Type</TableHead>
               <TableHead>Amount</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Proof</TableHead>
+              <TableHead>Proof/Details</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -101,22 +118,12 @@ export function PaymentManagement({ orderId, userId }: PaymentManagementProps) {
             {payments.map((payment) => (
               <TableRow key={payment.id}>
                 <TableCell>{payment.createdAt.toLocaleDateString()}</TableCell>
+                <TableCell className="capitalize">{payment.type}</TableCell>
                 <TableCell>
                   {payment.amount} {payment.currency}
                 </TableCell>
-                <TableCell>{payment.status}</TableCell>
-                <TableCell>
-                  {payment.proofUrl && (
-                    <a
-                      href={payment.proofUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline"
-                    >
-                      View Proof
-                    </a>
-                  )}
-                </TableCell>
+                <TableCell className="capitalize">{payment.status}</TableCell>
+                <TableCell>{renderPaymentProof(payment)}</TableCell>
                 <TableCell>
                   {payment.status === 'pending' && (
                     <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
