@@ -3,24 +3,22 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useParams } from 'next/navigation';
-import { useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StorageProviderType } from '@/services/storage/storage-settings.service';
-import { getStorageSettingsAction, updateStorageSettingsAction } from '../actions/storage-settings.action';
+import { updateStorageSettingsAction } from '../actions/storage-settings.action';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
 
-const formSchema = z.object({
+const storageSettingsSchema = z.object({
   providerType: z.enum(['google-drive', 'blob-storage']),
   credentials: z.record(z.any()),
   settings: z.record(z.any()),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+type StorageSettingsFormData = z.infer<typeof storageSettingsSchema>;
 
 const PROVIDER_FIELDS = {
   'google-drive': {
@@ -31,42 +29,38 @@ const PROVIDER_FIELDS = {
     credentials: ['accountName', 'accountKey'],
     settings: ['containerName'],
   },
+} as const;
+
+type StorageSettingsFormProps = {
+  orgSlug: string;
+  initialData?: {
+    id: string;
+    orgId: string;
+    providerType: StorageProviderType;
+    credentials: Record<string, any>;
+    settings: Record<string, any>;
+  };
 };
 
-export function StorageSettingsForm() {
-  const { orgSlug } = useParams();
-  const [state, updateSettings] = useToastActionState(updateStorageSettingsAction, undefined, undefined, {
-    successTitle: 'Settings Updated',
-    successDescription: 'Storage settings have been updated successfully',
+export function StorageSettingsForm({ orgSlug, initialData }: StorageSettingsFormProps) {
+  const [state, updateAction] = useToastActionState(updateStorageSettingsAction, undefined, undefined, {
+    successTitle: "Success",
+    successDescription: "Storage settings updated successfully",
   });
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
+  const form = useForm<StorageSettingsFormData>({
+    resolver: zodResolver(storageSettingsSchema),
     defaultValues: {
-      providerType: 'google-drive',
-      credentials: {},
-      settings: {},
+      providerType: initialData?.providerType || 'google-drive',
+      credentials: initialData?.credentials || {},
+      settings: initialData?.settings || {},
     },
   });
 
-  useEffect(() => {
-    async function loadSettings() {
-      const result = await getStorageSettingsAction(null, { orgId: orgSlug as string });
-      if (result.success && result.data) {
-        form.reset({
-          providerType: result.data.providerType,
-          credentials: result.data.credentials,
-          settings: result.data.settings,
-        });
-      }
-    }
-    loadSettings();
-  }, [orgSlug, form]);
-
-  const onSubmit = async (values: FormValues) => {
-    await updateSettings({ success: false }, {
-      orgId: orgSlug as string,
-      ...values,
+  const onSubmit = async (data: StorageSettingsFormData) => {
+    await updateAction({
+      orgId: orgSlug,
+      ...data,
     });
   };
 
@@ -75,11 +69,7 @@ export function StorageSettingsForm() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Storage Settings</CardTitle>
-        <CardDescription>Configure where to store uploaded files</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <FormField
@@ -88,7 +78,7 @@ export function StorageSettingsForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Storage Provider</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a provider" />
