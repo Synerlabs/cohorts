@@ -97,37 +97,31 @@ export function PaymentManagement({
   sorting,
   search: initialSearch
 }: PaymentManagementProps) {
-  const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [notes, setNotes] = useState('');
-  const [search, setSearch] = useState(initialSearch);
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [deleteFiles, setDeleteFiles] = useState(true);
   
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   
   const reviewPaymentId = searchParams.get('reviewPaymentId');
-  const selectedPayment = payments.find(p => p.id === reviewPaymentId);
+  const selectedPayment = initialPayments.find(p => p.id === reviewPaymentId);
 
-  const [, approvePayment] = useToastActionState(approvePaymentAction, undefined, undefined, {
+  const [approveState, approveAction, approvePending] = useToastActionState(approvePaymentAction, undefined, undefined, {
     successTitle: 'Payment Approved',
     successDescription: 'The payment has been approved successfully',
   });
 
-  const [, rejectPayment] = useToastActionState(rejectPaymentAction, undefined, undefined, {
+  const [rejectState, rejectAction, rejectPending] = useToastActionState(rejectPaymentAction, undefined, undefined, {
     successTitle: 'Payment Rejected',
     successDescription: 'The payment has been rejected',
   });
 
-  const [, deletePayment] = useToastActionState(deletePaymentAction, undefined, undefined, {
+  const [deleteState, deleteAction, deletePending] = useToastActionState(deletePaymentAction, undefined, undefined, {
     successTitle: 'Payment Deleted',
     successDescription: 'The payment and associated files have been deleted',
   });
-
-  // Keep local state in sync with props
-  useEffect(() => {
-    setPayments(initialPayments);
-  }, [initialPayments]);
 
   const updateSearchParams = (updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams);
@@ -159,7 +153,6 @@ export function PaymentManagement({
   }, 300);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
     debouncedSearch(e.target.value);
   };
 
@@ -177,7 +170,7 @@ export function PaymentManagement({
   };
 
   const handleApprove = async (payment: Payment) => {
-    await approvePayment({ success: false }, {
+    await approveAction({ success: false }, {
       paymentId: payment.id,
       orgId,
       notes,
@@ -191,7 +184,7 @@ export function PaymentManagement({
       return;
     }
 
-    await rejectPayment({ success: false }, {
+    await rejectAction({ success: false }, {
       paymentId: payment.id,
       orgId,
       notes,
@@ -201,11 +194,13 @@ export function PaymentManagement({
   };
 
   const handleDelete = async (payment: Payment) => {
-    await deletePayment({ success: false }, {
+    await deleteAction({ success: false }, {
       paymentId: payment.id,
       orgId,
+      deleteFiles: payment.type === 'manual' ? deleteFiles : false,
     });
     setPaymentToDelete(null);
+    setDeleteFiles(true);
     router.refresh();
   };
 
@@ -256,7 +251,7 @@ export function PaymentManagement({
             <div className="relative">
               <Input
                 placeholder="Search payments..."
-                value={search}
+                defaultValue={initialSearch}
                 onChange={handleSearchChange}
                 className="w-64 pl-9"
               />
@@ -276,7 +271,7 @@ export function PaymentManagement({
               </svg>
             </div>
             <Select
-              value={pagination.pageSize.toString()}
+              defaultValue={pagination.pageSize.toString()}
               onValueChange={handlePageSizeChange}
             >
               <SelectTrigger className="w-[130px]">
@@ -332,7 +327,7 @@ export function PaymentManagement({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {payments.length === 0 ? (
+            {initialPayments.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center gap-1 text-sm">
@@ -356,7 +351,7 @@ export function PaymentManagement({
                 </TableCell>
               </TableRow>
             ) : (
-              payments.map((payment) => (
+              initialPayments.map((payment) => (
                 <TableRow key={payment.id} className="group hover:bg-muted/50">
                   <TableCell className="font-medium">
                     {new Date(payment.createdAt).toLocaleDateString(undefined, {
@@ -476,21 +471,47 @@ export function PaymentManagement({
                                 <Button
                                   variant="outline"
                                   onClick={() => selectedPayment && handleReject(selectedPayment)}
-                                  disabled={!notes}
+                                  disabled={!notes || rejectPending}
                                 >
-                                  Reject Payment
+                                  {rejectPending ? (
+                                    <>
+                                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                      Rejecting...
+                                    </>
+                                  ) : (
+                                    'Reject Payment'
+                                  )}
                                 </Button>
                                 <Button
                                   onClick={() => selectedPayment && handleApprove(selectedPayment)}
+                                  disabled={approvePending}
                                 >
-                                  Approve Payment
+                                  {approvePending ? (
+                                    <>
+                                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                      </svg>
+                                      Approving...
+                                    </>
+                                  ) : (
+                                    'Approve Payment'
+                                  )}
                                 </Button>
                               </div>
                             </div>
                           </DialogContent>
                         </Dialog>
                       )}
-                      <AlertDialog open={paymentToDelete?.id === payment.id} onOpenChange={(open) => !open && setPaymentToDelete(null)}>
+                      <AlertDialog open={paymentToDelete?.id === payment.id} onOpenChange={(open) => {
+                        if (!open) {
+                          setPaymentToDelete(null);
+                          setDeleteFiles(true);
+                        }
+                      }}>
                         <AlertDialogTrigger asChild>
                           <Button
                             variant="ghost"
@@ -504,12 +525,27 @@ export function PaymentManagement({
                         <AlertDialogContent>
                           <AlertDialogHeader>
                             <AlertDialogTitle>Delete Payment</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this payment? This action cannot be undone.
-                              {payment.uploads?.length > 0 && (
-                                <span className="block mt-2 text-destructive">
-                                  This will also delete {payment.uploads.length} associated file{payment.uploads.length !== 1 ? 's' : ''}.
-                                </span>
+                            <AlertDialogDescription className="space-y-4">
+                              <p>Are you sure you want to delete this payment? This action cannot be undone.</p>
+                              {payment.type === 'manual' && payment.uploads?.length > 0 && (
+                                <div className="flex items-start space-x-2 pt-2">
+                                  <div className="flex h-5 items-center">
+                                    <input
+                                      type="checkbox"
+                                      checked={deleteFiles}
+                                      onChange={(e) => setDeleteFiles(e.target.checked)}
+                                      className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                    />
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <label htmlFor="delete-files" className="text-sm font-medium text-destructive">
+                                      Delete {payment.uploads.length} associated file{payment.uploads.length !== 1 ? 's' : ''}
+                                    </label>
+                                    <p className="text-[0.8rem] text-muted-foreground">
+                                      If unchecked, files will remain in storage but won't be accessible
+                                    </p>
+                                  </div>
+                                </div>
                               )}
                             </AlertDialogDescription>
                           </AlertDialogHeader>
@@ -518,8 +554,19 @@ export function PaymentManagement({
                             <AlertDialogAction
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                               onClick={() => paymentToDelete && handleDelete(paymentToDelete)}
+                              disabled={deletePending}
                             >
-                              Delete
+                              {deletePending ? (
+                                <>
+                                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                  </svg>
+                                  Deleting...
+                                </>
+                              ) : (
+                                'Delete'
+                              )}
                             </AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
