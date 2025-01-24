@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { StorageProviderType } from '@/services/storage/storage-settings.service';
 import { updateStorageSettingsAction } from '../actions/storage-settings.action';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
+import { Textarea } from '@/components/ui/textarea';
 
 const storageSettingsSchema = z.object({
   providerType: z.enum(['google-drive', 'blob-storage']),
@@ -22,7 +23,7 @@ type StorageSettingsFormData = z.infer<typeof storageSettingsSchema>;
 
 const PROVIDER_FIELDS = {
   'google-drive': {
-    credentials: ['clientId', 'clientSecret', 'redirectUri'],
+    credentials: ['serviceAccountJson'],
     settings: ['folderId'],
   },
   'blob-storage': {
@@ -43,7 +44,7 @@ type StorageSettingsFormProps = {
 };
 
 export function StorageSettingsForm({ orgSlug, initialData }: StorageSettingsFormProps) {
-  const [state, updateAction] = useToastActionState(updateStorageSettingsAction, undefined, undefined, {
+  const [state, updateAction, pending] = useToastActionState(updateStorageSettingsAction, undefined, undefined, {
     successTitle: "Success",
     successDescription: "Storage settings updated successfully",
   });
@@ -52,16 +53,50 @@ export function StorageSettingsForm({ orgSlug, initialData }: StorageSettingsFor
     resolver: zodResolver(storageSettingsSchema),
     defaultValues: {
       providerType: initialData?.providerType || 'google-drive',
-      credentials: initialData?.credentials || {},
+      credentials: initialData?.providerType === 'google-drive' 
+        ? { serviceAccountJson: JSON.stringify(initialData.credentials, null, 2) }
+        : initialData?.credentials || {},
       settings: initialData?.settings || {},
     },
   });
 
   const onSubmit = async (data: StorageSettingsFormData) => {
-    await updateAction({
-      orgId: orgSlug,
-      ...data,
-    });
+    if (data.providerType === 'google-drive') {
+      try {
+        // Parse and validate the service account JSON
+        const serviceAccountJson = data.credentials.serviceAccountJson;
+        if (!serviceAccountJson) {
+          throw new Error('Service account credentials are required');
+        }
+
+        const credentials = JSON.parse(serviceAccountJson);
+        if (!credentials.type || credentials.type !== 'service_account') {
+          throw new Error('Invalid service account credentials');
+        }
+
+        // Create a new object with the parsed credentials
+        const formData = {
+          ...data,
+          credentials: credentials // Use the parsed JSON object directly
+        };
+
+        await updateAction({
+          orgId: orgSlug,
+          ...formData,
+        });
+      } catch (error) {
+        form.setError('credentials.serviceAccountJson', {
+          type: 'manual',
+          message: error instanceof Error ? error.message : 'Invalid JSON format or not a service account key file',
+        });
+        return;
+      }
+    } else {
+      await updateAction({
+        orgId: orgSlug,
+        ...data,
+      });
+    }
   };
 
   const providerType = form.watch('providerType') as StorageProviderType;
@@ -103,9 +138,21 @@ export function StorageSettingsForm({ orgSlug, initialData }: StorageSettingsFor
                   name={`credentials.${field}`}
                   render={({ field: { value, onChange } }) => (
                     <FormItem>
-                      <FormLabel className="capitalize">{field.replace(/([A-Z])/g, ' $1')}</FormLabel>
+                      <FormLabel className="capitalize">
+                        {field === 'serviceAccountJson' ? 'Service Account Key (JSON)' : field.replace(/([A-Z])/g, ' $1')}
+                      </FormLabel>
                       <FormControl>
-                        <Input value={value || ''} onChange={onChange} type="password" />
+                        {field === 'serviceAccountJson' ? (
+                          <Textarea
+                            value={value || ''}
+                            onChange={onChange}
+                            placeholder="Paste your service account key JSON here"
+                            className="font-mono text-sm"
+                            rows={10}
+                          />
+                        ) : (
+                          <Input value={value || ''} onChange={onChange} type="password" />
+                        )}
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -134,7 +181,9 @@ export function StorageSettingsForm({ orgSlug, initialData }: StorageSettingsFor
               ))}
             </div>
 
-            <Button type="submit">Save Settings</Button>
+            <Button type="submit" disabled={pending}>
+              {pending ? "Saving..." : "Save Settings"}
+            </Button>
           </form>
         </Form>
       </CardContent>
