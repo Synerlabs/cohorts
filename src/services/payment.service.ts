@@ -3,6 +3,18 @@ import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 export type PaymentStatus = 'pending' | 'approved' | 'rejected';
 export type PaymentType = 'manual' | 'stripe';
 
+export interface Upload {
+  id: string;
+  module: string;
+  originalFilename: string;
+  storagePath: string;
+  storageProvider: string;
+  fileUrl: string;
+  fileId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface BasePayment {
   id: string;
   orderId: string;
@@ -16,12 +28,11 @@ export interface BasePayment {
   updatedAt: Date;
   approvedAt?: Date;
   approvedBy?: string;
+  uploads: Upload[];
 }
 
 export interface ManualPayment extends BasePayment {
   type: 'manual';
-  proofFileId?: string;
-  proofUrl?: string;
 }
 
 export interface StripePayment extends BasePayment {
@@ -36,10 +47,16 @@ export class PaymentService {
   static async getPaymentsByOrgId(orgId: string): Promise<Payment[]> {
     const supabase = await createServiceRoleClient();
     
-    // Get all payments for orders in this organization
+    // Get all payments for orders in this organization with their uploads
     const { data: payments, error } = await supabase
       .from('payments')
-      .select('*, orders(*, products(*))')
+      .select(`
+        *,
+        orders(*),
+        payment_uploads(
+          upload:uploads(*)
+        )
+      `)
       .eq('orders.products.group_id', orgId)
       .order('created_at', { ascending: false });
 
@@ -56,7 +73,12 @@ export class PaymentService {
     
     const { data: payments, error } = await supabase
       .from('payments')
-      .select('*')
+      .select(`
+        *,
+        payment_uploads(
+          upload:uploads(*)
+        )
+      `)
       .eq('order_id', orderId)
       .order('created_at', { ascending: false });
 
@@ -84,7 +106,12 @@ export class PaymentService {
         approved_at: new Date().toISOString(),
       })
       .eq('id', paymentId)
-      .select()
+      .select(`
+        *,
+        payment_uploads(
+          upload:uploads(*)
+        )
+      `)
       .single();
 
     if (error || !payment) {
@@ -111,7 +138,12 @@ export class PaymentService {
         approved_at: new Date().toISOString(),
       })
       .eq('id', paymentId)
-      .select()
+      .select(`
+        *,
+        payment_uploads(
+          upload:uploads(*)
+        )
+      `)
       .single();
 
     if (error || !payment) {
@@ -123,6 +155,18 @@ export class PaymentService {
   }
 
   static mapPayment(data: any): Payment {
+    const uploads: Upload[] = (data.payment_uploads || []).map((pu: any) => ({
+      id: pu.upload.id,
+      module: pu.upload.module,
+      originalFilename: pu.upload.original_filename,
+      storagePath: pu.upload.storage_path,
+      storageProvider: pu.upload.storage_provider,
+      fileUrl: pu.upload.file_url,
+      fileId: pu.upload.file_id,
+      createdAt: new Date(pu.upload.created_at),
+      updatedAt: new Date(pu.upload.updated_at)
+    }));
+
     const basePayment = {
       id: data.id,
       orderId: data.order_id,
@@ -136,6 +180,7 @@ export class PaymentService {
       updatedAt: new Date(data.updated_at),
       approvedAt: data.approved_at ? new Date(data.approved_at) : undefined,
       approvedBy: data.approved_by,
+      uploads
     };
 
     switch (data.type) {
@@ -143,8 +188,6 @@ export class PaymentService {
         return {
           ...basePayment,
           type: 'manual' as const,
-          proofFileId: data.proof_file_id,
-          proofUrl: data.proof_url,
         };
       case 'stripe':
         return {

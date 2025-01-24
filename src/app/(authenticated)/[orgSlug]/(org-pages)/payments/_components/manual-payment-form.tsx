@@ -20,7 +20,7 @@ import { createPaymentAction } from '../actions/payment.action';
 const formSchema = z.object({
   amount: z.number().min(0),
   currency: z.string().min(1),
-  proofFile: z.any().optional(),
+  proofFiles: z.array(z.any()).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -38,6 +38,7 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
     defaultValues: {
       amount: expectedAmount / 100, // Convert cents to dollars for display
       currency: currency,
+      proofFiles: [],
     },
   });
 
@@ -52,30 +53,32 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
     console.log('Form submission started with data:', {
       amount: data.amount,
       currency: data.currency,
-      hasFile: !!data.proofFile
+      fileCount: data.proofFiles?.length
     });
 
-    let fileData = null;
-    if (data.proofFile) {
+    const filesData = [];
+    if (data.proofFiles?.length) {
       try {
-        console.log('Processing file:', {
-          name: data.proofFile.name,
-          type: data.proofFile.type,
-          size: data.proofFile.size
-        });
-        // Convert file to base64
-        const buffer = await data.proofFile.arrayBuffer();
-        console.log('File converted to buffer, size:', buffer.byteLength);
-        const base64 = Buffer.from(buffer).toString('base64');
-        console.log('File converted to base64, length:', base64.length);
-        fileData = {
-          name: data.proofFile.name,
-          type: data.proofFile.type,
-          base64,
-        };
-        console.log('File data prepared successfully');
+        for (const file of data.proofFiles) {
+          console.log('Processing file:', {
+            name: file.name,
+            type: file.type,
+            size: file.size
+          });
+          // Convert file to base64
+          const buffer = await file.arrayBuffer();
+          console.log('File converted to buffer, size:', buffer.byteLength);
+          const base64 = Buffer.from(buffer).toString('base64');
+          console.log('File converted to base64, length:', base64.length);
+          filesData.push({
+            name: file.name,
+            type: file.type,
+            base64,
+          });
+        }
+        console.log('Files data prepared successfully');
       } catch (error) {
-        console.error('Error processing file:', error);
+        console.error('Error processing files:', error);
         return;
       }
     }
@@ -83,11 +86,10 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
     console.log('Form data:', {
       amount: data.amount,
       currency: data.currency,
-      proofFile: fileData ? {
-        name: fileData.name,
-        type: fileData.type,
-        size: data.proofFile?.size
-      } : null
+      proofFiles: filesData.map(f => ({
+        name: f.name,
+        type: f.type
+      }))
     });
 
     const payload = {
@@ -96,15 +98,15 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
       type: 'manual' as const,
       amount: Math.round(data.amount * 100), // Convert dollars to cents for storage
       currency: data.currency,
-      proofFile: fileData,
+      proofFiles: filesData,
     };
 
     console.log('Submitting payment with payload:', {
       ...payload,
-      proofFile: payload.proofFile ? {
-        name: payload.proofFile.name,
-        type: payload.proofFile.type
-      } : null
+      proofFiles: payload.proofFiles.map(f => ({
+        name: f.name,
+        type: f.type
+      }))
     });
 
     try {
@@ -158,7 +160,7 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
             />
             <FormField
               control={form.control}
-              name="proofFile"
+              name="proofFiles"
               render={({ field: { onChange, ...field } }) => (
                 <FormItem>
                   <FormLabel>Proof of Payment</FormLabel>
@@ -166,23 +168,23 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
                     <Input
                       type="file"
                       accept="image/*,.pdf"
+                      multiple
                       onChange={(e) => {
-                        const file = e.target.files?.[0];
+                        const files = Array.from(e.target.files || []);
                         console.log('File input change event:', {
-                          hasFiles: !!e.target.files?.length,
-                          fileCount: e.target.files?.length
+                          hasFiles: !!files.length,
+                          fileCount: files.length
                         });
-                        console.log('Selected file details:', file ? {
+                        console.log('Selected files details:', files.map(file => ({
                           name: file.name,
                           type: file.type,
                           size: file.size,
                           lastModified: file.lastModified
-                        } : 'No file selected');
-                        // Set the file directly in the form data
-                        onChange(file);
+                        })));
+                        // Set the files array in the form data
+                        onChange(files);
                       }}
                       {...field}
-                      value={field.value?.filename}
                     />
                   </FormControl>
                   <FormMessage />

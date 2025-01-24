@@ -1,7 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { StorageProvider } from '../storage/storage-provider.interface';
 import { PaymentService } from './payment.service.interface';
-import { CreateManualPaymentDTO, ManualPayment, Payment, UpdatePaymentDTO } from './types';
+import { CreateManualPaymentDTO, ManualPayment, Payment, UpdatePaymentDTO, Upload } from './types';
 
 export class ManualPaymentService implements PaymentService {
   constructor(
@@ -14,7 +14,7 @@ export class ManualPaymentService implements PaymentService {
       orderId: data.orderId,
       amount: data.amount,
       currency: data.currency,
-      hasProofFile: !!data.proofFile
+      fileCount: data.proofFiles?.length
     });
 
     const { data: payment, error: paymentError } = await this.supabase
@@ -37,53 +37,84 @@ export class ManualPaymentService implements PaymentService {
 
     console.log('Payment record created:', payment.id);
 
-    // Create manual payment record
-    const manualPaymentData: any = {};
+    const uploads: Upload[] = [];
     
-    // If proof file is provided, upload it
-    if (data.proofFile) {
+    // If proof files are provided, upload them
+    if (data.proofFiles?.length) {
       try {
-        console.log('Uploading proof file for payment:', payment.id);
-        const path = `proof-of-payments/${payment.id}/${data.proofFile.name}`;
-        console.log('Upload path:', path);
-        
-        console.log('File data:', {
-          name: data.proofFile.name,
-          type: data.proofFile.type,
-          base64Length: data.proofFile.base64?.length
-        });
+        for (const file of data.proofFiles) {
+          console.log('Uploading proof file for payment:', payment.id);
+          const path = `manual-payments/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${String(new Date().getDate()).padStart(2, '0')}/${crypto.randomUUID()}`;
+          console.log('Upload path:', path);
+          
+          console.log('File data:', {
+            name: file.name,
+            type: file.type,
+            base64Length: file.base64?.length
+          });
 
-        const result = await this.storageProvider.upload(data.proofFile, path);
-        console.log('File upload result:', {
-          fileId: result.fileId,
-          hasUrl: !!result.url
-        });
-        
-        manualPaymentData.proof_file_id = result.fileId;
-        manualPaymentData.proof_url = result.url;
+          const result = await this.storageProvider.upload(file, path);
+          console.log('File upload result:', {
+            fileId: result.fileId,
+            hasUrl: !!result.url
+          });
+
+          // Create upload record
+          const { data: upload, error: uploadError } = await this.supabase
+            .from('uploads')
+            .insert({
+              module: 'manual-payments',
+              original_filename: file.name,
+              storage_path: result.storagePath,
+              storage_provider: 'google-drive',
+              file_url: result.url,
+              file_id: result.fileId
+            })
+            .select()
+            .single();
+
+          if (uploadError) {
+            throw new Error(`Failed to create upload record: ${uploadError.message}`);
+          }
+
+          // Create payment_uploads record
+          const { error: paymentUploadError } = await this.supabase
+            .from('payment_uploads')
+            .insert({
+              payment_id: payment.id,
+              upload_id: upload.id
+            });
+
+          if (paymentUploadError) {
+            throw new Error(`Failed to create payment_upload record: ${paymentUploadError.message}`);
+          }
+
+          uploads.push({
+            id: upload.id,
+            module: upload.module,
+            originalFilename: upload.original_filename,
+            storagePath: upload.storage_path,
+            storageProvider: upload.storage_provider,
+            fileUrl: upload.file_url,
+            fileId: upload.file_id,
+            createdAt: new Date(upload.created_at),
+            updatedAt: new Date(upload.updated_at)
+          });
+        }
       } catch (error: any) {
-        console.error('Error uploading proof file:', error);
+        console.error('Error uploading proof files:', error);
         // Delete the payment record if file upload fails
         await this.supabase.from('payments').delete().eq('id', payment.id);
-        throw new Error(`Failed to upload proof file: ${error.message}`);
+        throw new Error(`Failed to upload proof files: ${error.message}`);
       }
     }
 
-    if (data.notes) {
-      manualPaymentData.notes = data.notes;
-    }
-
-    console.log('Creating manual payment record with data:', {
-      paymentId: payment.id,
-      hasProofFileId: !!manualPaymentData.proof_file_id,
-      hasProofUrl: !!manualPaymentData.proof_url
-    });
-
+    // Create manual payment record with notes if provided
     const { data: manualPayment, error: manualPaymentError } = await this.supabase
       .from('manual_payments')
       .insert({
         payment_id: payment.id,
-        ...manualPaymentData
+        notes: data.notes
       })
       .select()
       .single();
@@ -96,13 +127,22 @@ export class ManualPaymentService implements PaymentService {
     }
 
     console.log('Manual payment record created successfully');
-    return this.mapPayment(payment, manualPayment);
+    return {
+      ...this.mapPayment(payment, manualPayment),
+      uploads
+    };
   }
 
   async getPayment(id: string): Promise<Payment> {
     const { data: payment, error: paymentError } = await this.supabase
       .from('payments')
-      .select('*, manual_payments(*)')
+      .select(`
+        *,
+        manual_payments(*),
+        payment_uploads(
+          upload:uploads(*)
+        )
+      `)
       .eq('id', id)
       .single();
 
@@ -110,20 +150,26 @@ export class ManualPaymentService implements PaymentService {
       throw new Error(`Failed to get payment: ${paymentError.message}`);
     }
 
-    return this.mapPayment(payment, payment.manual_payments);
+    return this.mapPaymentWithUploads(payment);
   }
 
   async getPaymentsByOrderId(orderId: string): Promise<Payment[]> {
     const { data: payments, error: paymentError } = await this.supabase
       .from('payments')
-      .select('*, manual_payments(*)')
+      .select(`
+        *,
+        manual_payments(*),
+        payment_uploads(
+          upload:uploads(*)
+        )
+      `)
       .eq('order_id', orderId);
 
     if (paymentError) {
       throw new Error(`Failed to get payments: ${paymentError.message}`);
     }
 
-    return payments.map(p => this.mapPayment(p, p.manual_payments));
+    return payments.map(p => this.mapPaymentWithUploads(p));
   }
 
   async getPaymentsByOrgId(orgId: string): Promise<Payment[]> {
@@ -132,6 +178,9 @@ export class ManualPaymentService implements PaymentService {
       .select(`
         *,
         manual_payments(*),
+        payment_uploads(
+          upload:uploads(*)
+        ),
         orders!inner(
           product_id,
           products!inner(
@@ -146,7 +195,7 @@ export class ManualPaymentService implements PaymentService {
       throw new Error(`Failed to get payments: ${paymentError.message}`);
     }
 
-    return payments.map(p => this.mapPayment(p, p.manual_payments));
+    return payments.map(p => this.mapPaymentWithUploads(p));
   }
 
   async updatePayment(id: string, data: UpdatePaymentDTO): Promise<Payment> {
@@ -160,7 +209,13 @@ export class ManualPaymentService implements PaymentService {
       .from('payments')
       .update(updates)
       .eq('id', id)
-      .select('*, manual_payments(*)')
+      .select(`
+        *,
+        manual_payments(*),
+        payment_uploads(
+          upload:uploads(*)
+        )
+      `)
       .single();
 
     if (paymentError) {
@@ -178,7 +233,7 @@ export class ManualPaymentService implements PaymentService {
       }
     }
 
-    return this.mapPayment(payment, payment.manual_payments);
+    return this.mapPaymentWithUploads(payment);
   }
 
   async approvePayment(id: string, notes?: string): Promise<Payment> {
@@ -200,9 +255,27 @@ export class ManualPaymentService implements PaymentService {
       status: payment.status,
       createdAt: new Date(payment.created_at),
       updatedAt: new Date(payment.updated_at),
-      proofFileId: manualPayment?.proof_file_id,
-      proofUrl: manualPayment?.proof_url,
       notes: manualPayment?.notes,
+      uploads: []
+    };
+  }
+
+  private mapPaymentWithUploads(payment: any): ManualPayment {
+    const uploads: Upload[] = (payment.payment_uploads || []).map((pu: any) => ({
+      id: pu.upload.id,
+      module: pu.upload.module,
+      originalFilename: pu.upload.original_filename,
+      storagePath: pu.upload.storage_path,
+      storageProvider: pu.upload.storage_provider,
+      fileUrl: pu.upload.file_url,
+      fileId: pu.upload.file_id,
+      createdAt: new Date(pu.upload.created_at),
+      updatedAt: new Date(pu.upload.updated_at)
+    }));
+
+    return {
+      ...this.mapPayment(payment, payment.manual_payments),
+      uploads
     };
   }
 } 

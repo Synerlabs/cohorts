@@ -46,16 +46,29 @@ export async function upload(fileData: any, path: string): Promise<UploadResult>
   }
 
   try {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const uuid = crypto.randomUUID();
+    const originalFilename = path.split('/').pop();
+    const extension = originalFilename?.includes('.') ? `.${originalFilename.split('.').pop()}` : '';
+    
+    // Construct new path: module/year/month/day/uuid.ext
+    const [module] = path.split('/');
+    const newPath = `${module}/${year}/${month}/${day}/${uuid}${extension}`;
+
     console.log('Starting file upload to Google Drive:', { 
-      fullPath: path,
-      fileName: path.split('/').pop(),
+      originalPath: path,
+      newPath,
+      originalFilename,
       type: fileData.type,
       hasBase64: !!fileData.base64,
       base64Length: fileData.base64?.length
     });
 
     const fileMetadata = {
-      name: path.split('/').pop(),
+      name: `${uuid}${extension}`,
       parents: [settings.folderId] // You can customize the parent folder ID here
     };
 
@@ -119,7 +132,9 @@ export async function upload(fileData: any, path: string): Promise<UploadResult>
     return {
       fileId: uploadResponse.data.id,
       url: updatedFile.data.webViewLink || uploadResponse.data.webViewLink,
-      metadata: uploadResponse.data
+      metadata: uploadResponse.data,
+      storagePath: newPath,
+      originalFilename: originalFilename || ''
     };
   } catch (error: any) {
     console.error('Error uploading to Google Drive:', error);

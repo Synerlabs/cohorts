@@ -9,7 +9,9 @@ export interface StorageConfig {
 export interface UploadResult {
   fileId: string;
   url: string;
-  metadata?: any;
+  metadata: any;
+  storagePath: string;
+  originalFilename: string;
 }
 
 export interface GoogleDriveCredentials {

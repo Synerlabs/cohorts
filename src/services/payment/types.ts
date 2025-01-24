@@ -1,6 +1,18 @@
 export type PaymentStatus = 'pending' | 'approved' | 'rejected';
 export type PaymentType = 'manual' | 'stripe';
 
+export interface Upload {
+  id: string;
+  module: string;
+  originalFilename: string;
+  storagePath: string;
+  storageProvider: string;
+  fileUrl: string;
+  fileId?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface BasePayment {
   id: string;
   orderId: string;
@@ -11,12 +23,11 @@ export interface BasePayment {
   status: PaymentStatus;
   createdAt: Date;
   updatedAt: Date;
+  uploads: Upload[];
 }
 
 export interface ManualPayment extends BasePayment {
   type: 'manual';
-  proofFileId?: string;
-  proofUrl?: string;
   notes?: string;
 }
 
@@ -40,11 +51,11 @@ export interface CreatePaymentDTO {
 
 export interface CreateManualPaymentDTO extends CreatePaymentDTO {
   type: 'manual';
-  proofFile?: {
+  proofFiles?: Array<{
     name: string;
     type: string;
     base64: string;
-  };
+  }>;
   notes?: string;
 }
 
