@@ -128,7 +128,11 @@ export async function createPaymentAction(
     type: 'manual' | 'stripe';
     amount: number;
     currency: string;
-    proofFile?: File;
+    proofFile?: {
+      name: string;
+      type: string;
+      base64: string;
+    };
   }
 ): Promise<PaymentFormState> {
   try {
@@ -183,39 +187,74 @@ export async function createPaymentAction(
     // If it's a manual payment with a proof file, upload it
     if (payload.type === 'manual' && payload.proofFile) {
       try {
+        console.log('Attempting to upload proof file:', {
+          hasFile: !!payload.proofFile,
+          fileData: {
+            name: payload.proofFile.name,
+            type: payload.proofFile.type,
+            hasBase64: !!payload.proofFile.base64,
+            base64Length: payload.proofFile.base64?.length,
+            keys: Object.keys(payload.proofFile)
+          }
+        });
+
         // Get storage provider
         const provider = await StorageSettingsService.createStorageProvider(payload.orgId);
         if (!provider) {
+          console.error('Storage provider not configured for org:', payload.orgId);
           throw new Error('Storage provider not configured');
         }
+        console.log('Storage provider created successfully');
 
         // Upload file
         const path = `proof-of-payments/${payment.id}/${payload.proofFile.name}`;
-        const result = await provider.upload(payload.proofFile, path);
+        console.log('Uploading file to path:', path);
 
-        // Update payment record with proof file info
-        const { error: updateError } = await supabase
-          .from('payments')
-          .update({
-            proof_file_id: result.fileId,
-            proof_url: result.url,
-          })
-          .eq('id', payment.id);
+        try {
+          const result = await provider.upload(payload.proofFile, path);
+          console.log('File uploaded successfully:', result);
 
-        if (updateError) {
-          console.error("Error updating payment with proof:", updateError);
+          // Update payment record with proof file info
+          const { error: updateError } = await supabase
+            .from('payments')
+            .update({
+              proof_file_id: result.fileId,
+              proof_url: result.url,
+            })
+            .eq('id', payment.id);
+
+          if (updateError) {
+            console.error("Error updating payment with proof:", updateError);
+            return {
+              success: false,
+              error: updateError.message,
+            };
+          }
+          console.log('Payment record updated with proof file info');
+
+          payment.proof_url = result.url;
+        } catch (uploadError: any) {
+          console.error("Error uploading proof:", uploadError);
+          console.error("Upload error details:", {
+            message: uploadError.message,
+            stack: uploadError.stack,
+            cause: uploadError.cause
+          });
           return {
             success: false,
-            error: updateError.message,
+            error: "Failed to upload proof of payment: " + uploadError.message,
           };
         }
-
-        payment.proof_url = result.url;
-      } catch (uploadError) {
-        console.error("Error uploading proof:", uploadError);
+      } catch (error: any) {
+        console.error("Error in file upload process:", error);
+        console.error("Error details:", {
+          message: error.message,
+          stack: error.stack,
+          cause: error.cause
+        });
         return {
           success: false,
-          error: "Failed to upload proof of payment",
+          error: "Failed to process file upload: " + error.message,
         };
       }
     }

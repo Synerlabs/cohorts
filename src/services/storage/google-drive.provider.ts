@@ -1,43 +1,59 @@
+'use server';
+
 import { google } from 'googleapis';
 import { drive_v3 } from 'googleapis/build/src/apis/drive/v3';
-import { StorageConfig, StorageProvider, UploadResult } from './storage-provider.interface';
+import { StorageConfig, StorageProvider, UploadResult, GoogleDriveCredentials } from './storage-provider.interface';
 
 export class GoogleDriveProvider implements StorageProvider {
   private drive!: drive_v3.Drive;
-  private config!: StorageConfig;
 
   async initialize(config: StorageConfig): Promise<void> {
-    this.config = config;
+    if (config.type !== 'google-drive') {
+      throw new Error('Invalid provider type');
+    }
+
+    const credentials = config.credentials as GoogleDriveCredentials;
     const auth = new google.auth.GoogleAuth({
-      credentials: config.credentials,
+      credentials,
       scopes: ['https://www.googleapis.com/auth/drive.file'],
     });
 
     this.drive = google.drive({ version: 'v3', auth });
   }
 
-  async upload(file: File | Buffer, path: string): Promise<UploadResult> {
-    const media = {
-      mimeType: file instanceof File ? file.type : 'application/octet-stream',
-      body: file,
-    };
+  async upload(
+    file: Buffer | { name: string; type: string; base64: string },
+    path: string
+  ): Promise<UploadResult> {
+    try {
+      // Convert file to buffer if it's base64
+      const buffer = Buffer.isBuffer(file) 
+        ? file 
+        : Buffer.from('base64' in file ? file.base64 : '', 'base64');
 
-    const fileMetadata = {
-      name: path.split('/').pop(),
-      parents: [this.config.settings.folderId], // Folder ID from settings
-    };
+      const media = {
+        mimeType: 'base64' in file ? file.type : 'application/octet-stream',
+        body: buffer,
+      };
 
-    const response = await this.drive.files.create({
-      requestBody: fileMetadata,
-      media: media,
-      fields: 'id, webViewLink',
-    });
+      const response = await this.drive.files.create({
+        requestBody: {
+          name: 'base64' in file ? file.name : path,
+          parents: [path],
+        },
+        media,
+        fields: 'id, webViewLink',
+      });
 
-    return {
-      fileId: response.data.id!,
-      url: response.data.webViewLink!,
-      metadata: response.data,
-    };
+      return {
+        fileId: response.data.id!,
+        url: response.data.webViewLink!,
+        metadata: response.data,
+      };
+    } catch (error) {
+      console.error('Error uploading file to Google Drive:', error);
+      throw error;
+    }
   }
 
   async getFileUrl(fileId: string): Promise<string> {

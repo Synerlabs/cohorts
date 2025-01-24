@@ -66,27 +66,21 @@ async function PaymentPage({ org, user }: OrgAccessHOCProps) {
   }
 
   return (
-    <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
-      <Card className="w-[600px]">
+    <div className="container py-6 space-y-6">
+      <h1 className="text-2xl font-bold">Complete Payment</h1>
+      <Card>
         <CardHeader>
-          <CardTitle>Complete Payment</CardTitle>
+          <CardTitle>Payment Required</CardTitle>
           <CardDescription>
-            Complete your payment to join {org.name}
+            Please complete your payment to activate your membership.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="border-b pb-4">
-            <h3 className="font-medium mb-2">Membership Details</h3>
-            <div className="text-sm text-muted-foreground">
-              <p>Tier: {latestApplication.product.name}</p>
-              <p>Price: ${latestApplication.product.price ? latestApplication.product.price / 100 : 0}</p>
-            </div>
-          </div>
-          <ManualPaymentForm 
+        <CardContent>
+          <ManualPaymentForm
             orderId={orderId}
             orgId={org.id}
             expectedAmount={latestApplication.product.price}
-            currency={latestApplication.product.currency || 'USD'}
+            currency={latestApplication.product.currency}
           />
         </CardContent>
       </Card>
