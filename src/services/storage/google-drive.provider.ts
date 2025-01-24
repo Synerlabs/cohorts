@@ -4,69 +4,144 @@ import { google } from 'googleapis';
 import { drive_v3 } from 'googleapis/build/src/apis/drive/v3';
 import { StorageConfig, StorageProvider, UploadResult, GoogleDriveCredentials } from './storage-provider.interface';
 
-export class GoogleDriveProvider implements StorageProvider {
-  private drive!: drive_v3.Drive;
+let drive: drive_v3.Drive | null = null;
+let settings: StorageConfig['settings'] | null = null;
 
-  async initialize(config: StorageConfig): Promise<void> {
-    if (config.type !== 'google-drive') {
-      throw new Error('Invalid provider type');
-    }
+export async function initialize(config: StorageConfig): Promise<void> {
+  console.log('Initializing Google Drive provider with config:', {
+    hasCredentials: !!config.credentials,
+    credentialType: config.credentials?.type,
+    hasSettings: !!config.settings
+  });
 
-    const credentials = config.credentials as GoogleDriveCredentials;
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/drive.file'],
-    });
-
-    this.drive = google.drive({ version: 'v3', auth });
+  const credentials = config.credentials as GoogleDriveCredentials;
+  
+  if (!credentials || !credentials.type || credentials.type !== 'service_account') {
+    throw new Error('Invalid Google Drive credentials: Must be a service account');
   }
 
-  async upload(
-    file: Buffer | { name: string; type: string; base64: string },
-    path: string
-  ): Promise<UploadResult> {
-    try {
-      // Convert file to buffer if it's base64
-      const buffer = Buffer.isBuffer(file) 
-        ? file 
-        : Buffer.from('base64' in file ? file.base64 : '', 'base64');
+  settings = config.settings;
+if (!settings?.folderId) {
+  throw new Error('Google Drive folder ID is required in settings');
+}
 
-      const media = {
-        mimeType: 'base64' in file ? file.type : 'application/octet-stream',
-        body: buffer,
-      };
+  console.log('Creating Google Auth client...');
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/drive.file']
+  });
 
-      const response = await this.drive.files.create({
-        requestBody: {
-          name: 'base64' in file ? file.name : path,
-          parents: [path],
-        },
-        media,
-        fields: 'id, webViewLink',
+  console.log('Creating Google Drive client...');
+  drive = google.drive({ version: 'v3', auth });
+  console.log('Google Drive provider initialized successfully');
+}
+
+export async function upload(fileData: any, path: string): Promise<UploadResult> {
+  if (!drive) {
+    throw new Error('Google Drive not initialized');
+  }
+
+  if (!settings?.folderId) {
+    throw new Error('Google Drive folder ID not set');
+  }
+
+  try {
+    console.log('Starting file upload to Google Drive:', { 
+      fullPath: path,
+      fileName: path.split('/').pop(),
+      type: fileData.type,
+      hasBase64: !!fileData.base64,
+      base64Length: fileData.base64?.length
+    });
+
+    const fileMetadata = {
+      name: path.split('/').pop(),
+      parents: [settings.folderId] // You can customize the parent folder ID here
+    };
+
+    console.log('File metadata for upload:', fileMetadata);
+
+    // Convert base64 to buffer
+    const buffer = Buffer.from(fileData.base64, 'base64');
+    console.log('Created buffer from base64, size:', buffer.length);
+
+    const media = {
+      mimeType: fileData.type || 'application/octet-stream',
+      // Create a readable stream from the buffer
+      body: require('stream').Readable.from(buffer)
+    };
+
+    console.log('Created media object:', {
+      mimeType: media.mimeType,
+      hasBody: !!media.body
+    });
+
+    console.log('Calling Google Drive API to create file...');
+    const uploadResponse = await drive.files.create({
+      requestBody: fileMetadata,
+      media: media,
+      fields: 'id, webViewLink'
+    });
+
+    console.log('Google Drive API response:', {
+      success: !!uploadResponse.data,
+      id: uploadResponse.data.id,
+      hasWebViewLink: !!uploadResponse.data.webViewLink
+    });
+
+    if (!uploadResponse.data.id || !uploadResponse.data.webViewLink) {
+      throw new Error('Failed to get file ID or URL from Google Drive');
+    }
+
+    console.log('Setting file permissions...');
+    // Make the file publicly accessible
+    await drive.permissions.create({
+      fileId: uploadResponse.data.id,
+      requestBody: {
+        role: 'reader',
+        type: 'anyone'
+      }
+    });
+    console.log('File permissions set successfully');
+
+    console.log('Getting updated file info...');
+    // Get the updated file with webViewLink
+    const updatedFile = await drive.files.get({
+      fileId: uploadResponse.data.id,
+      fields: 'id, webViewLink'
+    });
+    console.log(updatedFile);
+    console.log('Got updated file info:', {
+      id: updatedFile.data.id,
+      hasWebViewLink: !!updatedFile.data.webViewLink
+    });
+
+    return {
+      fileId: uploadResponse.data.id,
+      url: updatedFile.data.webViewLink || uploadResponse.data.webViewLink,
+      metadata: uploadResponse.data
+    };
+  } catch (error: any) {
+    console.error('Error uploading to Google Drive:', error);
+    if (error.response) {
+      console.error('Google Drive API error response:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data
       });
-
-      return {
-        fileId: response.data.id!,
-        url: response.data.webViewLink!,
-        metadata: response.data,
-      };
-    } catch (error) {
-      console.error('Error uploading file to Google Drive:', error);
-      throw error;
     }
+    throw new Error(`Failed to upload file: ${error.message}`);
+  }
+}
+
+export async function deleteFile(fileId: string): Promise<void> {
+  if (!drive) {
+    throw new Error('Google Drive not initialized');
   }
 
-  async getFileUrl(fileId: string): Promise<string> {
-    const response = await this.drive.files.get({
-      fileId,
-      fields: 'webViewLink',
-    });
-    return response.data.webViewLink!;
-  }
-
-  async delete(fileId: string): Promise<void> {
-    await this.drive.files.delete({
-      fileId,
-    });
+  try {
+    await drive.files.delete({ fileId });
+  } catch (error: any) {
+    throw new Error(`Failed to delete file: ${error.message}`);
   }
 } 

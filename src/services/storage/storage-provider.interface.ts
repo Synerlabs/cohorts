@@ -1,9 +1,19 @@
-'use server';
+export interface StorageConfig {
+  provider: string;
+  credentials: any;
+  settings: {
+    [key: string]: any;
+  };
+}
 
-export type StorageProviderType = 'google-drive' | 'blob-storage';
+export interface UploadResult {
+  fileId: string;
+  url: string;
+  metadata?: any;
+}
 
 export interface GoogleDriveCredentials {
-  type: 'service_account';
+  type: string;
   project_id: string;
   private_key_id: string;
   private_key: string;
@@ -15,30 +25,8 @@ export interface GoogleDriveCredentials {
   client_x509_cert_url: string;
 }
 
-export interface BlobStorageCredentials {
-  accountName: string;
-  accountKey: string;
-}
-
-export interface StorageConfig {
-  type: StorageProviderType;
-  credentials: GoogleDriveCredentials | BlobStorageCredentials;
-  settings: Record<string, any>;
-}
-
-export interface UploadResult {
-  fileId: string;
-  url: string;
-  metadata: Record<string, any>;
-}
-
 export interface StorageProvider {
   initialize(config: StorageConfig): Promise<void>;
-  upload(file: Buffer | {
-    name: string;
-    type: string;
-    base64: string;
-  }, path: string): Promise<UploadResult>;
-  getFileUrl(fileId: string): Promise<string>;
+  upload(file: any, path: string): Promise<UploadResult>;
   delete(fileId: string): Promise<void>;
 } 

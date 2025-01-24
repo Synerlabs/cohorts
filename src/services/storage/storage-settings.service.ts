@@ -1,84 +1,59 @@
-import { createClient } from "@/lib/utils/supabase/server";
-import { StorageConfig, StorageProvider } from "./storage-provider.interface";
-import { GoogleDriveProvider } from "./google-drive.provider";
+'use server';
 
-export type StorageProviderType = 'google-drive' | 'blob-storage';
+import { createServiceRoleClient } from '@/lib/utils/supabase/server';
+import { StorageConfig, StorageProvider } from './storage-provider.interface';
+import * as googleDriveProvider from './google-drive.provider';
 
-export interface StorageSettings {
-  id: string;
-  orgId: string;
-  providerType: StorageProviderType;
-  credentials: Record<string, any>;
-  settings: Record<string, any>;
-}
+export async function createStorageProvider(orgId: string): Promise<StorageProvider | null> {
+  const supabase = await createServiceRoleClient();
+  
+  console.log('Fetching storage settings for org:', orgId);
+  // Get storage settings for the org
+  const { data: settings, error } = await supabase
+    .from('org_storage_settings')
+    .select('*')
+    .eq('org_id', orgId)
+    .single();
 
-export class StorageSettingsService {
-  private static providers: Record<StorageProviderType, new () => StorageProvider> = {
-    'google-drive': GoogleDriveProvider,
-    'blob-storage': GoogleDriveProvider, // Temporary, remove when implementing blob storage
+  if (error) {
+    console.error('Error fetching storage settings:', error);
+    return null;
+  }
+
+  if (!settings) {
+    console.error('No storage settings found for org:', orgId);
+    return null;
+  }
+
+  console.log('Found storage settings:', {
+    provider: settings.provider_type,
+    hasCredentials: !!settings.credentials,
+    hasSettings: !!settings.settings
+  });
+
+  const config: StorageConfig = {
+    provider: settings.provider_type,
+    credentials: settings.credentials,
+    settings: settings.settings || {}
   };
 
-  static async getStorageSettings(orgId: string): Promise<StorageSettings | null> {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('org_storage_settings')
-      .select('*')
-      .eq('org_id', orgId)
-      .single();
-
-    if (error || !data) return null;
-
-    return {
-      id: data.id,
-      orgId: data.org_id,
-      providerType: data.provider_type,
-      credentials: data.credentials,
-      settings: data.settings,
-    };
+  // Initialize the appropriate provider
+  if (config.provider === 'google-drive') {
+    try {
+      console.log('Initializing Google Drive provider...');
+      await googleDriveProvider.initialize(config);
+      console.log('Google Drive provider initialized successfully');
+      return {
+        initialize: googleDriveProvider.initialize,
+        upload: googleDriveProvider.upload,
+        delete: googleDriveProvider.deleteFile
+      };
+    } catch (error) {
+      console.error('Error initializing Google Drive provider:', error);
+      return null;
+    }
   }
 
-  static async updateStorageSettings(
-    orgId: string,
-    settings: Partial<StorageSettings>
-  ): Promise<StorageSettings | null> {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from('org_storage_settings')
-      .upsert({
-        org_id: orgId,
-        provider_type: settings.providerType,
-        credentials: settings.credentials,
-        settings: settings.settings,
-      })
-      .select()
-      .single();
-
-    if (error || !data) return null;
-
-    return {
-      id: data.id,
-      orgId: data.org_id,
-      providerType: data.provider_type,
-      credentials: data.credentials,
-      settings: data.settings,
-    };
-  }
-
-  static async createStorageProvider(orgId: string): Promise<StorageProvider | null> {
-    const settings = await this.getStorageSettings(orgId);
-    if (!settings) return null;
-
-    const Provider = this.providers[settings.providerType];
-    if (!Provider) return null;
-
-    const provider = new Provider();
-    const config: StorageConfig = {
-      type: settings.providerType,
-      credentials: settings.credentials,
-      settings: settings.settings,
-    };
-
-    await provider.initialize(config);
-    return provider;
-  }
+  console.log('No supported provider found for type:', config.provider);
+  return null;
 } 

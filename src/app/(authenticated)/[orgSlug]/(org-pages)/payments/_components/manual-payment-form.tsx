@@ -49,16 +49,35 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
       return;
     }
 
+    console.log('Form submission started with data:', {
+      amount: data.amount,
+      currency: data.currency,
+      hasFile: !!data.proofFile
+    });
+
     let fileData = null;
     if (data.proofFile) {
-      // Convert file to base64
-      const buffer = await data.proofFile.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
-      fileData = {
-        name: data.proofFile.name,
-        type: data.proofFile.type,
-        base64,
-      };
+      try {
+        console.log('Processing file:', {
+          name: data.proofFile.name,
+          type: data.proofFile.type,
+          size: data.proofFile.size
+        });
+        // Convert file to base64
+        const buffer = await data.proofFile.arrayBuffer();
+        console.log('File converted to buffer, size:', buffer.byteLength);
+        const base64 = Buffer.from(buffer).toString('base64');
+        console.log('File converted to base64, length:', base64.length);
+        fileData = {
+          name: data.proofFile.name,
+          type: data.proofFile.type,
+          base64,
+        };
+        console.log('File data prepared successfully');
+      } catch (error) {
+        console.error('Error processing file:', error);
+        return;
+      }
     }
 
     console.log('Form data:', {
@@ -140,7 +159,7 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
             <FormField
               control={form.control}
               name="proofFile"
-              render={({ field }) => (
+              render={({ field: { onChange, ...field } }) => (
                 <FormItem>
                   <FormLabel>Proof of Payment</FormLabel>
                   <FormControl>
@@ -149,13 +168,21 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
                       accept="image/*,.pdf"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        console.log('File selected:', file ? {
+                        console.log('File input change event:', {
+                          hasFiles: !!e.target.files?.length,
+                          fileCount: e.target.files?.length
+                        });
+                        console.log('Selected file details:', file ? {
                           name: file.name,
                           type: file.type,
-                          size: file.size
-                        } : null);
-                        field.onChange(file || null);
+                          size: file.size,
+                          lastModified: file.lastModified
+                        } : 'No file selected');
+                        // Set the file directly in the form data
+                        onChange(file);
                       }}
+                      {...field}
+                      value={field.value?.filename}
                     />
                   </FormControl>
                   <FormMessage />
