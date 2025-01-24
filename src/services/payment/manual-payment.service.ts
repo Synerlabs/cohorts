@@ -3,6 +3,22 @@ import { StorageProvider } from '../storage/storage-provider.interface';
 import { PaymentService } from './payment.service.interface';
 import { CreateManualPaymentDTO, ManualPayment, Payment, UpdatePaymentDTO, Upload } from './types';
 
+interface GetPaymentsOptions {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  search?: string;
+}
+
+interface GetPaymentsResult {
+  data: Payment[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export class ManualPaymentService implements PaymentService {
   constructor(
     private readonly supabase: SupabaseClient,
@@ -172,8 +188,17 @@ export class ManualPaymentService implements PaymentService {
     return payments.map(p => this.mapPaymentWithUploads(p));
   }
 
-  async getPaymentsByOrgId(orgId: string): Promise<Payment[]> {
-    const { data: payments, error: paymentError } = await this.supabase
+  async getPaymentsByOrgId(orgId: string, options: GetPaymentsOptions = {}): Promise<GetPaymentsResult> {
+    const {
+      page = 1,
+      pageSize = 10,
+      sortBy = 'created_at',
+      sortOrder = 'desc',
+      search = ''
+    } = options;
+
+    // Start building the query
+    let query = this.supabase
       .from('payments')
       .select(`
         *,
@@ -187,15 +212,46 @@ export class ManualPaymentService implements PaymentService {
             group_id
           )
         )
-      `)
+      `, { count: 'exact' })
       .eq('type', 'manual')
       .eq('orders.products.group_id', orgId);
 
-    if (paymentError) {
-      throw new Error(`Failed to get payments: ${paymentError.message}`);
+    // Add search if provided
+    if (search) {
+      query = query.or(`
+        id.ilike.%${search}%,
+        amount::text.ilike.%${search}%,
+        currency.ilike.%${search}%,
+        status.ilike.%${search}%,
+        manual_payments.notes.ilike.%${search}%
+      `);
     }
 
-    return payments.map(p => this.mapPaymentWithUploads(p));
+    // Add sorting
+    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+
+    // Add pagination
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+    query = query.range(from, to);
+
+    // Execute query
+    const { data: payments, error, count } = await query;
+
+    if (error) {
+      throw new Error(`Failed to get payments: ${error.message}`);
+    }
+
+    const total = count || 0;
+    const totalPages = Math.ceil(total / pageSize);
+
+    return {
+      data: payments.map(p => this.mapPaymentWithUploads(p)),
+      total,
+      page,
+      pageSize,
+      totalPages
+    };
   }
 
   async updatePayment(id: string, data: UpdatePaymentDTO): Promise<Payment> {

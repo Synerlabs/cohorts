@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input';
 import {
   Table,
   TableBody,
@@ -24,14 +25,33 @@ import {
   approvePaymentAction,
   rejectPaymentAction,
 } from '../actions/payment.action';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
-import { FileIcon, ImageIcon, ExternalLinkIcon } from 'lucide-react';
+import { FileIcon, ImageIcon, ExternalLinkIcon, ArrowUpDown } from 'lucide-react';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { debounce } from 'lodash';
 
 interface PaymentManagementProps {
   orgId: string;
   userId: string;
   initialPayments: Payment[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+  sorting: {
+    sortBy: string;
+    sortOrder: 'asc' | 'desc';
+  };
+  search: string;
 }
 
 function FilePreview({ upload }: { upload: Upload }) {
@@ -57,12 +77,23 @@ function FilePreview({ upload }: { upload: Upload }) {
   );
 }
 
-export function PaymentManagement({ orgId, userId, initialPayments }: PaymentManagementProps) {
+export function PaymentManagement({ 
+  orgId, 
+  userId, 
+  initialPayments,
+  pagination,
+  sorting,
+  search: initialSearch
+}: PaymentManagementProps) {
   const [payments, setPayments] = useState<Payment[]>(initialPayments);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [notes, setNotes] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [search, setSearch] = useState(initialSearch);
+  
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [, approvePayment] = useToastActionState(approvePaymentAction, undefined, undefined, {
     successTitle: 'Payment Approved',
@@ -73,6 +104,45 @@ export function PaymentManagement({ orgId, userId, initialPayments }: PaymentMan
     successTitle: 'Payment Rejected',
     successDescription: 'The payment has been rejected',
   });
+
+  // Keep local state in sync with props
+  useEffect(() => {
+    setPayments(initialPayments);
+  }, [initialPayments]);
+
+  const updateSearchParams = (updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams);
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
+    });
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleSort = (field: string) => {
+    const newOrder = field === sorting.sortBy && sorting.sortOrder === 'asc' ? 'desc' : 'asc';
+    updateSearchParams({ sortBy: field, sortOrder: newOrder });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    updateSearchParams({ page: newPage.toString() });
+  };
+
+  const handlePageSizeChange = (newSize: string) => {
+    updateSearchParams({ pageSize: newSize, page: '1' });
+  };
+
+  const debouncedSearch = debounce((value: string) => {
+    updateSearchParams({ search: value, page: '1' });
+  }, 300);
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+    debouncedSearch(e.target.value);
+  };
 
   const handleApprove = async (payment: Payment) => {
     await approvePayment({ success: false }, {
@@ -114,24 +184,60 @@ export function PaymentManagement({ orgId, userId, initialPayments }: PaymentMan
     return 'No proof attached';
   };
 
-  // Keep local state in sync with props
-  useEffect(() => {
-    setPayments(initialPayments);
-  }, [initialPayments]);
+  const renderSortIcon = (field: string) => {
+    if (field !== sorting.sortBy) return <ArrowUpDown className="h-4 w-4" />;
+    return (
+      <ArrowUpDown 
+        className={`h-4 w-4 ${sorting.sortOrder === 'asc' ? 'rotate-180' : ''}`} 
+      />
+    );
+  };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Payments</CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle>Payments</CardTitle>
+          <div className="flex items-center gap-4">
+            <Input
+              placeholder="Search payments..."
+              value={search}
+              onChange={handleSearchChange}
+              className="w-64"
+            />
+            <Select
+              value={pagination.pageSize.toString()}
+              onValueChange={handlePageSizeChange}
+            >
+              <SelectTrigger className="w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10 per page</SelectItem>
+                <SelectItem value="25">25 per page</SelectItem>
+                <SelectItem value="50">50 per page</SelectItem>
+                <SelectItem value="100">100 per page</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead onClick={() => handleSort('created_at')} className="cursor-pointer">
+                Date {renderSortIcon('created_at')}
+              </TableHead>
+              <TableHead onClick={() => handleSort('type')} className="cursor-pointer">
+                Type {renderSortIcon('type')}
+              </TableHead>
+              <TableHead onClick={() => handleSort('amount')} className="cursor-pointer">
+                Amount {renderSortIcon('amount')}
+              </TableHead>
+              <TableHead onClick={() => handleSort('status')} className="cursor-pointer">
+                Status {renderSortIcon('status')}
+              </TableHead>
               <TableHead className="w-1/3">Proof/Details</TableHead>
               <TableHead>Actions</TableHead>
             </TableRow>
@@ -234,6 +340,27 @@ export function PaymentManagement({ orgId, userId, initialPayments }: PaymentMan
             ))}
           </TableBody>
         </Table>
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-sm text-gray-500">
+            Showing {((pagination.page - 1) * pagination.pageSize) + 1} to {Math.min(pagination.page * pagination.pageSize, pagination.total)} of {pagination.total} payments
+          </div>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => handlePageChange(pagination.page - 1)}
+              disabled={pagination.page <= 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handlePageChange(pagination.page + 1)}
+              disabled={pagination.page >= pagination.totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

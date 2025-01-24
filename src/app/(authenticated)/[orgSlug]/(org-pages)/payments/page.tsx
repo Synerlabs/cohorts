@@ -4,8 +4,16 @@ import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { createStorageProvider } from "@/services/storage/storage-settings.service";
 import { PaymentServiceFactory } from "@/services/payment/payment.service.factory";
 
-async function PaymentsPage(params: OrgAccessHOCProps) {
-    const { org, user } = await params;
+interface SearchParams {
+  page?: string;
+  pageSize?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  search?: string;
+}
+
+async function PaymentsPage(params: OrgAccessHOCProps & { searchParams: SearchParams }) {
+  const { org, user, searchParams } = await params;
 
   if (!user) {
     return <div>Not authenticated</div>;
@@ -23,8 +31,21 @@ async function PaymentsPage(params: OrgAccessHOCProps) {
   const paymentServiceFactory = new PaymentServiceFactory(supabase, provider);
   const paymentService = paymentServiceFactory.createService('manual');
 
-  // Fetch payments
-  const payments = await paymentService.getPaymentsByOrgId(org.id);
+  // Parse search params
+  const page = searchParams.page ? parseInt(searchParams.page) : 1;
+  const pageSize = searchParams.pageSize ? parseInt(searchParams.pageSize) : 10;
+  const sortBy = searchParams.sortBy || 'created_at';
+  const sortOrder = searchParams.sortOrder || 'desc';
+  const search = searchParams.search || '';
+
+  // Fetch payments with pagination and sorting
+  const { data: payments, total, totalPages } = await paymentService.getPaymentsByOrgId(org.id, {
+    page,
+    pageSize,
+    sortBy,
+    sortOrder,
+    search
+  });
   
   return (
     <div className="container py-6 space-y-6">
@@ -33,6 +54,17 @@ async function PaymentsPage(params: OrgAccessHOCProps) {
         orgId={org.id} 
         userId={user.id} 
         initialPayments={payments}
+        pagination={{
+          page,
+          pageSize,
+          total,
+          totalPages
+        }}
+        sorting={{
+          sortBy,
+          sortOrder
+        }}
+        search={search}
       />
     </div>
   );
