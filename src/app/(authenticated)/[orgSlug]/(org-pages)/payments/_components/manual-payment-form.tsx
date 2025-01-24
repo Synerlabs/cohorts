@@ -161,7 +161,7 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
             <FormField
               control={form.control}
               name="proofFiles"
-              render={({ field: { onChange, ...field } }) => (
+              render={({ field: { onChange } }) => (
                 <FormItem>
                   <FormLabel>Proof of Payment</FormLabel>
                   <FormControl>
@@ -184,7 +184,6 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
                         // Set the files array in the form data
                         onChange(files);
                       }}
-                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
