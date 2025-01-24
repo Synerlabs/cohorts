@@ -24,10 +24,11 @@ import { Payment, Upload } from '@/services/payment/types';
 import {
   approvePaymentAction,
   rejectPaymentAction,
+  deletePaymentAction,
 } from '../actions/payment.action';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
-import { FileIcon, ImageIcon, ExternalLinkIcon, ArrowUpDown } from 'lucide-react';
+import { FileIcon, ImageIcon, ExternalLinkIcon, ArrowUpDown, Trash2Icon, FileTextIcon } from 'lucide-react';
 import {
   Select,
   SelectContent,
@@ -36,6 +37,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { debounce } from 'lodash';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface PaymentManagementProps {
   orgId: string;
@@ -86,14 +98,16 @@ export function PaymentManagement({
   search: initialSearch
 }: PaymentManagementProps) {
   const [payments, setPayments] = useState<Payment[]>(initialPayments);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [notes, setNotes] = useState('');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [search, setSearch] = useState(initialSearch);
+  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  
+  const reviewPaymentId = searchParams.get('reviewPaymentId');
+  const selectedPayment = payments.find(p => p.id === reviewPaymentId);
 
   const [, approvePayment] = useToastActionState(approvePaymentAction, undefined, undefined, {
     successTitle: 'Payment Approved',
@@ -103,6 +117,11 @@ export function PaymentManagement({
   const [, rejectPayment] = useToastActionState(rejectPaymentAction, undefined, undefined, {
     successTitle: 'Payment Rejected',
     successDescription: 'The payment has been rejected',
+  });
+
+  const [, deletePayment] = useToastActionState(deletePaymentAction, undefined, undefined, {
+    successTitle: 'Payment Deleted',
+    successDescription: 'The payment and associated files have been deleted',
   });
 
   // Keep local state in sync with props
@@ -144,13 +163,26 @@ export function PaymentManagement({
     debouncedSearch(e.target.value);
   };
 
+  const handleOpenReview = (payment: Payment) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('reviewPaymentId', payment.id);
+    router.push(`${pathname}?${params.toString()}`);
+    setNotes('');
+  };
+
+  const handleCloseReview = () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete('reviewPaymentId');
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
   const handleApprove = async (payment: Payment) => {
     await approvePayment({ success: false }, {
       paymentId: payment.id,
       orgId,
       notes,
     });
-    setIsDialogOpen(false);
+    handleCloseReview();
     router.refresh();
   };
 
@@ -164,7 +196,16 @@ export function PaymentManagement({
       orgId,
       notes,
     });
-    setIsDialogOpen(false);
+    handleCloseReview();
+    router.refresh();
+  };
+
+  const handleDelete = async (payment: Payment) => {
+    await deletePayment({ success: false }, {
+      paymentId: payment.id,
+      orgId,
+    });
+    setPaymentToDelete(null);
     router.refresh();
   };
 
@@ -287,14 +328,13 @@ export function PaymentManagement({
                   Status {renderSortIcon('status')}
                 </div>
               </TableHead>
-              <TableHead className="w-[300px]">Proof/Details</TableHead>
               <TableHead className="text-right w-[100px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {payments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={5} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center gap-1 text-sm">
                     <svg
                       className="h-8 w-8 text-muted-foreground/60 mb-2"
@@ -317,7 +357,7 @@ export function PaymentManagement({
               </TableRow>
             ) : (
               payments.map((payment) => (
-                <TableRow key={payment.id}>
+                <TableRow key={payment.id} className="group hover:bg-muted/50">
                   <TableCell className="font-medium">
                     {new Date(payment.createdAt).toLocaleDateString(undefined, {
                       year: 'numeric',
@@ -345,100 +385,146 @@ export function PaymentManagement({
                       {payment.status}
                     </span>
                   </TableCell>
-                  <TableCell>{renderPaymentProof(payment)}</TableCell>
                   <TableCell className="text-right">
-                    {payment.status === 'pending' && (
-                      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                        <DialogTrigger asChild>
+                    <div className="flex justify-end gap-2">
+                      {payment.status === 'pending' && (
+                        <Dialog open={payment.id === reviewPaymentId} onOpenChange={(open) => open ? handleOpenReview(payment) : handleCloseReview()}>
+                          <DialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-muted-foreground hover:text-primary"
+                              onClick={() => handleOpenReview(payment)}
+                            >
+                              <FileTextIcon className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-3xl">
+                            <DialogHeader>
+                              <DialogTitle>Review Payment</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-6">
+                              <div className="grid gap-6 md:grid-cols-2">
+                                <div className="space-y-6">
+                                  <Card>
+                                    <CardHeader className="pb-4">
+                                      <h4 className="text-sm font-medium">Payment Details</h4>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                      <div>
+                                        <div className="text-sm text-muted-foreground">Amount</div>
+                                        <div className="text-2xl font-semibold mt-1">
+                                          {(payment.amount / 100).toLocaleString(undefined, {
+                                            style: 'currency',
+                                            currency: payment.currency
+                                          })}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="text-sm text-muted-foreground">Date</div>
+                                        <div className="font-medium mt-1">
+                                          {new Date(payment.createdAt).toLocaleDateString(undefined, {
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit'
+                                          })}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <div className="text-sm text-muted-foreground">Type</div>
+                                        <div className="font-medium mt-1 capitalize">{payment.type}</div>
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium">
+                                      Review Notes
+                                      <span className="text-destructive ml-1">*</span>
+                                    </label>
+                                    <Textarea
+                                      value={notes}
+                                      onChange={(e) => setNotes(e.target.value)}
+                                      placeholder="Add notes about this payment..."
+                                      className="min-h-[120px]"
+                                    />
+                                    <p className="text-[0.8rem] text-muted-foreground">
+                                      Required for rejecting payments
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {payment.uploads.length > 0 && (
+                                  <Card>
+                                    <CardHeader className="pb-4">
+                                      <h4 className="text-sm font-medium">Proof of Payment</h4>
+                                    </CardHeader>
+                                    <CardContent>
+                                      <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                                        {payment.uploads.map((upload) => (
+                                          <FilePreview key={upload.id} upload={upload} />
+                                        ))}
+                                      </div>
+                                    </CardContent>
+                                  </Card>
+                                )}
+                              </div>
+
+                              <div className="flex justify-end gap-3 pt-4 border-t">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => selectedPayment && handleReject(selectedPayment)}
+                                  disabled={!notes}
+                                >
+                                  Reject Payment
+                                </Button>
+                                <Button
+                                  onClick={() => selectedPayment && handleApprove(selectedPayment)}
+                                >
+                                  Approve Payment
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                      )}
+                      <AlertDialog open={paymentToDelete?.id === payment.id} onOpenChange={(open) => !open && setPaymentToDelete(null)}>
+                        <AlertDialogTrigger asChild>
                           <Button
-                            variant="outline"
-                            size="sm"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => {
-                              setSelectedPayment(payment);
-                              setNotes('');
-                            }}
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                            onClick={() => setPaymentToDelete(payment)}
                           >
-                            Review
+                            <Trash2Icon className="h-4 w-4" />
                           </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle>Review Payment</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-6">
-                            <div className="grid gap-6 md:grid-cols-2">
-                              <Card>
-                                <CardContent className="p-4">
-                                  <h4 className="text-sm font-medium text-gray-700 mb-2">Payment Details</h4>
-                                  <dl className="space-y-2">
-                                    <div>
-                                      <dt className="text-sm text-gray-500">Amount</dt>
-                                      <dd className="text-lg font-medium">
-                                        {(payment.amount / 100).toLocaleString(undefined, {
-                                          style: 'currency',
-                                          currency: payment.currency
-                                        })}
-                                      </dd>
-                                    </div>
-                                    <div>
-                                      <dt className="text-sm text-gray-500">Date</dt>
-                                      <dd className="font-medium">
-                                        {payment.createdAt.toLocaleDateString(undefined, {
-                                          year: 'numeric',
-                                          month: 'long',
-                                          day: 'numeric'
-                                        })}
-                                      </dd>
-                                    </div>
-                                  </dl>
-                                </CardContent>
-                              </Card>
-
-                              {payment.uploads.length > 0 && (
-                                <Card>
-                                  <CardContent className="p-4">
-                                    <h4 className="text-sm font-medium text-gray-700 mb-2">Proof of Payment</h4>
-                                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                                      {payment.uploads.map((upload) => (
-                                        <FilePreview key={upload.id} upload={upload} />
-                                      ))}
-                                    </div>
-                                  </CardContent>
-                                </Card>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Payment</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete this payment? This action cannot be undone.
+                              {payment.uploads?.length > 0 && (
+                                <span className="block mt-2 text-destructive">
+                                  This will also delete {payment.uploads.length} associated file{payment.uploads.length !== 1 ? 's' : ''}.
+                                </span>
                               )}
-                            </div>
-
-                            <div>
-                              <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                                Review Notes
-                              </label>
-                              <Textarea
-                                value={notes}
-                                onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Add notes about this payment..."
-                                className="min-h-[100px]"
-                              />
-                            </div>
-
-                            <div className="flex justify-end gap-3">
-                              <Button
-                                variant="outline"
-                                onClick={() => selectedPayment && handleReject(selectedPayment)}
-                                disabled={!notes}
-                              >
-                                Reject Payment
-                              </Button>
-                              <Button
-                                onClick={() => selectedPayment && handleApprove(selectedPayment)}
-                              >
-                                Approve Payment
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => paymentToDelete && handleDelete(paymentToDelete)}
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
