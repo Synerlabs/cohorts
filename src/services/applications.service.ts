@@ -36,6 +36,13 @@ export type Application = {
     name: string;
     slug: string;
   };
+  order?: {
+    id: string;
+    status: string;
+    amount: number;
+    currency: string;
+    completed_at: string | null;
+  };
 };
 
 type ApplicationView = {
@@ -59,6 +66,11 @@ type ApplicationView = {
   activation_type: string;
   group_name: string;
   group_slug: string;
+  order_id: string | null;
+  order_status: string;
+  amount: number;
+  currency: string;
+  payment_completed_at: string | null;
 };
 
 export async function getPendingApplications(groupId: string): Promise<Application[]> {
@@ -300,7 +312,7 @@ function mapViewToApplication(row: ApplicationView): Application {
     approved_at: row.approved_at,
     rejected_at: row.rejected_at,
     status: row.status,
-    order_id: null,
+    order_id: row.order_id ?? null,
     user: {
       id: row.user_data.id,
       email: row.user_data.email,
@@ -322,6 +334,13 @@ function mapViewToApplication(row: ApplicationView): Application {
       id: row.group_id,
       name: row.group_name,
       slug: row.group_slug
-    }
+    },
+    order: row.order_id ? {
+      id: row.order_id,
+      status: row.order_status,
+      amount: row.amount,
+      currency: row.currency,
+      completed_at: row.payment_completed_at
+    } : undefined
   };
 } 

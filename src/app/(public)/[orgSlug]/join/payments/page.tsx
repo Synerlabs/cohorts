@@ -67,7 +67,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
     // Get existing order
     const { data, error } = await serviceClient
       .from('orders')
-      .select('*, payments(*), applications(*)')
+      .select('*, payments(*), applications!orders_application_id_fkey(*)')
       .eq('id', orderId)
       .eq('user_id', user.id)
       .eq('group_id', org.id)
@@ -87,6 +87,24 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
     const applications = await getUserMembershipApplications(user.id, org.id);
     const application = applications.find(app => app.id === applicationId);
 
+    console.log('Application lookup:', { 
+      applicationId,
+      userId: user.id,
+      orgId: org.id,
+      applicationsCount: applications.length,
+      foundApplication: !!application,
+      application: {
+        id: application?.id,
+        product: {
+          id: application?.product?.id,
+          price: application?.product?.price,
+          currency: application?.product?.currency
+        },
+        status: application?.status,
+        order_id: application?.order_id
+      }
+    });
+
     if (!application) {
       console.log('Application lookup error:', { applicationId, userId: user.id, orgId: org.id });
       return <ErrorDisplay 
@@ -96,30 +114,63 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
       />;
     }
 
-    // Check if application already has an order
-    const { data: existingOrder } = await serviceClient
+    // Verify application has required properties
+    if (!application.product?.price || !application.product_id) {
+      console.log('Invalid application data:', { 
+        application,
+        hasProduct: !!application.product,
+        hasPrice: !!application.product?.price,
+        hasProductId: !!application.product_id,
+        productPrice: application.product?.price,
+        productId: application.product_id
+      });
+      return <ErrorDisplay 
+        message="Invalid application data" 
+        details="The application is missing required information. Please try again or contact support."
+        orgSlug={org.slug}
+      />;
+    }
+
+    // Check if application already has any order (not just pending)
+    const { data: existingOrder, error: orderError } = await serviceClient
       .from('orders')
-      .select('*, payments(*), applications(*)')
-      .eq('id', application.order_id)
-      .eq('status', 'pending')
+      .select('*, payments(*), applications!orders_application_id_fkey(*)')
+      .eq('application_id', applicationId)
       .single();
+
+    console.log('Existing order check:', {
+      applicationId,
+      hasExistingOrder: !!existingOrder,
+      orderError,
+      existingOrder: existingOrder ? {
+        id: existingOrder.id,
+        status: existingOrder.status,
+        amount: existingOrder.amount,
+        currency: existingOrder.currency
+      } : null
+    });
 
     if (existingOrder) {
       order = existingOrder;
     } else {
       // Create new order for application
+      const orderData = {
+        user_id: user.id,
+        group_id: org.id,
+        type: 'membership',
+        product_id: application.product_id,
+        application_id: application.id,
+        amount: application.product.price,
+        currency: application.product.currency || 'USD',
+        status: 'pending'
+      };
+
+      console.log('Creating new order:', orderData);
+
       const { data: newOrder, error: createError } = await serviceClient
         .from('orders')
-        .insert({
-          user_id: user.id,
-          group_id: org.id,
-          type: 'membership',
-          product_id: application.product_id,
-          amount: application.product.price,
-          currency: application.product.currency || 'USD',
-          status: 'pending'
-        })
-        .select('*, payments(*), applications(*)')
+        .insert(orderData)
+        .select('*, payments(*), applications!orders_application_id_fkey(*)')
         .single();
 
       if (createError || !newOrder) {
@@ -127,7 +178,8 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
           createError, 
           application,
           userId: user.id, 
-          orgId: org.id 
+          orgId: org.id,
+          productId: application.product_id
         });
         return <ErrorDisplay 
           message="Failed to create order" 
@@ -277,6 +329,43 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
                     })}
                   </span>
                 </div>
+                {order.payments?.length > 0 && (
+                  <div className="pt-4 border-t">
+                    <h4 className="text-sm font-medium mb-2">Payment Status</h4>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Total Paid</span>
+                        <span className="font-medium">
+                          {(order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
+                            sum + (p.status === 'approved' ? p.amount : 0), 0) / 100).toLocaleString(undefined, {
+                            style: 'currency',
+                            currency: order.currency
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Pending</span>
+                        <span className="font-medium">
+                          {(order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
+                            sum + (p.status === 'pending' ? p.amount : 0), 0) / 100).toLocaleString(undefined, {
+                            style: 'currency',
+                            currency: order.currency
+                          })}
+                        </span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Remaining</span>
+                        <span className="font-medium">
+                          {((order.amount - order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
+                            sum + (p.status === 'approved' ? p.amount : 0), 0)) / 100).toLocaleString(undefined, {
+                            style: 'currency',
+                            currency: order.currency
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
