@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Payment, Upload } from '@/services/payment/types';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { FileIcon, ImageIcon, ExternalLinkIcon, ArrowUpDown, Trash2Icon, FileTextIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, CheckIcon, XIcon, Eye } from 'lucide-react';
 import {
@@ -33,12 +32,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 
-function FilePreview({ upload }: { upload: Upload }) {
-  const isImage = upload.originalFilename.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+interface FilePreviewProps {
+  file: {
+    originalFilename: string;
+    fileUrl: string;
+  };
+}
+
+function FilePreview({ file }: FilePreviewProps) {
+  const isImage = file.originalFilename.match(/\.(jpg|jpeg|png|gif|webp)$/i);
   
   return (
     <a
-      href={upload.fileUrl}
+      href={file.fileUrl}
       target="_blank"
       rel="noopener noreferrer"
       className="flex items-center gap-2 p-2 rounded hover:bg-gray-100 transition-colors group"
@@ -49,11 +55,51 @@ function FilePreview({ upload }: { upload: Upload }) {
         <FileIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700" />
       )}
       <span className="text-sm text-blue-600 group-hover:text-blue-700 hover:underline flex-1 truncate">
-        {upload.originalFilename}
+        {file.originalFilename}
       </span>
       <ExternalLinkIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
     </a>
   );
+}
+
+interface Payment {
+  id: string;
+  orderId: string;
+  userId: string;
+  type: 'manual' | 'stripe';
+  amount: number;
+  currency: string;
+  status: 'pending' | 'approved' | 'rejected';
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+  approvedAt?: Date;
+  approvedBy?: string;
+  uploads: Array<{
+    id: string;
+    module: string;
+    originalFilename: string;
+    storagePath: string;
+    storageProvider: string;
+    fileUrl: string;
+    fileId?: string;
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  order?: {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    product: {
+      id: string;
+      name: string;
+      description?: string;
+      price: number;
+      currency: string;
+      type: string;
+    };
+  };
 }
 
 interface PaymentManagementProps {
@@ -467,7 +513,7 @@ export function PaymentManagement({
                   <div className="space-y-2 divide-y divide-gray-100">
                     {selectedPayment.uploads.map((upload) => (
                       <div key={upload.id} className="pt-2 first:pt-0">
-                        <FilePreview upload={upload} />
+                        <FilePreview file={upload} />
                       </div>
                     ))}
                   </div>

@@ -225,6 +225,14 @@ export async function getUserMembership(userId: string, groupId: string) {
           activation_type,
           duration_months
         )
+      ),
+      orders!applications_order_id_fkey (
+        id,
+        status,
+        payments (
+          id,
+          status
+        )
       )
     `)
     .eq('group_user_id', groupUser.id)
@@ -243,9 +251,14 @@ export async function getUserMembership(userId: string, groupId: string) {
   if (application) {
     console.log('Full application data:', JSON.stringify(application, null, 2));
     console.log('Membership tiers:', application.products.membership_tiers);
+
+    // Check if there are any pending payments
+    const hasPendingPayments = application.orders?.payments?.some((p: { status: string }) => p.status === 'pending');
+    const status = hasPendingPayments ? 'pending_payment' : application.status;
+
     return {
       id: application.id,
-      status: application.status,
+      status,
       created_at: application.created_at,
       approved_at: application.approved_at,
       rejected_at: application.rejected_at,
@@ -270,6 +283,7 @@ export async function getUserMembership(userId: string, groupId: string) {
       orders!inner (
         id,
         status,
+        created_at,
         products:product_id (
           id,
           name,
@@ -278,11 +292,15 @@ export async function getUserMembership(userId: string, groupId: string) {
             activation_type,
             duration_months
           )
+        ),
+        payments (
+          id,
+          status
         )
       )
     `)
     .eq('group_user_id', groupUser.id)
-    .order('created_at', { ascending: false })
+    .order('orders.created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
@@ -293,12 +311,16 @@ export async function getUserMembership(userId: string, groupId: string) {
   }
 
   if (membership) {
+    // Check if there are any pending payments
+    const hasPendingPayments = membership.orders.payments?.some((p: { status: string }) => p.status === 'pending');
+    const status = hasPendingPayments ? 'pending_payment' : membership.orders.status;
+
     return {
       id: membership.orders.id,
-      status: membership.orders.status,
-      created_at: membership.created_at,
+      status,
+      created_at: membership.orders.created_at,
       product: membership.orders.products,
-      is_active: true
+      is_active: !hasPendingPayments
     };
   }
 

@@ -52,7 +52,10 @@ export class PaymentService {
       .from('payments')
       .select(`
         *,
-        orders(*),
+        orders(
+          *,
+          product:products(*)
+        ),
         payment_uploads(
           upload:uploads(*)
         )
