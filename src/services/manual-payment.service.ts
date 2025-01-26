@@ -16,6 +16,20 @@ export interface ManualPayment {
   updatedAt: Date;
   approvedAt?: Date;
   approvedBy?: string;
+  order?: {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    product: {
+      id: string;
+      name: string;
+      description?: string;
+      price: number;
+      currency: string;
+      type: string;
+    };
+  };
 }
 
 export class ManualPaymentService {
@@ -123,13 +137,25 @@ export class ManualPaymentService {
     const supabase = await createClient();
     const { data: payments, error } = await supabase
       .from('manual_payments')
-      .select('*')
+      .select(`
+        *,
+        order:orders(
+          *,
+          product:products(*)
+        )
+      `)
       .eq('order_id', orderId)
       .order('created_at', { ascending: false });
 
     if (error || !payments) return [];
 
-    return payments.map(this.mapPayment);
+    return payments.map(payment => ({
+      ...this.mapPayment(payment),
+      order: {
+        ...payment.order,
+        product: payment.order.product
+      }
+    }));
   }
 
   private static mapPayment(data: any): ManualPayment {
@@ -146,6 +172,20 @@ export class ManualPaymentService {
       updatedAt: new Date(data.updated_at),
       approvedAt: data.approved_at ? new Date(data.approved_at) : undefined,
       approvedBy: data.approved_by,
+      order: data.order ? {
+        id: data.order.id,
+        amount: data.order.amount,
+        currency: data.order.currency,
+        status: data.order.status,
+        product: {
+          id: data.order.product.id,
+          name: data.order.product.name,
+          description: data.order.product.description,
+          price: data.order.product.price,
+          currency: data.order.product.currency,
+          type: data.order.product.type
+        }
+      } : undefined
     };
   }
 } 

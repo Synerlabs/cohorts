@@ -24,6 +24,20 @@ export interface BasePayment {
   createdAt: Date;
   updatedAt: Date;
   uploads: Upload[];
+  order?: {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    product: {
+      id: string;
+      name: string;
+      description?: string;
+      price: number;
+      currency: string;
+      type: string;
+    };
+  };
 }
 
 export interface ManualPayment extends BasePayment {
