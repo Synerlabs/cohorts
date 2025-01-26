@@ -1,5 +1,5 @@
 import { createServiceRoleClient } from "@/lib/utils/supabase/server";
-import { PaymentManagement } from "@/app/(authenticated)/[orgSlug]/(org-pages)/payments/_components/payment-management";
+import { PaymentManagement } from "@/app/(public)/[orgSlug]/join/payments/_components/payment-management";
 import { createStorageProvider } from "@/services/storage/storage-settings.service";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -379,18 +379,8 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
                 <PaymentManagement
                   orgId={org.id}
                   userId={user.id}
+                  orderId={order.id}
                   initialPayments={order.payments}
-                  pagination={{
-                    page: 1,
-                    pageSize: 10,
-                    total: order.payments.length,
-                    totalPages: Math.ceil(order.payments.length / 10)
-                  }}
-                  sorting={{
-                    sortBy: 'created_at',
-                    sortOrder: 'desc'
-                  }}
-                  search=""
                 />
               </CardContent>
             </Card>
