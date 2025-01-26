@@ -49,7 +49,7 @@ async function OrgHomePage({
             You are currently viewing this organization as a guest. Join to access member features.
           </p>
           <Button asChild>
-            <Link href={`/@${org.slug}/join/payments`}>Join Now</Link>
+            <Link href={`/@${org.slug}/join/payments?applicationId=${userMembership?.id}`}>Join Now</Link>
           </Button>
         </div>
       )}

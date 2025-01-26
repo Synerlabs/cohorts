@@ -1,19 +1,24 @@
 import { createServiceRoleClient } from "@/lib/utils/supabase/server";
-import { PaymentManagement } from "./_components/payment-management";
-import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
+import { PaymentManagement } from "@/app/(authenticated)/[orgSlug]/(org-pages)/payments/_components/payment-management";
 import { createStorageProvider } from "@/services/storage/storage-settings.service";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CreditCard, Upload as UploadIcon } from "lucide-react";
 import Link from "next/link";
 import { getUserMembershipApplications } from "@/services/applications.service";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ManualPaymentForm } from "@/app/(authenticated)/[orgSlug]/(org-pages)/payments/_components/manual-payment-form";
+import { createClient } from "@/lib/utils/supabase/server";
+import { redirect } from "next/navigation";
+import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 
 interface SearchParams {
   applicationId?: string;
   orderId?: string;
+  method?: string;
 }
 
-function ErrorDisplay({ message, details }: { message: string; details?: string }) {
+function ErrorDisplay({ message, details, orgSlug }: { message: string; details?: string; orgSlug: string }) {
   return (
     <div className="container max-w-4xl py-6">
       <Card>
@@ -27,7 +32,7 @@ function ErrorDisplay({ message, details }: { message: string; details?: string 
               {details && <p className="text-sm text-muted-foreground">{details}</p>}
             </div>
             <Button asChild>
-              <Link href="join">Return to Join Page</Link>
+              <Link href={`/@${orgSlug}/join`}>Return to Join Page</Link>
             </Button>
           </div>
         </CardContent>
@@ -38,29 +43,42 @@ function ErrorDisplay({ message, details }: { message: string; details?: string 
 
 async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { searchParams: SearchParams }) {
   if (!user) {
-    return <ErrorDisplay message="Not authenticated" details="Please sign in to continue." />;
+    // Redirect unauthenticated users to sign in
+    redirect(`/sign-in?redirect=/@${org.slug}/join/payments${
+      searchParams.applicationId ? `?applicationId=${searchParams.applicationId}` : ''
+    }${searchParams.orderId ? `?orderId=${searchParams.orderId}` : ''}`);
   }
 
-  const supabase = await createServiceRoleClient();
+  const serviceClient = await createServiceRoleClient();
   let order;
   const applicationId = searchParams?.applicationId;
   const orderId = searchParams?.orderId;
+  const method = searchParams?.method || 'manual';
+
+  if (!orderId && !applicationId) {
+    return <ErrorDisplay 
+      message="No order or application found" 
+      details="Please start from the join page to submit a payment."
+      orgSlug={org.slug}
+    />;
+  }
 
   if (orderId) {
     // Get existing order
-    const { data, error } = await supabase
+    const { data, error } = await serviceClient
       .from('orders')
       .select('*, payments(*), applications(*)')
       .eq('id', orderId)
       .eq('user_id', user.id)
-      .eq('org_id', org.id)
+      .eq('group_id', org.id)
       .single();
 
     if (error || !data) {
       console.log('Order lookup error:', { error, data, orderId, userId: user.id, orgId: org.id });
       return <ErrorDisplay 
         message="Order not found" 
-        details="The order you're looking for doesn't exist or you don't have permission to view it." 
+        details="The order you're looking for doesn't exist or you don't have permission to view it."
+        orgSlug={org.slug}
       />;
     }
     order = data;
@@ -73,12 +91,13 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
       console.log('Application lookup error:', { applicationId, userId: user.id, orgId: org.id });
       return <ErrorDisplay 
         message="Application not found" 
-        details="The application you're looking for doesn't exist or you don't have permission to view it." 
+        details="The application you're looking for doesn't exist or you don't have permission to view it."
+        orgSlug={org.slug}
       />;
     }
 
     // Check if application already has an order
-    const { data: existingOrder } = await supabase
+    const { data: existingOrder } = await serviceClient
       .from('orders')
       .select('*, payments(*), applications(*)')
       .eq('id', application.order_id)
@@ -89,10 +108,11 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
       order = existingOrder;
     } else {
       // Create new order for application
-      const { data: newOrder, error: orderError } = await supabase
+      const { data: newOrder, error: createError } = await serviceClient
         .from('orders')
         .insert({
           user_id: user.id,
+          group_id: org.id,
           type: 'membership',
           product_id: application.product_id,
           amount: application.product.price,
@@ -102,9 +122,9 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
         .select('*, payments(*), applications(*)')
         .single();
 
-      if (orderError || !newOrder) {
+      if (createError || !newOrder) {
         console.log('Failed to create order:', { 
-          orderError, 
+          createError, 
           application,
           userId: user.id, 
           orgId: org.id 
@@ -112,11 +132,12 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
         return <ErrorDisplay 
           message="Failed to create order" 
           details="There was an error creating your order. Please try again later." 
+          orgSlug={org.slug}
         />;
       }
 
       // Link the order to the application
-      const { error: linkError } = await supabase
+      const { error: linkError } = await serviceClient
         .from('applications')
         .update({ order_id: newOrder.id })
         .eq('id', application.id);
@@ -130,83 +151,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
         return <ErrorDisplay 
           message="Failed to create order" 
           details="There was an error creating your order. Please try again later." 
-        />;
-      }
-
-      order = newOrder;
-    }
-  } else {
-    // Check for pending payment applications
-    const applications = await getUserMembershipApplications(user.id, org.id);
-    const pendingApplication = applications.find(app => app.status === 'pending_payment');
-
-    // Only show error if there are no pending payment applications
-    if (!pendingApplication) {
-      console.log('No pending payment applications:', { 
-        applications, 
-        userId: user.id, 
-        orgId: org.id,
-        status: 'pending_payment'
-      });
-      return <ErrorDisplay 
-        message="No pending payments" 
-        details="You don't have any pending payments at this time." 
-      />;
-    }
-
-    // Check if application already has an order
-    const { data: existingOrder, error: orderError } = await supabase
-      .from('orders')
-      .select('*, payments(*), applications(*)')
-      .eq('id', pendingApplication.order_id)
-      .eq('status', 'pending')
-      .maybeSingle();
-
-    if (existingOrder) {
-      order = existingOrder;
-    } else {
-      // Create new order for application
-      const { data: newOrder, error: createError } = await supabase
-        .from('orders')
-        .insert({
-          user_id: user.id,
-          type: 'membership',
-          product_id: pendingApplication.product_id,
-          amount: pendingApplication.product.price,
-          currency: pendingApplication.product.currency || 'USD',
-          status: 'pending'
-        })
-        .select('*, payments(*), applications(*)')
-        .single();
-
-      if (createError || !newOrder) {
-        console.log('Failed to create order:', { 
-          createError, 
-          pendingApplication,
-          userId: user.id, 
-          orgId: org.id 
-        });
-        return <ErrorDisplay 
-          message="Failed to create order" 
-          details="There was an error creating your order. Please try again later." 
-        />;
-      }
-
-      // Link the order to the application
-      const { error: linkError } = await supabase
-        .from('applications')
-        .update({ order_id: newOrder.id })
-        .eq('id', pendingApplication.id);
-
-      if (linkError) {
-        console.log('Failed to link order to application:', { 
-          linkError, 
-          orderId: newOrder.id,
-          applicationId: pendingApplication.id 
-        });
-        return <ErrorDisplay 
-          message="Failed to create order" 
-          details="There was an error creating your order. Please try again later." 
+          orgSlug={org.slug}
         />;
       }
 
@@ -214,75 +159,155 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
     }
   }
 
+  if (!order) {
+    return <ErrorDisplay 
+      message="No order found" 
+      details="Please start from the join page to submit a payment."
+      orgSlug={org.slug}
+    />;
+  }
+
   // Get storage provider for manual payments
   const provider = await createStorageProvider(org.id);
 
   return (
-    <div className="container max-w-4xl py-6 space-y-6">
-      <Card>
-        <CardHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Payment Methods</CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">
-                Choose how you'd like to pay the membership fee
-              </p>
-            </div>
-            <div className="text-2xl font-semibold">
-              {(order.amount / 100).toLocaleString(undefined, {
-                style: 'currency',
-                currency: order.currency
-              })}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            {provider && (
-              <div className="flex items-center justify-between p-4 border rounded-lg">
+    <div className="container max-w-7xl py-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column - Payment Form */}
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="border-b">
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-medium">Manual Payment</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Upload proof of payment after bank transfer
-                  </p>
+                  <CardTitle>Complete Your Payment</CardTitle>
+                  <CardDescription className="mt-1.5">
+                    Choose your preferred payment method
+                  </CardDescription>
                 </div>
-                <Link href={`/@${org.slug}/join/payment`} passHref>
-                  <Button variant="outline">
-                    Add Manual Payment
-                  </Button>
-                </Link>
+                <div className="text-2xl font-semibold">
+                  {(order.amount / 100).toLocaleString(undefined, {
+                    style: 'currency',
+                    currency: order.currency
+                  })}
+                </div>
               </div>
-            )}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <h3 className="font-medium">Pay with Card</h3>
-                <p className="text-sm text-muted-foreground">
-                  Secure payment via Stripe
-                </p>
-              </div>
-              <Button>
-                Pay Now
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardHeader>
+            <CardContent className="p-6">
+              <Tabs defaultValue={method} className="space-y-6">
+                <TabsList className="grid grid-cols-2">
+                  <TabsTrigger value="manual" className="flex items-center gap-2">
+                    <UploadIcon className="h-4 w-4" />
+                    Manual Payment
+                  </TabsTrigger>
+                  <TabsTrigger value="card" className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4" />
+                    Pay with Card
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="manual" className="space-y-4">
+                  <div className="rounded-lg border bg-card text-card-foreground">
+                    <div className="p-6">
+                      <h3 className="text-lg font-semibold mb-2">Bank Transfer Instructions</h3>
+                      <div className="prose prose-sm max-w-none text-muted-foreground">
+                        <p>Please follow these steps to complete your payment:</p>
+                        <ol className="list-decimal list-inside space-y-1">
+                          <li>Transfer the exact amount to our bank account</li>
+                          <li>Take a screenshot or photo of your payment confirmation</li>
+                          <li>Upload the proof of payment below</li>
+                          <li>Wait for our team to verify your payment</li>
+                        </ol>
+                      </div>
+                    </div>
+                    <div className="border-t">
+                      <div className="p-6">
+                        <ManualPaymentForm
+                          orderId={order.id}
+                          orgId={org.id}
+                          expectedAmount={order.amount}
+                          currency={order.currency}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                <TabsContent value="card">
+                  <div className="rounded-lg border bg-card text-card-foreground p-6">
+                    <h3 className="text-lg font-semibold mb-2">Secure Card Payment</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Complete your payment securely using your credit or debit card.
+                    </p>
+                    <Button className="w-full" size="lg">
+                      <CreditCard className="mr-2 h-4 w-4" />
+                      Pay {(order.amount / 100).toLocaleString(undefined, {
+                        style: 'currency',
+                        currency: order.currency
+                      })}
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
+            </CardContent>
+          </Card>
+        </div>
 
-      {order.payments?.length > 0 && (
-        <Card>
-          <CardHeader className="border-b">
-            <CardTitle>Payment History</CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <PaymentManagement
-              orgId={org.id}
-              userId={user.id}
-              orderId={order.id}
-              initialPayments={order.payments}
-            />
-          </CardContent>
-        </Card>
-      )}
+        {/* Right Column - Order Details & Payment History */}
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="border-b">
+              <CardTitle>Order Summary</CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Order ID</span>
+                  <span className="font-medium">{order.id.slice(0, 8)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className="font-medium capitalize">{order.status}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Amount</span>
+                  <span className="font-medium">
+                    {(order.amount / 100).toLocaleString(undefined, {
+                      style: 'currency',
+                      currency: order.currency
+                    })}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {order.payments?.length > 0 && (
+            <Card>
+              <CardHeader className="border-b">
+                <CardTitle>Payment History</CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <PaymentManagement
+                  orgId={org.id}
+                  userId={user.id}
+                  initialPayments={order.payments}
+                  pagination={{
+                    page: 1,
+                    pageSize: 10,
+                    total: order.payments.length,
+                    totalPages: Math.ceil(order.payments.length / 10)
+                  }}
+                  sorting={{
+                    sortBy: 'created_at',
+                    sortOrder: 'desc'
+                  }}
+                  search=""
+                />
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
