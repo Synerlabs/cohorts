@@ -173,7 +173,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/${application.group.slug}/join/payment?application_id=${application.id}`)}
+                      onClick={() => router.push(`/${application.group.slug}/join/payments?application_id=${application.id}`)}
                     >
                       <CreditCard className="h-4 w-4" />
                     </Button>

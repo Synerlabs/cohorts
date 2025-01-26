@@ -70,7 +70,7 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
                 </div>
               </div>
               <Button className="w-full" asChild>
-                <Link href={`/@${org.slug}/join/payment`}>
+                <Link href={`/@${org.slug}/join/payments`}>
                   <CreditCard className="mr-2 h-4 w-4" />
                   Complete Payment (${latestApplication.product.price ? latestApplication.product.price / 100 : 0})
                 </Link>

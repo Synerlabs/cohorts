@@ -195,6 +195,8 @@ export async function getMembership(
 export async function getUserMembership(userId: string, groupId: string) {
   const supabase = await createClient();
   
+  console.log('Getting user membership:', { userId, groupId });
+  
   // First get the group_user record
   const { data: groupUser, error: groupUserError } = await supabase
     .from('group_users')
@@ -203,72 +205,104 @@ export async function getUserMembership(userId: string, groupId: string) {
     .eq('group_id', groupId)
     .single();
 
+  console.log('Group user result:', { groupUser, error: groupUserError });
+
   if (groupUserError) {
     if (groupUserError.code === 'PGRST116') return null; // No group user found
     throw groupUserError;
   }
 
-  // Then get the latest order for this user
-  const { data: order, error: orderError } = await supabase
-    .from('orders')
+  // Then get the latest application for this user
+  const { data: application, error: applicationError } = await supabase
+    .from('applications')
     .select(`
       *,
-      product:product_id (
+      products:tier_id (
         id,
         name,
         price,
-        membership_tiers (
+        membership_tiers!inner (
           activation_type,
           duration_months
         )
       )
     `)
-    .eq('user_id', userId)
+    .eq('group_user_id', groupUser.id)
     .eq('type', 'membership')
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  if (orderError) {
-    if (orderError.code === 'PGRST116') return null; // No order found
-    throw orderError;
+  console.log('Application result:', { application, error: applicationError });
+
+  if (applicationError) {
+    throw applicationError;
   }
 
-  // If no active order, check for applications
-  if (!order || !order.is_active) {
-    const { data: application, error: applicationError } = await supabase
-      .from('applications')
-      .select(`
-        *,
-        product:tier_id (
+  // Return the application with its membership tier info
+  if (application) {
+    console.log('Full application data:', JSON.stringify(application, null, 2));
+    console.log('Membership tiers:', application.products.membership_tiers);
+    return {
+      id: application.id,
+      status: application.status,
+      created_at: application.created_at,
+      approved_at: application.approved_at,
+      rejected_at: application.rejected_at,
+      product: {
+        id: application.products.id,
+        name: application.products.name,
+        price: application.products.price,
+        membership_tiers: {
+          activation_type: application.products.membership_tiers.activation_type,
+          duration_months: application.products.membership_tiers.duration_months
+        }
+      },
+      is_active: false
+    };
+  }
+
+  // If no application found, check for active membership
+  const { data: membership, error: membershipError } = await supabase
+    .from('memberships')
+    .select(`
+      *,
+      orders!inner (
+        id,
+        status,
+        products:product_id (
           id,
           name,
           price,
-          membership_tiers (
+          membership_tiers!inner (
             activation_type,
             duration_months
           )
         )
-      `)
-      .eq('group_user_id', groupUser.id)
-      .eq('type', 'membership')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      )
+    `)
+    .eq('group_user_id', groupUser.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    if (applicationError && applicationError.code !== 'PGRST116') {
-      throw applicationError;
-    }
+  console.log('Membership result:', { membership, error: membershipError });
 
-    if (application) {
-      return {
-        ...application,
-        is_active: false
-      };
-    }
+  if (membershipError) {
+    throw membershipError;
   }
 
-  return order;
+  if (membership) {
+    return {
+      id: membership.orders.id,
+      status: membership.orders.status,
+      created_at: membership.created_at,
+      product: membership.orders.products,
+      is_active: true
+    };
+  }
+
+  return null;
 }
 
 export const statusMessages = {
@@ -400,7 +434,8 @@ export async function approveApplication(applicationId: string) {
     updated_at: application.tier.updated_at,
     membership_tier: {
       duration_months: application.tier.membership_tier[0].duration_months,
-      activation_type: application.tier.membership_tier[0].activation_type as IMembershipTierProduct['membership_tier']['activation_type']
+      activation_type: application.tier.membership_tier[0].activation_type as IMembershipTierProduct['membership_tier']['activation_type'],
+      product_id: application.tier.id
     }
   };
 
