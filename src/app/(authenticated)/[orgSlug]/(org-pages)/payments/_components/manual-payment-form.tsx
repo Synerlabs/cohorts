@@ -118,7 +118,10 @@ export function ManualPaymentForm({ orderId, orgId, expectedAmount, currency }: 
     }
   };
 
-  return (
+  console.log('State:', state);
+
+  return state?.success ? <div>Payment submitted successfully</div> : (
+    
     <Card>
       <CardHeader>
         <CardTitle>Submit Payment</CardTitle>
