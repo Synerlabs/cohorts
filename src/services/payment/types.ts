@@ -83,6 +83,22 @@ export interface UpdatePaymentDTO {
   notes?: string;
 }
 
+export interface GetPaymentsOptions {
+  page?: number;
+  pageSize?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+  search?: string;
+}
+
+export interface GetPaymentsResult {
+  data: Payment[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
 export interface PaymentActionPayload {
   paymentId: string;
   orgId: string;
