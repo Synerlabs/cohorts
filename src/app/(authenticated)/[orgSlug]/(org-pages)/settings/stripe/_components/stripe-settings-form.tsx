@@ -18,59 +18,81 @@ import { updateStripeSettings } from '../_actions/stripe-settings';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
-const stripeSettingsSchema = z.object({
+// Base schema for test mode fields
+const testModeSchema = z.object({
+  testPublishableKey: z.string().regex(/^pk_test_/, 'Must be a valid test publishable key'),
+  testSecretKey: z.string().regex(/^sk_test_/, 'Must be a valid test secret key'),
+  testWebhookSecret: z.string().min(1, 'Required'),
+  // Live mode fields are optional when in test mode
   livePublishableKey: z.string().regex(/^pk_live_/, 'Must be a valid live publishable key').optional(),
   liveSecretKey: z.string().regex(/^sk_live_/, 'Must be a valid live secret key').optional(),
   liveWebhookSecret: z.string().optional(),
+});
+
+// Base schema for live mode fields
+const liveModeSchema = z.object({
+  livePublishableKey: z.string().regex(/^pk_live_/, 'Must be a valid live publishable key'),
+  liveSecretKey: z.string().regex(/^sk_live_/, 'Must be a valid live secret key'),
+  liveWebhookSecret: z.string().min(1, 'Required'),
+  // Test mode fields are optional when in live mode
   testPublishableKey: z.string().regex(/^pk_test_/, 'Must be a valid test publishable key').optional(),
   testSecretKey: z.string().regex(/^sk_test_/, 'Must be a valid test secret key').optional(),
   testWebhookSecret: z.string().optional(),
+});
+
+const stripeSettingsSchema = z.object({
+  livePublishableKey: z.string(),
+  liveSecretKey: z.string(),
+  liveWebhookSecret: z.string(),
+  testPublishableKey: z.string(),
+  testSecretKey: z.string(),
+  testWebhookSecret: z.string(),
   isTestMode: z.boolean()
 }).superRefine((data, ctx) => {
   if (data.isTestMode) {
-    // In test mode, validate test keys
-    if (!data.testPublishableKey) {
+    // Validate test mode fields
+    if (!data.testPublishableKey || !data.testPublishableKey.startsWith('pk_test_')) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Test publishable key is required in test mode",
-        path: ["testPublishableKey"]
+        message: 'Must be a valid test publishable key',
+        path: ['testPublishableKey']
       });
     }
-    if (!data.testSecretKey) {
+    if (!data.testSecretKey || !data.testSecretKey.startsWith('sk_test_')) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Test secret key is required in test mode",
-        path: ["testSecretKey"]
+        message: 'Must be a valid test secret key',
+        path: ['testSecretKey']
       });
     }
     if (!data.testWebhookSecret) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Test webhook secret is required in test mode",
-        path: ["testWebhookSecret"]
+        message: 'Required',
+        path: ['testWebhookSecret']
       });
     }
   } else {
-    // In live mode, validate live keys
-    if (!data.livePublishableKey) {
+    // Validate live mode fields
+    if (!data.livePublishableKey || !data.livePublishableKey.startsWith('pk_live_')) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Live publishable key is required in live mode",
-        path: ["livePublishableKey"]
+        message: 'Must be a valid live publishable key',
+        path: ['livePublishableKey']
       });
     }
-    if (!data.liveSecretKey) {
+    if (!data.liveSecretKey || !data.liveSecretKey.startsWith('sk_live_')) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Live secret key is required in live mode",
-        path: ["liveSecretKey"]
+        message: 'Must be a valid live secret key',
+        path: ['liveSecretKey']
       });
     }
     if (!data.liveWebhookSecret) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Live webhook secret is required in live mode",
-        path: ["liveWebhookSecret"]
+        message: 'Required',
+        path: ['liveWebhookSecret']
       });
     }
   }
@@ -95,13 +117,13 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeSettingsFor
   const form = useForm<StripeSettingsFormValues>({
     resolver: zodResolver(stripeSettingsSchema),
     defaultValues: {
-      livePublishableKey: initialSettings?.livePublishableKey || '',
-      liveSecretKey: initialSettings?.liveSecretKey || '',
-      liveWebhookSecret: initialSettings?.liveWebhookSecret || '',
-      testPublishableKey: initialSettings?.testPublishableKey || '',
-      testSecretKey: initialSettings?.testSecretKey || '',
-      testWebhookSecret: initialSettings?.testWebhookSecret || '',
-      isTestMode: initialSettings?.isTestMode || false
+      livePublishableKey: initialSettings?.livePublishableKey ?? '',
+      liveSecretKey: initialSettings?.liveSecretKey ?? '',
+      liveWebhookSecret: initialSettings?.liveWebhookSecret ?? '',
+      testPublishableKey: initialSettings?.testPublishableKey ?? '',
+      testSecretKey: initialSettings?.testSecretKey ?? '',
+      testWebhookSecret: initialSettings?.testWebhookSecret ?? '',
+      isTestMode: initialSettings?.isTestMode ?? false
     }
   });
 
@@ -251,4 +273,4 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeSettingsFor
       </form>
     </Form>
   );
-} 
+}
