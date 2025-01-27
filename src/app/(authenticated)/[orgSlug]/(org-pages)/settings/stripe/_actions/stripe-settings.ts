@@ -4,32 +4,10 @@ import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-// Base schema for test mode fields
-const testModeSchema = z.object({
-  testPublishableKey: z.string().regex(/^pk_test_/, 'Must be a valid test publishable key'),
-  testSecretKey: z.string().regex(/^sk_test_/, 'Must be a valid test secret key'),
-  testWebhookSecret: z.string().min(1, 'Required'),
-  // Live mode fields are optional when in test mode
-  livePublishableKey: z.string().regex(/^pk_live_/, 'Must be a valid live publishable key').optional(),
-  liveSecretKey: z.string().regex(/^sk_live_/, 'Must be a valid live secret key').optional(),
-  liveWebhookSecret: z.string().optional(),
+const stripeSettingsSchema = z.object({
+  isTestMode: z.boolean(),
+  accountId: z.string().min(1, 'Required').regex(/^acct_/, 'Must be a valid Stripe account ID'),
 });
-
-// Base schema for live mode fields
-const liveModeSchema = z.object({
-  livePublishableKey: z.string().regex(/^pk_live_/, 'Must be a valid live publishable key'),
-  liveSecretKey: z.string().regex(/^sk_live_/, 'Must be a valid live secret key'),
-  liveWebhookSecret: z.string().min(1, 'Required'),
-  // Test mode fields are optional when in live mode
-  testPublishableKey: z.string().regex(/^pk_test_/, 'Must be a valid test publishable key').optional(),
-  testSecretKey: z.string().regex(/^sk_test_/, 'Must be a valid test secret key').optional(),
-  testWebhookSecret: z.string().optional(),
-});
-
-const stripeSettingsSchema = z.discriminatedUnion('isTestMode', [
-  z.object({ isTestMode: z.literal(true) }).merge(testModeSchema),
-  z.object({ isTestMode: z.literal(false) }).merge(liveModeSchema),
-]);
 
 export type StripeSettings = z.infer<typeof stripeSettingsSchema>;
 
@@ -47,14 +25,8 @@ export async function getStripeSettings(orgId: string) {
     return null;
   }
 
-  // Transform snake_case to camelCase
   return data ? {
-    livePublishableKey: data.live_publishable_key,
-    liveSecretKey: data.live_secret_key,
-    liveWebhookSecret: data.live_webhook_secret,
-    testPublishableKey: data.test_publishable_key,
-    testSecretKey: data.test_secret_key,
-    testWebhookSecret: data.test_webhook_secret,
+    accountId: data.account_id,
     isTestMode: data.is_test_mode
   } : null;
 }
@@ -62,17 +34,18 @@ export async function getStripeSettings(orgId: string) {
 export async function updateStripeSettings(orgId: string, settings: StripeSettings) {
   const supabase = await createServiceRoleClient();
 
-  // Transform camelCase to snake_case
+  // Generate return and refresh URLs based on the current domain
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const returnUrl = `${baseUrl}/api/stripe/connect/return`;
+  const refreshUrl = `${baseUrl}/api/stripe/connect/refresh`;
+
   const { error } = await supabase
     .from('stripe_settings')
     .upsert({
       org_id: orgId,
-      live_publishable_key: settings.livePublishableKey,
-      live_secret_key: settings.liveSecretKey,
-      live_webhook_secret: settings.liveWebhookSecret,
-      test_publishable_key: settings.testPublishableKey,
-      test_secret_key: settings.testSecretKey,
-      test_webhook_secret: settings.testWebhookSecret,
+      account_id: settings.accountId,
+      return_url: returnUrl,
+      refresh_url: refreshUrl,
       is_test_mode: settings.isTestMode,
       updated_at: new Date().toISOString()
     }, {

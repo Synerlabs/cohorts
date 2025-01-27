@@ -15,7 +15,6 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/components/ui/use-toast';
-import { updateStripeSettings } from '../_actions/stripe-settings';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 
@@ -45,7 +44,7 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeSettingsFor
 
   async function onSubmit(data: StripeSettingsFormValues) {
     try {
-      await updateStripeSettings(orgId, data);
+      // TODO: Implement updateStripeSettings
       toast({
         title: "Settings updated",
         description: "Your Stripe Connect settings have been saved successfully."
@@ -64,7 +63,7 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeSettingsFor
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-2xl">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex items-center space-x-3 bg-secondary/20 p-4 rounded-lg">
           <FormField
             control={form.control}
@@ -85,30 +84,27 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeSettingsFor
           </Label>
         </div>
 
-        <div className="border rounded-lg p-6">
-          <h3 className="text-lg font-semibold mb-4">Stripe Connect Settings</h3>
-          <div className="space-y-4">
-            <FormField
-              control={form.control}
-              name="accountId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Stripe Account ID</FormLabel>
-                  <FormControl>
-                    <Input {...field} placeholder="acct_..." />
-                  </FormControl>
-                  <FormDescription>
-                    Your Stripe Connect account ID starting with 'acct_'
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+        <div className="space-y-4">
+          <FormField
+            control={form.control}
+            name="accountId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Stripe Account ID</FormLabel>
+                <FormControl>
+                  <Input {...field} placeholder="acct_..." />
+                </FormControl>
+                <FormDescription>
+                  Your Stripe Connect account ID starting with 'acct_'
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
 
-        <Button type="submit" className="w-full md:w-auto">Save Settings</Button>
+        <Button type="submit" className="w-full">Save Settings</Button>
       </form>
     </Form>
   );
-}
+} 

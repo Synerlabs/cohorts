@@ -62,19 +62,27 @@ function FilePreview({ file }: FilePreviewProps) {
   );
 }
 
-interface Payment {
+export interface Payment {
   id: string;
+  amount: number;
+  status: 'pending' | 'approved' | 'rejected';
+  currency: string;
   orderId: string;
   userId: string;
-  type: 'manual' | 'stripe';
-  amount: number;
-  currency: string;
-  status: 'pending' | 'approved' | 'rejected';
+  type: 'stripe' | 'manual';
+  createdAt: string | Date;
+  updatedAt: string | Date;
   notes?: string;
-  createdAt: Date;
-  updatedAt: Date;
-  approvedAt?: Date;
+  approvedAt?: string;
   approvedBy?: string;
+  order?: {
+    product?: {
+      name: string;
+      price: number;
+      currency: string;
+      description?: string;
+    };
+  };
   uploads: Array<{
     id: string;
     module: string;
@@ -83,26 +91,12 @@ interface Payment {
     storageProvider: string;
     fileUrl: string;
     fileId?: string;
-    createdAt: Date;
-    updatedAt: Date;
+    createdAt: string | Date;
+    updatedAt: string | Date;
   }>;
-  order?: {
-    id: string;
-    amount: number;
-    currency: string;
-    status: string;
-    product: {
-      id: string;
-      name: string;
-      description?: string;
-      price: number;
-      currency: string;
-      type: string;
-    };
-  };
 }
 
-interface PaymentManagementProps {
+export interface PaymentManagementProps {
   orgId: string;
   userId: string;
   initialPayments: Payment[];
