@@ -233,7 +233,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
                         <span className="text-muted-foreground">Total Paid</span>
                         <span className="font-medium">
                           {(order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
-                            sum + (p.status === 'approved' ? p.amount : 0), 0) / 100).toLocaleString(undefined, {
+                            sum + (p.status === 'paid' ? p.amount : 0), 0) / 100).toLocaleString(undefined, {
                             style: 'currency',
                             currency: order.currency
                           })}
@@ -253,7 +253,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
                         <span className="text-muted-foreground">Remaining</span>
                         <span className="font-medium">
                           {((order.amount - order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
-                            sum + (p.status === 'approved' ? p.amount : 0), 0)) / 100).toLocaleString(undefined, {
+                            sum + (p.status === 'paid' ? p.amount : 0), 0)) / 100).toLocaleString(undefined, {
                             style: 'currency',
                             currency: order.currency
                           })}

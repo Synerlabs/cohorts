@@ -31,6 +31,7 @@ import { approvePaymentAction, rejectPaymentAction, deletePaymentAction } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
+import { Payment as PaymentType } from "@/services/payment/types";
 
 interface FilePreviewProps {
   file: {
@@ -62,39 +63,22 @@ function FilePreview({ file }: FilePreviewProps) {
   );
 }
 
-export interface Payment {
-  id: string;
-  amount: number;
-  status: 'pending' | 'approved' | 'rejected';
-  currency: string;
-  orderId: string;
-  userId: string;
-  type: 'stripe' | 'manual';
-  createdAt: string | Date;
-  updatedAt: string | Date;
-  notes?: string;
-  approvedAt?: string;
-  approvedBy?: string;
+export type Payment = PaymentType & {
   order?: {
-    product?: {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    product: {
+      id: string;
       name: string;
+      description?: string;
       price: number;
       currency: string;
-      description?: string;
+      type: string;
     };
   };
-  uploads: Array<{
-    id: string;
-    module: string;
-    originalFilename: string;
-    storagePath: string;
-    storageProvider: string;
-    fileUrl: string;
-    fileId?: string;
-    createdAt: string | Date;
-    updatedAt: string | Date;
-  }>;
-}
+};
 
 export interface PaymentManagementProps {
   orgId: string;
@@ -369,7 +353,7 @@ export function PaymentManagement({
                   </TableCell>
                   <TableCell>
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      payment.status === 'approved' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
+                      payment.status === 'paid' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
                       payment.status === 'rejected' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' :
                       'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20'
                     }`}>
@@ -468,7 +452,7 @@ export function PaymentManagement({
                   <label className="block text-sm font-medium text-gray-700">Status</label>
                   <div className="mt-1">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      selectedPayment.status === 'approved' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
+                      selectedPayment.status === 'paid' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
                       selectedPayment.status === 'rejected' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' :
                       'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20'
                     }`}>

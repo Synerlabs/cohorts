@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { StorageProvider } from '../storage/storage-provider.interface';
 import { PaymentService } from './payment.service.interface';
 import { CreateManualPaymentDTO, ManualPayment, Payment, UpdatePaymentDTO, Upload } from './types';
+import { OrderService } from '../order.service';
 
 interface GetPaymentsOptions {
   page?: number;
@@ -293,7 +294,24 @@ export class ManualPaymentService implements PaymentService {
   }
 
   async approvePayment(id: string, notes?: string): Promise<Payment> {
-    return this.updatePayment(id, { status: 'approved', notes });
+    // First get the payment to get the order ID
+    const { data: payment, error: getError } = await this.supabase
+      .from('payments')
+      .select('order_id')
+      .eq('id', id)
+      .single();
+
+    if (getError || !payment) {
+      throw new Error(`Failed to get payment: ${getError?.message}`);
+    }
+
+    // Update payment status to paid
+    const updatedPayment = await this.updatePayment(id, { status: 'paid', notes });
+
+    // Update order status to paid
+    await OrderService.updateOrderStatus(payment.order_id, 'paid', new Date().toISOString());
+
+    return updatedPayment;
   }
 
   async rejectPayment(id: string, notes: string): Promise<Payment> {

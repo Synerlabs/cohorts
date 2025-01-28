@@ -3,6 +3,7 @@ import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { createStorageProvider } from "@/services/storage/storage-settings.service";
 import { PaymentServiceFactory } from "@/services/payment/payment.service.factory";
 import { PaymentsClient } from "./_components/payments-client";
+import { Payment } from "@/services/payment/types";
 
 interface SearchParams {
   page?: string;
@@ -27,9 +28,10 @@ async function PaymentsPage(params: OrgAccessHOCProps & { searchParams: SearchPa
     return <div>Storage provider not configured</div>;
   }
 
-  // Create payment service
+  // Create payment services
   const paymentServiceFactory = new PaymentServiceFactory(supabase, provider);
-  const paymentService = paymentServiceFactory.createService('manual');
+  const manualPaymentService = paymentServiceFactory.createService('manual');
+  const stripePaymentService = paymentServiceFactory.createService('stripe');
 
   // Parse search params
   const page = searchParams.page ? parseInt(searchParams.page) : 1;
@@ -38,14 +40,42 @@ async function PaymentsPage(params: OrgAccessHOCProps & { searchParams: SearchPa
   const sortOrder = searchParams.sortOrder || 'desc';
   const search = searchParams.search || '';
 
-  // Fetch payments with pagination and sorting
-  const { data: payments, total, totalPages } = await paymentService.getPaymentsByOrgId(org.id, {
-    page,
-    pageSize,
-    sortBy,
-    sortOrder,
-    search
+  // Fetch both manual and stripe payments
+  const [manualPayments, stripePayments] = await Promise.all([
+    manualPaymentService.getPaymentsByOrgId(org.id, {
+      page,
+      pageSize,
+      sortBy,
+      sortOrder,
+      search
+    }),
+    stripePaymentService.getPaymentsByOrgId(org.id, {
+      page,
+      pageSize,
+      sortBy,
+      sortOrder,
+      search
+    })
+  ]);
+
+  // Combine and sort payments
+  const allPayments = [...manualPayments.data, ...stripePayments.data].sort((a, b) => {
+    if (sortBy === 'created_at') {
+      return sortOrder === 'desc' 
+        ? b.createdAt.getTime() - a.createdAt.getTime()
+        : a.createdAt.getTime() - b.createdAt.getTime();
+    }
+    return 0;
   });
+
+  // Calculate total
+  const total = manualPayments.total + stripePayments.total;
+  const totalPages = Math.ceil(total / pageSize);
+
+  // Apply pagination to combined results
+  const start = (page - 1) * pageSize;
+  const end = start + pageSize;
+  const paginatedPayments = allPayments.slice(start, end);
 
   // Only pass serializable data to client component
   const serializedOrg = {
@@ -56,14 +86,14 @@ async function PaymentsPage(params: OrgAccessHOCProps & { searchParams: SearchPa
 
   const serializedUser = {
     id: user.id,
-    email: user.email,
+    email: user.email || '',
   };
 
   return (
     <PaymentsClient
       org={serializedOrg}
       user={serializedUser}
-      payments={payments}
+      payments={paginatedPayments}
       pagination={{
         page,
         pageSize,

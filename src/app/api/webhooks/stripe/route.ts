@@ -86,10 +86,10 @@ export async function POST(req: Request) {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         const orderId = paymentIntent.metadata.orderId;
 
-        // Update payment status to approved
+        // Update payment status to paid
         const { error } = await supabase
           .from('payments')
-          .update({ status: 'approved' })
+          .update({ status: 'paid' })
           .eq('order_id', orderId)
           .eq('type', 'stripe');
 

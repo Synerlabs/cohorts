@@ -1,7 +1,7 @@
 import { Currency } from './membership';
 
 export type OrderType = 'membership' | 'subscription' | 'one_time';
-export type OrderStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+export type OrderStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'paid';
 
 export interface IOrder {
   id: string;

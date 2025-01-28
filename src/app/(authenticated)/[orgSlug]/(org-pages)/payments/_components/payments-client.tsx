@@ -13,6 +13,8 @@ import { useState } from "react";
 import { StripeSettingsForm } from "./stripe-settings-form";
 import { Icons } from "@/components/icons";
 import { PaymentManagement, Payment } from "./payment-management";
+import Link from "next/link";
+import { Plus } from "lucide-react";
 
 interface PaymentGateway {
   id: string;
@@ -64,13 +66,14 @@ const paymentGateways: PaymentGateway[] = [
 export function PaymentsClient({ org, user, payments, pagination, sorting, search }: PaymentsClientProps) {
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
 
-  // Calculate payment statistics
-  const totalAmount = payments.reduce((sum: number, p: Payment) => sum + p.amount, 0);
-  const pendingPayments = payments.filter((p: Payment) => p.status === 'pending');
-  const pendingAmount = pendingPayments.reduce((sum: number, p: Payment) => sum + p.amount, 0);
-  const approvedAmount = payments
-    .filter((p: Payment) => p.status === 'approved')
-    .reduce((sum: number, p: Payment) => sum + p.amount, 0);
+  // Calculate totals
+  const approvedPayments = payments.filter(p => p.status === 'approved');
+  const pendingPayments = payments.filter(p => p.status === 'pending');
+  const rejectedPayments = payments.filter(p => p.status === 'rejected');
+
+  const totalApproved = approvedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalPending = pendingPayments.reduce((sum, p) => sum + p.amount, 0);
+  const totalRejected = rejectedPayments.reduce((sum, p) => sum + p.amount, 0);
 
   function renderGatewaySettings(gateway: PaymentGateway) {
     switch (gateway.id) {
@@ -113,7 +116,7 @@ export function PaymentsClient({ org, user, payments, pagination, sorting, searc
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Approved Payments</p>
                   <h3 className="text-2xl font-bold">
-                    {(approvedAmount / 100).toLocaleString(undefined, {
+                    {(totalApproved / 100).toLocaleString(undefined, {
                       style: 'currency',
                       currency: 'USD'
                     })}
@@ -132,7 +135,7 @@ export function PaymentsClient({ org, user, payments, pagination, sorting, searc
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Pending Payments</p>
                   <h3 className="text-2xl font-bold">
-                    {(pendingAmount / 100).toLocaleString(undefined, {
+                    {(totalPending / 100).toLocaleString(undefined, {
                       style: 'currency',
                       currency: 'USD'
                     })}
@@ -148,19 +151,19 @@ export function PaymentsClient({ org, user, payments, pagination, sorting, searc
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-100 rounded-full">
-                  <ArrowDownIcon className="h-5 w-5 text-blue-600" />
+                <div className="p-3 bg-red-100 rounded-full">
+                  <ArrowDownIcon className="h-5 w-5 text-red-600" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Payments</p>
+                  <p className="text-sm font-medium text-muted-foreground">Rejected Payments</p>
                   <h3 className="text-2xl font-bold">
-                    {(totalAmount / 100).toLocaleString(undefined, {
+                    {(totalRejected / 100).toLocaleString(undefined, {
                       style: 'currency',
                       currency: 'USD'
                     })}
                   </h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {pagination.total} total payment{pagination.total !== 1 ? 's' : ''}
+                    {rejectedPayments.length} payment{rejectedPayments.length !== 1 ? 's' : ''} rejected
                   </p>
                 </div>
               </div>

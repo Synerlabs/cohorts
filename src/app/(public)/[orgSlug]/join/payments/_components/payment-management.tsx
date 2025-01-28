@@ -14,6 +14,8 @@ import {
 import { Payment, Upload } from '@/services/payment/types';
 import {
   deletePaymentAction,
+  approvePaymentAction,
+  rejectPaymentAction,
 } from '../actions/payment.action';
 import { useRouter } from 'next/navigation';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
@@ -35,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
 
 interface PaymentManagementProps {
   orgId: string;
@@ -75,12 +78,23 @@ export function PaymentManagement({
   const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
   const [deleteFiles, setDeleteFiles] = useState(true);
   const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [notes, setNotes] = useState('');
   
   const router = useRouter();
 
   const [deleteState, deleteAction, deletePending] = useToastActionState(deletePaymentAction, undefined, undefined, {
     successTitle: 'Payment Deleted',
     successDescription: 'The payment request has been deleted',
+  });
+
+  const [approveState, approveAction, approvePending] = useToastActionState(approvePaymentAction, undefined, undefined, {
+    successTitle: 'Payment Approved',
+    successDescription: 'The payment request has been approved',
+  });
+
+  const [rejectState, rejectAction, rejectPending] = useToastActionState(rejectPaymentAction, undefined, undefined, {
+    successTitle: 'Payment Rejected',
+    successDescription: 'The payment request has been rejected',
   });
 
   const handleDelete = async (payment: Payment) => {
@@ -91,6 +105,35 @@ export function PaymentManagement({
     });
     setPaymentToDelete(null);
     setDeleteFiles(true);
+    router.refresh();
+  };
+
+  const handleApprove = async (payment: Payment) => {
+    await approveAction({ success: false }, {
+      paymentId: payment.id,
+      orgId,
+      notes,
+    });
+    handleCloseReview();
+    router.refresh();
+  };
+
+  const handleReject = async (payment: Payment) => {
+    if (!notes) {
+      toast({
+        title: "Notes Required",
+        description: "Please provide notes explaining why the payment is being rejected.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await rejectAction({ success: false }, {
+      paymentId: payment.id,
+      orgId,
+      notes,
+    });
+    handleCloseReview();
     router.refresh();
   };
 
