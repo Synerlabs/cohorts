@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/utils/supabase/server";
+import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { IOrder, IMembershipOrder, OrderStatus } from "@/lib/types/order";
 import { ProductService } from "./product.service";
 
@@ -138,45 +139,119 @@ export class OrderService {
     return await this.getMembershipOrder(orderId) as IMembershipOrder;
   }
 
-  static async getOrderPaymentTotals(orderId: string): Promise<OrderPaymentTotals> {
-    const supabase = await createClient();
+  static async getOrderPayments(orderId: string) {
+    console.log('🔍 Getting all payments for order:', orderId);
     
-    const { data, error } = await supabase
+    const supabase = await createServiceRoleClient();
+    
+    console.log('🔍 Querying payments with order_id:', orderId);
+    const { data: payments, error } = await supabase
       .from('payments')
-      .select('amount, status')
-      .eq('order_id', orderId);
+      .select(`
+        id,
+        amount,
+        currency,
+        status,
+        type,
+        created_at,
+        updated_at,
+        stripe_payments(*)
+      `)
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Failed to get payments:', error);
+      throw error;
+    }
 
-    const totals = (data || []).reduce((acc, payment) => ({
+    if (!payments || payments.length === 0) {
+      console.log('⚠️ No payments found for order:', orderId);
+      
+      // Double check with a simpler query
+      const { data: basicPayments, error: basicError } = await supabase
+        .from('payments')
+        .select('id, amount, status')
+        .eq('order_id', orderId);
+        
+      console.log('🔍 Basic query results:', {
+        error: basicError,
+        count: basicPayments?.length,
+        payments: basicPayments
+      });
+    }
+
+    console.log('💰 Found payments:', payments?.map(p => ({
+      id: p.id,
+      amount: p.amount,
+      status: p.status,
+      type: p.type,
+      stripePaymentId: p.stripe_payments?.[0]?.stripe_payment_intent_id
+    })));
+
+    return payments || [];
+  }
+
+  static async getOrderPaymentTotals(orderId: string): Promise<OrderPaymentTotals> {
+    console.log('🔍 Getting payment totals for order:', orderId);
+    
+    const payments = await this.getOrderPayments(orderId);
+
+    const totals = payments.reduce((acc, payment) => ({
       totalPaid: acc.totalPaid + (payment.status === 'paid' ? payment.amount : 0),
       totalPending: acc.totalPending + (payment.status === 'pending' ? payment.amount : 0)
     }), { totalPaid: 0, totalPending: 0 });
 
+    console.log('💰 Payment totals calculated:', {
+      ...totals,
+      paymentCount: payments.length,
+      statuses: payments.map(p => p.status)
+    });
+    
     return totals;
   }
 
   static async updateOrderStatusFromPayments(orderId: string): Promise<IOrder> {
+    console.log('🔄 Updating order status from payments:', orderId);
+    
     const supabase = await createClient();
     
     // Get order and its payment totals
-    const [{ data: order }, totals] = await Promise.all([
+    const [{ data: order, error: orderError }, totals] = await Promise.all([
       supabase.from('orders').select('*').eq('id', orderId).single(),
       this.getOrderPaymentTotals(orderId)
     ]);
 
-    if (!order) throw new Error('Order not found');
+    if (orderError || !order) {
+      console.error('❌ Order not found:', orderError);
+      throw new Error('Order not found');
+    }
+
+    console.log('💰 Payment totals:', {
+      orderAmount: order.amount,
+      totalPaid: totals.totalPaid,
+      totalPending: totals.totalPending
+    });
 
     // Determine new status
     let newStatus: OrderStatus = order.status;
     if (totals.totalPaid >= order.amount) {
+      console.log('✅ Total paid meets or exceeds order amount - marking as paid');
       newStatus = 'paid';
     } else if (totals.totalPending > 0) {
+      console.log('⏳ Has pending payments - marking as pending');
       newStatus = 'pending';
     }
 
+    console.log('📊 Status update:', {
+      currentStatus: order.status,
+      newStatus: newStatus
+    });
+
     // Only update if status changed
     if (newStatus !== order.status) {
+      console.log('🔄 Updating order status to:', newStatus);
+      
       const { data: updatedOrder, error } = await supabase
         .from('orders')
         .update({ 
@@ -188,10 +263,16 @@ export class OrderService {
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Failed to update order status:', error);
+        throw error;
+      }
+
+      console.log('✅ Order status updated successfully');
       return updatedOrder;
     }
 
+    console.log('ℹ️ No status update needed');
     return order;
   }
 } 
