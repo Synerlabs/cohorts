@@ -1,29 +1,31 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { PaymentService } from './payment.service.interface';
 import { CreateStripePaymentDTO, GetPaymentsOptions, GetPaymentsResult, Payment, StripePayment, UpdatePaymentDTO } from './types';
-import Stripe from 'stripe';
 import { OrderService } from '../order.service';
+import { StripePaymentProvider } from './providers/stripe-payment.provider';
 
 export class StripePaymentService implements PaymentService {
-  private stripe: Stripe;
+  private provider: StripePaymentProvider;
 
   constructor(
     private readonly supabase: SupabaseClient,
     stripeSecretKey: string
   ) {
-    this.stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2023-10-16'
+    this.provider = new StripePaymentProvider({
+      secretKey: stripeSecretKey,
+      returnUrl: process.env.NEXT_PUBLIC_APP_URL
     });
   }
 
   async createPayment(data: CreateStripePaymentDTO): Promise<Payment> {
     // Create a payment intent with Stripe
-    const paymentIntent = await this.stripe.paymentIntents.create({
+    const result = await this.provider.createPaymentIntent({
       amount: data.amount,
-      currency: data.currency.toLowerCase(),
-      payment_method: data.paymentMethodId,
-      confirm: true,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/@${data.orgId}/join/payments/confirm`
+      currency: data.currency,
+      paymentMethodId: data.paymentMethodId,
+      metadata: {
+        orderId: data.orderId
+      }
     });
 
     // Create payment record in database
@@ -35,7 +37,7 @@ export class StripePaymentService implements PaymentService {
         type: 'stripe',
         amount: data.amount,
         currency: data.currency,
-        status: this.mapStripeStatus(paymentIntent.status)
+        status: this.provider.mapProviderStatus(result.status)
       })
       .select()
       .single();
@@ -49,9 +51,9 @@ export class StripePaymentService implements PaymentService {
       .from('stripe_payments')
       .insert({
         payment_id: payment.id,
-        stripe_payment_intent_id: paymentIntent.id,
+        stripe_payment_intent_id: result.paymentIntentId,
         stripe_payment_method: data.paymentMethodId,
-        stripe_status: paymentIntent.status
+        stripe_status: result.status
       });
 
     if (stripePaymentError) {
@@ -188,8 +190,8 @@ export class StripePaymentService implements PaymentService {
     // Update payment status to paid
     const updatedPayment = await this.updatePayment(id, { status: 'paid', notes });
 
-    // Update order status to paid
-    await OrderService.updateOrderStatus(payment.order_id, 'paid', new Date().toISOString());
+    // Update order status based on all payments
+    await OrderService.updateOrderStatusFromPayments(payment.order_id);
 
     return updatedPayment;
   }

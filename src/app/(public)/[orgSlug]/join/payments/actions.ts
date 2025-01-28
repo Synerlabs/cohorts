@@ -29,7 +29,7 @@ export async function createStripePaymentIntent(orderId: string, amount: number,
   });
 
   // Create a payment record in pending state
-  const { error } = await supabase
+  const { data: payment, error: paymentError } = await supabase
     .from('payments')
     .insert({
       order_id: orderId,
@@ -40,11 +40,27 @@ export async function createStripePaymentIntent(orderId: string, amount: number,
       currency,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (paymentError || !payment) {
+    console.error('Failed to create payment record:', paymentError);
+    throw new Error('Failed to create payment record');
+  }
+
+  // Create stripe payment record
+  const { error: stripePaymentError } = await supabase
+    .from('stripe_payments')
+    .insert({
+      payment_id: payment.id,
+      stripe_payment_intent_id: paymentIntent.id,
+      stripe_status: paymentIntent.status
     });
 
-  if (error) {
-    console.error('Failed to create payment record:', error);
-    throw new Error('Failed to create payment record');
+  if (stripePaymentError) {
+    console.error('Failed to create stripe payment record:', stripePaymentError);
+    throw new Error('Failed to create stripe payment record');
   }
 
   return paymentIntent.client_secret;

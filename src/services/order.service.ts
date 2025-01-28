@@ -2,6 +2,11 @@ import { createClient } from "@/lib/utils/supabase/server";
 import { IOrder, IMembershipOrder, OrderStatus } from "@/lib/types/order";
 import { ProductService } from "./product.service";
 
+interface OrderPaymentTotals {
+  totalPaid: number;
+  totalPending: number;
+}
+
 export class OrderService {
   static async getMembershipOrder(id: string): Promise<IMembershipOrder | null> {
     const supabase = await createClient();
@@ -131,5 +136,62 @@ export class OrderService {
     if (error) throw error;
 
     return await this.getMembershipOrder(orderId) as IMembershipOrder;
+  }
+
+  static async getOrderPaymentTotals(orderId: string): Promise<OrderPaymentTotals> {
+    const supabase = await createClient();
+    
+    const { data, error } = await supabase
+      .from('payments')
+      .select('amount, status')
+      .eq('order_id', orderId);
+
+    if (error) throw error;
+
+    const totals = (data || []).reduce((acc, payment) => ({
+      totalPaid: acc.totalPaid + (payment.status === 'paid' ? payment.amount : 0),
+      totalPending: acc.totalPending + (payment.status === 'pending' ? payment.amount : 0)
+    }), { totalPaid: 0, totalPending: 0 });
+
+    return totals;
+  }
+
+  static async updateOrderStatusFromPayments(orderId: string): Promise<IOrder> {
+    const supabase = await createClient();
+    
+    // Get order and its payment totals
+    const [{ data: order }, totals] = await Promise.all([
+      supabase.from('orders').select('*').eq('id', orderId).single(),
+      this.getOrderPaymentTotals(orderId)
+    ]);
+
+    if (!order) throw new Error('Order not found');
+
+    // Determine new status
+    let newStatus: OrderStatus = order.status;
+    if (totals.totalPaid >= order.amount) {
+      newStatus = 'paid';
+    } else if (totals.totalPending > 0) {
+      newStatus = 'pending';
+    }
+
+    // Only update if status changed
+    if (newStatus !== order.status) {
+      const { data: updatedOrder, error } = await supabase
+        .from('orders')
+        .update({ 
+          status: newStatus,
+          completed_at: newStatus === 'paid' ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return updatedOrder;
+    }
+
+    return order;
   }
 } 
