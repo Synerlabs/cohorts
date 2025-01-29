@@ -3,7 +3,7 @@
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 
-export async function createStripePaymentIntent(orderId: string, amount: number, currency: string) {
+export async function createStripePaymentIntent(orderId: string, amount: number, currency: string, orgId: string) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const supabase = await createServiceRoleClient();
   
@@ -34,6 +34,7 @@ export async function createStripePaymentIntent(orderId: string, amount: number,
     .insert({
       order_id: orderId,
       user_id: order.user_id,
+      group_id: orgId,
       type: 'stripe',
       status: 'pending',
       amount,

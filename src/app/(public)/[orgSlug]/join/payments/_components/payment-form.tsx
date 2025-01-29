@@ -119,7 +119,8 @@ export function PaymentForm({ order, orgId, defaultMethod = 'manual' }: PaymentF
                     const secret = await createStripePaymentIntent(
                       order.id,
                       order.amount,
-                      order.currency
+                      order.currency,
+                      orgId
                     );
                     if (secret) {
                       setClientSecret(secret);

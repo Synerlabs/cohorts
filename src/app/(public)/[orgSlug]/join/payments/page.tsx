@@ -146,7 +146,8 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
           user.id,
           application.product_id,
           groupUser.group_user_id,
-          application.id
+          application.id,
+          org.id
         );
 
         // Link the order to the application

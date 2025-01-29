@@ -117,13 +117,15 @@ export class OrderService {
     userId: string,
     productId: string,
     groupUserId: string,
-    applicationId: string
+    applicationId: string,
+    groupId: string
   ): Promise<IOrder> {
     console.log('🔄 Creating membership order:', {
       userId,
       productId,
       groupUserId,
-      applicationId
+      applicationId,
+      groupId
     });
 
     const supabase = await createServiceRoleClient();
@@ -146,6 +148,7 @@ export class OrderService {
           status: 'pending',
           amount: product.price,
           currency: product.currency,
+          group_id: groupId
         })
         .select()
         .single();
@@ -489,7 +492,8 @@ export class OrderService {
             userId,
             product.id,
             groupUser.id,
-            application.id
+            application.id,
+            item.metadata.groupId
           );
 
           return createdOrder;

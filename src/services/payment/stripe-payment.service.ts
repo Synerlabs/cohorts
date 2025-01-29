@@ -34,6 +34,7 @@ export class StripePaymentService implements PaymentService {
       .insert({
         order_id: data.orderId,
         user_id: data.userId,
+        group_id: data.orgId,
         type: 'stripe',
         amount: data.amount,
         currency: data.currency,
@@ -111,15 +112,10 @@ export class StripePaymentService implements PaymentService {
       .select(`
         *,
         stripe_payments(*),
-        orders!inner(
-          product_id,
-          products!inner(
-            group_id
-          )
-        )
+        orders!inner(group_id)
       `, { count: 'exact' })
       .eq('type', 'stripe')
-      .eq('orders.products.group_id', orgId);
+      .eq('orders.group_id', orgId);
 
     if (search) {
       query = query.or(`

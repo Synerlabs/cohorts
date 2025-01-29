@@ -39,6 +39,7 @@ export class ManualPaymentService implements PaymentService {
       .insert({
         order_id: data.orderId,
         user_id: data.userId,
+        group_id: data.orgId,
         type: 'manual',
         amount: data.amount,
         currency: data.currency,
