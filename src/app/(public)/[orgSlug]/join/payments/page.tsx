@@ -9,6 +9,7 @@ import { getUserMembershipApplications } from "@/services/applications.service";
 import { redirect } from "next/navigation";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { PaymentForm } from './_components/payment-form';
+import { OrderService } from "@/services/order.service";
 
 interface SearchParams {
   applicationId?: string;
@@ -113,38 +114,60 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
 
     // Check if application already has any order (not just pending)
     const { data: existingOrder, error: orderError } = await serviceClient
-      .from('orders')
-      .select('*, payments(*), applications!orders_application_id_fkey(*)')
-      .eq('application_id', applicationId)
+      .from('applications')
+      .select(`
+        order:orders(
+          *,
+          payments(*)
+        )
+      `)
+      .eq('id', applicationId)
       .single();
 
-    if (existingOrder) {
-      order = existingOrder;
+    if (existingOrder?.order) {
+      order = existingOrder.order;
     } else {
       // Create new order for application
-      const orderData = {
-        user_id: user.id,
-        group_id: org.id,
-        type: 'membership',
-        product_id: application.product_id,
-        application_id: application.id,
-        amount: application.product.price,
-        currency: application.product.currency || 'USD',
-        status: 'pending'
-      };
+      try {
+        // Get the group user ID from the application
+        const { data: groupUser, error: groupUserError } = await serviceClient
+          .from('applications')
+          .select('group_user_id')
+          .eq('id', application.id)
+          .single();
 
-      const { data: newOrder, error: createError } = await serviceClient
-        .from('orders')
-        .insert(orderData)
-        .select('*, payments(*), applications!orders_application_id_fkey(*)')
-        .single();
+        if (groupUserError || !groupUser) {
+          throw new Error('Failed to get group user ID');
+        }
 
-      if (createError || !newOrder) {
+        // Create order with validated data
+        console.log('✅ Creating membership order with validated data');
+        order = await OrderService.createMembershipOrder(
+          user.id,
+          application.product_id,
+          groupUser.group_user_id,
+          application.id
+        );
+
+        // Link the order to the application
+        const { error: linkError } = await serviceClient
+          .from('applications')
+          .update({ order_id: order.id })
+          .eq('id', application.id);
+
+        if (linkError) {
+          console.log('Failed to link order to application:', { 
+            linkError, 
+            orderId: order.id,
+            applicationId: application.id 
+          });
+          throw new Error('Failed to link order to application');
+        }
+      } catch (error) {
         console.log('Failed to create order:', { 
-          createError, 
+          error, 
           application,
           userId: user.id, 
-          orgId: org.id,
           productId: application.product_id
         });
         return <ErrorDisplay 
@@ -153,27 +176,6 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
           orgSlug={org.slug}
         />;
       }
-
-      // Link the order to the application
-      const { error: linkError } = await serviceClient
-        .from('applications')
-        .update({ order_id: newOrder.id })
-        .eq('id', application.id);
-
-      if (linkError) {
-        console.log('Failed to link order to application:', { 
-          linkError, 
-          orderId: newOrder.id,
-          applicationId: application.id 
-        });
-        return <ErrorDisplay 
-          message="Failed to create order" 
-          details="There was an error creating your order. Please try again later." 
-          orgSlug={org.slug}
-        />;
-      }
-
-      order = newOrder;
     }
   }
 

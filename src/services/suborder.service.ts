@@ -70,60 +70,75 @@ export class SuborderService {
     const supabase = await createServiceRoleClient();
     
     try {
-      // Update status to processing
-      await this.updateSuborderStatus(suborder.id, 'processing');
-
       // Get the application and update its status
-      if (suborder.metadata?.application_id) {
-        console.log('✅ Approving application:', suborder.metadata.application_id);
-        
-        const now = new Date().toISOString();
+      if (!suborder.metadata?.application_id) {
+        throw new Error('No application ID found in suborder metadata');
+      }
 
-        // Update application status
-        const { data: application, error: appError } = await supabase
-          .from('applications')
+      console.log('✅ Approving application:', suborder.metadata.application_id);
+      
+      const now = new Date().toISOString();
+
+      // Update application status
+      const { data: application, error: appError } = await supabase
+        .from('applications')
+        .update({
+          status: 'approved',
+          approved_at: now,
+          updated_at: now
+        })
+        .eq('id', suborder.metadata.application_id)
+        .select('group_user_id, status')
+        .single();
+
+      if (appError) {
+        throw new Error(`Failed to update application: ${appError.message}`);
+      }
+
+      if (!application) {
+        throw new Error('Application not found');
+      }
+
+      if (application.status !== 'approved') {
+        throw new Error('Failed to update application status');
+      }
+
+      // Store group_user_id in metadata if not already there
+      if (application.group_user_id && !suborder.metadata.group_user_id) {
+        await this.updateSuborderStatus(suborder.id, 'processing', {
+          ...suborder.metadata,
+          group_user_id: application.group_user_id
+        });
+      }
+
+      // Activate the group user
+      if (application.group_user_id) {
+        const { error: userError } = await supabase
+          .from('group_users')
           .update({
-            status: 'approved',
-            approved_at: now,
+            is_active: true,
             updated_at: now
           })
-          .eq('id', suborder.metadata.application_id)
-          .select('group_user_id')
-          .single();
+          .eq('id', application.group_user_id);
 
-        if (appError) throw appError;
-
-        // Store group_user_id in metadata if not already there
-        if (application?.group_user_id && !suborder.metadata?.group_user_id) {
-          await this.updateSuborderStatus(suborder.id, 'processing', {
-            ...suborder.metadata,
-            group_user_id: application.group_user_id
-          });
-        }
-
-        // Activate the group user
-        if (application?.group_user_id) {
-          const { error: userError } = await supabase
-            .from('group_users')
-            .update({
-              is_active: true,
-              updated_at: now
-            })
-            .eq('id', application.group_user_id);
-
-          if (userError) throw userError;
+        if (userError) {
+          throw new Error(`Failed to activate group user: ${userError.message}`);
         }
       }
 
-      // Mark suborder as completed
-      return await this.updateSuborderStatus(suborder.id, 'completed') as IMembershipSuborder;
+      // Mark suborder as completed with completion timestamp
+      return await this.updateSuborderStatus(suborder.id, 'completed', {
+        ...suborder.metadata,
+        completedAt: now
+      }) as IMembershipSuborder;
 
-    } catch (error: any) {
+    } catch (error) {
       console.error('❌ Failed to process membership suborder:', error);
       // Mark as failed with error details
       await this.updateSuborderStatus(suborder.id, 'failed', {
         ...suborder.metadata,
-        error: error.message || 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
+        failedAt: new Date().toISOString()
       });
       throw error;
     }
@@ -132,13 +147,40 @@ export class SuborderService {
   static async processSuborder(suborder: ISuborder): Promise<ISuborder> {
     console.log('🔄 Processing suborder:', { id: suborder.id, productType: suborder.product?.type });
     
-    if (isMembershipSuborder(suborder, suborder.product)) {
-      return await this.processMembershipSuborder(suborder as IMembershipSuborder);
+    // Check if suborder is already completed or failed
+    if (suborder.status === 'completed') {
+      console.log('⏭️ Suborder already completed:', suborder.id);
+      return suborder;
+    }
+    
+    if (suborder.status === 'failed') {
+      console.log('⚠️ Suborder previously failed:', suborder.id);
+      throw new Error('Cannot process failed suborder');
     }
 
-    // For now, just mark other types as completed
-    // Add specific processing for other product types as needed
-    return await this.updateSuborderStatus(suborder.id, 'completed');
+    try {
+      // Update to processing status first
+      await this.updateSuborderStatus(suborder.id, 'processing');
+
+      // Process based on type
+      if (suborder.product && isMembershipSuborder(suborder, suborder.product)) {
+        return await this.processMembershipSuborder(suborder as IMembershipSuborder);
+      }
+
+      // For now, other types just get marked as completed
+      // Add specific processing for other product types as needed
+      console.log('ℹ️ No specific processing for type:', suborder.product?.type);
+      return await this.updateSuborderStatus(suborder.id, 'completed');
+    } catch (error) {
+      console.error('❌ Failed to process suborder:', error);
+      // Mark as failed with error details
+      await this.updateSuborderStatus(suborder.id, 'failed', {
+        ...suborder.metadata,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        failedAt: new Date().toISOString()
+      });
+      throw error;
+    }
   }
 
   static async processOrderSuborders(orderId: string): Promise<ISuborder[]> {
@@ -147,6 +189,7 @@ export class SuborderService {
     const suborders = await this.getSubordersForOrder(orderId);
     const results = [];
 
+    // Process each suborder
     for (const suborder of suborders) {
       try {
         const processed = await this.processSuborder(suborder);
@@ -158,7 +201,14 @@ export class SuborderService {
           error
         });
         // Continue processing other suborders even if one fails
+        results.push(suborder);
       }
+    }
+
+    // Check if all suborders are completed
+    const allCompleted = results.every(s => s.status === 'completed');
+    if (!allCompleted) {
+      console.log('⚠️ Not all suborders completed:', results.map(s => ({ id: s.id, status: s.status })));
     }
 
     return results;

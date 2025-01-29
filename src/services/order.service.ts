@@ -137,6 +137,7 @@ export class OrderService {
         type: 'membership',
         user_id: userId,
         product_id: productId,
+        group_id: product.group_id,
         status: 'pending',
         amount: product.price,
         currency: product.currency
@@ -151,6 +152,7 @@ export class OrderService {
       .from('suborders')
       .insert({
         order_id: order.id,
+        type: 'membership',
         product_id: productId,
         amount: product.price,
         currency: product.currency,
