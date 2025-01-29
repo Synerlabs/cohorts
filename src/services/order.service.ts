@@ -95,8 +95,10 @@ export class OrderService {
         product_id: productId,
         amount,
         currency,
-        application_id: applicationId,
-        metadata,
+        metadata: {
+          ...metadata,
+          application_id: applicationId
+        },
         status: 'pending'
       })
       .select()
@@ -115,64 +117,88 @@ export class OrderService {
     userId: string,
     productId: string,
     groupUserId: string,
-    applicationId?: string
-  ): Promise<IMembershipOrder> {
+    applicationId: string
+  ): Promise<IOrder> {
     console.log('🔄 Creating membership order:', {
       userId,
       productId,
       groupUserId,
       applicationId
     });
-    
+
     const supabase = await createServiceRoleClient();
 
     // Get product details
     const product = await ProductService.getMembershipTier(productId);
     if (!product) throw new Error('Product not found');
 
-    // First create the order
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        type: 'membership',
-        user_id: userId,
-        product_id: productId,
-        group_id: product.group_id,
-        status: 'pending',
-        amount: product.price,
-        currency: product.currency
-      })
-      .select()
-      .single();
+    console.log('📦 Product details:', product);
 
-    if (orderError) throw orderError;
+    let orderId: string | null = null;
 
-    // Create the membership suborder
-    const { data: suborder, error: suborderError } = await supabase
-      .from('suborders')
-      .insert({
-        order_id: order.id,
-        type: 'membership',
-        product_id: productId,
-        amount: product.price,
-        currency: product.currency,
-        status: 'pending',
-        metadata: {
-          group_user_id: groupUserId,
-          application_id: applicationId
-        }
-      })
-      .select()
-      .single();
+    try {
+      // Create order
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: userId,
+          type: 'membership',
+          status: 'pending',
+          amount: product.price,
+          currency: product.currency,
+        })
+        .select()
+        .single();
 
-    if (suborderError) throw suborderError;
+      if (orderError) throw orderError;
+      console.log('✅ Order created:', order);
+      
+      orderId = order.id;
 
-    return {
-      ...order,
-      membership: {
+      // Create suborder with metadata
+      const suborderMetadata = {
         group_user_id: groupUserId
+      };
+
+      const suborder = await this.createSuborder(
+        order.id,
+        'membership',
+        productId,
+        product.price,
+        product.currency,
+        applicationId,
+        suborderMetadata
+      );
+
+      console.log('✅ Suborder created:', {
+        id: suborder.id,
+        type: suborder.type,
+        metadata: suborder.metadata
+      });
+
+      return order;
+      
+    } catch (error) {
+      console.error('❌ Error during order creation:', error);
+      
+      // Rollback if order was created but suborder failed
+      if (orderId) {
+        console.log('🔄 Rolling back - deleting order:', orderId);
+        const { error: deleteError } = await supabase
+          .from('orders')
+          .delete()
+          .eq('id', orderId);
+          
+        if (deleteError) {
+          console.error('❌ Failed to rollback order:', deleteError);
+          // Log but don't throw - we want to throw the original error
+        } else {
+          console.log('✅ Successfully rolled back order');
+        }
       }
-    } as IMembershipOrder;
+      
+      throw error;
+    }
   }
 
   static async updateOrderStatus(
@@ -203,11 +229,21 @@ export class OrderService {
   ): Promise<IMembershipOrder> {
     const supabase = await createServiceRoleClient();
 
-    // Update the membership suborder metadata
+    // Get current suborder to preserve metadata
+    const { data: currentSuborder, error: fetchError } = await supabase
+      .from('suborders')
+      .select('metadata')
+      .eq('order_id', orderId)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    // Update the membership suborder metadata while preserving existing fields
     const { error } = await supabase
       .from('suborders')
       .update({
         metadata: {
+          ...currentSuborder?.metadata,
           start_date: startDate,
           end_date: endDate
         }
@@ -369,69 +405,119 @@ export class OrderService {
     const cart = await getCart();
     if (!cart) throw new Error('Cart not found');
 
-    // For each cart item, validate and get fresh data
-    for (const item of cart.items) {
-      if (item.type === 'membership') {
-        // Validate membership tier exists and get fresh data
-        const product = await ProductService.getMembershipTier(item.productId);
-        if (!product) {
-          console.error('❌ Product not found:', item.productId);
-          throw new Error('Invalid product in cart');
+    console.log('📦 Cart contents:', JSON.stringify(cart, null, 2));
+
+    let createdOrder: IOrder | null = null;
+
+    try {
+      // For each cart item, validate and get fresh data
+      for (const item of cart.items) {
+        if (item.type === 'membership') {
+          console.log('🔍 Processing membership cart item:', {
+            productId: item.productId,
+            metadata: item.metadata
+          });
+
+          // Validate membership tier exists and get fresh data
+          const product = await ProductService.getMembershipTier(item.productId);
+          if (!product) {
+            console.error('❌ Product not found:', item.productId);
+            throw new Error('Invalid product in cart');
+          }
+
+          // Validate group user exists and belongs to user
+          if (!item.metadata?.groupUserId) {
+            console.error('❌ No group user ID in cart metadata');
+            throw new Error('Invalid cart data');
+          }
+
+          const { data: groupUser, error: groupUserError } = await supabase
+            .from('group_users')
+            .select('id')
+            .eq('id', item.metadata.groupUserId)
+            .eq('user_id', userId)
+            .single();
+
+          if (groupUserError || !groupUser) {
+            console.error('❌ Invalid group user:', groupUserError || 'Not found');
+            throw new Error('Invalid group user');
+          }
+
+          // Validate application exists and belongs to group user
+          if (!item.metadata?.applicationId) {
+            console.error('❌ No application ID in cart metadata');
+            throw new Error('Invalid cart data');
+          }
+
+          console.log('🔍 Validating application:', {
+            applicationId: item.metadata.applicationId,
+            groupUserId: item.metadata.groupUserId
+          });
+
+          const { data: application, error: appError } = await supabase
+            .from('applications')
+            .select('id, status')
+            .eq('id', item.metadata.applicationId)
+            .eq('group_user_id', item.metadata.groupUserId)
+            .single();
+
+          if (appError || !application) {
+            console.error('❌ Invalid application:', appError || 'Not found');
+            throw new Error('Invalid application');
+          }
+
+          console.log('✅ Application validated:', {
+            id: application.id,
+            status: application.status,
+            metadata: item.metadata
+          });
+
+          if (application.status !== 'pending') {
+            console.error('❌ Application not in pending status:', application.status);
+            throw new Error('Application already processed');
+          }
+
+          // Create order with validated data
+          console.log('✅ Creating membership order with validated data:', {
+            userId,
+            productId: product.id,
+            groupUserId: groupUser.id,
+            applicationId: application.id
+          });
+
+          createdOrder = await this.createMembershipOrder(
+            userId,
+            product.id,
+            groupUser.id,
+            application.id
+          );
+
+          return createdOrder;
         }
-
-        // Validate group user exists and belongs to user
-        if (!item.metadata?.groupUserId) {
-          console.error('❌ No group user ID in cart metadata');
-          throw new Error('Invalid cart data');
-        }
-
-        const { data: groupUser, error: groupUserError } = await supabase
-          .from('group_users')
-          .select('id')
-          .eq('id', item.metadata.groupUserId)
-          .eq('user_id', userId)
-          .single();
-
-        if (groupUserError || !groupUser) {
-          console.error('❌ Invalid group user:', groupUserError || 'Not found');
-          throw new Error('Invalid group user');
-        }
-
-        // Validate application exists and belongs to group user
-        if (!item.metadata?.applicationId) {
-          console.error('❌ No application ID in cart metadata');
-          throw new Error('Invalid cart data');
-        }
-
-        const { data: application, error: appError } = await supabase
-          .from('applications')
-          .select('id, status')
-          .eq('id', item.metadata.applicationId)
-          .eq('group_user_id', item.metadata.groupUserId)
-          .single();
-
-        if (appError || !application) {
-          console.error('❌ Invalid application:', appError || 'Not found');
-          throw new Error('Invalid application');
-        }
-
-        if (application.status !== 'pending') {
-          console.error('❌ Application not in pending status:', application.status);
-          throw new Error('Application already processed');
-        }
-
-        // Create order with validated data
-        console.log('✅ Creating membership order with validated data');
-        return await this.createMembershipOrder(
-          userId,
-          product.id,
-          groupUser.id,
-          application.id
-        );
+        // Handle other product types here...
       }
-      // Handle other product types here...
-    }
 
-    throw new Error('No valid items in cart');
+      throw new Error('No valid items in cart');
+      
+    } catch (error) {
+      console.error('❌ Error during order creation from cart:', error);
+      
+      // If order was created but something else failed, try to rollback
+      if (createdOrder?.id) {
+        console.log('🔄 Rolling back - deleting order:', createdOrder.id);
+        const { error: deleteError } = await supabase
+          .from('orders')
+          .delete()
+          .eq('id', createdOrder.id);
+          
+        if (deleteError) {
+          console.error('❌ Failed to rollback order:', deleteError);
+        } else {
+          console.log('✅ Successfully rolled back order');
+        }
+      }
+      
+      throw error;
+    }
   }
 } 

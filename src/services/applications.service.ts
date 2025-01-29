@@ -220,7 +220,7 @@ export async function createMembershipApplication(
   // Get the user_id from group_users
   const { data: groupUser, error: groupUserError } = await supabase
     .from('group_users')
-    .select('user_id')
+    .select('user_id, group_id')
     .eq('id', groupUserId)
     .single();
 
@@ -249,40 +249,27 @@ export async function createMembershipApplication(
   const { data, error } = await supabase
     .from('applications')
     .insert({
-      type: 'membership',
-      status: initialStatus,
       group_user_id: groupUserId,
-      tier_id: productId
+      tier_id: productId,
+      status: initialStatus
     })
     .select()
     .single();
 
   if (error) throw error;
+  if (!data) throw new Error('Failed to create application');
 
-  // If payment is required, create an order
-  if (product.price > 0 && product.membership_tier.activation_type === 'payment_required') {
-    const order = await OrderService.createMembershipOrder(
-      groupUser.user_id,
-      productId,
-      groupUserId
-    );
-
-    // Link the order to the application
-    await supabase
-      .from('applications')
-      .update({ order_id: order.id })
-      .eq('id', data.id);
-  }
-
-  // Fetch the created application with all details
-  const { data: application, error: fetchError } = await supabase
+  // Fetch the full application details
+  const { data: fullApplication, error: fetchError } = await supabase
     .from('membership_applications_view')
     .select()
     .eq('id', data.id)
     .single();
 
   if (fetchError) throw fetchError;
-  return mapViewToApplication(application as ApplicationView);
+  if (!fullApplication) throw new Error('Failed to fetch application details');
+
+  return mapViewToApplication(fullApplication as ApplicationView);
 }
 
 export async function getUserMembershipApplications(userId: string, groupId: string): Promise<Application[]> {
