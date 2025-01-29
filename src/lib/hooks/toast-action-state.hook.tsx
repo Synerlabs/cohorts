@@ -1,4 +1,4 @@
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { toast } from "@/components/ui/use-toast";
 import { startTransition, useEffect, useRef } from "react";
 
@@ -13,7 +13,7 @@ export default function useToastActionState(
   permalink?: string,
   options?: ToastOptions,
 ) {
-  const [state, formAction] = useFormState(action, initialState);
+  const [state, formAction] = useActionState(action, initialState);
 
   const previousState = useRef(state);
 
