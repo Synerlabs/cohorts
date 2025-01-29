@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { DataTableColumnHeader } from "./components/data-table-column-header"
+import { useRouter } from "next/navigation"
 
 // This type is used to define the shape of our data.
 export type Order = {
@@ -112,14 +113,16 @@ export const columns: ColumnDef<Order>[] = [
   },
   {
     id: "actions",
-    cell: ({ row }) => {
+    cell: ({ row, table }) => {
       const order = row.original
+      const router = useRouter()
 
       return (
         <Button
           variant="ghost"
           onClick={() => {
-            // Handle view details
+            const params = new URLSearchParams(window.location.search)
+            router.push(`${window.location.pathname}/${order.id}?${params.toString()}`)
           }}
         >
           View Details
