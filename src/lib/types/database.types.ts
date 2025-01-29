@@ -83,14 +83,14 @@ export type Database = {
             foreignKeyName: "applications_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
-            referencedRelation: "membership_applications_view"
-            referencedColumns: ["order_id"]
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "applications_order_id_fkey"
-            columns: ["order_id"]
+            foreignKeyName: "applications_tier_id_fkey"
+            columns: ["tier_id"]
             isOneToOne: false
-            referencedRelation: "orders"
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
         ]
@@ -214,6 +214,29 @@ export type Database = {
           },
         ]
       }
+      manual_payments: {
+        Row: {
+          notes: string | null
+          payment_id: string
+        }
+        Insert: {
+          notes?: string | null
+          payment_id: string
+        }
+        Update: {
+          notes?: string | null
+          payment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_payments_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_ids: {
         Row: {
           created_at: string
@@ -276,20 +299,26 @@ export type Database = {
         Row: {
           end_date: string | null
           group_user_id: string
+          metadata: Json | null
           order_id: string
           start_date: string | null
+          status: string
         }
         Insert: {
           end_date?: string | null
           group_user_id: string
+          metadata?: Json | null
           order_id: string
           start_date?: string | null
+          status?: string
         }
         Update: {
           end_date?: string | null
           group_user_id?: string
+          metadata?: Json | null
           order_id?: string
           start_date?: string | null
+          status?: string
         }
         Relationships: [
           {
@@ -298,13 +327,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "group_users"
             referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "memberships_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: true
-            referencedRelation: "membership_applications_view"
-            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "memberships_order_id_fkey"
@@ -321,8 +343,8 @@ export type Database = {
           completed_at: string | null
           created_at: string
           currency: string
+          group_id: string | null
           id: string
-          product_id: string
           status: string
           type: string
           updated_at: string
@@ -333,8 +355,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           currency: string
+          group_id?: string | null
           id?: string
-          product_id: string
           status: string
           type: string
           updated_at?: string
@@ -345,8 +367,8 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           currency?: string
+          group_id?: string | null
           id?: string
-          product_id?: string
           status?: string
           type?: string
           updated_at?: string
@@ -354,10 +376,135 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "orders_product_id_fkey"
-            columns: ["product_id"]
+            foreignKeyName: "orders_group_id_fkey"
+            columns: ["group_id"]
             isOneToOne: false
-            referencedRelation: "products"
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_storage_settings: {
+        Row: {
+          created_at: string
+          credentials: Json
+          id: string
+          org_id: string
+          provider_type: Database["public"]["Enums"]["storage_provider_type"]
+          settings: Json
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials?: Json
+          id?: string
+          org_id: string
+          provider_type?: Database["public"]["Enums"]["storage_provider_type"]
+          settings?: Json
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials?: Json
+          id?: string
+          org_id?: string
+          provider_type?: Database["public"]["Enums"]["storage_provider_type"]
+          settings?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_storage_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payment_uploads: {
+        Row: {
+          created_at: string | null
+          payment_id: string
+          upload_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          payment_id: string
+          upload_id: string
+        }
+        Update: {
+          created_at?: string | null
+          payment_id?: string
+          upload_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_uploads_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_uploads_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          group_id: string | null
+          id: string
+          order_id: string
+          status: Database["public"]["Enums"]["payment_status"]
+          type: Database["public"]["Enums"]["payment_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency: string
+          group_id?: string | null
+          id?: string
+          order_id: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          type: Database["public"]["Enums"]["payment_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          group_id?: string | null
+          id?: string
+          order_id?: string
+          status?: Database["public"]["Enums"]["payment_status"]
+          type?: Database["public"]["Enums"]["payment_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -436,6 +583,219 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_connected_accounts: {
+        Row: {
+          account_id: string | null
+          account_status:
+            | Database["public"]["Enums"]["stripe_account_status"]
+            | null
+          country: string
+          created_at: string | null
+          id: string
+          is_test_mode: boolean | null
+          org_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          account_status?:
+            | Database["public"]["Enums"]["stripe_account_status"]
+            | null
+          country: string
+          created_at?: string | null
+          id?: string
+          is_test_mode?: boolean | null
+          org_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          account_status?:
+            | Database["public"]["Enums"]["stripe_account_status"]
+            | null
+          country?: string
+          created_at?: string | null
+          id?: string
+          is_test_mode?: boolean | null
+          org_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_connected_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stripe_payments: {
+        Row: {
+          payment_id: string
+          stripe_payment_intent_id: string | null
+          stripe_payment_method: string | null
+          stripe_status: string | null
+        }
+        Insert: {
+          payment_id: string
+          stripe_payment_intent_id?: string | null
+          stripe_payment_method?: string | null
+          stripe_status?: string | null
+        }
+        Update: {
+          payment_id?: string
+          stripe_payment_intent_id?: string | null
+          stripe_payment_method?: string | null
+          stripe_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_payments_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stripe_settings: {
+        Row: {
+          account_id: string | null
+          created_at: string
+          id: string
+          is_test_mode: boolean | null
+          org_id: string
+          refresh_url: string | null
+          return_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          created_at?: string
+          id?: string
+          is_test_mode?: boolean | null
+          org_id: string
+          refresh_url?: string | null
+          return_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          created_at?: string
+          id?: string
+          is_test_mode?: boolean | null
+          org_id?: string
+          refresh_url?: string | null
+          return_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_settings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      suborders: {
+        Row: {
+          id: string;
+          order_id: string;
+          status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+          product_id: string;
+          amount: number;
+          currency: string;
+          metadata: Json | null;
+          created_at: string;
+          updated_at: string;
+          completed_at: string | null;
+          failed_at: string | null;
+          cancelled_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          order_id: string;
+          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+          product_id: string;
+          amount: number;
+          currency: string;
+          metadata?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+          failed_at?: string | null;
+          cancelled_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          order_id?: string;
+          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
+          product_id?: string;
+          amount?: number;
+          currency?: string;
+          metadata?: Json | null;
+          created_at?: string;
+          updated_at?: string;
+          completed_at?: string | null;
+          failed_at?: string | null;
+          cancelled_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "suborders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "suborders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          }
+        ];
+      }
+      uploads: {
+        Row: {
+          created_at: string | null
+          file_id: string | null
+          file_url: string
+          id: string
+          module: string
+          original_filename: string
+          storage_path: string
+          storage_provider: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          file_id?: string | null
+          file_url: string
+          id?: string
+          module: string
+          original_filename: string
+          storage_path: string
+          storage_provider: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          file_id?: string | null
+          file_url?: string
+          id?: string
+          module?: string
+          original_filename?: string
+          storage_path?: string
+          storage_provider?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -476,25 +836,22 @@ export type Database = {
       membership_applications_view: {
         Row: {
           activation_type: string | null
-          amount: number | null
-          application_id: string | null
-          application_status: string | null
           approved_at: string | null
-          currency: string | null
           duration_months: number | null
-          end_date: string | null
           group_id: string | null
+          group_name: string | null
+          group_slug: string | null
           group_user_id: string | null
+          id: string | null
+          order_data: Json | null
           order_id: string | null
-          order_status: string | null
-          payment_completed_at: string | null
           product_currency: string | null
-          product_description: string | null
+          product_data: Json | null
           product_id: string | null
           product_name: string | null
           product_price: number | null
           rejected_at: string | null
-          start_date: string | null
+          status: string | null
           submitted_at: string | null
           type: string | null
           updated_at: string | null
@@ -507,6 +864,20 @@ export type Database = {
             columns: ["group_user_id"]
             isOneToOne: false
             referencedRelation: "group_users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_tier_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
             referencedColumns: ["id"]
           },
           {
@@ -532,6 +903,7 @@ export type Database = {
           p_application_id: string
           p_new_status: string
           p_should_activate: boolean
+          p_approved_at: string
         }
         Returns: undefined
       }
@@ -558,9 +930,22 @@ export type Database = {
       reject_application: {
         Args: {
           p_application_id: string
+          p_rejected_at: string
         }
         Returns: undefined
       }
+      begin_transaction: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      commit_transaction: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
+      rollback_transaction: {
+        Args: Record<string, never>;
+        Returns: undefined;
+      };
     }
     Enums: {
       app_permission:
@@ -569,11 +954,22 @@ export type Database = {
         | "group.members.invite"
         | "group.members.approve"
       group_role_type: "GUEST" | "MEMBER"
+      manual_payment_status: "pending" | "approved" | "rejected"
       membership_activation_type:
         | "automatic"
         | "review_required"
         | "payment_required"
         | "review_then_payment"
+      payment_status: "pending" | "paid" | "rejected"
+      payment_type: "manual" | "stripe"
+      storage_provider_type: "google-drive" | "blob-storage"
+      stripe_account_status: "pending" | "active" | "disconnected"
+      suborder_status:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never

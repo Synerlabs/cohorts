@@ -1,6 +1,14 @@
-import { Suborder, SuborderFactory, ISuborderData, SuborderError } from '@/lib/types/suborder';
+import { 
+  Suborder, 
+  SuborderFactory, 
+  ISuborderData, 
+  SuborderError, 
+  SuborderStatus, 
+  ISuborder, 
+  IMembershipSuborder, 
+  isMembershipSuborder 
+} from '@/lib/types/suborder';
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
-import { ISuborder, IMembershipSuborder, SuborderStatus, isMembershipSuborder } from "@/lib/types/suborder";
 
 export class SuborderService {
   static async getSubordersForOrder(orderId: string): Promise<Suborder[]> {

@@ -1,8 +1,28 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/lib/database.types';
+import { Database } from '@/lib/types/database.types';
 
 export type SuborderStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
 export type SuborderType = 'membership' | 'product' | 'event' | 'promotion';
+
+export interface ISuborder extends ISuborderData {
+  metadata: Record<string, any>;
+}
+
+export interface IMembershipSuborder extends ISuborder {
+  metadata: {
+    application_id: string;
+    group_user_id?: string;
+    start_date?: string;
+    end_date?: string;
+  };
+}
+
+export function isMembershipSuborder(
+  suborder: ISuborder,
+  product: { type: string }
+): suborder is IMembershipSuborder {
+  return product.type === 'membership';
+}
 
 export class SuborderError extends Error {
   constructor(message: string, public code: string, public details?: any) {
