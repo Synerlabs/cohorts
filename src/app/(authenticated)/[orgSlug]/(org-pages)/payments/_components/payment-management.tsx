@@ -32,6 +32,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Payment as PaymentType } from "@/services/payment/types";
+import Link from "next/link";
+import { format, parseISO } from "date-fns";
 
 interface FilePreviewProps {
   file: {
@@ -63,27 +65,11 @@ function FilePreview({ file }: FilePreviewProps) {
   );
 }
 
-export type Payment = PaymentType & {
-  order?: {
-    id: string;
-    amount: number;
-    currency: string;
-    status: string;
-    product: {
-      id: string;
-      name: string;
-      description?: string;
-      price: number;
-      currency: string;
-      type: string;
-    };
-  };
-};
-
 export interface PaymentManagementProps {
   orgId: string;
+  orgSlug: string;
   userId: string;
-  initialPayments: Payment[];
+  initialPayments: PaymentType[];
   pagination?: {
     page: number;
     pageSize: number;
@@ -128,9 +114,32 @@ function PaginationControls({ pagination, onPageChange }: {
   );
 }
 
+// Format currency consistently
+function formatCurrency(amount: number, currency: string) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+  }).format(amount / 100);
+}
+
+// Format date from PostgreSQL timestamp or ISO string
+function formatPaymentDate(date: string) {
+  try {
+    // Handle PostgreSQL timestamp format
+    const dateStr = date.includes('+') 
+      ? date.split('+')[0].trim() // PostgreSQL format
+      : date; // ISO format
+    return format(new Date(dateStr), "MMM d, yyyy 'at' HH:mm 'UTC'");
+  } catch (error) {
+    console.error('Error formatting date:', error, date);
+    return date; // Return original if parsing fails
+  }
+}
+
 export function PaymentManagement({ 
-  orgId, 
-  userId, 
+  orgId,
+  orgSlug,
+  userId,
   initialPayments,
   pagination,
   sorting,
@@ -141,15 +150,21 @@ export function PaymentManagement({
   const searchParams = useSearchParams();
   const reviewPaymentId = searchParams.get('reviewPaymentId');
   const { toast } = useToast();
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentType | null>(null);
   const [notes, setNotes] = useState('');
   const [searchQuery, setSearchQuery] = useState(search || '');
   const [state, approveAction, approvePending] = useToastActionState(approvePaymentAction);
   const [, rejectAction, rejectPending] = useToastActionState(rejectPaymentAction);
-  const [paymentToDelete, setPaymentToDelete] = useState<Payment | null>(null);
+  const [paymentToDelete, setPaymentToDelete] = useState<PaymentType | null>(null);
   const [, deleteAction] = useToastActionState(deletePaymentAction);
   const [sortBy, setSortBy] = useState(sorting?.sortBy || 'createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(sorting?.sortOrder || 'desc');
+  const [deleteFiles, setDeleteFiles] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (reviewPaymentId) {
@@ -163,7 +178,7 @@ export function PaymentManagement({
     }
   }, [reviewPaymentId, initialPayments]);
 
-  const handleOpenReview = (payment: Payment) => {
+  const handleOpenReview = (payment: PaymentType) => {
     const params = new URLSearchParams(searchParams);
     params.set('reviewPaymentId', payment.id);
     router.push(`${pathname}?${params.toString()}`);
@@ -176,17 +191,17 @@ export function PaymentManagement({
     setNotes('');
   };
 
-  const handleApprove = async (payment: Payment) => {
-    await approveAction({ success: false }, {
-      paymentId: payment.id,
-      orgId,
-      notes,
-    });
+  const handleApprove = async (payment: PaymentType) => {
+    const formData = new FormData();
+    formData.append('paymentId', payment.id);
+    formData.append('orgId', orgId);
+    formData.append('notes', notes);
+    await approveAction(formData);
     handleCloseReview();
     router.refresh();
   };
 
-  const handleReject = async (payment: Payment) => {
+  const handleReject = async (payment: PaymentType) => {
     if (!notes) {
       toast({
         title: "Notes Required",
@@ -196,11 +211,11 @@ export function PaymentManagement({
       return;
     }
 
-    await rejectAction({ success: false }, {
-      paymentId: payment.id,
-      orgId,
-      notes,
-    });
+    const formData = new FormData();
+    formData.append('paymentId', payment.id);
+    formData.append('orgId', orgId);
+    formData.append('notes', notes);
+    await rejectAction(formData);
     handleCloseReview();
     router.refresh();
   };
@@ -223,12 +238,16 @@ export function PaymentManagement({
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const handleDelete = async (payment: Payment) => {
-    await deleteAction({ success: false }, {
-      paymentId: payment.id,
-      orgId,
-    });
+  const handleDelete = async (payment: PaymentType) => {
+    const formData = new FormData();
+    formData.append('paymentId', payment.id);
+    formData.append('orgId', orgId);
+    if (payment.type === 'manual') {
+      formData.append('deleteFiles', String(deleteFiles));
+    }
+    await deleteAction(formData);
     setPaymentToDelete(null);
+    setDeleteFiles(true);
     router.refresh();
   };
 
@@ -322,57 +341,44 @@ export function PaymentManagement({
               </TableRow>
             ) : (
               initialPayments.map((payment) => (
-                <TableRow key={payment.id} className="group">
-                  <TableCell className="font-medium">
-                    {new Date(payment.createdAt).toLocaleDateString(undefined, {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="capitalize">{payment.type}</span>
-                      {payment.order?.product && (
-                        <span className="text-sm text-muted-foreground">
-                          {payment.order.product.name} - {(payment.order.product.price / 100).toLocaleString(undefined, {
-                            style: 'currency',
-                            currency: payment.order.product.currency || payment.currency
-                          })}
-                        </span>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium tabular-nums">
-                    {(payment.amount / 100).toLocaleString(undefined, {
-                      style: 'currency',
-                      currency: payment.currency
-                    })}
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      payment.status === 'paid' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
-                      payment.status === 'rejected' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' :
-                      'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20'
-                    }`}>
-                      {payment.status}
-                    </span>
-                  </TableCell>
+                <TableRow key={payment.id} className="group hover:bg-muted/50">
+                  <Link
+                    href={`/@${orgSlug}/payments/${payment.id}`}
+                    className="contents"
+                  >
+                    <TableCell className="font-medium">
+                      {formatPaymentDate(payment.createdAt || payment.created_at)}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="capitalize">{payment.type}</span>
+                        {payment.order?.product && (
+                          <span className="text-sm text-muted-foreground">
+                            {payment.order.product.name} - {formatCurrency(
+                              payment.order.product.price,
+                              payment.order.product.currency || payment.currency
+                            )}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium tabular-nums">
+                      {formatCurrency(payment.amount, payment.currency)}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        payment.status === 'paid' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
+                        payment.status === 'rejected' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' :
+                        'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20'
+                      }`}>
+                        {payment.status}
+                      </span>
+                    </TableCell>
+                  </Link>
                   <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-2">
+                    <div className="flex justify-end gap-2">
                       {payment.status === 'pending' ? (
                         <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenReview(payment)}
-                            className="h-8 w-8 p-0"
-                          >
-                            <Eye className="h-4 w-4" />
-                            <span className="sr-only">Review</span>
-                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -393,17 +399,7 @@ export function PaymentManagement({
                             <span className="sr-only">Reject</span>
                           </Button>
                         </>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleOpenReview(payment)}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Eye className="h-4 w-4" />
-                          <span className="sr-only">View</span>
-                        </Button>
-                      )}
+                      ) : null}
                       <Button
                         variant="ghost"
                         size="sm"
@@ -442,10 +438,7 @@ export function PaymentManagement({
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Amount</label>
                   <div className="mt-1 text-lg font-semibold">
-                    {(selectedPayment.amount / 100).toLocaleString(undefined, {
-                      style: 'currency',
-                      currency: selectedPayment.currency
-                    })}
+                    {formatCurrency(selectedPayment.amount, selectedPayment.currency)}
                   </div>
                 </div>
                 <div>
@@ -468,10 +461,7 @@ export function PaymentManagement({
                   <div className="space-y-1">
                     <div className="font-medium">{selectedPayment.order.product.name}</div>
                     <div className="text-sm text-gray-500">
-                      {(selectedPayment.order.product.price / 100).toLocaleString(undefined, {
-                        style: 'currency',
-                        currency: selectedPayment.order.product.currency || selectedPayment.currency
-                      })}
+                      {formatCurrency(selectedPayment.order.product.price, selectedPayment.order.product.currency || selectedPayment.currency)}
                     </div>
                     {selectedPayment.order.product.description && (
                       <div className="text-sm text-gray-500">

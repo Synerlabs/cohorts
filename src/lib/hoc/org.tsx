@@ -36,12 +36,10 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     // Check org exists first
     if (!AuthServerContext.org) {
       const { orgSlug } = params;
-      console.log("ORG SLUG", orgSlug);
       const slug = decodeURIComponent(orgSlug).replace(/^@/, "");
-      console.log("GETTING ORG BY SLUG", slug);
       const response = await getCachedOrgBySlug(slug);
       if (response.error || !response.data) {
-        console.log(`withOrgAccess - not found`, response);
+        console.error(`withOrgAccess - not found`, response);
         return notFound();
       }
       AuthServerContext.org = response.data;
