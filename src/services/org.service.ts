@@ -17,7 +17,6 @@ export async function getOrgs() {
 }
 
 export async function getOrgBySlug(slug: string) {
-  console.log("GETTING ORG BY SLUG", slug);
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("group")

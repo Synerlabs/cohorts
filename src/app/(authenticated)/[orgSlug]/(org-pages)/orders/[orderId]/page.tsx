@@ -3,11 +3,39 @@ import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { notFound } from "next/navigation";
 import { OrderDetails } from "./_components/order-details";
 import { SubordersTable } from "./_components/suborders-table";
+import { PaymentsTable } from "./_components/payments-table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface OrderDetailsPageProps extends OrgAccessHOCProps {
   params: {
     orderId: string;
+    slug: string;
   };
+}
+
+type OrderStatus = "completed" | "pending" | "processing" | "failed" | "cancelled";
+type PaymentStatus = "paid" | "pending" | "failed";
+
+interface Payment {
+  id: string
+  amount: number
+  currency: string
+  status: PaymentStatus
+  type: "stripe" | "manual" | "upload"
+  created_at: string
+}
+
+interface OrderData {
+  id: string
+  group_id: string
+  status: OrderStatus
+  type: string
+  amount: number
+  currency: string
+  created_at: string
+  completed_at: string | null
+  suborders: any[]
+  payments: Payment[]
 }
 
 async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
@@ -15,29 +43,43 @@ async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
     return <div>Not authenticated</div>;
   }
 
-  const { orderId } = params;
-
+  const orderId = params.orderId;
+  
   // Initialize supabase client
   const supabase = await createServiceRoleClient();
 
   // Fetch order details
-  const { data: order, error } = await supabase
+  const { data: orderData, error } = await supabase
     .from('orders')
     .select(`
       *,
       suborders(
         *,
         product:products(*)
+      ),
+      payments(
+        id,
+        amount,
+        currency,
+        status,
+        type,
+        created_at
       )
     `)
     .eq('id', orderId)
     .eq('group_id', org.id)
     .single();
 
-  if (error || !order) {
+  if (error || !orderData) {
     console.error('Error fetching order:', error);
     notFound();
   }
+
+  // Ensure payments is always an array
+  const order: OrderData = {
+    ...orderData,
+    payments: orderData.payments || []
+  };
 
   return (
     <div className="container mx-auto py-10 space-y-8">
@@ -50,10 +92,22 @@ async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
 
       <OrderDetails order={order} />
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Suborders</h2>
-        <SubordersTable suborders={order.suborders} />
-      </div>
+      <Tabs defaultValue="suborders" className="w-full">
+        <TabsList>
+          <TabsTrigger value="suborders">
+            Suborders ({order.suborders.length})
+          </TabsTrigger>
+          <TabsTrigger value="payments">
+            Payments ({order.payments.length})
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="suborders" className="mt-6">
+          <SubordersTable suborders={order.suborders} />
+        </TabsContent>
+        <TabsContent value="payments" className="mt-6">
+          <PaymentsTable payments={order.payments} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -10,28 +11,20 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
-interface Product {
+interface Payment {
   id: string
-  name: string
-  description: string | null
-  price: number
-  currency: string
-}
-
-interface Suborder {
-  id: string
-  order_id: string
-  product: Product
-  status: "completed" | "pending" | "processing" | "failed" | "cancelled"
   amount: number
   currency: string
+  status: "paid" | "pending" | "failed"
+  type: "stripe" | "manual" | "upload"
+  created_at: string
 }
 
-interface SubordersTableProps {
-  suborders: Suborder[]
+interface PaymentsTableProps {
+  payments: Payment[]
 }
 
-export function SubordersTable({ suborders }: SubordersTableProps) {
+export function PaymentsTable({ payments }: PaymentsTableProps) {
   const formatCurrency = (amount: number, currency: string) => {
     return new Intl.NumberFormat("en-US", {
       style: "currency",
@@ -45,43 +38,42 @@ export function SubordersTable({ suborders }: SubordersTableProps) {
         <TableHeader>
           <TableRow>
             <TableHead>ID</TableHead>
-            <TableHead>Product</TableHead>
+            <TableHead>Type</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Amount</TableHead>
+            <TableHead>Created</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {suborders.map((suborder) => (
-            <TableRow key={suborder.id}>
+          {payments.map((payment) => (
+            <TableRow key={payment.id}>
               <TableCell className="font-mono text-xs">
-                {suborder.id}
+                {payment.id}
               </TableCell>
               <TableCell>
-                <div>
-                  <p className="font-medium">{suborder.product.name}</p>
-                  {suborder.product.description && (
-                    <p className="text-sm text-muted-foreground">
-                      {suborder.product.description}
-                    </p>
-                  )}
-                </div>
+                <Badge variant="outline" className="capitalize">
+                  {payment.type}
+                </Badge>
               </TableCell>
               <TableCell>
                 <Badge 
                   variant={
-                    suborder.status === "completed"
+                    payment.status === "paid"
                       ? "default"
-                      : suborder.status === "failed"
+                      : payment.status === "failed"
                       ? "destructive"
                       : "outline"
                   }
                   className="capitalize"
                 >
-                  {suborder.status}
+                  {payment.status}
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
-                {formatCurrency(suborder.amount, suborder.currency)}
+                {formatCurrency(payment.amount, payment.currency)}
+              </TableCell>
+              <TableCell>
+                {format(new Date(payment.created_at), "MMM d, yyyy HH:mm")}
               </TableCell>
             </TableRow>
           ))}
