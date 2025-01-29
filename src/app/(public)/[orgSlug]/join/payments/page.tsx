@@ -50,9 +50,10 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
 
   const serviceClient = await createServiceRoleClient();
   let order;
-  const applicationId = searchParams?.applicationId;
-  const orderId = searchParams?.orderId;
-  const method = searchParams?.method || 'manual';
+  const _searchParams = await searchParams;
+  const applicationId = _searchParams?.applicationId;
+  const orderId = _searchParams?.orderId;
+  const method = _searchParams?.method || 'manual';
 
   if (!orderId && !applicationId) {
     return <ErrorDisplay 

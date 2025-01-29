@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
-  const _searchParams = searchParams || {};
+  const _searchParams = await searchParams || {};
   const members = await getOrgMembers({ id: org.id });
   const tab = (_searchParams?.tab || "members") as string;
 

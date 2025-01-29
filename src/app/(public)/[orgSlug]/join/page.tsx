@@ -24,6 +24,7 @@ async function getMembershipData(orgId: string): Promise<IMembershipTierProduct[
 }
 
 async function JoinPage({ org, params }: OrgAccessHOCProps) {
+  const _params = await params;
   const { data, error } = await getCurrentUser();
   const memberships = await getMembershipData(org.id);
 

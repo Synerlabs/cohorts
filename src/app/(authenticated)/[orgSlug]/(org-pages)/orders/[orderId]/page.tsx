@@ -43,7 +43,7 @@ async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
     return <div>Not authenticated</div>;
   }
 
-  const orderId = params.orderId;
+  const { orderId } = await params;
   
   // Initialize supabase client
   const supabase = await createServiceRoleClient();

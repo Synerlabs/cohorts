@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 async function ApplicationsPage({ org, searchParams, userPermissions }: OrgAccessHOCProps) {
-  const _searchParams = searchParams || {};
+  const _searchParams = await searchParams || {};
   const tab = (_searchParams?.tab || "pending") as string;
 
   let applications;
