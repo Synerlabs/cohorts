@@ -5,6 +5,8 @@ import { z } from "zod";
 import snakecaseKeys from "snakecase-keys";
 import { ProductService } from "@/services/product.service";
 import { IMembershipTierProduct } from "@/lib/types/product";
+import { MembershipService } from "@/services/membership.service";
+import { MembershipStatus } from "@/lib/types/membership";
 
 const membershipTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -27,6 +29,12 @@ type PrevState = {
   issues?: any[];
   fields?: any[];
 } | null;
+
+type GroupUserWithGroup = {
+  group: {
+    slug: string;
+  };
+};
 
 export async function getMembershipTiersAction(
   orgId: string,
@@ -258,6 +266,106 @@ export async function deleteMembershipTierAction(
     return {
       success: false,
       error: error.message || "An error occurred while deleting the membership tier"
+    };
+  }
+}
+
+// Add new membership status management actions
+export async function updateMembershipStatusAction(
+  prevState: PrevState,
+  formData: FormData
+) {
+  const membershipId = formData.get('membershipId');
+  const status = formData.get('status');
+
+  if (!membershipId || typeof membershipId !== 'string') {
+    return {
+      success: false,
+      error: "Invalid membership ID"
+    };
+  }
+
+  if (!status || typeof status !== 'string' || !Object.values(MembershipStatus).includes(status as MembershipStatus)) {
+    return {
+      success: false,
+      error: "Invalid membership status"
+    };
+  }
+
+  try {
+    const membership = await MembershipService.updateMembershipStatus(
+      membershipId,
+      status as MembershipStatus
+    );
+
+    // Get org slug for revalidation
+    const supabase = await createClient();
+    const { data: groupUser } = await supabase
+      .from("group_users")
+      .select("group:groups!inner(slug)")
+      .eq("id", membership.group_user_id)
+      .single() as { data: GroupUserWithGroup | null };
+
+    if (groupUser?.group?.slug) {
+      revalidatePath(`/@${groupUser.group.slug}/membership`);
+    }
+
+    return {
+      success: true,
+      data: membership
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || "Failed to update membership status"
+    };
+  }
+}
+
+export async function updateMembershipDatesAction(
+  prevState: PrevState,
+  formData: FormData
+) {
+  const membershipId = formData.get('membershipId');
+  const startDate = formData.get('startDate');
+  const endDate = formData.get('endDate');
+
+  if (!membershipId || typeof membershipId !== 'string') {
+    return {
+      success: false,
+      error: "Invalid membership ID"
+    };
+  }
+
+  try {
+    const membership = await MembershipService.updateMembershipDates(
+      membershipId,
+      {
+        start_date: startDate?.toString() || undefined,
+        end_date: endDate?.toString() || undefined
+      }
+    );
+
+    // Get org slug for revalidation
+    const supabase = await createClient();
+    const { data: groupUser } = await supabase
+      .from("group_users")
+      .select("group:groups!inner(slug)")
+      .eq("id", membership.group_user_id)
+      .single() as { data: GroupUserWithGroup | null };
+
+    if (groupUser?.group?.slug) {
+      revalidatePath(`/@${groupUser.group.slug}/membership`);
+    }
+
+    return {
+      success: true,
+      data: membership
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error.message || "Failed to update membership dates"
     };
   }
 }

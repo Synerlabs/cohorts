@@ -113,13 +113,23 @@ export function PaymentForm({ order, orgId, defaultMethod = 'manual' }: PaymentF
                 <Button 
                   className="w-full" 
                   size="lg"
-                  onClick={async () => {
+                  type="button"
+                  onClick={async (e) => {
+                    e.preventDefault();
                     const secret = await createStripePaymentIntent(
                       order.id,
                       order.amount,
                       order.currency
                     );
-                    setClientSecret(secret);
+                    if (secret) {
+                      setClientSecret(secret);
+                    } else {
+                      toast({
+                        variant: 'destructive',
+                        title: 'Error',
+                        description: 'Failed to create payment intent. Please try again.'
+                      });
+                    }
                   }}
                 >
                   <CreditCard className="mr-2 h-4 w-4" />

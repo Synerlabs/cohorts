@@ -308,8 +308,8 @@ export class ManualPaymentService implements PaymentService {
     // Update payment status to paid
     const updatedPayment = await this.updatePayment(id, { status: 'paid', notes });
 
-    // Update order status to paid
-    await OrderService.updateOrderStatus(payment.order_id, 'paid', new Date().toISOString());
+    // Update order status based on all payments
+    await OrderService.updateOrderStatusFromPayments(payment.order_id);
 
     return updatedPayment;
   }

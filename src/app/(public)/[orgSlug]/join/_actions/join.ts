@@ -1,108 +1,103 @@
 'use server';
 
-import { createClient } from "@/lib/utils/supabase/server";
-import { ProductService } from "@/services/product.service";
-import { createMembershipApplication } from "@/services/applications.service";
 import { revalidatePath } from "next/cache";
+import { OrderService } from "@/services/order.service";
+import { addItem } from "@/lib/utils/cart";
+import { ProductService } from "@/services/product.service";
+import { createGroupUser } from "@/services/join.service";
+import { createMembershipApplication } from "@/services/applications.service";
+import { createClient } from "@/lib/utils/supabase/server";
 
 type State = {
   message?: string;
-  error?: string;
-  success: boolean;
+  errors?: {
+    [key: string]: string[];
+  };
+  redirect?: string;
 };
 
-export async function joinOrgWithMembership(
-  prevState: State | null,
-  formData: FormData
-): Promise<State> {
+export async function join(prevState: State, formData: FormData): Promise<State> {
   try {
     const groupId = formData.get('groupId') as string;
+    const membershipTierId = formData.get('membershipTierId') as string;
     const userId = formData.get('userId') as string;
-    const productId = formData.get('membershipId') as string;
 
-    if (!groupId || !userId || !productId) {
+    if (!groupId || !membershipTierId || !userId) {
       return {
-        success: false,
-        error: 'Missing required fields'
+        errors: {
+          form: ['Missing required fields']
+        }
       };
     }
+
+    // Get membership tier
+    const membershipTier = await ProductService.getMembershipTier(membershipTierId);
+    if (!membershipTier) {
+      return {
+        errors: {
+          form: ['Invalid membership tier']
+        }
+      };
+    }
+
+    // Create group user if not exists
+    const groupUser = await createGroupUser(groupId, userId);
+    if (!groupUser) {
+      return {
+        errors: {
+          form: ['Failed to create group user']
+        }
+      };
+    }
+
+    // Create application
+    const application = await createMembershipApplication(groupUser.id, membershipTierId);
+
+    // Add to cart
+    await addItem({
+      productId: membershipTierId,
+      type: 'membership',
+      metadata: {
+        groupId,
+        groupUserId: groupUser.id,
+        applicationId: application.id
+      }
+    });
 
     const supabase = await createClient();
 
-    // First get the existing group_user record
-    const { data: groupUser, error: groupUserError } = await supabase
-      .from('group_users')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('group_id', groupId)
-      .single();
-
-    if (groupUserError && groupUserError.code !== 'PGRST116') {
-      throw groupUserError;
-    }
-
-    // Get and validate membership tier product
-    const product = await ProductService.getMembershipTier(productId);
-    if (!product) {
-      return {
-        success: false,
-        error: 'Membership tier not found'
-      };
-    }
-
-    // Determine initial active state
-    const isInitiallyActive = product.price === 0 && 
-      product.membership_tier.activation_type === 'automatic';
-
-    // Get org for revalidation
+    // Get org for redirect
     const { data: org, error: orgError } = await supabase
-      .from('group')
+      .from('organizations')
       .select('slug')
       .eq('id', groupId)
       .single();
 
     if (orgError) throw orgError;
 
-    let groupUserId = groupUser?.id;
+    const groupSlug = org.slug;
 
-    // Only create group_user if it doesn't exist
-    if (!groupUserId) {
-      const { data: newGroupUser, error: createError } = await supabase
-        .from('group_users')
-        .insert({
-          user_id: userId,
-          group_id: groupId,
-          is_active: isInitiallyActive
-        })
-        .select('id')
-        .single();
-
-      if (createError) throw createError;
-      groupUserId = newGroupUser.id;
+    // For free memberships, process immediately
+    if (membershipTier.price === 0) {
+      const order = await OrderService.createOrderFromCart(userId);
+      return {
+        message: 'Your membership application has been submitted.',
+        redirect: `/orgs/${groupSlug}/applications/${application.id}`
+      };
     }
 
-    // Create application using the existing or new group_user_id
-    await createMembershipApplication(groupUserId, productId);
-
-    revalidatePath(`/@${org.slug}/join`);
-
-    const statusMessages = {
-      'automatic': 'You have been automatically approved. Welcome!',
-      'review_required': 'Your application is pending review.',
-      'payment_required': 'Please complete payment to join.',
-      'review_then_payment': 'Your application is pending review. Once approved, you will be asked to complete payment.',
-    } as const;
-
+    // For paid memberships, redirect to checkout
     return {
-      success: true,
-      message: statusMessages[product.membership_tier.activation_type as keyof typeof statusMessages]
+      message: 'Please complete your payment to submit your application.',
+      redirect: `/orgs/${groupSlug}/checkout`
     };
 
-  } catch (error: any) {
-    console.error('Join error:', error);
+  } catch (error) {
+    console.error('Failed to join:', error);
     return {
-      success: false,
-      error: error.message || 'Failed to process join request'
+      errors: {
+        form: ['Failed to process your membership application. Please try again.']
+      }
     };
   }
 } 

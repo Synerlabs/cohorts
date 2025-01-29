@@ -13,139 +13,209 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
 export async function POST(req: Request) {
-  console.log('🎯 Stripe webhook received');
-  
   try {
     const body = await req.text();
-    const headersList = headers();
+    const headersList = await headers();
     const signature = headersList.get('stripe-signature');
 
+    console.log('🔔 Received Stripe webhook request');
+
     if (!signature) {
-      console.error('❌ No signature');
-      return NextResponse.json({ error: 'No signature' }, { status: 400 });
+      console.error('❌ No stripe signature found in webhook request');
+      return new NextResponse('No stripe signature', { status: 400 });
     }
 
-    // Initialize Stripe provider
-    const stripeProvider = new StripePaymentProvider({
-      secretKey: process.env.STRIPE_SECRET_KEY!,
-      webhookSecret: process.env.STRIPE_WEBHOOK_SECRET
-    });
-
-    // Verify webhook signature
-    if (!stripeProvider.verifyWebhookSignature(body, signature)) {
-      console.error('❌ Invalid signature');
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
-    }
-
-    // Parse and handle the event
-    const event = {
-      type: JSON.parse(body).type,
-      data: JSON.parse(body)
-    };
-
-    console.log('💰 Processing payment webhook:', event.type);
-
-    const result = await stripeProvider.handleWebhookEvent(event);
-    const paymentStatus = stripeProvider.mapProviderStatus(result.status);
-
-    console.log('💳 Payment intent details:', {
-      id: result.paymentIntentId,
-      status: result.status,
-      mappedStatus: paymentStatus,
-      amount: result.amount
-    });
-
-    // Get the payment record using the payment intent ID
-    const supabase = await createServiceRoleClient();
-    
-    // First find the stripe payment record
-    const { data: stripePayment, error: stripePaymentError } = await supabase
-      .from('stripe_payments')
-      .select('payment_id, stripe_status')
-      .eq('stripe_payment_intent_id', result.paymentIntentId)
-      .single();
-
-    if (stripePaymentError) {
-      console.error('❌ Stripe payment not found:', stripePaymentError);
-      return NextResponse.json({ error: 'Stripe payment not found' }, { status: 404 });
-    }
-
-    console.log('✅ Found stripe payment record:', {
-      paymentId: stripePayment.payment_id,
-      currentStripeStatus: stripePayment.stripe_status
-    });
-
-    // Update stripe payment status
-    const { error: stripeUpdateError } = await supabase
-      .from('stripe_payments')
-      .update({ stripe_status: result.status })
-      .eq('payment_id', stripePayment.payment_id);
-
-    if (stripeUpdateError) {
-      console.error('❌ Failed to update stripe payment:', stripeUpdateError);
-      return NextResponse.json({ error: 'Failed to update stripe payment' }, { status: 500 });
-    }
-
-    // Then get the payment record with order info
-    const { data: payment, error: paymentError } = await supabase
-      .from('payments')
-      .select('id, order_id, status, amount')
-      .eq('id', stripePayment.payment_id)
-      .single();
-
-    if (paymentError || !payment) {
-      console.error('❌ Payment not found:', paymentError);
-      return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
-    }
-
-    console.log('✅ Found payment:', {
-      id: payment.id,
-      orderId: payment.order_id,
-      amount: payment.amount,
-      currentStatus: payment.status,
-      newStatus: paymentStatus
-    });
-
-    // Update payment status
-    const { error: updateError } = await supabase
-      .from('payments')
-      .update({ 
-        status: paymentStatus,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', payment.id);
-
-    if (updateError) {
-      console.error('❌ Failed to update payment:', updateError);
-      return NextResponse.json({ error: 'Failed to update payment' }, { status: 500 });
-    }
-
-    console.log('✅ Updated payment status to:', paymentStatus);
-
-    // Get all payments for the order to verify
-    const payments = await OrderService.getOrderPayments(payment.order_id);
-    console.log('📊 All payments for order:', payments.map(p => ({
-      id: p.id,
-      amount: p.amount,
-      status: p.status
-    })));
-
-    // Update order status based on all payments
+    // Verify the webhook signature
+    let event: Stripe.Event;
     try {
-      const updatedOrder = await OrderService.updateOrderStatusFromPayments(payment.order_id);
-      console.log('✅ Updated order status to:', updatedOrder.status);
-    } catch (error) {
-      console.error('❌ Failed to update order status:', error);
-      return NextResponse.json({ error: 'Failed to update order status' }, { status: 500 });
+      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+    } catch (err: any) {
+      console.error('❌ Webhook signature verification failed:', err.message);
+      return new NextResponse(`Webhook Error: ${err.message}`, { status: 400 });
     }
 
-    console.log('✅ Payment webhook processed successfully');
-    return NextResponse.json({ received: true });
-  } catch (err) {
-    console.error('❌ Error processing webhook:', err);
-    return NextResponse.json(
-      { error: 'Webhook handler failed' },
-      { status: 400 }
-    );
+    console.log('✅ Webhook signature verified');
+    console.log('🔔 Processing webhook event:', event.type, 'Event ID:', event.id);
+
+    const supabase = await createServiceRoleClient();
+
+    // Handle the event
+    switch (event.type) {
+      case 'payment_intent.succeeded': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log('💰 Payment succeeded:', {
+          paymentIntentId: paymentIntent.id,
+          amount: paymentIntent.amount,
+          currency: paymentIntent.currency,
+          orderId: paymentIntent.metadata.orderId
+        });
+
+        // Get the order ID from metadata
+        const orderId = paymentIntent.metadata.orderId;
+        if (!orderId) {
+          console.error('❌ No orderId found in payment intent metadata');
+          return new NextResponse('No orderId in metadata', { status: 400 });
+        }
+
+        // Get the order to verify it exists and check amount
+        const { data: order, error: orderError } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', orderId)
+          .single();
+
+        if (orderError || !order) {
+          console.error('❌ Failed to find order:', { orderId, error: orderError });
+          return new NextResponse('Order not found', { status: 404 });
+        }
+
+        console.log('✅ Found order:', { 
+          orderId: order.id, 
+          amount: order.amount,
+          status: order.status 
+        });
+
+        // Update the payment status
+        const { data: stripePayment, error: stripePaymentError } = await supabase
+          .from('stripe_payments')
+          .select('payment_id')
+          .eq('stripe_payment_intent_id', paymentIntent.id)
+          .single();
+
+        if (stripePaymentError || !stripePayment) {
+          console.error('❌ Failed to find stripe payment:', { paymentIntentId: paymentIntent.id, error: stripePaymentError });
+          return new NextResponse('Stripe payment not found', { status: 404 });
+        }
+
+        // Get the payment record
+        const { data: payment, error: paymentError } = await supabase
+          .from('payments')
+          .select('id')
+          .eq('id', stripePayment.payment_id)
+          .single();
+
+        if (paymentError || !payment) {
+          console.error('❌ Failed to find payment:', { paymentId: stripePayment.payment_id, error: paymentError });
+          return new NextResponse('Payment not found', { status: 404 });
+        }
+
+        console.log('✅ Found payment record:', payment.id);
+
+        // Update stripe payment status
+        const { error: stripeError } = await supabase
+          .from('stripe_payments')
+          .update({ stripe_status: paymentIntent.status })
+          .eq('payment_id', payment.id);
+
+        if (stripeError) {
+          console.error('❌ Failed to update stripe payment:', stripeError);
+          return new NextResponse('Failed to update payment', { status: 500 });
+        }
+
+        console.log('✅ Updated stripe payment status');
+
+        // Update payment status to paid (not succeeded)
+        const { error: updateError } = await supabase
+          .from('payments')
+          .update({ 
+            status: 'paid',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', payment.id);
+
+        if (updateError) {
+          console.error('❌ Failed to update payment status:', updateError);
+          return new NextResponse('Failed to update payment', { status: 500 });
+        }
+
+        console.log('✅ Updated payment status to paid');
+
+        // Process the order and its suborders
+        try {
+          // This will:
+          // 1. Check if payment total is sufficient
+          // 2. Process all suborders if payment is sufficient
+          // 3. Update order status based on suborder processing results
+          await OrderService.updateOrderStatusFromPayments(orderId);
+          console.log('✅ Order processed successfully');
+        } catch (error) {
+          console.error('❌ Failed to process order:', error);
+          return new NextResponse('Failed to process order', { status: 500 });
+        }
+
+        break;
+      }
+
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        console.log('❌ Payment failed:', paymentIntent.id);
+
+        // Get the order ID from metadata
+        const orderId = paymentIntent.metadata.orderId;
+        if (!orderId) {
+          console.error('❌ No orderId found in payment intent metadata');
+          return new NextResponse('No orderId in metadata', { status: 400 });
+        }
+
+        // Update the payment status
+        const { data: stripePayment, error: stripePaymentError } = await supabase
+          .from('stripe_payments')
+          .select('payment_id')
+          .eq('stripe_payment_intent_id', paymentIntent.id)
+          .single();
+
+        if (stripePaymentError || !stripePayment) {
+          console.error('❌ Failed to find stripe payment:', { paymentIntentId: paymentIntent.id, error: stripePaymentError });
+          return new NextResponse('Stripe payment not found', { status: 404 });
+        }
+
+        // Get the payment record
+        const { data: payment, error: paymentError } = await supabase
+          .from('payments')
+          .select('id')
+          .eq('id', stripePayment.payment_id)
+          .single();
+
+        if (paymentError || !payment) {
+          console.error('❌ Failed to find payment:', { paymentId: stripePayment.payment_id, error: paymentError });
+          return new NextResponse('Payment not found', { status: 404 });
+        }
+
+        // Update stripe payment status
+        const { error: stripeError } = await supabase
+          .from('stripe_payments')
+          .update({ stripe_status: paymentIntent.status })
+          .eq('payment_id', payment.id);
+
+        if (stripeError) {
+          console.error('❌ Failed to update stripe payment:', stripeError);
+          return new NextResponse('Failed to update payment', { status: 500 });
+        }
+
+        // Update payment status
+        const { error: updateError } = await supabase
+          .from('payments')
+          .update({ 
+            status: 'failed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', payment.id);
+
+        if (updateError) {
+          console.error('❌ Failed to update payment status:', updateError);
+          return new NextResponse('Failed to update payment', { status: 500 });
+        }
+
+        break;
+      }
+
+      default:
+        console.log(`🤔 Unhandled event type: ${event.type}`);
+    }
+
+    return new NextResponse('OK', { status: 200 });
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    return new NextResponse('Webhook error', { status: 500 });
   }
 } 

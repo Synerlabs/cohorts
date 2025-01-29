@@ -11,9 +11,10 @@ import {
 } from "@/components/ui/card";
 import { useTransition } from "react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
-import { joinOrgWithMembership } from "../_actions/join";
+import { join } from "../_actions/join";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { Badge } from "@/components/ui/badge";
+import { useRouter } from "next/navigation";
 
 interface MembershipSelectionProps {
   memberships: IMembershipTierProduct[];
@@ -21,15 +22,10 @@ interface MembershipSelectionProps {
   userId: string;
 }
 
-type JoinState = {
-  success: boolean;
-  message?: string;
-  error?: string;
-};
-
 export function MembershipSelection({ memberships, groupId, userId }: MembershipSelectionProps) {
   const [isPending, startTransition] = useTransition();
-  const [state, action] = useToastActionState<JoinState>(joinOrgWithMembership);
+  const [state, action] = useToastActionState(join);
+  const router = useRouter();
 
   if (!memberships || memberships.length === 0) {
     return (
@@ -46,7 +42,7 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
 
   const handleSubmit = async (membershipId: string) => {
     const formData = new FormData();
-    formData.set('membershipId', membershipId);
+    formData.set('membershipTierId', membershipId);
     formData.set('groupId', groupId);
     formData.set('userId', userId);
 
@@ -54,6 +50,11 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
       action(formData);
     });
   };
+
+  // Handle redirect if provided in state
+  if (state?.redirect) {
+    router.push(state.redirect);
+  }
 
   return (
     <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

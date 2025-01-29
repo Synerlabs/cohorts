@@ -101,3 +101,4 @@ function PaymentGatewaysPage({ params }: { params: { orgSlug: string } }) {
 }
 
 export default withOrgAuth(PaymentGatewaysPage); 
+

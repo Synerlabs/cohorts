@@ -1,4 +1,4 @@
-import { useActionState } from "react";
+import { useFormState } from "react-dom";
 import { toast } from "@/components/ui/use-toast";
 import { startTransition, useEffect, useRef } from "react";
 
@@ -7,26 +7,27 @@ type ToastOptions = {
   successDescription?: string;
 };
 
-export default function useToastActionState<
-  T extends { error?: string | any; success?: boolean },
->(
-  action: (...args: any[]) => Promise<T>,
-  initialState?: Awaited<T | undefined>,
+export default function useToastActionState(
+  action: (prevState: any, formData: FormData) => Promise<any>,
+  initialState: any = null,
   permalink?: string,
   options?: ToastOptions,
 ) {
-  const [state, dispatch, pending] = useActionState(
-    action,
-    initialState,
-    permalink,
-  );
+  const [state, formAction] = useFormState(action, initialState);
 
-  const previousState = useRef<typeof state>();
+  const previousState = useRef(state);
 
   useEffect(() => {
-    // Only show toast if state has changed and it's a final state (success or error)
-    if (state && state !== previousState.current && (state.success || state.error)) {
-      if (state.error) {
+    // Only show toast if state has changed and it's a final state
+    if (state && state !== previousState.current) {
+      if (state.errors) {
+        const firstError = Object.values(state.errors as Record<string, string[]>)[0]?.[0];
+        toast({
+          title: "Error",
+          description: firstError || "An error occurred",
+          variant: "destructive",
+        });
+      } else if (state.error) {
         toast({
           title: "Error",
           description:
@@ -34,6 +35,11 @@ export default function useToastActionState<
               ? state.error
               : JSON.stringify(state.error),
           variant: "destructive",
+        });
+      } else if (state.message) {
+        toast({
+          title: options?.successTitle || "Success",
+          description: state.message || options?.successDescription || "",
         });
       } else if (state.success) {
         toast({
@@ -45,11 +51,11 @@ export default function useToastActionState<
     previousState.current = state;
   }, [state, options]);
 
-  const wrappedAction = async (...args: any[]) => {
-    startTransition(async () => {
-      await dispatch(...args);
+  const wrappedAction = (formData: FormData) => {
+    startTransition(() => {
+      formAction(formData);
     });
   };
 
-  return [state, wrappedAction, pending] as const;
+  return [state, wrappedAction, false] as const;
 }

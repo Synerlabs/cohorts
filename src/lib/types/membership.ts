@@ -32,24 +32,23 @@ export type MembershipTierRow = {
   group_id: string;
 };
 
+export enum MembershipStatus {
+  ACTIVE = 'active',
+  EXPIRED = 'expired',
+  CANCELLED = 'cancelled',
+  SUSPENDED = 'suspended'
+}
+
 export type Membership = {
   id: string;
-  name: string;
-  description: string | null;
-  price: number; // stored in cents
-  currency: Currency;
-  duration_months: number;
-  group_id: string;
+  order_id: string;
   group_user_id: string;
-  tier_id: string;
-  start_date: string;
+  status: MembershipStatus;
+  start_date: string | null;
   end_date: string | null;
-  is_active: boolean;
+  metadata?: Record<string, any>;
   created_at: string;
   updated_at: string;
-  activation_type: MembershipActivationType;
-  member_count?: number;
-  tier?: MembershipTier;
 };
 
 export type Application = {

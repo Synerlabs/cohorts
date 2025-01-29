@@ -1,5 +1,112 @@
 import { createClient } from "@/lib/utils/supabase/server";
-import { MembershipTier } from "@/lib/types/membership";
+import { Membership, MembershipStatus, MembershipTier } from "@/lib/types/membership";
+
+export class MembershipService {
+  static async getMembership(id: string): Promise<Membership | null> {
+    const supabase = await createClient();
+    
+    const { data, error } = await supabase
+      .from("memberships")
+      .select("*")
+      .eq("id", id)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async getMembershipByOrderId(orderId: string): Promise<Membership | null> {
+    const supabase = await createClient();
+    
+    const { data, error } = await supabase
+      .from("memberships")
+      .select("*")
+      .eq("order_id", orderId)
+      .single();
+    
+    if (error) throw error;
+    return data;
+  }
+
+  static async createMembership(data: {
+    order_id: string;
+    group_user_id: string;
+    start_date?: string;
+    end_date?: string;
+    metadata?: Record<string, any>;
+  }): Promise<Membership> {
+    const supabase = await createClient();
+    
+    const { data: membership, error } = await supabase
+      .from("memberships")
+      .insert({
+        ...data,
+        status: MembershipStatus.ACTIVE
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return membership;
+  }
+
+  static async updateMembershipStatus(id: string, status: MembershipStatus): Promise<Membership> {
+    const supabase = await createClient();
+    
+    const { data: membership, error } = await supabase
+      .from("memberships")
+      .update({ status })
+      .eq("id", id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return membership;
+  }
+
+  static async updateMembershipDates(id: string, data: {
+    start_date?: string;
+    end_date?: string;
+  }): Promise<Membership> {
+    const supabase = await createClient();
+    
+    const { data: membership, error } = await supabase
+      .from("memberships")
+      .update(data)
+      .eq("id", id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return membership;
+  }
+
+  static async getMembershipsByGroupUser(groupUserId: string): Promise<Membership[]> {
+    const supabase = await createClient();
+    
+    const { data, error } = await supabase
+      .from("memberships")
+      .select("*")
+      .eq("group_user_id", groupUserId)
+      .order("created_at", { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  }
+
+  static async getActiveMembershipCount(groupId: string): Promise<number> {
+    const supabase = await createClient();
+    
+    const { count, error } = await supabase
+      .from("memberships")
+      .select("*", { count: 'exact', head: true })
+      .eq("status", MembershipStatus.ACTIVE)
+      .eq("group_id", groupId);
+    
+    if (error) throw error;
+    return count || 0;
+  }
+}
 
 export async function getMembershipTiers({ orgId }: { orgId: string }): Promise<MembershipTier[]> {
   const supabase = await createClient();

@@ -25,3 +25,4 @@ RENAME COLUMN webhook_secret TO live_webhook_secret;
 COMMENT ON COLUMN stripe_settings.live_publishable_key IS 'Stripe publishable key for live environment (starts with pk_live_)';
 COMMENT ON COLUMN stripe_settings.live_secret_key IS 'Stripe secret key for live environment (starts with sk_live_)';
 COMMENT ON COLUMN stripe_settings.live_webhook_secret IS 'Stripe webhook signing secret for live environment';
+

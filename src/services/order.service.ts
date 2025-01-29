@@ -2,6 +2,8 @@ import { createClient } from "@/lib/utils/supabase/server";
 import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { IOrder, IMembershipOrder, OrderStatus } from "@/lib/types/order";
 import { ProductService } from "./product.service";
+import { SuborderService } from "./suborder.service";
+import { getCart } from "@/lib/utils/cart";
 
 interface OrderPaymentTotals {
   totalPaid: number;
@@ -12,22 +14,30 @@ export class OrderService {
   static async getMembershipOrder(id: string): Promise<IMembershipOrder | null> {
     const supabase = await createClient();
     
-    const { data, error } = await supabase
+    const { data: order, error } = await supabase
       .from('orders')
       .select(`
         *,
-        membership:memberships(*)
+        suborders(*)
       `)
       .eq('id', id)
       .eq('type', 'membership')
       .single();
 
     if (error) throw error;
-    if (!data) return null;
+    if (!order) return null;
+
+    // Get the membership suborder
+    const membershipSuborder = order.suborders?.[0];
+    if (!membershipSuborder) return null;
 
     return {
-      ...data,
-      membership: data.membership[0]
+      ...order,
+      membership: {
+        group_user_id: membershipSuborder.metadata?.group_user_id,
+        start_date: membershipSuborder.metadata?.start_date,
+        end_date: membershipSuborder.metadata?.end_date
+      }
     } as IMembershipOrder;
   }
 
@@ -38,7 +48,7 @@ export class OrderService {
       .from('orders')
       .select(`
         *,
-        membership:memberships(*)
+        suborders(*)
       `)
       .eq('user_id', userId)
       .eq('type', 'membership')
@@ -49,16 +59,72 @@ export class OrderService {
 
     return data.map(order => ({
       ...order,
-      membership: order.membership[0]
+      membership: {
+        group_user_id: order.suborders?.[0]?.metadata?.group_user_id,
+        start_date: order.suborders?.[0]?.metadata?.start_date,
+        end_date: order.suborders?.[0]?.metadata?.end_date
+      }
     })) as IMembershipOrder[];
+  }
+
+  static async createSuborder(
+    orderId: string,
+    type: 'membership' | 'product' | 'event' | 'promotion',
+    productId: string,
+    amount: number,
+    currency: string,
+    applicationId?: string,
+    metadata?: Record<string, any>
+  ) {
+    console.log('🔄 Creating suborder:', {
+      orderId,
+      type,
+      productId,
+      amount,
+      currency,
+      applicationId
+    });
+    
+    const supabase = await createServiceRoleClient();
+    
+    const { data: suborder, error } = await supabase
+      .from('suborders')
+      .insert({
+        order_id: orderId,
+        type,
+        product_id: productId,
+        amount,
+        currency,
+        application_id: applicationId,
+        metadata,
+        status: 'pending'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ Failed to create suborder:', error);
+      throw error;
+    }
+
+    console.log('✅ Suborder created:', suborder);
+    return suborder;
   }
 
   static async createMembershipOrder(
     userId: string,
     productId: string,
-    groupUserId: string
+    groupUserId: string,
+    applicationId?: string
   ): Promise<IMembershipOrder> {
-    const supabase = await createClient();
+    console.log('🔄 Creating membership order:', {
+      userId,
+      productId,
+      groupUserId,
+      applicationId
+    });
+    
+    const supabase = await createServiceRoleClient();
 
     // Get product details
     const product = await ProductService.getMembershipTier(productId);
@@ -80,21 +146,30 @@ export class OrderService {
 
     if (orderError) throw orderError;
 
-    // Then create the membership
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
+    // Create the membership suborder
+    const { data: suborder, error: suborderError } = await supabase
+      .from('suborders')
       .insert({
         order_id: order.id,
-        group_user_id: groupUserId
+        product_id: productId,
+        amount: product.price,
+        currency: product.currency,
+        status: 'pending',
+        metadata: {
+          group_user_id: groupUserId,
+          application_id: applicationId
+        }
       })
       .select()
       .single();
 
-    if (membershipError) throw membershipError;
+    if (suborderError) throw suborderError;
 
     return {
       ...order,
-      membership
+      membership: {
+        group_user_id: groupUserId
+      }
     } as IMembershipOrder;
   }
 
@@ -124,15 +199,19 @@ export class OrderService {
     startDate: string,
     endDate: string
   ): Promise<IMembershipOrder> {
-    const supabase = await createClient();
+    const supabase = await createServiceRoleClient();
 
+    // Update the membership suborder metadata
     const { error } = await supabase
-      .from('memberships')
+      .from('suborders')
       .update({
-        start_date: startDate,
-        end_date: endDate
+        metadata: {
+          start_date: startDate,
+          end_date: endDate
+        }
       })
-      .eq('order_id', orderId);
+      .eq('order_id', orderId)
+      .single();
 
     if (error) throw error;
 
@@ -155,7 +234,11 @@ export class OrderService {
         type,
         created_at,
         updated_at,
-        stripe_payments(*)
+        stripe_payments (
+          stripe_payment_intent_id,
+          stripe_payment_method,
+          stripe_status
+        )
       `)
       .eq('order_id', orderId)
       .order('created_at', { ascending: false });
@@ -196,83 +279,157 @@ export class OrderService {
     console.log('🔍 Getting payment totals for order:', orderId);
     
     const payments = await this.getOrderPayments(orderId);
-
-    const totals = payments.reduce((acc, payment) => ({
-      totalPaid: acc.totalPaid + (payment.status === 'paid' ? payment.amount : 0),
-      totalPending: acc.totalPending + (payment.status === 'pending' ? payment.amount : 0)
-    }), { totalPaid: 0, totalPending: 0 });
-
-    console.log('💰 Payment totals calculated:', {
-      ...totals,
-      paymentCount: payments.length,
-      statuses: payments.map(p => p.status)
-    });
     
-    return totals;
+    return payments.reduce((totals, payment) => {
+      if (payment.status === 'paid') {
+        totals.totalPaid += payment.amount;
+      } else if (payment.status === 'pending') {
+        totals.totalPending += payment.amount;
+      }
+      return totals;
+    }, { totalPaid: 0, totalPending: 0 });
+  }
+
+  static async getOrder(id: string): Promise<IOrder | null> {
+    console.log('🔍 Getting order:', id);
+    
+    const supabase = await createServiceRoleClient();
+    
+    const { data: order, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) {
+      console.error('❌ Failed to get order:', error);
+      throw error;
+    }
+
+    return order;
   }
 
   static async updateOrderStatusFromPayments(orderId: string): Promise<IOrder> {
     console.log('🔄 Updating order status from payments:', orderId);
-    
-    const supabase = await createClient();
-    
-    // Get order and its payment totals
-    const [{ data: order, error: orderError }, totals] = await Promise.all([
-      supabase.from('orders').select('*').eq('id', orderId).single(),
-      this.getOrderPaymentTotals(orderId)
-    ]);
 
-    if (orderError || !order) {
-      console.error('❌ Order not found:', orderError);
+    // Get the order
+    const order = await this.getOrder(orderId);
+    if (!order) {
+      console.error('❌ Order not found:', orderId);
       throw new Error('Order not found');
     }
 
-    console.log('💰 Payment totals:', {
-      orderAmount: order.amount,
-      totalPaid: totals.totalPaid,
-      totalPending: totals.totalPending
-    });
+    // Get payment totals
+    const { totalPaid, totalPending } = await this.getOrderPaymentTotals(orderId);
+    console.log('💰 Payment totals:', { totalPaid, totalPending, orderAmount: order.amount });
 
-    // Determine new status
-    let newStatus: OrderStatus = order.status;
-    if (totals.totalPaid >= order.amount) {
-      console.log('✅ Total paid meets or exceeds order amount - marking as paid');
-      newStatus = 'paid';
-    } else if (totals.totalPending > 0) {
-      console.log('⏳ Has pending payments - marking as pending');
-      newStatus = 'pending';
-    }
+    // Get suborders
+    const suborders = await SuborderService.getSubordersForOrder(orderId);
+    console.log('📦 Suborders:', suborders.length);
 
-    console.log('📊 Status update:', {
-      currentStatus: order.status,
-      newStatus: newStatus
-    });
-
-    // Only update if status changed
-    if (newStatus !== order.status) {
-      console.log('🔄 Updating order status to:', newStatus);
+    // Determine new status based on payments
+    if (totalPaid >= order.amount) {
+      console.log('✅ Payment completed, processing suborders');
       
-      const { data: updatedOrder, error } = await supabase
-        .from('orders')
-        .update({ 
-          status: newStatus,
-          completed_at: newStatus === 'paid' ? new Date().toISOString() : null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', orderId)
-        .select()
-        .single();
+      try {
+        // Process all suborders
+        const processedSuborders = await SuborderService.processOrderSuborders(orderId);
+        console.log('✅ Suborders processed:', processedSuborders.length);
 
-      if (error) {
-        console.error('❌ Failed to update order status:', error);
-        throw error;
+        // Check if all suborders completed successfully
+        const allCompleted = processedSuborders.every(s => s.status === 'completed');
+        
+        if (allCompleted) {
+          console.log('✅ All suborders completed, marking order as completed');
+          return await this.updateOrderStatus(orderId, 'completed', new Date().toISOString());
+        } else {
+          console.log('⚠️ Some suborders not completed, marking order as processing');
+          return await this.updateOrderStatus(orderId, 'processing');
+        }
+      } catch (error) {
+        console.error('❌ Error processing suborders:', error);
+        return await this.updateOrderStatus(orderId, 'failed');
       }
+    } else if (totalPending > 0) {
+      console.log('⏳ Payment pending');
+      return await this.updateOrderStatus(orderId, 'processing');
+    }
+    
+    // Default case: insufficient payment
+    console.log('⚠️ Insufficient payment');
+    return await this.updateOrderStatus(orderId, 'pending');
+  }
 
-      console.log('✅ Order status updated successfully');
-      return updatedOrder;
+  static async createOrderFromCart(userId: string): Promise<IOrder> {
+    console.log('🔄 Creating order from cart for user:', userId);
+    
+    const supabase = await createServiceRoleClient();
+    const cart = await getCart();
+    if (!cart) throw new Error('Cart not found');
+
+    // For each cart item, validate and get fresh data
+    for (const item of cart.items) {
+      if (item.type === 'membership') {
+        // Validate membership tier exists and get fresh data
+        const product = await ProductService.getMembershipTier(item.productId);
+        if (!product) {
+          console.error('❌ Product not found:', item.productId);
+          throw new Error('Invalid product in cart');
+        }
+
+        // Validate group user exists and belongs to user
+        if (!item.metadata?.groupUserId) {
+          console.error('❌ No group user ID in cart metadata');
+          throw new Error('Invalid cart data');
+        }
+
+        const { data: groupUser, error: groupUserError } = await supabase
+          .from('group_users')
+          .select('id')
+          .eq('id', item.metadata.groupUserId)
+          .eq('user_id', userId)
+          .single();
+
+        if (groupUserError || !groupUser) {
+          console.error('❌ Invalid group user:', groupUserError || 'Not found');
+          throw new Error('Invalid group user');
+        }
+
+        // Validate application exists and belongs to group user
+        if (!item.metadata?.applicationId) {
+          console.error('❌ No application ID in cart metadata');
+          throw new Error('Invalid cart data');
+        }
+
+        const { data: application, error: appError } = await supabase
+          .from('applications')
+          .select('id, status')
+          .eq('id', item.metadata.applicationId)
+          .eq('group_user_id', item.metadata.groupUserId)
+          .single();
+
+        if (appError || !application) {
+          console.error('❌ Invalid application:', appError || 'Not found');
+          throw new Error('Invalid application');
+        }
+
+        if (application.status !== 'pending') {
+          console.error('❌ Application not in pending status:', application.status);
+          throw new Error('Application already processed');
+        }
+
+        // Create order with validated data
+        console.log('✅ Creating membership order with validated data');
+        return await this.createMembershipOrder(
+          userId,
+          product.id,
+          groupUser.id,
+          application.id
+        );
+      }
+      // Handle other product types here...
     }
 
-    console.log('ℹ️ No status update needed');
-    return order;
+    throw new Error('No valid items in cart');
   }
 } 
