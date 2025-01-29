@@ -33,6 +33,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Input } from "@/components/ui/input";
 import { Payment as PaymentType } from "@/services/payment/types";
 import Link from "next/link";
+import { format, parseISO } from "date-fns";
 
 interface FilePreviewProps {
   file: {
@@ -113,6 +114,28 @@ function PaginationControls({ pagination, onPageChange }: {
   );
 }
 
+// Format currency consistently
+function formatCurrency(amount: number, currency: string) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+  }).format(amount / 100);
+}
+
+// Format date from PostgreSQL timestamp or ISO string
+function formatPaymentDate(date: string) {
+  try {
+    // Handle PostgreSQL timestamp format
+    const dateStr = date.includes('+') 
+      ? date.split('+')[0].trim() // PostgreSQL format
+      : date; // ISO format
+    return format(new Date(dateStr), "MMM d, yyyy 'at' HH:mm 'UTC'");
+  } catch (error) {
+    console.error('Error formatting date:', error, date);
+    return date; // Return original if parsing fails
+  }
+}
+
 export function PaymentManagement({ 
   orgId,
   orgSlug,
@@ -137,6 +160,11 @@ export function PaymentManagement({
   const [sortBy, setSortBy] = useState(sorting?.sortBy || 'createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>(sorting?.sortOrder || 'desc');
   const [deleteFiles, setDeleteFiles] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (reviewPaymentId) {
@@ -319,32 +347,23 @@ export function PaymentManagement({
                     className="contents"
                   >
                     <TableCell className="font-medium">
-                      {new Date(payment.createdAt).toLocaleDateString(undefined, {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+                      {formatPaymentDate(payment.createdAt || payment.created_at)}
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="capitalize">{payment.type}</span>
                         {payment.order?.product && (
                           <span className="text-sm text-muted-foreground">
-                            {payment.order.product.name} - {(payment.order.product.price / 100).toLocaleString(undefined, {
-                              style: 'currency',
-                              currency: payment.order.product.currency || payment.currency
-                            })}
+                            {payment.order.product.name} - {formatCurrency(
+                              payment.order.product.price,
+                              payment.order.product.currency || payment.currency
+                            )}
                           </span>
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="font-medium tabular-nums">
-                      {(payment.amount / 100).toLocaleString(undefined, {
-                        style: 'currency',
-                        currency: payment.currency
-                      })}
+                      {formatCurrency(payment.amount, payment.currency)}
                     </TableCell>
                     <TableCell>
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -419,10 +438,7 @@ export function PaymentManagement({
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Amount</label>
                   <div className="mt-1 text-lg font-semibold">
-                    {(selectedPayment.amount / 100).toLocaleString(undefined, {
-                      style: 'currency',
-                      currency: selectedPayment.currency
-                    })}
+                    {formatCurrency(selectedPayment.amount, selectedPayment.currency)}
                   </div>
                 </div>
                 <div>
@@ -445,10 +461,7 @@ export function PaymentManagement({
                   <div className="space-y-1">
                     <div className="font-medium">{selectedPayment.order.product.name}</div>
                     <div className="text-sm text-gray-500">
-                      {(selectedPayment.order.product.price / 100).toLocaleString(undefined, {
-                        style: 'currency',
-                        currency: selectedPayment.order.product.currency || selectedPayment.currency
-                      })}
+                      {formatCurrency(selectedPayment.order.product.price, selectedPayment.order.product.currency || selectedPayment.currency)}
                     </div>
                     {selectedPayment.order.product.description && (
                       <div className="text-sm text-gray-500">

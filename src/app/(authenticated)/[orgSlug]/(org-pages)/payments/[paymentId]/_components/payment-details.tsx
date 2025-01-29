@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Payment } from "@/services/payment/types";
 import { approvePaymentAction, rejectPaymentAction } from "../../actions/payment.action";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,22 +28,24 @@ function FilePreview({ file }: { file: { originalFilename: string; fileUrl: stri
   const isImage = file.originalFilename.match(/\.(jpg|jpeg|png|gif|webp)$/i);
   
   return (
-    <a
-      href={file.fileUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flex items-center gap-2 p-2 rounded hover:bg-gray-100 transition-colors group"
-    >
+    <div className="flex items-center gap-2 p-2 rounded hover:bg-gray-100 transition-colors group">
       {isImage ? (
         <ImageIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700" />
       ) : (
         <FileIcon className="h-4 w-4 text-gray-500 group-hover:text-gray-700" />
       )}
-      <span className="text-sm text-blue-600 group-hover:text-blue-700 hover:underline flex-1 truncate">
-        {file.originalFilename}
-      </span>
+      <a
+        href={file.fileUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex-1 group"
+      >
+        <span className="text-sm text-blue-600 group-hover:text-blue-700 hover:underline truncate">
+          {file.originalFilename}
+        </span>
+      </a>
       <ExternalLinkIcon className="h-4 w-4 text-gray-400 group-hover:text-gray-600" />
-    </a>
+    </div>
   );
 }
 
@@ -53,6 +55,11 @@ export default function PaymentDetails({ payment, org, user }: PaymentDetailsPro
   const [isApproving, setIsApproving] = useState(false);
   const [isRejecting, setIsRejecting] = useState(false);
   const [notes, setNotes] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleApprove = async () => {
     setIsApproving(true);
@@ -104,6 +111,29 @@ export default function PaymentDetails({ payment, org, user }: PaymentDetailsPro
     }
   };
 
+  // Format currency consistently
+  const formatCurrency = (amount: number, currency: string) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount / 100);
+  };
+
+  // Format date consistently
+  const formatDate = (date: string) => {
+    // Use a fixed string format for both server and client
+    const d = new Date(date);
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                   'July', 'August', 'September', 'October', 'November', 'December'];
+    const month = months[d.getUTCMonth()];
+    const day = d.getUTCDate();
+    const year = d.getUTCFullYear();
+    const hours = d.getUTCHours().toString().padStart(2, '0');
+    const minutes = d.getUTCMinutes().toString().padStart(2, '0');
+    
+    return `${month} ${day}, ${year} at ${hours}:${minutes} UTC`;
+  };
+
   return (
     <div className="container max-w-4xl py-6">
       <div className="mb-6">
@@ -126,10 +156,7 @@ export default function PaymentDetails({ payment, org, user }: PaymentDetailsPro
               <div>
                 <label className="block text-sm font-medium text-gray-700">Amount</label>
                 <div className="mt-1 text-lg font-semibold">
-                  {(payment.amount / 100).toLocaleString(undefined, {
-                    style: 'currency',
-                    currency: payment.currency
-                  })}
+                  {formatCurrency(payment.amount, payment.currency)}
                 </div>
               </div>
               <div>
@@ -147,13 +174,7 @@ export default function PaymentDetails({ payment, org, user }: PaymentDetailsPro
               <div>
                 <label className="block text-sm font-medium text-gray-700">Date</label>
                 <div className="mt-1">
-                  {new Date(payment.createdAt).toLocaleDateString(undefined, {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
+                  {formatDate(payment.created_at)}
                 </div>
               </div>
               <div>
@@ -281,10 +302,10 @@ export default function PaymentDetails({ payment, org, user }: PaymentDetailsPro
                           {payment.orders.suborders[0].product.name}
                         </div>
                         <div className="text-sm text-gray-500">
-                          {(payment.orders.suborders[0].product.price / 100).toLocaleString(undefined, {
-                            style: 'currency',
-                            currency: payment.orders.suborders[0].product.currency || payment.currency
-                          })}
+                          {formatCurrency(
+                            payment.orders.suborders[0].product.price,
+                            payment.orders.suborders[0].product.currency || payment.currency
+                          )}
                         </div>
                         {payment.orders.suborders[0].product.description && (
                           <div className="text-sm text-gray-500">
