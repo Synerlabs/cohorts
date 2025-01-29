@@ -12,9 +12,10 @@ import {
 import { useState } from "react";
 import { StripeSettingsForm } from "./stripe-settings-form";
 import { Icons } from "@/components/icons";
-import { PaymentManagement, Payment } from "./payment-management";
+import { PaymentManagement } from "./payment-management";
 import Link from "next/link";
 import { Plus } from "lucide-react";
+import { Payment } from "@/services/payment/types";
 
 interface PaymentGateway {
   id: string;
@@ -67,7 +68,7 @@ export function PaymentsClient({ org, user, payments, pagination, sorting, searc
   const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
 
   // Calculate totals
-  const approvedPayments = payments.filter(p => p.status === 'approved');
+  const approvedPayments = payments.filter(p => p.status === 'paid');
   const pendingPayments = payments.filter(p => p.status === 'pending');
   const rejectedPayments = payments.filter(p => p.status === 'rejected');
 
@@ -173,6 +174,7 @@ export function PaymentsClient({ org, user, payments, pagination, sorting, searc
 
         <PaymentManagement 
           orgId={org.id} 
+          orgSlug={org.slug}
           userId={user.id} 
           initialPayments={payments}
           pagination={pagination}
