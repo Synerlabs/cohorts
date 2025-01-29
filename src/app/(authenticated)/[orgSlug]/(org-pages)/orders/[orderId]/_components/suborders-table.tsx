@@ -1,5 +1,6 @@
 "use client"
 
+import { format } from "date-fns"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -9,26 +10,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-interface Product {
-  id: string
-  name: string
-  description: string | null
-  price: number
-  currency: string
-}
-
-interface Suborder {
-  id: string
-  order_id: string
-  product: Product
-  status: "completed" | "pending" | "processing" | "failed" | "cancelled"
-  amount: number
-  currency: string
-}
+import { ISuborderData, SuborderType } from "@/lib/types/suborder"
 
 interface SubordersTableProps {
-  suborders: Suborder[]
+  suborders: ISuborderData[]
 }
 
 export function SubordersTable({ suborders }: SubordersTableProps) {
@@ -39,6 +24,34 @@ export function SubordersTable({ suborders }: SubordersTableProps) {
     }).format(amount / 100)
   }
 
+  const getStatusVariant = (status: ISuborderData['status']): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case "completed":
+        return "default"
+      case "failed":
+        return "destructive"
+      case "processing":
+        return "secondary"
+      default:
+        return "outline"
+    }
+  }
+
+  const getTypeLabel = (type: SuborderType) => {
+    switch (type) {
+      case "membership":
+        return "Membership"
+      case "product":
+        return "Product"
+      case "event":
+        return "Event"
+      case "promotion":
+        return "Promotion"
+      default:
+        return type
+    }
+  }
+
   return (
     <div className="rounded-md border">
       <Table>
@@ -46,8 +59,11 @@ export function SubordersTable({ suborders }: SubordersTableProps) {
           <TableRow>
             <TableHead>ID</TableHead>
             <TableHead>Product</TableHead>
+            <TableHead>Type</TableHead>
             <TableHead>Status</TableHead>
             <TableHead className="text-right">Amount</TableHead>
+            <TableHead>Created</TableHead>
+            <TableHead>Updated</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -58,8 +74,8 @@ export function SubordersTable({ suborders }: SubordersTableProps) {
               </TableCell>
               <TableCell>
                 <div>
-                  <p className="font-medium">{suborder.product.name}</p>
-                  {suborder.product.description && (
+                  <p className="font-medium">{suborder.product?.name || 'Unknown Product'}</p>
+                  {suborder.product?.description && (
                     <p className="text-sm text-muted-foreground">
                       {suborder.product.description}
                     </p>
@@ -67,14 +83,13 @@ export function SubordersTable({ suborders }: SubordersTableProps) {
                 </div>
               </TableCell>
               <TableCell>
+                <Badge variant="outline" className="capitalize">
+                  {getTypeLabel(suborder.type)}
+                </Badge>
+              </TableCell>
+              <TableCell>
                 <Badge 
-                  variant={
-                    suborder.status === "completed"
-                      ? "default"
-                      : suborder.status === "failed"
-                      ? "destructive"
-                      : "outline"
-                  }
+                  variant={getStatusVariant(suborder.status)}
                   className="capitalize"
                 >
                   {suborder.status}
@@ -82,6 +97,12 @@ export function SubordersTable({ suborders }: SubordersTableProps) {
               </TableCell>
               <TableCell className="text-right">
                 {formatCurrency(suborder.amount, suborder.currency)}
+              </TableCell>
+              <TableCell>
+                {format(new Date(suborder.created_at), "MMM d, yyyy HH:mm")}
+              </TableCell>
+              <TableCell>
+                {format(new Date(suborder.updated_at), "MMM d, yyyy HH:mm")}
               </TableCell>
             </TableRow>
           ))}

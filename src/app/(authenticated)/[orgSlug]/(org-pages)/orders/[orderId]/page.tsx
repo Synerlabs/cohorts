@@ -5,6 +5,7 @@ import { OrderDetails } from "./_components/order-details";
 import { SubordersTable } from "./_components/suborders-table";
 import { PaymentsTable } from "./_components/payments-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ISuborderData } from "@/lib/types/suborder";
 
 interface OrderDetailsPageProps extends OrgAccessHOCProps {
   params: {
@@ -13,7 +14,6 @@ interface OrderDetailsPageProps extends OrgAccessHOCProps {
   };
 }
 
-type OrderStatus = "completed" | "pending" | "processing" | "failed" | "cancelled";
 type PaymentStatus = "paid" | "pending" | "failed";
 
 interface Payment {
@@ -28,13 +28,13 @@ interface Payment {
 interface OrderData {
   id: string
   group_id: string
-  status: OrderStatus
+  status: "completed" | "pending" | "processing" | "failed" | "cancelled"
   type: string
   amount: number
   currency: string
   created_at: string
   completed_at: string | null
-  suborders: any[]
+  suborders: ISuborderData[]
   payments: Payment[]
 }
 
@@ -55,7 +55,12 @@ async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
       *,
       suborders(
         *,
-        product:products(*)
+        product:products(
+          id,
+          name,
+          description,
+          type
+        )
       ),
       payments(
         id,
