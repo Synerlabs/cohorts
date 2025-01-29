@@ -7,7 +7,6 @@ import {
   Package,
   Package2,
   PanelLeft,
-  Search,
   ShoppingCart,
   Users2,
 } from "lucide-react";
@@ -125,15 +124,9 @@ export default function Header({ user, baseUrl }: HeaderProps) {
           </BreadcrumbList>
         </Breadcrumb>
       )}
-      <div className="relative ml-auto flex-1 md:grow-0">
-        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Search..."
-          className="w-full rounded-lg bg-background pl-8 md:w-[200px] lg:w-[336px]"
-        />
+      <div className="ml-auto">
+        {user && <AvatarDropdown user={user} baseUrl={baseUrl} />}
       </div>
-      {user && <AvatarDropdown user={user} baseUrl={baseUrl} />}
     </header>
   );
 }
