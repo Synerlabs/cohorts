@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "stripe:webhook": "stripe listen --forward-to http://localhost:3001/api/stripe/webhook",
     "db:migrate": "npx supabase migration up",
     "db:reset": "npx supabase db reset",
     "db:diff": "npx supabase db diff --schema public",

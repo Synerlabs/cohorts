@@ -67,6 +67,7 @@ export interface IMembership {
       id: string;
       first_name: string;
       last_name: string;
+      avatar_url: string | null;
     };
   };
   order: {
@@ -74,6 +75,18 @@ export interface IMembership {
     amount: number;
     currency: string;
     status: string;
+    suborders: {
+      id: string;
+      product: {
+        id: string;
+        name: string;
+        type: string;
+        membership_tiers: {
+          duration_months: number;
+          activation_type: string;
+        }[];
+      };
+    }[];
   };
 }
 
@@ -91,14 +104,27 @@ export async function getMembershipsAction(groupId: string): Promise<IMembership
         user:user_id(
           id,
           first_name,
-          last_name
+          last_name,
+          avatar_url
         )
       ),
       order:order_id(
         id,
         amount,
         currency,
-        status
+        status,
+        suborders(
+          id,
+          product:product_id(
+            id,
+            name,
+            type,
+            membership_tiers(
+              duration_months,
+              activation_type
+            )
+          )
+        )
       )
     `)
     .eq('group_user.group_id', groupId)
