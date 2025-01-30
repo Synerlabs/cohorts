@@ -284,13 +284,16 @@ export async function getUserMembership(userId: string, groupId: string) {
         id,
         status,
         created_at,
-        products:product_id (
+        suborders (
           id,
-          name,
-          price,
-          membership_tiers!inner (
-            activation_type,
-            duration_months
+          products (
+            id,
+            name,
+            price,
+            membership_tiers!inner (
+              activation_type,
+              duration_months
+            )
           )
         ),
         payments (
@@ -300,7 +303,9 @@ export async function getUserMembership(userId: string, groupId: string) {
       )
     `)
     .eq('group_user_id', groupUser.id)
-    .order('orders.created_at', { ascending: false })
+    .eq('status', 'active')
+    .gte('start_date', new Date().toISOString())
+    .or('end_date.is.null,end_date.gt.now()')
     .limit(1)
     .maybeSingle();
 
@@ -315,12 +320,26 @@ export async function getUserMembership(userId: string, groupId: string) {
     const hasPendingPayments = membership.orders.payments?.some((p: { status: string }) => p.status === 'pending');
     const status = hasPendingPayments ? 'pending_payment' : membership.orders.status;
 
+    // Get the product from the first suborder
+    const product = membership.orders.suborders?.[0]?.products;
+
+    // A membership is active if:
+    // 1. It has status 'active'
+    // 2. It's within its date range
+    // 3. Has no pending payments
+    const isActive = membership.status === 'active' && 
+                    new Date(membership.start_date) <= new Date() &&
+                    (!membership.end_date || new Date(membership.end_date) > new Date()) &&
+                    !hasPendingPayments;
+
     return {
       id: membership.orders.id,
       status,
       created_at: membership.orders.created_at,
-      product: membership.orders.products,
-      is_active: !hasPendingPayments
+      product,
+      is_active: isActive,
+      start_date: membership.start_date,
+      end_date: membership.end_date
     };
   }
 
