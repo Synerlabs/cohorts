@@ -1,3 +1,5 @@
+"use client";
+
 import Image from "next/image";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -31,6 +33,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { User } from "@supabase/auth-js";
 import AvatarDropdown from "@/app/(authenticated)/_components/avatar-dropdown";
+import { usePathname } from "next/navigation";
+import * as React from "react";
 
 type HeaderProps = {
   user: User | null;
@@ -42,7 +46,41 @@ type HeaderProps = {
   baseUrl?: string;
 };
 
+function generateBreadcrumbs(pathname: string) {
+  // Remove leading slash and split path into segments
+  const segments = pathname.split('/').filter(Boolean);
+  
+  // Handle org slug (starts with @)
+  if (segments[0]?.startsWith('@')) {
+    const orgSlug = segments[0];
+    const paths = segments.slice(1);
+    
+    // Generate breadcrumb items
+    return {
+      orgSlug,
+      items: paths.map((segment, index) => {
+        // Create the href for this breadcrumb, including the org slug
+        const href = `/${orgSlug}/${paths.slice(0, index + 1).join('/')}`;
+        
+        // Capitalize and clean up the segment name
+        const name = segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, ' ');
+        
+        return {
+          href,
+          name,
+          isLast: index === paths.length - 1
+        };
+      })
+    };
+  }
+  
+  return { orgSlug: null, items: [] };
+}
+
 export default function Header({ user, baseUrl }: HeaderProps) {
+  const pathname = usePathname();
+  const { orgSlug, items: breadcrumbs } = generateBreadcrumbs(pathname);
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 sm:static sm:h-auto sm:border-0 sm:bg-transparent sm:px-6">
       <Sheet>
@@ -103,24 +141,28 @@ export default function Header({ user, baseUrl }: HeaderProps) {
           </nav>
         </SheetContent>
       </Sheet>
-      {user && (
+      {user && breadcrumbs.length > 0 && orgSlug && (
         <Breadcrumb className="hidden md:flex">
           <BreadcrumbList>
             <BreadcrumbItem>
               <BreadcrumbLink asChild>
-                <Link href="#">Dashboard</Link>
+                <Link href={`/${orgSlug}/dashboard`}>Dashboard</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbLink asChild>
-                <Link href="#">Orders</Link>
-              </BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>Recent Orders</BreadcrumbPage>
-            </BreadcrumbItem>
+            {breadcrumbs.map((breadcrumb, index) => (
+              <React.Fragment key={breadcrumb.href}>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  {breadcrumb.isLast ? (
+                    <BreadcrumbPage>{breadcrumb.name}</BreadcrumbPage>
+                  ) : (
+                    <BreadcrumbLink asChild>
+                      <Link href={breadcrumb.href}>{breadcrumb.name}</Link>
+                    </BreadcrumbLink>
+                  )}
+                </BreadcrumbItem>
+              </React.Fragment>
+            ))}
           </BreadcrumbList>
         </Breadcrumb>
       )}

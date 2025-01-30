@@ -341,40 +341,40 @@ export function PaymentManagement({
               </TableRow>
             ) : (
               initialPayments.map((payment) => (
-                <TableRow key={payment.id} className="group hover:bg-muted/50">
-                  <Link
-                    href={`/@${orgSlug}/payments/${payment.id}`}
-                    className="contents"
-                  >
-                    <TableCell className="font-medium">
-                      {formatPaymentDate(payment.createdAt || payment.created_at)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="capitalize">{payment.type}</span>
-                        {payment.order?.product && (
-                          <span className="text-sm text-muted-foreground">
-                            {payment.order.product.name} - {formatCurrency(
-                              payment.order.product.price,
-                              payment.order.product.currency || payment.currency
-                            )}
-                          </span>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-medium tabular-nums">
-                      {formatCurrency(payment.amount, payment.currency)}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        payment.status === 'paid' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
-                        payment.status === 'rejected' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' :
-                        'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20'
-                      }`}>
-                        {payment.status}
-                      </span>
-                    </TableCell>
-                  </Link>
+                <TableRow 
+                  key={payment.id} 
+                  className="group hover:bg-muted/50"
+                  onClick={() => router.push(`/@${orgSlug}/payments/${payment.id}`)}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <TableCell className="font-medium">
+                    {formatPaymentDate(payment.createdAt || payment.created_at)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="capitalize">{payment.type}</span>
+                      {payment.order?.product && (
+                        <span className="text-sm text-muted-foreground">
+                          {payment.order.product.name} - {formatCurrency(
+                            payment.order.product.price,
+                            payment.order.product.currency || payment.currency
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-medium tabular-nums">
+                    {formatCurrency(payment.amount, payment.currency)}
+                  </TableCell>
+                  <TableCell>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      payment.status === 'paid' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
+                      payment.status === 'rejected' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' :
+                      'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20'
+                    }`}>
+                      {payment.status}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       {payment.status === 'pending' ? (

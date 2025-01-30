@@ -65,8 +65,6 @@ export default function MembershipTable({ tiers, groupId }: MembershipTableProps
     setDeletingTier(null);
   };
 
-  console.log('Tiers received in table:', tiers);
-
   return (
     <>
       <Table>
