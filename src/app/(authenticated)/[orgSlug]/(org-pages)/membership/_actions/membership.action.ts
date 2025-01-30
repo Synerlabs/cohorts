@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { z } from "zod";
 import snakecaseKeys from "snakecase-keys";
 import { ProductService } from "@/services/product.service";
@@ -36,10 +36,76 @@ type GroupUserWithGroup = {
   };
 };
 
-export async function getMembershipTiersAction(
-  orgId: string,
-): Promise<IMembershipTierProduct[]> {
-  return await ProductService.getMembershipTiers(orgId);
+export async function getMembershipTiersAction(groupId: string): Promise<IMembershipTierProduct[]> {
+  const supabase = await createServiceRoleClient();
+
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      *,
+      membership_tiers(*)
+    `)
+    .eq('group_id', groupId)
+    .eq('type', 'membership_tier')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data as IMembershipTierProduct[];
+}
+
+export interface IMembership {
+  group_user_id: string;
+  order_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  group_user: {
+    id: string;
+    user_id: string;
+    group_id: string;
+    user: {
+      id: string;
+      first_name: string;
+      last_name: string;
+    };
+  };
+  order: {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+  };
+}
+
+export async function getMembershipsAction(groupId: string): Promise<IMembership[]> {
+  const supabase = await createServiceRoleClient();
+
+  const { data, error } = await supabase
+    .from('memberships')
+    .select(`
+      *,
+      group_user:group_user_id(
+        id,
+        user_id,
+        group_id,
+        user:user_id(
+          id,
+          first_name,
+          last_name
+        )
+      ),
+      order:order_id(
+        id,
+        amount,
+        currency,
+        status
+      )
+    `)
+    .eq('group_user.group_id', groupId)
+    .order('start_date', { ascending: false });
+
+  if (error) throw error;
+  return data as IMembership[];
 }
 
 function validateActivationType(price: number, activationType: string) {
