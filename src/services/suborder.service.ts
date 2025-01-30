@@ -71,22 +71,105 @@ export class SuborderService {
   }
 
   static async processMembershipSuborder(suborder: IMembershipSuborder): Promise<IMembershipSuborder> {
-    console.log('🔄 Processing membership suborder:', suborder.id);
+    console.log('🔄 Starting processMembershipSuborder:', {
+      suborderId: suborder.id,
+      metadata: suborder.metadata,
+      status: suborder.status
+    });
     
     const supabase = await createServiceRoleClient();
     
     try {
       // Get the application and update its status
       if (!suborder.metadata?.application_id) {
+        console.error('❌ No application_id in suborder metadata:', suborder.metadata);
         throw new Error('No application ID found in suborder metadata');
       }
 
-      console.log('✅ Approving application:', suborder.metadata.application_id);
+      console.log('🔍 Getting application details:', suborder.metadata.application_id);
       
       const now = new Date().toISOString();
 
+      // Get application details including tier information
+      const { data: application, error: getAppError } = await supabase
+        .from('applications')
+        .select(`
+          *,
+          tier:tier_id(
+            *,
+            membership_tiers!inner(*)
+          )
+        `)
+        .eq('id', suborder.metadata.application_id)
+        .single();
+
+      if (getAppError) {
+        console.error('❌ Failed to get application:', { 
+          error: getAppError,
+          applicationId: suborder.metadata.application_id 
+        });
+        throw new Error(`Failed to get application details: ${getAppError.message}`);
+      }
+
+      if (!application) {
+        console.error('❌ Application not found:', suborder.metadata.application_id);
+        throw new Error('Application not found');
+      }
+
+      console.log('✅ Found application:', {
+        applicationId: application.id,
+        userId: application.user_id,
+        groupId: application.group_id,
+        tierId: application.tier_id,
+        status: application.status
+      });
+
+      // Calculate membership dates
+      const startDate = new Date();
+      const durationMonths = application.tier?.membership_tiers?.[0]?.duration_months || 12;
+      const endDate = new Date(startDate);
+      endDate.setMonth(endDate.getMonth() + durationMonths);
+
+      console.log('📅 Calculated membership dates:', {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+        durationMonths
+      });
+
+      // Create membership record
+      console.log('🔄 Creating membership record...', {
+        applicationId: application.id,
+        userId: application.user_id,
+        groupId: application.group_id,
+        tierId: application.tier_id
+      });
+
+      const { error: membershipError } = await supabase
+        .from('memberships')
+        .insert({
+          user_id: application.user_id,
+          group_id: application.group_id,
+          tier_id: application.tier_id,
+          start_date: startDate.toISOString(),
+          end_date: endDate.toISOString(),
+          application_id: application.id,
+          status: 'active'
+        });
+
+      if (membershipError) {
+        console.error('❌ Failed to create membership:', {
+          error: membershipError,
+          applicationId: application.id
+        });
+        throw new Error(`Failed to create membership: ${membershipError.message}`);
+      }
+
+      console.log('✅ Created membership record');
+
       // Update application status
-      const { data: application, error: appError } = await supabase
+      console.log('🔄 Updating application status to approved...');
+      
+      const { data: updatedApp, error: appError } = await supabase
         .from('applications')
         .update({
           status: 'approved',
@@ -98,37 +181,59 @@ export class SuborderService {
         .single();
 
       if (appError) {
+        console.error('❌ Failed to update application:', {
+          error: appError,
+          applicationId: application.id
+        });
         throw new Error(`Failed to update application: ${appError.message}`);
       }
 
-      if (!application) {
-        throw new Error('Application not found');
+      if (!updatedApp) {
+        console.error('❌ Updated application not found:', application.id);
+        throw new Error('Application not found after update');
       }
 
-      if (application.status !== 'approved') {
+      if (updatedApp.status !== 'approved') {
+        console.error('❌ Application status not updated:', {
+          applicationId: application.id,
+          status: updatedApp.status
+        });
         throw new Error('Failed to update application status');
       }
 
+      console.log('✅ Updated application status:', {
+        applicationId: application.id,
+        status: updatedApp.status
+      });
+
       // Store group_user_id in metadata if not already there
       let updatedSuborder = suborder;
-      if (application.group_user_id && !suborder.metadata.group_user_id) {
+      if (updatedApp.group_user_id && !suborder.metadata.group_user_id) {
+        console.log('🔄 Updating suborder metadata with group_user_id:', updatedApp.group_user_id);
+        
         updatedSuborder = await this.updateSuborderStatus(suborder.id, 'processing', {
           ...suborder.metadata,
-          group_user_id: application.group_user_id
+          group_user_id: updatedApp.group_user_id
         }) as IMembershipSuborder;
       }
 
       // Activate the group user
-      if (application.group_user_id) {
+      if (updatedApp.group_user_id) {
+        console.log('🔄 Activating group user:', updatedApp.group_user_id);
+        
         const { error: userError } = await supabase
           .from('group_users')
           .update({
             is_active: true,
             updated_at: now
           })
-          .eq('id', application.group_user_id);
+          .eq('id', updatedApp.group_user_id);
 
         if (userError) {
+          console.error('❌ Failed to activate group user:', {
+            error: userError,
+            groupUserId: updatedApp.group_user_id
+          });
           throw new Error(`Failed to activate group user: ${userError.message}`);
         }
 
@@ -136,26 +241,24 @@ export class SuborderService {
         const { data: verifyUser, error: verifyError } = await supabase
           .from('group_users')
           .select('is_active')
-          .eq('id', application.group_user_id)
+          .eq('id', updatedApp.group_user_id)
           .single();
 
         if (verifyError || !verifyUser || !verifyUser.is_active) {
+          console.error('❌ Failed to verify group user activation:', {
+            error: verifyError,
+            groupUserId: updatedApp.group_user_id,
+            isActive: verifyUser?.is_active
+          });
           throw new Error('Failed to verify group user activation');
         }
-      }
 
-      // Verify application is still in approved state
-      const { data: verifyApp, error: verifyAppError } = await supabase
-        .from('applications')
-        .select('status')
-        .eq('id', suborder.metadata.application_id)
-        .single();
-
-      if (verifyAppError || !verifyApp || verifyApp.status !== 'approved') {
-        throw new Error('Failed to verify application status');
+        console.log('✅ Activated group user:', updatedApp.group_user_id);
       }
 
       // All steps completed successfully, now mark suborder as completed
+      console.log('🔄 Marking suborder as completed:', updatedSuborder.id);
+      
       return await this.updateSuborderStatus(updatedSuborder.id, 'completed', {
         ...updatedSuborder.metadata,
         completedAt: now
@@ -174,7 +277,12 @@ export class SuborderService {
   }
 
   static async processSuborder(suborder: ISuborder): Promise<ISuborder> {
-    console.log('🔄 Processing suborder:', { id: suborder.id, productType: suborder.product?.type });
+    console.log('🔄 Processing suborder:', { 
+      id: suborder.id, 
+      type: suborder.type,
+      productType: suborder.product?.type,
+      metadata: suborder.metadata
+    });
     
     // Check if suborder is already completed or failed
     if (suborder.status === 'completed') {
@@ -192,13 +300,17 @@ export class SuborderService {
       await this.updateSuborderStatus(suborder.id, 'processing');
 
       // Process based on type
-      if (suborder.product && isMembershipSuborder(suborder, suborder.product)) {
+      if (suborder.type === 'membership') {
+        console.log('🔄 Processing as membership suborder:', {
+          id: suborder.id,
+          applicationId: suborder.metadata?.application_id
+        });
         return await this.processMembershipSuborder(suborder as IMembershipSuborder);
       }
 
       // For now, other types just get marked as completed
       // Add specific processing for other product types as needed
-      console.log('ℹ️ No specific processing for type:', suborder.product?.type);
+      console.log('ℹ️ No specific processing for type:', suborder.type);
       return await this.updateSuborderStatus(suborder.id, 'completed');
     } catch (error) {
       console.error('❌ Failed to process suborder:', error);

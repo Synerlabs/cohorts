@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { CreditCard } from "lucide-react";
 import Link from "next/link";
 import { IMembershipTierProduct } from "@/lib/types/product";
+import { getUserMembership } from "@/services/join.service";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -44,13 +45,20 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
     );
   }
 
+  // First check for active membership
+  const membership = await getUserMembership(data.user.id, org.id);
+  
+  // If user has an active membership, redirect to org page
+  if (membership?.is_active) {
+    redirect(`/@${org.slug}`);
+  }
+
   // Get user's applications
   const applications = await getUserMembershipApplications(data.user.id, org.id);
   const latestApplication = applications[0];
 
-  console.log("LATEST APPLICATION", latestApplication);
-  // If user has an active application for this organization
-  if (latestApplication && !latestApplication.rejected_at && latestApplication.group_id === org.id) {
+  // If user has a pending application
+  if (latestApplication && !latestApplication.rejected_at) {
     // If application is approved and requires payment
     if (latestApplication.status === "pending_payment") {
       return (
@@ -82,7 +90,7 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
       );
     }
 
-    // If application is pending
+    // If application is pending review
     if (latestApplication.status === "pending") {
       return (
         <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
@@ -95,14 +103,12 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
         </div>
       );
     }
-
-    // If application is approved, redirect to org page
-    if (latestApplication.status === "approved") {
-      redirect(`/@${org.slug}`);
-    }
   }
 
-  // If user has a rejected membership or no membership, show membership selection
+  // Show membership selection if:
+  // 1. User has no active membership
+  // 2. No pending applications
+  // 3. Previous application was rejected (or no previous applications)
   return (
     <div className="container max-w-4xl py-6 flex items-center justify-center min-h-[calc(100vh-4rem)]">
       <div className="w-full space-y-6">

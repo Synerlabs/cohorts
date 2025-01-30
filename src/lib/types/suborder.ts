@@ -157,6 +157,28 @@ export abstract class Suborder {
   }
 }
 
+interface MembershipTier {
+  duration_months: number;
+  activation_type: string;
+  product_id: string;
+}
+
+interface ApplicationWithRelations {
+  id: string;
+  group_user_id: string;
+  tier_id: string;
+  status: string;
+  tier: {
+    id: string;
+    membership_tiers: MembershipTier[];
+  };
+  group_user: {
+    id: string;
+    user_id: string;
+    group_id: string;
+  };
+}
+
 export class MembershipSuborder extends Suborder {
   async process(): Promise<Suborder> {
     console.log('🔄 Processing membership suborder:', this.id);
@@ -170,8 +192,110 @@ export class MembershipSuborder extends Suborder {
         await this.updateStatus('processing');
         const now = new Date().toISOString();
 
+        // Get application details including tier information and group user
+        const { data: application, error: getAppError } = await this.supabase
+          .from('applications')
+          .select(`
+            *,
+            tier:tier_id(
+              *,
+              membership_tiers!inner(*)
+            ),
+            group_user:group_user_id(
+              id,
+              user_id,
+              group_id
+            )
+          `)
+          .eq('id', this.metadata.application_id)
+          .single();
+
+        if (getAppError || !application) {
+          console.error('❌ Failed to get application:', { 
+            error: getAppError,
+            applicationId: this.metadata.application_id 
+          });
+          throw new ProcessingError(
+            `Failed to get application details: ${getAppError?.message || 'Application not found'}`,
+            { applicationId: this.metadata.application_id }
+          );
+        }
+
+        const typedApplication = application as unknown as ApplicationWithRelations;
+
+        console.log('✅ Found application:', {
+          applicationId: typedApplication.id,
+          groupUserId: typedApplication.group_user_id,
+          tierId: typedApplication.tier_id,
+          status: typedApplication.status
+        });
+
+        // Calculate membership dates
+        const startDate = new Date();
+        const durationMonths = typedApplication.tier?.membership_tiers?.[0]?.duration_months || 12;
+        const endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + durationMonths);
+
+        console.log('📅 Calculated membership dates:', {
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString(),
+          durationMonths
+        });
+
+        // Create membership record
+        console.log('🔄 Creating membership record...', {
+          applicationId: typedApplication.id,
+          groupUserId: typedApplication.group_user_id
+        });
+
+        // Check if membership already exists
+        const { data: existingMembership, error: existingError } = await this.supabase
+          .from('memberships')
+          .select('group_user_id, order_id')
+          .eq('group_user_id', typedApplication.group_user_id)
+          .eq('status', 'active')
+          .single();
+
+        if (existingError && existingError.code !== 'PGRST116') { // PGRST116 is "no rows returned"
+          console.error('❌ Failed to check existing membership:', {
+            error: existingError,
+            groupUserId: typedApplication.group_user_id
+          });
+          throw new ProcessingError(`Failed to check existing membership: ${existingError.message}`);
+        }
+
+        if (existingMembership) {
+          console.log('⚠️ Active membership already exists:', {
+            groupUserId: typedApplication.group_user_id,
+            orderId: existingMembership.order_id
+          });
+          // Skip creating new membership but continue with other steps
+        } else {
+          const { error: membershipError } = await this.supabase
+            .from('memberships')
+            .insert({
+              group_user_id: typedApplication.group_user_id,
+              order_id: this.orderId,
+              start_date: startDate.toISOString(),
+              end_date: endDate.toISOString(),
+              status: 'active'
+            });
+
+          if (membershipError) {
+            console.error('❌ Failed to create membership:', {
+              error: membershipError,
+              applicationId: typedApplication.id
+            });
+            throw new ProcessingError(`Failed to create membership: ${membershipError.message}`);
+          }
+
+          console.log('✅ Created membership record');
+        }
+
         // Update application status
-        const { data: application, error: appError } = await this.supabase
+        console.log('🔄 Updating application status to approved...');
+        
+        const { data: updatedApp, error: appError } = await this.supabase
           .from('applications')
           .update({
             status: 'approved',
@@ -182,26 +306,32 @@ export class MembershipSuborder extends Suborder {
           .select('group_user_id, status')
           .single();
 
-        if (appError || !application) {
+        if (appError || !updatedApp) {
           throw new ProcessingError(
             `Failed to update application: ${appError?.message || 'Application not found'}`,
             { applicationId: this.metadata.application_id }
           );
         }
 
-        if (application.status !== 'approved') {
+        if (updatedApp.status !== 'approved') {
           throw new ProcessingError('Failed to update application status');
         }
 
+        console.log('✅ Updated application status:', {
+          applicationId: typedApplication.id,
+          status: updatedApp.status
+        });
+
         // Update metadata with group_user_id if needed
-        if (application.group_user_id && !this.metadata.group_user_id) {
-          await this.updateStatus('processing', { group_user_id: application.group_user_id });
+        if (updatedApp.group_user_id && !this.metadata.group_user_id) {
+          console.log('🔄 Updating suborder metadata with group_user_id:', updatedApp.group_user_id);
+          await this.updateStatus('processing', { group_user_id: updatedApp.group_user_id });
         }
 
         // Activate group user
-        if (application.group_user_id) {
-          await this.activateGroupUser(application.group_user_id);
-          await this.verifyGroupUserActivation(application.group_user_id);
+        if (updatedApp.group_user_id) {
+          await this.activateGroupUser(updatedApp.group_user_id);
+          await this.verifyGroupUserActivation(updatedApp.group_user_id);
         }
 
         await this.verifyApplicationStatus();

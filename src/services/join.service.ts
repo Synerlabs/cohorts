@@ -279,23 +279,23 @@ export async function getUserMembership(userId: string, groupId: string) {
   const { data: membership, error: membershipError } = await supabase
     .from('memberships')
     .select(`
-      *,
-      orders!inner (
+      id,
+      status,
+      start_date,
+      end_date,
+      tier:tier_id (
+        id,
+        name,
+        price,
+        membership_tiers!inner (
+          activation_type,
+          duration_months
+        )
+      ),
+      orders (
         id,
         status,
         created_at,
-        suborders (
-          id,
-          products (
-            id,
-            name,
-            price,
-            membership_tiers!inner (
-              activation_type,
-              duration_months
-            )
-          )
-        ),
         payments (
           id,
           status
@@ -306,6 +306,7 @@ export async function getUserMembership(userId: string, groupId: string) {
     .eq('status', 'active')
     .gte('start_date', new Date().toISOString())
     .or('end_date.is.null,end_date.gt.now()')
+    .order('created_at.desc')
     .limit(1)
     .maybeSingle();
 
@@ -317,11 +318,10 @@ export async function getUserMembership(userId: string, groupId: string) {
 
   if (membership) {
     // Check if there are any pending payments
-    const hasPendingPayments = membership.orders.payments?.some((p: { status: string }) => p.status === 'pending');
-    const status = hasPendingPayments ? 'pending_payment' : membership.orders.status;
-
-    // Get the product from the first suborder
-    const product = membership.orders.suborders?.[0]?.products;
+    const hasPendingPayments = membership.orders?.some(order => 
+      order.payments?.some((p: { status: string }) => p.status === 'pending')
+    );
+    const status = hasPendingPayments ? 'pending_payment' : membership.status;
 
     // A membership is active if:
     // 1. It has status 'active'
@@ -333,10 +333,10 @@ export async function getUserMembership(userId: string, groupId: string) {
                     !hasPendingPayments;
 
     return {
-      id: membership.orders.id,
+      id: membership.id,
       status,
-      created_at: membership.orders.created_at,
-      product,
+      created_at: membership.orders?.[0]?.created_at,
+      product: membership.tier,
       is_active: isActive,
       start_date: membership.start_date,
       end_date: membership.end_date
@@ -409,6 +409,7 @@ interface ApplicationWithTier {
 
 export async function approveApplication(applicationId: string) {
   const supabase = await createClient();
+  console.log('Starting application approval process for:', applicationId);
 
   // Get the application details
   const { data, error: applicationError } = await supabase
@@ -437,6 +438,8 @@ export async function approveApplication(applicationId: string) {
     .eq('id', applicationId)
     .single();
 
+  console.log('Application query result:', { data, error: applicationError });
+
   if (applicationError) throw applicationError;
   if (!data) throw new Error("Application not found");
 
@@ -459,6 +462,8 @@ export async function approveApplication(applicationId: string) {
     }
   } as ApplicationWithTier;
 
+  console.log('Parsed application data:', application);
+
   if (!application.tier) throw new Error("Membership tier not found");
   if (!application.tier.membership_tier?.[0]) throw new Error("Membership tier details not found");
 
@@ -480,37 +485,164 @@ export async function approveApplication(applicationId: string) {
     }
   };
 
+  console.log('Membership tier details:', tier);
+
+  const isPaymentRequired = tier.membership_tier.activation_type === 'payment_required';
+  const newStatus = isPaymentRequired ? 'pending_payment' : 'approved';
+  console.log('Application status will be set to:', newStatus);
+
   // Update the application status
   const { error: updateError } = await supabase
     .from('applications')
     .update({
-      status: tier.membership_tier.activation_type === 'payment_required' ? 'pending_payment' : 'approved',
+      status: newStatus,
       approved_at: new Date().toISOString()
     })
     .eq('id', applicationId);
 
+  console.log('Application status update result:', { error: updateError });
+
   if (updateError) throw updateError;
 
-  // If no payment is required, activate the group user
-  if (tier.membership_tier.activation_type !== 'payment_required') {
+  // If application is approved (no payment required), create membership and activate user
+  if (newStatus === 'approved') {
+    console.log('Creating membership for approved application');
+    
+    // Calculate membership dates
+    const startDate = new Date().toISOString();
+    const endDate = tier.membership_tier.duration_months ? 
+      new Date(Date.now() + tier.membership_tier.duration_months * 30 * 24 * 60 * 60 * 1000).toISOString() : 
+      null;
+
+    console.log('Membership dates:', { startDate, endDate, durationMonths: tier.membership_tier.duration_months });
+
+    // Create membership record
+    const { error: membershipError } = await supabase
+      .from('memberships')
+      .insert({
+        group_user_id: application.group_user_id,
+        tier_id: tier.id,
+        status: 'active',
+        start_date: startDate,
+        end_date: endDate
+      });
+
+    console.log('Membership creation result:', { error: membershipError });
+
+    if (membershipError) throw membershipError;
+
+    // Activate the group user
     const { error: groupUserError } = await supabase
       .from('group_users')
       .update({ is_active: true })
       .eq('id', application.group_user_id);
 
+    console.log('Group user activation result:', { error: groupUserError });
+
     if (groupUserError) throw groupUserError;
+  } else {
+    console.log('Skipping membership creation - payment required');
   }
+
+  console.log('Application approval process completed');
+}
+
+interface ApplicationWithTierDetails {
+  id: string;
+  group_user_id: string;
+  tier_id: string;
+  tier: {
+    id: string;
+    membership_tiers: Array<{
+      duration_months: number;
+    }>;
+  };
 }
 
 export async function completePayment(applicationId: string) {
   const supabase = await createClient();
+  console.log('Starting payment completion process for:', applicationId);
 
-  // Start transaction
+  // Get application and tier details
+  const { data: application, error: applicationError } = await supabase
+    .from('applications')
+    .select(`
+      id,
+      group_user_id,
+      tier_id,
+      tier:tier_id!inner (
+        id,
+        membership_tiers!inner (
+          duration_months
+        )
+      )
+    `)
+    .eq('id', applicationId)
+    .single() as { data: ApplicationWithTierDetails | null, error: any };
+
+  console.log('Application query result:', { application, error: applicationError });
+
+  if (applicationError || !application) throw applicationError || new Error('Application not found');
+
+  // Start transaction for payment completion
   const { error: updateError } = await supabase.rpc('complete_payment', { 
     p_application_id: applicationId
   });
 
+  console.log('Payment completion RPC result:', { error: updateError });
+
   if (updateError) throw updateError;
+
+  // After payment is completed and application is approved, create membership
+  const { data: updatedApplication, error: checkError } = await supabase
+    .from('applications')
+    .select('status')
+    .eq('id', applicationId)
+    .single();
+
+  console.log('Updated application status:', { updatedApplication, error: checkError });
+
+  if (updatedApplication?.status === 'approved') {
+    console.log('Application is approved, creating membership');
+    
+    // Calculate membership dates
+    const startDate = new Date().toISOString();
+    const durationMonths = application.tier.membership_tiers[0]?.duration_months;
+    const endDate = durationMonths ? 
+      new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString() : 
+      null;
+
+    console.log('Membership dates:', { startDate, endDate, durationMonths });
+
+    // Create membership record
+    const { error: membershipError } = await supabase
+      .from('memberships')
+      .insert({
+        group_user_id: application.group_user_id,
+        tier_id: application.tier_id,
+        status: 'active',
+        start_date: startDate,
+        end_date: endDate
+      });
+
+    console.log('Membership creation result:', { error: membershipError });
+
+    if (membershipError) throw membershipError;
+
+    // Also activate the group user
+    const { error: groupUserError } = await supabase
+      .from('group_users')
+      .update({ is_active: true })
+      .eq('id', application.group_user_id);
+
+    console.log('Group user activation result:', { error: groupUserError });
+
+    if (groupUserError) throw groupUserError;
+  } else {
+    console.log('Application not approved after payment completion, status:', updatedApplication?.status);
+  }
+
+  console.log('Payment completion process finished');
 }
 
 export async function rejectApplication(applicationId: string) {
