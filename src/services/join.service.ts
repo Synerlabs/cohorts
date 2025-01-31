@@ -284,18 +284,6 @@ export async function getUserMembership(userId: string, groupId: string) {
       status,
       start_date,
       end_date,
-      tier:tier_id (
-        id,
-        name,
-        price,
-        membership_tiers!inner (
-          activation_type,
-          duration_months,
-          membership_tier_settings (
-            member_id_format
-          )
-        )
-      ),
       orders (
         id,
         status,
@@ -310,7 +298,7 @@ export async function getUserMembership(userId: string, groupId: string) {
     .eq('status', 'active')
     .gte('start_date', new Date().toISOString())
     .or('end_date.is.null,end_date.gt.now()')
-    .order('created_at.desc')
+    .order('created_at')
     .limit(1)
     .maybeSingle();
 

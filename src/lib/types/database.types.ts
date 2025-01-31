@@ -240,32 +240,106 @@ export type Database = {
       member_ids: {
         Row: {
           created_at: string
-          group_user_id: string
+          group_id: string | null
+          group_user_id: string | null
           id: string
           member_id: string
           updated_at: string
         }
         Insert: {
           created_at?: string
-          group_user_id: string
+          group_id?: string | null
+          group_user_id?: string | null
           id?: string
           member_id: string
           updated_at?: string
         }
         Update: {
           created_at?: string
-          group_user_id?: string
+          group_id?: string | null
+          group_user_id?: string | null
           id?: string
           member_id?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "member_ids_group_user_id_fkey"
-            columns: ["group_user_id"]
+            foreignKeyName: "member_ids_group_id_fkey"
+            columns: ["group_id"]
             isOneToOne: false
-            referencedRelation: "group_users"
+            referencedRelation: "group"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_member_ids: {
+        Row: {
+          created_at: string
+          id: string
+          member_id_id: string | null
+          membership_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id_id?: string | null
+          membership_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id_id?: string | null
+          membership_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_member_ids_member_id_id_fkey"
+            columns: ["member_id_id"]
+            isOneToOne: false
+            referencedRelation: "member_ids"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_member_ids_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_tier_settings: {
+        Row: {
+          created_at: string
+          id: string
+          member_id_format: string
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          member_id_format?: string
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          member_id_format?: string
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_tier_settings_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: true
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["product_id"]
           },
         ]
       }
@@ -297,28 +371,37 @@ export type Database = {
       }
       memberships: {
         Row: {
+          created_at: string | null
           end_date: string | null
           group_user_id: string
+          id: string
           metadata: Json | null
           order_id: string
           start_date: string | null
           status: string
+          tier_id: string | null
         }
         Insert: {
+          created_at?: string | null
           end_date?: string | null
           group_user_id: string
+          id?: string
           metadata?: Json | null
           order_id: string
           start_date?: string | null
           status?: string
+          tier_id?: string | null
         }
         Update: {
+          created_at?: string | null
           end_date?: string | null
           group_user_id?: string
+          id?: string
           metadata?: Json | null
           order_id?: string
           start_date?: string | null
           status?: string
+          tier_id?: string | null
         }
         Relationships: [
           {
@@ -334,6 +417,13 @@ export type Database = {
             isOneToOne: true
             referencedRelation: "orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["product_id"]
           },
         ]
       }
@@ -702,47 +792,50 @@ export type Database = {
       }
       suborders: {
         Row: {
-          id: string;
-          order_id: string;
-          status: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-          product_id: string;
-          amount: number;
-          currency: string;
-          metadata: Json | null;
-          created_at: string;
-          updated_at: string;
-          completed_at: string | null;
-          failed_at: string | null;
-          cancelled_at: string | null;
-        };
+          amount: number
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          currency: string
+          failed_at: string | null
+          id: string
+          metadata: Json | null
+          order_id: string
+          product_id: string
+          status: Database["public"]["Enums"]["suborder_status"]
+          type: string
+          updated_at: string
+        }
         Insert: {
-          id?: string;
-          order_id: string;
-          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-          product_id: string;
-          amount: number;
-          currency: string;
-          metadata?: Json | null;
-          created_at?: string;
-          updated_at?: string;
-          completed_at?: string | null;
-          failed_at?: string | null;
-          cancelled_at?: string | null;
-        };
+          amount: number
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          currency: string
+          failed_at?: string | null
+          id?: string
+          metadata?: Json | null
+          order_id: string
+          product_id: string
+          status?: Database["public"]["Enums"]["suborder_status"]
+          type?: string
+          updated_at?: string
+        }
         Update: {
-          id?: string;
-          order_id?: string;
-          status?: 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled';
-          product_id?: string;
-          amount?: number;
-          currency?: string;
-          metadata?: Json | null;
-          created_at?: string;
-          updated_at?: string;
-          completed_at?: string | null;
-          failed_at?: string | null;
-          cancelled_at?: string | null;
-        };
+          amount?: number
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          failed_at?: string | null
+          id?: string
+          metadata?: Json | null
+          order_id?: string
+          product_id?: string
+          status?: Database["public"]["Enums"]["suborder_status"]
+          type?: string
+          updated_at?: string
+        }
         Relationships: [
           {
             foreignKeyName: "suborders_order_id_fkey"
@@ -757,8 +850,8 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
-          }
-        ];
+          },
+        ]
       }
       uploads: {
         Row: {
@@ -913,6 +1006,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      generate_member_id: {
+        Args: {
+          p_group_id: string
+          p_format: string
+        }
+        Returns: string
+      }
       get_group_members: {
         Args: {
           group_id: string
@@ -934,18 +1034,6 @@ export type Database = {
         }
         Returns: undefined
       }
-      begin_transaction: {
-        Args: Record<string, never>;
-        Returns: undefined;
-      };
-      commit_transaction: {
-        Args: Record<string, never>;
-        Returns: undefined;
-      };
-      rollback_transaction: {
-        Args: Record<string, never>;
-        Returns: undefined;
-      };
     }
     Enums: {
       app_permission:
