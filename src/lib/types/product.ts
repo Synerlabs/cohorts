@@ -16,7 +16,9 @@ export interface IProduct {
   updated_at: string;
 }
 
-type MembershipTierRow = Database['public']['Tables']['membership_tiers']['Row'];
+type MembershipTierRow = Database['public']['Tables']['membership_tiers']['Row'] & {
+  member_id_format?: string;
+};
 
 export interface IMembershipTierProduct extends IProduct {
   type: 'membership_tier';

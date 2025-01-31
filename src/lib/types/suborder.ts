@@ -278,7 +278,8 @@ export class MembershipSuborder extends Suborder {
               order_id: this.orderId,
               start_date: startDate.toISOString(),
               end_date: endDate.toISOString(),
-              status: 'active'
+              status: 'active',
+              tier_id: typedApplication.tier_id
             });
 
           if (membershipError) {

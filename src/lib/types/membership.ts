@@ -15,6 +15,7 @@ export type MembershipTier = {
   currency: Currency;
   duration_months: number;
   activation_type: MembershipActivationType;
+  member_id_format: string;
   created_at: string;
   group_id: string;
   member_count?: number;
@@ -43,6 +44,7 @@ export type Membership = {
   id: string;
   order_id: string;
   group_user_id: string;
+  tier_id: string;
   status: MembershipStatus;
   start_date: string | null;
   end_date: string | null;

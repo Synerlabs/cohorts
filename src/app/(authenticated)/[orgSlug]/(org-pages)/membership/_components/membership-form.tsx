@@ -23,7 +23,12 @@ const formSchema = z.object({
   price: z.number().min(0, "Price must be 0 or greater"),
   currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
-  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment'] as const)
+  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment'] as const),
+  member_id_format: z.string().min(1, "Member ID format is required")
+    .refine(
+      (val) => val.includes('{SEQ:') || val.includes('{YYYY}') || val.includes('{YY}') || val.includes('{MM}') || val.includes('{DD}'),
+      "Format must include at least one token: {SEQ:n}, {YYYY}, {YY}, {MM}, or {DD}"
+    )
 });
 
 interface MembershipFormProps {
@@ -62,6 +67,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       currency: tier?.currency || "USD",
       duration_months: tier?.membership_tier?.duration_months || 1,
       activation_type: (tier?.membership_tier?.activation_type || 'automatic') as 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment',
+      member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
     },
   });
 
@@ -99,6 +105,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       formData.append("currency", values.currency);
       formData.append("duration_months", values.duration_months.toString());
       formData.append("activation_type", values.activation_type);
+      formData.append("member_id_format", values.member_id_format);
 
       action(formData);
     });
@@ -203,6 +210,26 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                   onChange={(e) => field.onChange(parseInt(e.target.value))}
                 />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="member_id_format"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Member ID Format</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="MEM-{YYYY}-{SEQ:3}"
+                  {...field}
+                />
+              </FormControl>
+              <p className="text-sm text-muted-foreground mt-1">
+                Available tokens: {"{YYYY}"} (year), {"{YY}"} (2-digit year), {"{MM}"} (month), {"{DD}"} (day), {"{SEQ:n}"} (sequence with n digits)
+              </p>
               <FormMessage />
             </FormItem>
           )}

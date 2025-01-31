@@ -16,6 +16,7 @@ const membershipTierSchema = z.object({
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
   group_id: z.string(),
   activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment']).default('automatic'),
+  member_id_format: z.string().min(1, "Member ID format is required").default('MEM-{YYYY}-{SEQ:3}')
 });
 
 const membershipTierUpdateSchema = membershipTierSchema
@@ -43,14 +44,26 @@ export async function getMembershipTiersAction(groupId: string): Promise<IMember
     .from('products')
     .select(`
       *,
-      membership_tiers(*)
+      membership_tiers!inner (
+        *,
+        membership_tier_settings (
+          member_id_format
+        )
+      )
     `)
     .eq('group_id', groupId)
     .eq('type', 'membership_tier')
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return data as IMembershipTierProduct[];
+
+  return data.map(tier => ({
+    ...tier,
+    membership_tier: {
+      ...tier.membership_tiers,
+      member_id_format: tier.membership_tiers.membership_tier_settings?.member_id_format
+    }
+  })) as IMembershipTierProduct[];
 }
 
 export interface IMembership {
@@ -161,6 +174,7 @@ export async function createMembershipTierAction(
     duration_months: Number(formData.get("duration_months")),
     activation_type: formData.get("activation_type") || 'automatic',
     currency: formData.get("currency") || "USD",
+    member_id_format: formData.get("member_id_format") || 'MEM-{YYYY}-{SEQ:3}'
   };
 
   // Validate activation type based on price
@@ -210,6 +224,7 @@ export async function createMembershipTierAction(
         currency: parsedFormData.data.currency,
         duration_months: parsedFormData.data.duration_months,
         activation_type: parsedFormData.data.activation_type,
+        member_id_format: parsedFormData.data.member_id_format
       }
     );
 
@@ -237,6 +252,7 @@ export async function updateMembershipTierAction(
     duration_months: Number(rawFormData.duration_months),
     activation_type: rawFormData.activation_type || 'automatic',
     currency: rawFormData.currency || "USD",
+    member_id_format: rawFormData.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
   };
 
   // Validate activation type based on price
@@ -289,6 +305,7 @@ export async function updateMembershipTierAction(
         currency: parsedFormData.data.currency,
         duration_months: parsedFormData.data.duration_months,
         activation_type: parsedFormData.data.activation_type,
+        member_id_format: parsedFormData.data.member_id_format
       }
     );
 

@@ -194,7 +194,7 @@ export async function getMembership(
 
 export async function getUserMembership(userId: string, groupId: string) {
   const supabase = await createClient();
-  
+
   console.log('Getting user membership:', { userId, groupId });
   
   // First get the group_user record
@@ -268,7 +268,8 @@ export async function getUserMembership(userId: string, groupId: string) {
         price: application.products.price,
         membership_tiers: {
           activation_type: application.products.membership_tiers.activation_type,
-          duration_months: application.products.membership_tiers.duration_months
+          duration_months: application.products.membership_tiers.duration_months,
+          member_id_format: application.products.membership_tiers.membership_tier_settings?.member_id_format
         }
       },
       is_active: false
@@ -289,7 +290,10 @@ export async function getUserMembership(userId: string, groupId: string) {
         price,
         membership_tiers!inner (
           activation_type,
-          duration_months
+          duration_months,
+          membership_tier_settings (
+            member_id_format
+          )
         )
       ),
       orders (
@@ -336,7 +340,14 @@ export async function getUserMembership(userId: string, groupId: string) {
       id: membership.id,
       status,
       created_at: membership.orders?.[0]?.created_at,
-      product: membership.tier,
+      product: {
+        ...membership.tier,
+        membership_tiers: {
+          activation_type: membership.tier.membership_tiers[0].activation_type,
+          duration_months: membership.tier.membership_tiers[0].duration_months,
+          member_id_format: membership.tier.membership_tiers[0].membership_tier_settings?.[0]?.member_id_format
+        }
+      },
       is_active: isActive,
       start_date: membership.start_date,
       end_date: membership.end_date

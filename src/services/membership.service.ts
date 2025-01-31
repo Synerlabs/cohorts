@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { Membership, MembershipStatus, MembershipTier } from "@/lib/types/membership";
+import { MemberIdService } from "@/services/member-id.service";
 
 export class MembershipService {
   static async getMembership(id: string): Promise<Membership | null> {
@@ -31,23 +32,68 @@ export class MembershipService {
   static async createMembership(data: {
     order_id: string;
     group_user_id: string;
+    tier_id: string;
     start_date?: string;
     end_date?: string;
     metadata?: Record<string, any>;
   }): Promise<Membership> {
     const supabase = await createClient();
+
+    // Start a transaction
+    await supabase.rpc('begin_transaction');
     
-    const { data: membership, error } = await supabase
-      .from("memberships")
-      .insert({
-        ...data,
-        status: MembershipStatus.ACTIVE
-      })
-      .select()
-      .single();
+    try {
+      // Get group ID from group_user
+      const { data: groupUser, error: groupUserError } = await supabase
+        .from("group_users")
+        .select("group_id")
+        .eq("id", data.group_user_id)
+        .single();
+
+      if (groupUserError) throw groupUserError;
+
+      // Get member ID format from membership tier settings
+      const { data: tierSettings, error: tierError } = await supabase
+        .from("membership_tier_settings")
+        .select("member_id_format")
+        .eq("tier_id", data.tier_id)
+        .single();
+
+      if (tierError) throw tierError;
+
+      // Create membership record
+      const { data: membership, error: membershipError } = await supabase
+        .from("memberships")
+        .insert({
+          ...data,
+          status: MembershipStatus.ACTIVE
+        })
+        .select()
+        .single();
     
-    if (error) throw error;
-    return membership;
+      if (membershipError) throw membershipError;
+
+      // Generate member ID
+      const memberId = await MemberIdService.generateMemberId(
+        groupUser.group_id,
+        tierSettings.member_id_format
+      );
+
+      // Assign member ID to membership
+      await MemberIdService.assignMemberIdToMembership(
+        membership.id,
+        memberId
+      );
+
+      // Commit transaction
+      await supabase.rpc('commit_transaction');
+
+      return membership;
+    } catch (error) {
+      // Rollback on error
+      await supabase.rpc('rollback_transaction');
+      throw error;
+    }
   }
 
   static async updateMembershipStatus(id: string, status: MembershipStatus): Promise<Membership> {

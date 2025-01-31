@@ -12,7 +12,10 @@ export class ProductService {
         *,
         membership_tiers!inner (
           activation_type,
-          duration_months
+          duration_months,
+          membership_tier_settings (
+            member_id_format
+          )
         )
       `)
       .eq('id', id)
@@ -27,9 +30,14 @@ export class ProductService {
       throw new Error('Membership tier not found');
     }
 
+    console.log('Raw membership tier data:', JSON.stringify(data, null, 2));
+
     return {
       ...data,
-      membership_tier: data.membership_tiers
+      membership_tier: {
+        ...data.membership_tiers,
+        member_id_format: data.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+      }
     } as IMembershipTierProduct;
   }
 
@@ -42,7 +50,10 @@ export class ProductService {
         *,
         membership_tiers!inner (
           activation_type,
-          duration_months
+          duration_months,
+          membership_tier_settings (
+            member_id_format
+          )
         )
       `)
       .eq('group_id', groupId)
@@ -56,10 +67,23 @@ export class ProductService {
       return [];
     }
 
-    return data.map(tier => ({
-      ...tier,
-      membership_tier: tier.membership_tiers
-    })) as IMembershipTierProduct[];
+    console.log('Raw membership tiers data:', JSON.stringify(data, null, 2));
+
+    return data.map(tier => {
+      console.log('Processing tier:', {
+        id: tier.id,
+        membershipTier: tier.membership_tiers,
+        settings: tier.membership_tiers?.membership_tier_settings
+      });
+
+      return {
+        ...tier,
+        membership_tier: {
+          ...tier.membership_tiers,
+          member_id_format: tier.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+        }
+      };
+    }) as IMembershipTierProduct[];
   }
 
   static async createMembershipTier(groupId: string, tier: {
@@ -69,49 +93,78 @@ export class ProductService {
     currency: string;
     duration_months: number;
     activation_type: string;
+    member_id_format: string;
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .insert({
-        type: 'membership_tier',
-        name: tier.name,
-        description: tier.description,
-        price: tier.price,
-        currency: tier.currency,
-        group_id: groupId,
-        is_active: true
-      })
-      .select()
-      .single();
+    // Start a transaction
+    await supabase.rpc('begin_transaction');
 
-    if (productError) {
-      throw productError;
+    try {
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .insert({
+          type: 'membership_tier',
+          name: tier.name,
+          description: tier.description,
+          price: tier.price,
+          currency: tier.currency,
+          group_id: groupId,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (productError) {
+        throw productError;
+      }
+
+      if (!product) {
+        throw new Error('Failed to create product');
+      }
+
+      const { data: membershipTier, error: membershipError } = await supabase
+        .from('membership_tiers')
+        .insert({
+          product_id: product.id,
+          duration_months: tier.duration_months,
+          activation_type: tier.activation_type
+        })
+        .select()
+        .single();
+
+      if (membershipError) {
+        throw membershipError;
+      }
+
+      const { data: tierSettings, error: settingsError } = await supabase
+        .from('membership_tier_settings')
+        .insert({
+          tier_id: membershipTier.product_id,
+          member_id_format: tier.member_id_format
+        })
+        .select()
+        .single();
+
+      if (settingsError) {
+        throw settingsError;
+      }
+
+      // Commit transaction
+      await supabase.rpc('commit_transaction');
+
+      return {
+        ...product,
+        membership_tier: {
+          ...membershipTier,
+          member_id_format: tierSettings.member_id_format
+        }
+      } as IMembershipTierProduct;
+    } catch (error) {
+      // Rollback on error
+      await supabase.rpc('rollback_transaction');
+      throw error;
     }
-
-    if (!product) {
-      throw new Error('Failed to create product');
-    }
-
-    const { data: membershipTier, error: membershipError } = await supabase
-      .from('membership_tiers')
-      .insert({
-        product_id: product.id,
-        duration_months: tier.duration_months,
-        activation_type: tier.activation_type
-      })
-      .select()
-      .single();
-
-    if (membershipError) {
-      throw membershipError;
-    }
-
-    return {
-      ...product,
-      membership_tier: membershipTier
-    } as IMembershipTierProduct;
   }
 
   static async updateMembershipTier(id: string, tier: {
@@ -121,49 +174,88 @@ export class ProductService {
     currency?: string;
     duration_months?: number;
     activation_type?: string;
+    member_id_format?: string;
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
-    const { name, description, price, currency, duration_months, activation_type } = tier;
+    const { name, description, price, currency, duration_months, activation_type, member_id_format } = tier;
 
-    const { data: product, error: productError } = await supabase
-      .from('products')
-      .update({
-        name,
-        description,
-        price,
-        currency
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    // Start a transaction
+    await supabase.rpc('begin_transaction');
 
-    if (productError) {
-      throw productError;
+    try {
+      const { data: product, error: productError } = await supabase
+        .from('products')
+        .update({
+          name,
+          description,
+          price,
+          currency
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (productError) {
+        throw productError;
+      }
+
+      if (!product) {
+        throw new Error('Failed to update product');
+      }
+
+      const { data: membershipTier, error: membershipError } = await supabase
+        .from('membership_tiers')
+        .update({
+          duration_months,
+          activation_type
+        })
+        .eq('product_id', id)
+        .select()
+        .single();
+
+      if (membershipError) {
+        throw membershipError;
+      }
+
+      if (member_id_format) {
+        const { data: tierSettings, error: settingsError } = await supabase
+          .from('membership_tier_settings')
+          .update({
+            member_id_format
+          })
+          .eq('tier_id', id)
+          .select()
+          .single();
+
+        if (settingsError) {
+          throw settingsError;
+        }
+
+        // Commit transaction
+        await supabase.rpc('commit_transaction');
+
+        return {
+          ...product,
+          membership_tier: {
+            ...membershipTier,
+            member_id_format: tierSettings.member_id_format
+          }
+        } as IMembershipTierProduct;
+      }
+
+      // Commit transaction
+      await supabase.rpc('commit_transaction');
+
+      return {
+        ...product,
+        membership_tier: membershipTier
+      } as IMembershipTierProduct;
+    } catch (error) {
+      // Rollback on error
+      await supabase.rpc('rollback_transaction');
+      throw error;
     }
-
-    if (!product) {
-      throw new Error('Failed to update product');
-    }
-
-    const { data: membershipTier, error: membershipError } = await supabase
-      .from('membership_tiers')
-      .update({
-        duration_months,
-        activation_type
-      })
-      .eq('product_id', id)
-      .select()
-      .single();
-
-    if (membershipError) {
-      throw membershipError;
-    }
-
-    return {
-      ...product,
-      membership_tier: membershipTier
-    } as IMembershipTierProduct;
   }
 
   static async getMembershipTierWithGroup(id: string): Promise<{ group_id: string; exists: boolean }> {
