@@ -9,4 +9,4 @@ function ManualPaymentSettingsPage({ params }: { params: { orgSlug: string } }) 
 export default withOrgAccess(ManualPaymentSettingsPage, {
   allowGuest: false,
   permissions: ['manage_payment_gateways']
-}); 
+});  

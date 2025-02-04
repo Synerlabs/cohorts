@@ -4,7 +4,12 @@ import { StripeSettingsForm } from '../../../stripe/_components/stripe-settings-
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
-export function StripeSettingsClient({ params }: { params: { orgSlug: string } }) {
+interface StripeSettingsClientProps {
+  params: { orgSlug: string };
+  orgId: string;
+}
+
+export function StripeSettingsClient({ params, orgId }: StripeSettingsClientProps) {
   return (
     <div className="container py-8">
       <div className="flex items-center justify-between mb-8">
@@ -20,7 +25,7 @@ export function StripeSettingsClient({ params }: { params: { orgSlug: string } }
       </div>
 
       <div className="space-y-6">
-        <StripeSettingsForm orgId={params.orgSlug} />
+        <StripeSettingsForm orgId={orgId} />
       </div>
     </div>
   );
