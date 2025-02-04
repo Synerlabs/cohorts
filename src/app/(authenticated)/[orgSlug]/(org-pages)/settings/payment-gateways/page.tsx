@@ -1,17 +1,9 @@
-'use client';
-
-import { withOrgAuth } from '@/lib/auth/with-org-auth';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Icons } from '@/components/icons';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet';
-import { useState } from 'react';
-import { StripeSettingsForm } from '../stripe/_components/stripe-settings-form';
+import { withOrgAccess } from '@/lib/hoc/org';
+import React from 'react';
+import Link from 'next/link';
 
 interface PaymentGateway {
   id: string;
@@ -37,21 +29,8 @@ const paymentGateways: PaymentGateway[] = [
 ];
 
 function PaymentGatewaysPage({ params }: { params: { orgSlug: string } }) {
-  const [selectedGateway, setSelectedGateway] = useState<PaymentGateway | null>(null);
-
-  function renderGatewaySettings(gateway: PaymentGateway) {
-    switch (gateway.id) {
-      case 'stripe':
-        return <StripeSettingsForm orgId={params.orgSlug} />;
-      case 'manual':
-        return <div>Manual payment settings</div>;
-      default:
-        return null;
-    }
-  }
-
   return (
-    <>
+    <div>
       <div className="container py-8">
         <div className="mb-8">
           <h1 className="text-2xl font-semibold tracking-tight">Payment Gateways</h1>
@@ -64,7 +43,7 @@ function PaymentGatewaysPage({ params }: { params: { orgSlug: string } }) {
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-4">
                   <div className="rounded-lg bg-secondary/20 p-2">
-                    {Icons[gateway.icon] && <Icons[gateway.icon] className="h-6 w-6" />}
+                    {gateway.icon && Icons[gateway.icon] && React.createElement(Icons[gateway.icon], { className: "h-6 w-6" })}
                   </div>
                   <div>
                     <h3 className="font-medium">{gateway.name}</h3>
@@ -73,32 +52,23 @@ function PaymentGatewaysPage({ params }: { params: { orgSlug: string } }) {
                 </div>
                 <Button 
                   variant="outline" 
-                  onClick={() => setSelectedGateway(gateway)}
+                  asChild
                 >
-                  Configure
+                  <Link href={`/${params.orgSlug}/settings/payment-gateways/${gateway.id}`}>
+                    Configure
+                  </Link>
                 </Button>
               </div>
             </Card>
           ))}
         </div>
       </div>
-
-      <Sheet 
-        open={selectedGateway !== null}
-        onOpenChange={(open) => !open && setSelectedGateway(null)}
-      >
-        <SheetContent className="sm:max-w-lg">
-          <SheetHeader>
-            <SheetTitle>
-              {selectedGateway?.name} Settings
-            </SheetTitle>
-          </SheetHeader>
-          {selectedGateway && renderGatewaySettings(selectedGateway)}
-        </SheetContent>
-      </Sheet>
-    </>
+    </div>
   );
 }
 
-export default withOrgAuth(PaymentGatewaysPage); 
+export default withOrgAccess(PaymentGatewaysPage, {
+  allowGuest: false,
+  permissions: ['manage_payment_gateways']
+});
 
