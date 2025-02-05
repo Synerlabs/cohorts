@@ -1,3 +1,5 @@
+# Cohorts
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started
@@ -14,11 +16,55 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+1. Copy `.env.example` to `.env.local`
+2. Fill in the required environment variables
+
+## Stripe Connect Setup (Local Development)
+
+1. Install the [Stripe CLI](https://stripe.com/docs/stripe-cli#install)
+2. Login to your Stripe account:
+```bash
+stripe login
+```
+3. Start webhook forwarding (in a separate terminal):
+```bash
+npm run stripe:webhook
+# or
+yarn stripe:webhook
+```
+4. Copy the webhook signing secret from the CLI output and add it to your `.env.local`:
+```
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+### Testing Stripe Connect
+
+1. Go to the Payment Gateways settings page
+2. Click "Connect Stripe Account"
+3. Use test mode for development
+4. Use these test cards for payments:
+   - Success: 4242 4242 4242 4242
+   - Requires Authentication: 4000 0027 6000 3184
+   - Declined: 4000 0000 0000 0002
+
+## Database
+
+To set up the local database:
+
+```bash
+# Start Supabase
+npm run supabase:start
+
+# Run migrations
+npm run db:migrate
+
+# Generate types
+npm run db:types
+```
 
 ## Learn More
 
@@ -26,8 +72,6 @@ To learn more about Next.js, take a look at the following resources:
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
 
 ## Deploy on Vercel
 

@@ -99,10 +99,12 @@ export function PaymentsClient({ org, user, payments, pagination, sorting, searc
             <Button 
               variant="outline" 
               size="sm"
-              onClick={() => setSelectedGateway(paymentGateways[0])}
+              asChild
             >
-              <Settings2 className="h-4 w-4 mr-2" />
-              Payment Settings
+              <Link href={`/${org.slug}/settings/payment-gateways`}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Payment Settings
+              </Link>
             </Button>
           </div>
         </div>

@@ -41,6 +41,75 @@ export async function POST(req: Request) {
 
     // Handle the event
     switch (event.type) {
+      case 'account.updated': {
+        const account = event.data.object as Stripe.Account;
+        console.log('🔄 Stripe Connect account updated:', account.id);
+
+        // Find the organization with this Stripe account
+        const { data: settings, error: settingsError } = await supabase
+          .from('stripe_connected_accounts')
+          .select('org_id')
+          .eq('account_id', account.id)
+          .single();
+
+        if (settingsError || !settings) {
+          console.error('❌ Failed to find organization with Stripe account:', account.id);
+          return new NextResponse('Organization not found', { status: 404 });
+        }
+
+        // Update the account status
+        const { error: updateError } = await supabase
+          .from('stripe_connected_accounts')
+          .update({
+            account_status: account.charges_enabled ? 'active' : 'pending',
+            updated_at: new Date().toISOString()
+          })
+          .eq('org_id', settings.org_id);
+
+        if (updateError) {
+          console.error('❌ Failed to update Stripe settings:', updateError);
+          return new NextResponse('Failed to update settings', { status: 500 });
+        }
+
+        console.log('✅ Updated Stripe Connect account status');
+        break;
+      }
+
+      case 'account.application.deauthorized': {
+        const application = event.data.object as Stripe.Application;
+        const accountId = event.account as string;
+        console.log('🔌 Stripe Connect account disconnected:', accountId);
+
+        // Find and update the organization's Stripe settings
+        const { data: settings, error: settingsError } = await supabase
+          .from('stripe_connected_accounts')
+          .select('org_id')
+          .eq('account_id', accountId)
+          .single();
+
+        if (settingsError || !settings) {
+          console.error('❌ Failed to find organization with Stripe account:', accountId);
+          return new NextResponse('Organization not found', { status: 404 });
+        }
+
+        // Update the account status to disconnected
+        const { error: updateError } = await supabase
+          .from('stripe_connected_accounts')
+          .update({
+            account_status: 'disconnected',
+            updated_at: new Date().toISOString()
+          })
+          .eq('org_id', settings.org_id);
+
+        if (updateError) {
+          console.error('❌ Failed to update Stripe settings:', updateError);
+          return new NextResponse('Failed to update settings', { status: 500 });
+        }
+
+        console.log('✅ Updated Stripe Connect account status to disconnected');
+        break;
+      }
+
       case 'payment_intent.succeeded': {
         const paymentIntent = event.data.object as Stripe.PaymentIntent;
         console.log('💰 Payment succeeded:', {

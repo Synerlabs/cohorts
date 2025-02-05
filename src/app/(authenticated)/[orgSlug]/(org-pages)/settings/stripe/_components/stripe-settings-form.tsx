@@ -106,15 +106,20 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeConnectForm
       return;
     }
 
+    // Get the current URL path for the redirect
+    const currentPath = window.location.pathname;
+    const redirectUrl = `${window.location.origin}${currentPath}?success=true`;
+    const encodedRedirect = encodeURIComponent(redirectUrl);
+
     // For new accounts, redirect directly to OAuth flow without saving
     if (!initialSettings?.accountId) {
-      window.location.href = `/api/stripe/connect/refresh?state=${orgId}&country=${values.country}&mode=${isTestMode ? 'test' : 'live'}`;
+      window.location.href = `/api/stripe/connect/refresh?state=${orgId}&country=${values.country}&mode=${isTestMode ? 'test' : 'live'}&redirect_url=${encodedRedirect}`;
       return;
     }
 
     // For existing accounts, save before redirecting
     await onSubmit(values);
-    window.location.href = `/api/stripe/connect/refresh?state=${orgId}&country=${values.country}&mode=${isTestMode ? 'test' : 'live'}`;
+    window.location.href = `/api/stripe/connect/refresh?state=${orgId}&country=${values.country}&mode=${isTestMode ? 'test' : 'live'}&redirect_url=${encodedRedirect}`;
   };
 
   const handleDashboard = async () => {
