@@ -50,6 +50,7 @@ interface ConnectedAccount {
 interface ConnectedAccountsListProps {
   orgId: string;
   onAccountDeleted?: () => void;
+  onAccountsLoaded?: (accounts: ConnectedAccount[]) => void;
 }
 
 function getAccountStatusDetails(account: ConnectedAccount) {
@@ -220,7 +221,7 @@ function StatusBadge({ enabled, label }: { enabled: boolean; label: string }) {
   );
 }
 
-export function ConnectedAccountsList({ orgId, onAccountDeleted }: ConnectedAccountsListProps) {
+export function ConnectedAccountsList({ orgId, onAccountDeleted, onAccountsLoaded }: ConnectedAccountsListProps) {
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -238,6 +239,7 @@ export function ConnectedAccountsList({ orgId, onAccountDeleted }: ConnectedAcco
       if (!response.ok) throw new Error('Failed to fetch accounts');
       const data = await response.json();
       setAccounts(data);
+      onAccountsLoaded?.(data);
     } catch (err) {
       setError('Failed to load connected accounts');
       console.error(err);

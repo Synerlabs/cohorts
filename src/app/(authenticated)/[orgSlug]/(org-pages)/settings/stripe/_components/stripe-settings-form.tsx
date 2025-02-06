@@ -38,6 +38,7 @@ type StripeConnectFormValues = z.infer<typeof stripeConnectSchema>;
 
 interface StripeConnectFormProps {
   orgId: string;
+  onSuccess?: () => void;
   initialSettings?: {
     id?: string;
     accountId?: string;
@@ -65,7 +66,7 @@ const countries = [
   { value: 'HK', label: 'Hong Kong' },
 ] as const;
 
-export function StripeSettingsForm({ orgId, initialSettings }: StripeConnectFormProps) {
+export function StripeSettingsForm({ orgId, initialSettings, onSuccess }: StripeConnectFormProps) {
   const form = useForm<StripeConnectFormValues>({
     resolver: zodResolver(stripeConnectSchema),
     defaultValues: {
@@ -83,6 +84,7 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeConnectForm
         title: "Settings updated",
         description: "Your Stripe Connect settings have been saved successfully."
       });
+      onSuccess?.();
     } catch (error) {
       console.error('Failed to update connected account:', error);
       toast({
