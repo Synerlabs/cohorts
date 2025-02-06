@@ -1,0 +1,173 @@
+{
+  "project": {
+    "name": "Membership Platform",
+    "type": "next.js",
+    "root": ".",
+    "out": ".next"
+  },
+  "conventions": {
+    "routes": {
+      "public": "src/app/(public)",
+      "authenticated": "src/app/(authenticated)",
+      "api": "src/app/api"
+    },
+    "components": {
+      "shared": "src/components/shared",
+      "feature": "src/app/**/_components"
+    },
+    "database": {
+      "schema": "supabase/schema",
+      "migrations": "supabase/migrations"
+    }
+  },
+  "filePatterns": {
+    "server": {
+      "actions": ["**/actions/*.action.ts"],
+      "api": ["**/api/**/route.ts"],
+      "services": ["src/services/**/*.service.ts"]
+    },
+    "client": {
+      "components": ["**/_components/*.tsx"],
+      "hooks": ["src/hooks/**/*.ts"],
+      "utils": ["src/lib/utils/**/*.ts"]
+    }
+  },
+  "aiAssistance": {
+    "contextRules": {
+      "includePatterns": [
+        "src/app/**/*.tsx",
+        "src/app/**/*.ts",
+        "src/components/**/*.tsx",
+        "src/services/**/*.ts",
+        "src/lib/**/*.ts",
+        "supabase/schema/**/*.{sql,dbml}",
+        "supabase/migrations/**/*.sql"
+      ],
+      "excludePatterns": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/*.d.ts"
+      ]
+    },
+    "featureContext": {
+      "organization": {
+        "files": [
+          "src/app/(authenticated)/[orgSlug]/**/*",
+          "src/services/organization.service.ts"
+        ]
+      },
+      "membership": {
+        "files": [
+          "src/app/(authenticated)/[orgSlug]/(org-pages)/members/**/*",
+          "src/services/member.service.ts"
+        ]
+      },
+      "payments": {
+        "files": [
+          "src/app/(authenticated)/[orgSlug]/(org-pages)/settings/payment-gateways/**/*",
+          "src/services/payment/**/*"
+        ]
+      }
+    },
+    "codeGeneration": {
+      "templates": {
+        "serverAction": {
+          "path": "src/app/{feature}/actions/{name}.action.ts",
+          "template": [
+            "'use server';",
+            "",
+            "import { z } from 'zod';",
+            "import { createServiceRoleClient } from '@/lib/utils/supabase/server';",
+            "",
+            "const schema = z.object({",
+            "  // Add validation schema here",
+            "});",
+            "",
+            "export async function {name}(data: z.infer<typeof schema>) {",
+            "  try {",
+            "    const supabase = await createServiceRoleClient();",
+            "    // Add implementation here",
+            "  } catch (error) {",
+            "    console.error(`Failed to {name}:`, error);",
+            "    return { error: 'Operation failed' };",
+            "  }",
+            "}"
+          ]
+        },
+        "component": {
+          "path": "src/app/{feature}/_components/{name}.tsx",
+          "template": [
+            "'use client';",
+            "",
+            "import { useState } from 'react';",
+            "",
+            "interface {name}Props {",
+            "  // Add props here",
+            "}",
+            "",
+            "export function {name}({}: {name}Props) {",
+            "  return (",
+            "    <div>",
+            "      {/* Add component implementation here */}",
+            "    </div>",
+            "  );",
+            "}"
+          ]
+        },
+        "orgPage": {
+          "path": "src/app/(authenticated)/[orgSlug]/(org-pages)/{feature}/page.tsx",
+          "template": [
+            "import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';",
+            "import { permissions } from '@/lib/types/permissions';",
+            "",
+            "interface {name}PageProps extends OrgAccessHOCProps {",
+            "  // Add additional props here",
+            "}",
+            "",
+            "async function {name}Page({ org, user, userPermissions }: {name}PageProps) {",
+            "  return (",
+            "    <div>",
+            "      {/* Add page implementation here */}",
+            "    </div>",
+            "  );",
+            "}",
+            "",
+            "export default withOrgAccess({name}Page, {",
+            "  permissions: [permissions.{feature}.view],",
+            "  allowGuest: false",
+            "});"
+          ]
+        },
+        "publicOrgPage": {
+          "path": "src/app/(public)/[orgSlug]/{feature}/page.tsx",
+          "template": [
+            "import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';",
+            "",
+            "interface {name}PageProps extends OrgAccessHOCProps {",
+            "  // Add additional props here",
+            "}",
+            "",
+            "async function {name}Page({ org, user, isGuest }: {name}PageProps) {",
+            "  return (",
+            "    <div>",
+            "      {/* Add page implementation here */}",
+            "    </div>",
+            "  );",
+            "}",
+            "",
+            "export default withOrgAccess({name}Page, {",
+            "  allowGuest: true",
+            "});"
+          ]
+        }
+      }
+    }
+  },
+  "documentation": {
+    "references": {
+      "architecture": "docs/architecture/ARCHITECTURE.md",
+      "features": "docs/features/FEATURES.md",
+      "database": "docs/database/SCHEMA.md"
+    }
+  }
+} 

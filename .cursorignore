@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.next/
+.vercel/
+
+# Build outputs
+dist/
+build/
+out/
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# Supabase
+supabase/.temp/
+supabase/snapshots/
+
+# Cache and logs
+.cache/
+logs/
+*.log
+
+# System files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp 
