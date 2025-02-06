@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,6 +44,7 @@ interface ConnectedAccount {
   requirements_due_date?: string;
   created_at: string;
   updated_at: string;
+  last_synced_at: string;
 }
 
 interface ConnectedAccountsListProps {
@@ -64,7 +65,7 @@ function getAccountStatusDetails(account: ConnectedAccount) {
         message: 'Additional verification information is required'
       },
       'requirements.pending_verification': {
-        badge: 'Pending',
+        badge: 'Under Review',
         message: 'Stripe is currently verifying account information'
       },
       'rejected.fraud': {
@@ -103,23 +104,35 @@ function getAccountStatusDetails(account: ConnectedAccount) {
     };
 
     return {
-      badge: <Badge variant="destructive">{details.badge}</Badge>,
+      badge: <Badge variant={reason === 'requirements.pending_verification' ? 'secondary' : 'destructive'}>
+        {details.badge}
+      </Badge>,
       message: details.message
     };
   }
 
-  // Check if account is disabled
+  // Check if account is disabled or under verification
   if (account.disabled_reason) {
     const { badge, message } = getDisabledReasonDetails(account.disabled_reason);
+    const severity = account.disabled_reason === 'requirements.pending_verification' ? 'warning' : 'error';
     return {
       badge,
       details: [message],
-      severity: 'error'
+      severity
     };
   }
 
   // Check if account is fully active
-  if (account.is_active && account.charges_enabled && account.payouts_enabled) {
+  const isFullyActive = account.is_active && 
+    account.charges_enabled && 
+    account.payouts_enabled && 
+    account.capabilities_status?.card_payments === 'active' &&
+    account.capabilities_status?.transfers === 'active' &&
+    !account.requirements_status.currently_due.length &&
+    !account.requirements_status.eventually_due.length &&
+    !account.requirements_status.past_due.length;
+
+  if (isFullyActive) {
     return {
       badge: <Badge variant="default" className="bg-green-100 text-green-800 hover:bg-green-100">Active</Badge>,
       details: [],
@@ -162,11 +175,23 @@ function getAccountStatusDetails(account: ConnectedAccount) {
     if (account.requirements_status.currently_due.length > 0) {
       details.push('Additional verification required');
     }
+    if (account.requirements_status.eventually_due.length > 0) {
+      details.push('Future verification requirements pending');
+    }
   }
 
   // Check bank account
   if (!account.has_external_account) {
     details.push('Bank account needs to be connected');
+  }
+
+  // If account appears active but has pending requirements, show special status
+  if (account.charges_enabled && account.payouts_enabled && details.length > 0) {
+    return {
+      badge: <Badge variant="secondary">Verification in Progress</Badge>,
+      details: ['Account is active but additional verification is in progress', ...details],
+      severity: 'warning'
+    };
   }
 
   return {
@@ -201,6 +226,7 @@ export function ConnectedAccountsList({ orgId, onAccountDeleted }: ConnectedAcco
   const [error, setError] = useState<string | null>(null);
   const [accountToDelete, setAccountToDelete] = useState<ConnectedAccount | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [syncing, setSyncing] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     fetchAccounts();
@@ -250,6 +276,28 @@ export function ConnectedAccountsList({ orgId, onAccountDeleted }: ConnectedAcco
       window.open(url, '_blank');
     } catch (err) {
       console.error('Failed to open dashboard:', err);
+    }
+  }
+
+  async function handleSync(accountId: string) {
+    if (syncing[accountId]) return;
+
+    setSyncing(prev => ({ ...prev, [accountId]: true }));
+    try {
+      const response = await fetch('/api/stripe/connect/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountId })
+      });
+
+      if (!response.ok) throw new Error('Failed to sync account');
+      
+      // Refresh accounts list
+      await fetchAccounts();
+    } catch (err) {
+      console.error('Failed to sync account:', err);
+    } finally {
+      setSyncing(prev => ({ ...prev, [accountId]: false }));
     }
   }
 
@@ -304,8 +352,23 @@ export function ConnectedAccountsList({ orgId, onAccountDeleted }: ConnectedAcco
                   <p className="text-sm text-muted-foreground">
                     Connected: {new Date(account.created_at).toLocaleDateString()}
                   </p>
+                  <p className="text-sm text-muted-foreground">
+                    Last synced: {new Date(account.last_synced_at).toLocaleString()}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleSync(account.account_id)}
+                    disabled={syncing[account.account_id]}
+                  >
+                    <RefreshCw className={cn(
+                      "h-4 w-4 mr-2",
+                      { "animate-spin": syncing[account.account_id] }
+                    )} />
+                    {syncing[account.account_id] ? 'Syncing...' : 'Sync'}
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm"

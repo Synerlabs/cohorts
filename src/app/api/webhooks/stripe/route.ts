@@ -24,23 +24,72 @@ type SupportedStripeEvent =
 // Helper function to determine account status
 function determineAccountStatus(account: Stripe.Account): {
   is_active: boolean;
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
   disabled_reason?: string;
+  has_external_account: boolean;
 } {
-  // Check if account is disabled
-  if (account.requirements?.disabled_reason) {
-    return {
-      is_active: false,
-      disabled_reason: account.requirements.disabled_reason
-    };
+  const hasExternalAccount = (account.external_accounts?.data || []).length > 0;
+
+  // Check if account is disabled or has requirements
+  if (account.requirements) {
+    // First check for explicit disabled reason
+    if (account.requirements.disabled_reason) {
+      return {
+        is_active: false,
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        disabled_reason: account.requirements.disabled_reason,
+        has_external_account: hasExternalAccount
+      };
+    }
+
+    // Check for past due requirements
+    const pastDueCount = account.requirements.past_due?.length ?? 0;
+    if (pastDueCount > 0) {
+      return {
+        is_active: false,
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        disabled_reason: 'requirements.past_due',
+        has_external_account: hasExternalAccount
+      };
+    }
+
+    // Check for pending verification
+    const currentlyDueCount = account.requirements.currently_due?.length ?? 0;
+    if (currentlyDueCount > 0) {
+      return {
+        is_active: account.charges_enabled && account.payouts_enabled,
+        charges_enabled: account.charges_enabled,
+        payouts_enabled: account.payouts_enabled,
+        disabled_reason: 'requirements.pending_verification',
+        has_external_account: hasExternalAccount
+      };
+    }
   }
 
-  // Check if account is active
+  // Check capabilities status
   const hasRequiredCapabilities = 
     account.capabilities?.card_payments === 'active' && 
     account.capabilities?.transfers === 'active';
 
+  if (!hasRequiredCapabilities) {
+    return {
+      is_active: false,
+      charges_enabled: account.charges_enabled,
+      payouts_enabled: account.payouts_enabled,
+      disabled_reason: 'action_required.requested_capabilities',
+      has_external_account: hasExternalAccount
+    };
+  }
+
+  // Account is fully active
   return {
-    is_active: account.charges_enabled && account.payouts_enabled && hasRequiredCapabilities
+    is_active: account.charges_enabled && account.payouts_enabled && hasRequiredCapabilities,
+    charges_enabled: account.charges_enabled,
+    payouts_enabled: account.payouts_enabled,
+    has_external_account: hasExternalAccount
   };
 }
 
@@ -67,7 +116,7 @@ export async function POST(req: Request) {
     }
 
     console.log('✅ Webhook signature verified');
-    console.log('🔔 Processing webhook event:', event.type, 'Event ID:', event.id);
+    console.log('🔔 Processing webhook event:', event.type, 'Event ID:', event.id, 'Created:', new Date(event.created * 1000).toISOString());
 
     const supabase = await createServiceRoleClient();
 
@@ -82,7 +131,7 @@ export async function POST(req: Request) {
         // Find the organization with this Stripe account
         const { data: settings, error: settingsError } = await supabase
           .from('stripe_connected_accounts')
-          .select('org_id')
+          .select('org_id, last_synced_at')
           .eq('account_id', account.id)
           .single();
 
@@ -91,51 +140,50 @@ export async function POST(req: Request) {
           return new NextResponse('Organization not found', { status: 404 });
         }
 
+        // Check if this event is older than our last sync
+        const eventDate = new Date(event.created * 1000);
+        const lastSyncDate = settings.last_synced_at ? new Date(settings.last_synced_at) : new Date(0);
+
+        if (eventDate < lastSyncDate) {
+          console.log('⏭️ Skipping outdated event:', {
+            eventDate: eventDate.toISOString(),
+            lastSync: lastSyncDate.toISOString()
+          });
+          return new NextResponse('OK - Skipped outdated event', { status: 200 });
+        }
+
         // Determine account status
-        const { is_active, disabled_reason } = determineAccountStatus(account);
+        const { 
+          is_active, 
+          charges_enabled, 
+          payouts_enabled, 
+          disabled_reason,
+          has_external_account 
+        } = determineAccountStatus(account);
 
         // Prepare the update data
-        const updateData: {
-          is_active: boolean;
-          capabilities_status: Stripe.Account.Capabilities;
-          verification_status: {
-            fields_needed: string[];
-            verified_fields: string[];
-          };
-          requirements_status: {
-            currently_due: string[];
-            eventually_due: string[];
-            past_due: string[];
-          };
-          charges_enabled: boolean;
-          payouts_enabled: boolean;
-          disabled_reason?: string;
-          requirements_due_date?: string;
-          last_synced_at: string;
-          updated_at: string;
-        } = {
+        const updateData = {
           is_active,
+          charges_enabled,
+          payouts_enabled,
+          has_external_account,
           capabilities_status: account.capabilities || {},
-          verification_status: {
-            fields_needed: account.requirements?.currently_due || [],
-            verified_fields: account.requirements?.eventually_due || []
-          },
           requirements_status: {
             currently_due: account.requirements?.currently_due || [],
             eventually_due: account.requirements?.eventually_due || [],
             past_due: account.requirements?.past_due || []
           },
-          charges_enabled: account.charges_enabled,
-          payouts_enabled: account.payouts_enabled,
-          disabled_reason,
-          last_synced_at: new Date().toISOString(),
+          verification_status: {
+            fields_needed: [],
+            verified_fields: []
+          },
+          disabled_reason: disabled_reason || null,
+          requirements_due_date: account.requirements?.current_deadline 
+            ? new Date(account.requirements.current_deadline * 1000).toISOString()
+            : null,
+          last_synced_at: eventDate.toISOString(), // Use event date as sync time
           updated_at: new Date().toISOString()
         };
-
-        // Add requirements due date if exists
-        if (account.requirements?.current_deadline) {
-          updateData.requirements_due_date = new Date(account.requirements.current_deadline * 1000).toISOString();
-        }
 
         // Update the account
         const { error: updateError } = await supabase
@@ -148,7 +196,12 @@ export async function POST(req: Request) {
           return new NextResponse('Failed to update settings', { status: 500 });
         }
 
-        console.log('✅ Updated Stripe Connect account status');
+        console.log('✅ Updated Stripe Connect account status:', {
+          accountId: account.id,
+          is_active,
+          disabled_reason: disabled_reason || 'none',
+          eventDate: eventDate.toISOString()
+        });
         break;
       }
 
