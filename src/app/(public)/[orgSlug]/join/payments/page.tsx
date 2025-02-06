@@ -40,6 +40,25 @@ function ErrorDisplay({ message, details, orgSlug }: { message: string; details?
   );
 }
 
+// Add function to check for active Stripe accounts
+async function checkActiveStripeAccount(orgId: string) {
+  const supabase = await createServiceRoleClient();
+  
+  const { data: accounts, error } = await supabase
+    .from('stripe_connected_accounts')
+    .select('is_active')
+    .eq('org_id', orgId)
+    .eq('is_active', true)
+    .limit(1);
+
+  if (error) {
+    console.error('Failed to check for active Stripe accounts:', error);
+    return false;
+  }
+
+  return accounts && accounts.length > 0;
+}
+
 async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { searchParams: SearchParams }) {
   if (!user) {
     // Redirect unauthenticated users to sign in
@@ -192,6 +211,9 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
   // Get storage provider for manual payments
   const provider = await createStorageProvider(org.id);
 
+  // Check for active Stripe account
+  const hasActiveStripeAccount = await checkActiveStripeAccount(org.id);
+
   return (
     <div className="container max-w-7xl py-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -201,6 +223,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
             order={order}
             orgId={org.id}
             defaultMethod={method}
+            hasActiveStripeAccount={hasActiveStripeAccount}
           />
         </div>
 

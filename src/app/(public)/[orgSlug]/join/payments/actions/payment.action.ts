@@ -4,6 +4,21 @@ import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { createStorageProvider } from "@/services/storage/storage-settings.service";
 import { revalidatePath } from "next/cache";
 
+export async function approvePaymentAction(
+  _: { success: boolean },
+  { paymentId, orgId }: { paymentId: string; orgId: string }
+): Promise<{ success: boolean }> {
+  const supabase = await createServiceRoleClient();
+  
+}
+
+export async function rejectPaymentAction(
+  _: { success: boolean },
+  { paymentId, orgId }: { paymentId: string; orgId: string }
+): Promise<{ success: boolean }> {
+  const supabase = await createServiceRoleClient();
+}
+
 export async function deletePaymentAction(
   _: { success: boolean },
   { paymentId, orgId, deleteFiles }: { paymentId: string; orgId: string; deleteFiles?: boolean }

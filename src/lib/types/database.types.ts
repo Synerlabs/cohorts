@@ -675,40 +675,61 @@ export type Database = {
       }
       stripe_connected_accounts: {
         Row: {
-          account_id: string | null
-          account_status:
-            | Database["public"]["Enums"]["stripe_account_status"]
-            | null
-          country: string
-          created_at: string | null
-          id: string
-          is_test_mode: boolean | null
-          org_id: string
-          updated_at: string | null
+          id: string;
+          org_id: string;
+          account_id: string | null;
+          country: string;
+          is_test_mode: boolean;
+          is_active: boolean;
+          charges_enabled: boolean;
+          payouts_enabled: boolean;
+          has_external_account: boolean;
+          capabilities_status: Json;
+          requirements_status: Json;
+          verification_status: Json;
+          disabled_reason: string | null;
+          requirements_due_date: string | null;
+          last_synced_at: string;
+          created_at: string;
+          updated_at: string;
         }
         Insert: {
-          account_id?: string | null
-          account_status?:
-            | Database["public"]["Enums"]["stripe_account_status"]
-            | null
-          country: string
-          created_at?: string | null
-          id?: string
-          is_test_mode?: boolean | null
-          org_id: string
-          updated_at?: string | null
+          id?: string;
+          org_id: string;
+          account_id?: string | null;
+          country: string;
+          is_test_mode?: boolean;
+          is_active?: boolean;
+          charges_enabled?: boolean;
+          payouts_enabled?: boolean;
+          has_external_account?: boolean;
+          capabilities_status?: Json;
+          requirements_status?: Json;
+          verification_status?: Json;
+          disabled_reason?: string | null;
+          requirements_due_date?: string | null;
+          last_synced_at?: string;
+          created_at?: string;
+          updated_at?: string;
         }
         Update: {
-          account_id?: string | null
-          account_status?:
-            | Database["public"]["Enums"]["stripe_account_status"]
-            | null
-          country?: string
-          created_at?: string | null
-          id?: string
-          is_test_mode?: boolean | null
-          org_id?: string
-          updated_at?: string | null
+          id?: string;
+          org_id?: string;
+          account_id?: string | null;
+          country?: string;
+          is_test_mode?: boolean;
+          is_active?: boolean;
+          charges_enabled?: boolean;
+          payouts_enabled?: boolean;
+          has_external_account?: boolean;
+          capabilities_status?: Json;
+          requirements_status?: Json;
+          verification_status?: Json;
+          disabled_reason?: string | null;
+          requirements_due_date?: string | null;
+          last_synced_at?: string;
+          created_at?: string;
+          updated_at?: string;
         }
         Relationships: [
           {
@@ -717,7 +738,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "group"
             referencedColumns: ["id"]
-          },
+          }
         ]
       }
       stripe_payments: {
@@ -1051,7 +1072,6 @@ export type Database = {
       payment_status: "pending" | "paid" | "rejected"
       payment_type: "manual" | "stripe"
       storage_provider_type: "google-drive" | "blob-storage"
-      stripe_account_status: "pending" | "active" | "disconnected"
       suborder_status:
         | "pending"
         | "processing"

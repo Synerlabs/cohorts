@@ -3,7 +3,32 @@
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 
+// Add function to check for active Stripe accounts
+async function hasActiveStripeAccount(orgId: string) {
+  const supabase = await createServiceRoleClient();
+  
+  const { data: accounts, error } = await supabase
+    .from('stripe_connected_accounts')
+    .select('is_active')
+    .eq('org_id', orgId)
+    .eq('is_active', true)
+    .limit(1);
+
+  if (error) {
+    console.error('Failed to check for active Stripe accounts:', error);
+    return false;
+  }
+
+  return accounts && accounts.length > 0;
+}
+
 export async function createStripePaymentIntent(orderId: string, amount: number, currency: string, orgId: string) {
+  // Check for active Stripe account first
+  const hasStripeAccount = await hasActiveStripeAccount(orgId);
+  if (!hasStripeAccount) {
+    throw new Error('No active Stripe account available for this organization');
+  }
+
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const supabase = await createServiceRoleClient();
   

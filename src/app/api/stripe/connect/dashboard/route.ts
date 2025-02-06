@@ -1,30 +1,30 @@
 'use server';
 
-import { NextRequest } from 'next/server';
+import { createServiceRoleClient } from '@/lib/utils/supabase/server';
+import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 
-export const dynamic = 'force-dynamic';
-
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-12-18.acacia'
-});
-
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const accountId = searchParams.get('accountId');
+    const requestUrl = new URL(request.url);
+    const accountId = requestUrl.searchParams.get('accountId');
 
     if (!accountId) {
-      return new Response('Missing accountId parameter', { status: 400 });
+      console.error('Missing accountId parameter');
+      return new NextResponse('Missing accountId parameter', { status: 400 });
     }
 
-    const link = await stripe.accounts.createLoginLink(accountId);
-
-    return new Response(JSON.stringify({ url: link.url }), {
-      headers: { 'Content-Type': 'application/json' },
+    // Initialize Stripe
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2025-01-27.acacia'
     });
+
+    // Generate a login link for the connected account
+    const loginLink = await stripe.accounts.createLoginLink(accountId);
+
+    return NextResponse.json({ url: loginLink.url });
   } catch (error) {
-    console.error('Error in GET /api/stripe/connect/dashboard:', error);
-    return new Response('Failed to create dashboard link', { status: 500 });
+    console.error('Error generating Stripe dashboard link:', error);
+    return new NextResponse('Failed to generate dashboard link', { status: 500 });
   }
 } 

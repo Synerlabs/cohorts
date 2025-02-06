@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CreditCard, Upload as UploadIcon } from "lucide-react";
@@ -9,6 +9,7 @@ import { ManualPaymentForm } from "@/app/(authenticated)/[orgSlug]/(org-pages)/p
 import { StripePaymentForm } from './stripe-payment-form';
 import { toast } from "@/components/ui/use-toast";
 import { createStripePaymentIntent } from '../actions';
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface PaymentFormProps {
   order: {
@@ -19,10 +20,24 @@ interface PaymentFormProps {
   };
   orgId: string;
   defaultMethod?: string;
+  hasActiveStripeAccount?: boolean;
 }
 
-export function PaymentForm({ order, orgId, defaultMethod = 'manual' }: PaymentFormProps) {
+export function PaymentForm({ 
+  order, 
+  orgId, 
+  defaultMethod = 'manual',
+  hasActiveStripeAccount = false 
+}: PaymentFormProps) {
   const [clientSecret, setClientSecret] = useState<string>();
+  const [selectedMethod, setSelectedMethod] = useState(defaultMethod);
+
+  // If no active Stripe account and card is selected, switch to manual
+  useEffect(() => {
+    if (!hasActiveStripeAccount && selectedMethod === 'card') {
+      setSelectedMethod('manual');
+    }
+  }, [hasActiveStripeAccount, selectedMethod]);
 
   const handleStripeSuccess = async () => {
     // Refresh the page to show updated payment status
@@ -56,16 +71,18 @@ export function PaymentForm({ order, orgId, defaultMethod = 'manual' }: PaymentF
         </div>
       </CardHeader>
       <CardContent className="p-6">
-        <Tabs defaultValue={defaultMethod} className="space-y-6">
-          <TabsList className="grid grid-cols-2">
+        <Tabs value={selectedMethod} onValueChange={setSelectedMethod} className="space-y-6">
+          <TabsList className="grid" style={{ gridTemplateColumns: hasActiveStripeAccount ? '1fr 1fr' : '1fr' }}>
             <TabsTrigger value="manual" className="flex items-center gap-2">
               <UploadIcon className="h-4 w-4" />
               Manual Payment
             </TabsTrigger>
-            <TabsTrigger value="card" className="flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Pay with Card
-            </TabsTrigger>
+            {hasActiveStripeAccount && (
+              <TabsTrigger value="card" className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Pay with Card
+              </TabsTrigger>
+            )}
           </TabsList>
           
           <TabsContent value="manual" className="space-y-4">
@@ -95,50 +112,54 @@ export function PaymentForm({ order, orgId, defaultMethod = 'manual' }: PaymentF
             </div>
           </TabsContent>
           
-          <TabsContent value="card">
-            <div className="rounded-lg border bg-card text-card-foreground p-6">
-              <h3 className="text-lg font-semibold mb-2">Secure Card Payment</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Complete your payment securely using your credit or debit card.
-              </p>
-              {clientSecret ? (
-                <StripePaymentForm
-                  clientSecret={clientSecret}
-                  amount={order.amount}
-                  currency={order.currency}
-                  onSuccess={handleStripeSuccess}
-                  onError={handleStripeError}
-                />
-              ) : (
-                <Button 
-                  className="w-full" 
-                  size="lg"
-                  type="button"
-                  onClick={async (e) => {
-                    e.preventDefault();
-                    const secret = await createStripePaymentIntent(
-                      order.id,
-                      order.amount,
-                      order.currency,
-                      orgId
-                    );
-                    if (secret) {
-                      setClientSecret(secret);
-                    } else {
-                      toast({
-                        variant: 'destructive',
-                        title: 'Error',
-                        description: 'Failed to create payment intent. Please try again.'
-                      });
-                    }
-                  }}
-                >
-                  <CreditCard className="mr-2 h-4 w-4" />
-                  Pay with Card
-                </Button>
-              )}
-            </div>
-          </TabsContent>
+          {hasActiveStripeAccount && (
+            <TabsContent value="card">
+              <div className="rounded-lg border bg-card text-card-foreground p-6">
+                <h3 className="text-lg font-semibold mb-2">Secure Card Payment</h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Complete your payment securely using your credit or debit card.
+                </p>
+                {clientSecret ? (
+                  <StripePaymentForm
+                    clientSecret={clientSecret}
+                    amount={order.amount}
+                    currency={order.currency}
+                    onSuccess={handleStripeSuccess}
+                    onError={handleStripeError}
+                  />
+                ) : (
+                  <Button 
+                    className="w-full" 
+                    size="lg"
+                    type="button"
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      try {
+                        const secret = await createStripePaymentIntent(
+                          order.id,
+                          order.amount,
+                          order.currency,
+                          orgId
+                        );
+                        if (secret) {
+                          setClientSecret(secret);
+                        }
+                      } catch (error: any) {
+                        toast({
+                          variant: 'destructive',
+                          title: 'Error',
+                          description: error.message || 'Failed to create payment intent. Please try again.'
+                        });
+                      }
+                    }}
+                  >
+                    <CreditCard className="mr-2 h-4 w-4" />
+                    Pay with Card
+                  </Button>
+                )}
+              </div>
+            </TabsContent>
+          )}
         </Tabs>
       </CardContent>
     </Card>

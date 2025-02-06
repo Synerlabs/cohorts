@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
     // Initialize Stripe
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2024-12-18.acacia'
+      apiVersion: '2025-01-27.acacia'
     });
 
     // Check if there's an existing account
@@ -89,21 +89,34 @@ export async function GET(request: Request) {
     });
 
     // Save the account ID
-    const { error: updateError } = await supabase
+    const { error } = await supabase
       .from('stripe_connected_accounts')
-      .insert({
+      .upsert({
         org_id: orgId,
         account_id: account.id,
-        country,
+        country: account.country,
         is_test_mode: isTestMode,
-        account_status: 'pending',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        is_active: false, // Will be updated by webhook
+        charges_enabled: false, // Will be updated by webhook
+        payouts_enabled: false, // Will be updated by webhook
+        has_external_account: false,
+        capabilities_status: {},
+        requirements_status: {
+          currently_due: [],
+          eventually_due: [],
+          past_due: []
+        },
+        verification_status: {
+          fields_needed: [],
+          verified_fields: []
+        },
+        updated_at: new Date().toISOString(),
+        last_synced_at: new Date().toISOString()
       });
 
-    if (updateError) {
+    if (error) {
       console.error('Failed to save connected account:', {
-        error: updateError,
+        error: error,
         orgId,
         accountId: account.id
       });

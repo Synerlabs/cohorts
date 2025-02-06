@@ -3,42 +3,75 @@
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-interface StripeConnectedAccount {
-  id?: string;
-  accountId?: string;
+export interface StripeConnectAccount {
+  id: string;
+  account_id: string;
   country: string;
-  isTestMode: boolean;
-  accountStatus?: 'pending' | 'active' | 'disconnected';
-  createdAt?: string;
-  updatedAt?: string;
+  is_test_mode: boolean;
+  is_active: boolean;
+  charges_enabled: boolean;
+  payouts_enabled: boolean;
+  disabled_reason?: string;
+  requirements_status: {
+    currently_due: string[];
+    eventually_due: string[];
+    past_due: string[];
+  };
+  created_at: string;
+  updated_at: string;
 }
 
-export async function getConnectedAccounts(orgId: string) {
+export interface SaveStripeConnectAccountParams {
+  orgId: string;
+  accountId: string;
+  country: string;
+  isTestMode: boolean;
+  isActive: boolean;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  disabledReason?: string;
+  requirementsStatus: {
+    currently_due: string[];
+    eventually_due: string[];
+    past_due: string[];
+  };
+}
+
+export async function getConnectedAccount(orgId: string, accountId: string): Promise<StripeConnectAccount | null> {
   const supabase = await createServiceRoleClient();
 
   const { data, error } = await supabase
     .from('stripe_connected_accounts')
     .select('*')
     .eq('org_id', orgId)
-    .order('created_at', { ascending: false });
+    .eq('account_id', accountId)
+    .single();
 
   if (error) {
-    console.error('Failed to fetch connected accounts:', error);
-    return [];
+    console.error('Failed to get connected account:', { error, orgId, accountId });
+    return null;
   }
 
-  return data.map(account => ({
-    id: account.id,
-    accountId: account.account_id,
-    country: account.country,
-    isTestMode: account.is_test_mode,
-    accountStatus: account.account_status,
-    createdAt: account.created_at,
-    updatedAt: account.updated_at
-  }));
+  return data;
 }
 
-export async function updateConnectedAccount(orgId: string, account: StripeConnectedAccount) {
+export async function getConnectedAccounts(orgId: string): Promise<StripeConnectAccount[]> {
+  const supabase = await createServiceRoleClient();
+
+  const { data, error } = await supabase
+    .from('stripe_connected_accounts')
+    .select('*')
+    .eq('org_id', orgId);
+
+  if (error) {
+    console.error('Failed to get connected accounts:', { error, orgId });
+    throw error;
+  }
+
+  return data || [];
+}
+
+export async function updateConnectedAccount(orgId: string, account: SaveStripeConnectAccountParams) {
   const supabase = await createServiceRoleClient();
 
   const data = {
@@ -46,32 +79,46 @@ export async function updateConnectedAccount(orgId: string, account: StripeConne
     account_id: account.accountId,
     country: account.country,
     is_test_mode: account.isTestMode,
-    account_status: account.accountStatus,
+    is_active: account.isActive,
+    charges_enabled: account.chargesEnabled,
+    payouts_enabled: account.payoutsEnabled,
+    disabled_reason: account.disabledReason,
+    requirements_status: account.requirementsStatus,
     updated_at: new Date().toISOString(),
   };
 
-  // If we have an ID, update the existing record
-  if (account.id) {
-    const { error } = await supabase
-      .from('stripe_connected_accounts')
-      .update(data)
-      .eq('id', account.id);
+  const { error } = await supabase
+    .from('stripe_connected_accounts')
+    .upsert(data);
 
-    if (error) {
-      console.error('Failed to update connected account:', error);
-      throw new Error('Failed to update connected account');
-    }
-  } else {
-    // Otherwise, insert a new record
-    const { error } = await supabase
-      .from('stripe_connected_accounts')
-      .insert(data);
-
-    if (error) {
-      console.error('Failed to create connected account:', error);
-      throw new Error('Failed to create connected account');
-    }
+  if (error) {
+    console.error('Failed to update connected account:', error);
+    throw new Error('Failed to update connected account');
   }
 
   revalidatePath(`/@${orgId}/settings/stripe`);
+}
+
+export async function saveStripeConnectAccount(params: SaveStripeConnectAccountParams) {
+  const supabase = await createServiceRoleClient();
+
+  const { error } = await supabase
+    .from('stripe_connected_accounts')
+    .upsert({
+      org_id: params.orgId,
+      account_id: params.accountId,
+      country: params.country,
+      is_test_mode: params.isTestMode,
+      is_active: params.isActive,
+      charges_enabled: params.chargesEnabled,
+      payouts_enabled: params.payoutsEnabled,
+      disabled_reason: params.disabledReason,
+      requirements_status: params.requirementsStatus,
+      updated_at: new Date().toISOString()
+    });
+
+  if (error) {
+    console.error('Failed to save connected account:', { error, orgId: params.orgId, accountId: params.accountId });
+    throw error;
+  }
 } 
