@@ -1,0 +1,170 @@
+// Use DBML to define your database structure
+// Docs: https://dbml.dbdiagram.io/docs
+
+Project "Membership Platform" {
+  database_type: 'PostgreSQL'
+  Note: 'Multi-tenant membership management platform'
+}
+
+// Enum definitions
+Enum "application_status" {
+  pending
+  pending_payment
+  approved
+  rejected
+}
+
+Enum "payment_status" {
+  pending
+  processing
+  paid
+  failed
+  refunded
+  cancelled
+}
+
+Enum "order_status" {
+  pending
+  processing
+  completed
+  failed
+  cancelled
+  refunded
+}
+
+Enum "member_role" {
+  admin
+  member
+  guest
+}
+
+Enum "payment_provider" {
+  stripe
+  manual
+}
+
+Enum "membership_activation_type" {
+  automatic
+  review_required
+  payment_required
+  review_then_payment
+}
+
+// Table definitions
+Table "organizations" {
+  "id" uuid [pk, default: `uuid_generate_v4()`]
+  "slug" text [unique, not null]
+  "name" text [not null]
+  "description" text
+  "logo_url" text
+  "settings" jsonb [default: '{}']
+  "created_at" timestamptz [default: `now()`]
+  "updated_at" timestamptz [default: `now()`]
+
+  Indexes {
+    slug
+  }
+}
+
+Table "members" {
+  "id" uuid [pk, default: `uuid_generate_v4()`]
+  "org_id" uuid [ref: > organizations.id, not null]
+  "user_id" uuid [ref: > auth.users.id, not null]
+  "status" text [not null]
+  "role" member_role [not null]
+  "metadata" jsonb [default: '{}']
+  "created_at" timestamptz [default: `now()`]
+  "updated_at" timestamptz [default: `now()`]
+
+  Indexes {
+    (org_id, user_id) [unique]
+    status
+  }
+}
+
+Table "membership_plans" {
+  "id" uuid [pk, default: `uuid_generate_v4()`]
+  "org_id" uuid [ref: > organizations.id, not null]
+  "name" text [not null]
+  "description" text
+  "amount" numeric [not null]
+  "currency" text [not null]
+  "interval" text [not null]
+  "active" boolean [default: true]
+  "metadata" jsonb [default: '{}']
+  "created_at" timestamptz [default: `now()`]
+  "updated_at" timestamptz [default: `now()`]
+
+  Indexes {
+    org_id
+    active
+  }
+}
+
+Table "orders" {
+  "id" uuid [pk, default: `uuid_generate_v4()`]
+  "org_id" uuid [ref: > organizations.id, not null]
+  "member_id" uuid [ref: > members.id, not null]
+  "status" order_status [not null, default: 'pending']
+  "total_amount" numeric [not null]
+  "currency" text [not null]
+  "metadata" jsonb [default: '{}']
+  "created_at" timestamptz [default: `now()`]
+  "updated_at" timestamptz [default: `now()`]
+
+  Indexes {
+    org_id
+    member_id
+    status
+  }
+}
+
+Table "payments" {
+  "id" uuid [pk, default: `uuid_generate_v4()`]
+  "org_id" uuid [ref: > organizations.id, not null]
+  "member_id" uuid [ref: > members.id, not null]
+  "order_id" uuid [ref: > orders.id, not null]
+  "amount" numeric [not null]
+  "currency" text [not null]
+  "status" payment_status [not null, default: 'pending']
+  "provider" payment_provider [not null]
+  "metadata" jsonb [default: '{}']
+  "created_at" timestamptz [default: `now()`]
+  "updated_at" timestamptz [default: `now()`]
+
+  Indexes {
+    org_id
+    member_id
+    status
+  }
+}
+
+Table "stripe_connected_accounts" {
+  "id" uuid [pk, default: `uuid_generate_v4()`]
+  "org_id" uuid [ref: > organizations.id, not null]
+  "account_id" text [unique, not null]
+  "is_active" boolean [default: false]
+  "charges_enabled" boolean [default: false]
+  "payouts_enabled" boolean [default: false]
+  "has_external_account" boolean [default: false]
+  "requirements_status" jsonb [default: '{}']
+  "capabilities_status" jsonb [default: '{}']
+  "verification_status" jsonb [default: '{}']
+  "disabled_reason" text
+  "requirements_due_date" timestamptz
+  "last_synced_at" timestamptz
+  "created_at" timestamptz [default: `now()`]
+  "updated_at" timestamptz [default: `now()`]
+
+  Indexes {
+    org_id
+    account_id
+  }
+}
+
+// Reference auth.users table (provided by Supabase)
+Table "auth.users" {
+  "id" uuid [pk]
+  "email" text
+  // Other fields omitted for brevity
+} 

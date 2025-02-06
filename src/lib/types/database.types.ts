@@ -675,61 +675,61 @@ export type Database = {
       }
       stripe_connected_accounts: {
         Row: {
-          id: string;
-          org_id: string;
-          account_id: string | null;
-          country: string;
-          is_test_mode: boolean;
-          is_active: boolean;
-          charges_enabled: boolean;
-          payouts_enabled: boolean;
-          has_external_account: boolean;
-          capabilities_status: Json;
-          requirements_status: Json;
-          verification_status: Json;
-          disabled_reason: string | null;
-          requirements_due_date: string | null;
-          last_synced_at: string;
-          created_at: string;
-          updated_at: string;
+          account_id: string | null
+          capabilities_status: Json | null
+          charges_enabled: boolean | null
+          country: string
+          created_at: string | null
+          disabled_reason: string | null
+          has_external_account: boolean | null
+          id: string
+          is_active: boolean | null
+          is_test_mode: boolean | null
+          last_synced_at: string | null
+          org_id: string
+          payouts_enabled: boolean | null
+          requirements_due_date: string | null
+          requirements_status: Json | null
+          updated_at: string | null
+          verification_status: Json | null
         }
         Insert: {
-          id?: string;
-          org_id: string;
-          account_id?: string | null;
-          country: string;
-          is_test_mode?: boolean;
-          is_active?: boolean;
-          charges_enabled?: boolean;
-          payouts_enabled?: boolean;
-          has_external_account?: boolean;
-          capabilities_status?: Json;
-          requirements_status?: Json;
-          verification_status?: Json;
-          disabled_reason?: string | null;
-          requirements_due_date?: string | null;
-          last_synced_at?: string;
-          created_at?: string;
-          updated_at?: string;
+          account_id?: string | null
+          capabilities_status?: Json | null
+          charges_enabled?: boolean | null
+          country: string
+          created_at?: string | null
+          disabled_reason?: string | null
+          has_external_account?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_test_mode?: boolean | null
+          last_synced_at?: string | null
+          org_id: string
+          payouts_enabled?: boolean | null
+          requirements_due_date?: string | null
+          requirements_status?: Json | null
+          updated_at?: string | null
+          verification_status?: Json | null
         }
         Update: {
-          id?: string;
-          org_id?: string;
-          account_id?: string | null;
-          country?: string;
-          is_test_mode?: boolean;
-          is_active?: boolean;
-          charges_enabled?: boolean;
-          payouts_enabled?: boolean;
-          has_external_account?: boolean;
-          capabilities_status?: Json;
-          requirements_status?: Json;
-          verification_status?: Json;
-          disabled_reason?: string | null;
-          requirements_due_date?: string | null;
-          last_synced_at?: string;
-          created_at?: string;
-          updated_at?: string;
+          account_id?: string | null
+          capabilities_status?: Json | null
+          charges_enabled?: boolean | null
+          country?: string
+          created_at?: string | null
+          disabled_reason?: string | null
+          has_external_account?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          is_test_mode?: boolean | null
+          last_synced_at?: string | null
+          org_id?: string
+          payouts_enabled?: boolean | null
+          requirements_due_date?: string | null
+          requirements_status?: Json | null
+          updated_at?: string | null
+          verification_status?: Json | null
         }
         Relationships: [
           {
@@ -738,7 +738,7 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "group"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
       stripe_payments: {
