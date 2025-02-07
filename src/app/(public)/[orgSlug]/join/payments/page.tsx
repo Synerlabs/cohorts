@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { PaymentForm } from './_components/payment-form';
 import { OrderService } from "@/services/order.service";
+import { getPaymentGatewaysStatus } from "@/services/payment-gateways.service";
 
 interface SearchParams {
   applicationId?: string;
@@ -73,6 +74,18 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
   const applicationId = _searchParams?.applicationId;
   const orderId = _searchParams?.orderId;
   const method = _searchParams?.method || 'manual';
+
+  // Get payment gateways status
+  const gatewaysStatus = await getPaymentGatewaysStatus(org.id);
+
+  // Check if any payment method is available
+  if (!gatewaysStatus.stripe.enabled && !gatewaysStatus.manual.enabled) {
+    return <ErrorDisplay 
+      message="No payment methods are currently available" 
+      details="Please contact the organization administrator."
+      orgSlug={org.slug}
+    />;
+  }
 
   if (!orderId && !applicationId) {
     return <ErrorDisplay 
@@ -222,8 +235,8 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
           <PaymentForm 
             order={order}
             orgId={org.id}
-            defaultMethod={method}
-            hasActiveStripeAccount={hasActiveStripeAccount}
+            defaultMethod={gatewaysStatus.manual.enabled ? 'manual' : 'card'}
+            hasActiveStripeAccount={gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected}
           />
         </div>
 

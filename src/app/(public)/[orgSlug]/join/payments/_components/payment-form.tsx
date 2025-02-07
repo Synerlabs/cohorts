@@ -73,10 +73,12 @@ export function PaymentForm({
       <CardContent className="p-6">
         <Tabs value={selectedMethod} onValueChange={setSelectedMethod} className="space-y-6">
           <TabsList className="grid" style={{ gridTemplateColumns: hasActiveStripeAccount ? '1fr 1fr' : '1fr' }}>
-            <TabsTrigger value="manual" className="flex items-center gap-2">
-              <UploadIcon className="h-4 w-4" />
-              Manual Payment
-            </TabsTrigger>
+            {defaultMethod === 'manual' && (
+              <TabsTrigger value="manual" className="flex items-center gap-2">
+                <UploadIcon className="h-4 w-4" />
+                Manual Payment
+              </TabsTrigger>
+            )}
             {hasActiveStripeAccount && (
               <TabsTrigger value="card" className="flex items-center gap-2">
                 <CreditCard className="h-4 w-4" />
@@ -85,32 +87,34 @@ export function PaymentForm({
             )}
           </TabsList>
           
-          <TabsContent value="manual" className="space-y-4">
-            <div className="rounded-lg border bg-card text-card-foreground">
-              <div className="p-6">
-                <h3 className="text-lg font-semibold mb-2">Bank Transfer Instructions</h3>
-                <div className="prose prose-sm max-w-none text-muted-foreground">
-                  <p>Please follow these steps to complete your payment:</p>
-                  <ol className="list-decimal list-inside space-y-1">
-                    <li>Transfer the exact amount to our bank account</li>
-                    <li>Take a screenshot or photo of your payment confirmation</li>
-                    <li>Upload the proof of payment below</li>
-                    <li>Wait for our team to verify your payment</li>
-                  </ol>
-                </div>
-              </div>
-              <div className="border-t">
+          {defaultMethod === 'manual' && (
+            <TabsContent value="manual" className="space-y-4">
+              <div className="rounded-lg border bg-card text-card-foreground">
                 <div className="p-6">
-                  <ManualPaymentForm
-                    orderId={order.id}
-                    orgId={orgId}
-                    expectedAmount={order.amount}
-                    currency={order.currency}
-                  />
+                  <h3 className="text-lg font-semibold mb-2">Bank Transfer Instructions</h3>
+                  <div className="prose prose-sm max-w-none text-muted-foreground">
+                    <p>Please follow these steps to complete your payment:</p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Transfer the exact amount to our bank account</li>
+                      <li>Take a screenshot or photo of your payment confirmation</li>
+                      <li>Upload the proof of payment below</li>
+                      <li>Wait for our team to verify your payment</li>
+                    </ol>
+                  </div>
+                </div>
+                <div className="border-t">
+                  <div className="p-6">
+                    <ManualPaymentForm
+                      orderId={order.id}
+                      orgId={orgId}
+                      expectedAmount={order.amount}
+                      currency={order.currency}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </TabsContent>
+            </TabsContent>
+          )}
           
           {hasActiveStripeAccount && (
             <TabsContent value="card">
