@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { GripVertical, Trash2 } from 'lucide-react';
+import { GripVertical, Trash2, Plus, Minus } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { FileUploadResult } from '@/services/file-upload.service';
@@ -23,6 +23,11 @@ export interface FormField {
     maxSize?: number;
   };
   value?: FileUploadResult | null;
+  repeatableConfig?: {
+    minItems: number;
+    maxItems?: number;
+    fields: FormField[];
+  };
 }
 
 interface FormFieldProps {
@@ -59,6 +64,52 @@ export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
       title: 'Error',
       description: error,
       variant: 'destructive',
+    });
+  };
+
+  const handleAddSubfield = () => {
+    if (!field.repeatableConfig) return;
+
+    const newField: FormField = {
+      id: crypto.randomUUID(),
+      type: 'text',
+      label: 'New Field',
+      required: false,
+    };
+
+    onUpdate({
+      ...field,
+      repeatableConfig: {
+        ...field.repeatableConfig,
+        fields: [...field.repeatableConfig.fields, newField],
+      },
+    });
+  };
+
+  const handleUpdateSubfield = (index: number, updatedField: FormField) => {
+    if (!field.repeatableConfig) return;
+
+    const newFields = [...field.repeatableConfig.fields];
+    newFields[index] = updatedField;
+
+    onUpdate({
+      ...field,
+      repeatableConfig: {
+        ...field.repeatableConfig,
+        fields: newFields,
+      },
+    });
+  };
+
+  const handleDeleteSubfield = (index: number) => {
+    if (!field.repeatableConfig) return;
+
+    onUpdate({
+      ...field,
+      repeatableConfig: {
+        ...field.repeatableConfig,
+        fields: field.repeatableConfig.fields.filter((_, i) => i !== index),
+      },
     });
   };
 
@@ -112,6 +163,55 @@ export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
         </div>
       );
     }
+
+    if (field.type === 'repeatable') {
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Subfields</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddSubfield}
+              className="h-8"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Add Field
+            </Button>
+          </div>
+          <div className="pl-4 border-l-2 space-y-4">
+            {field.repeatableConfig?.fields.map((subfield, index) => (
+              <FormField
+                key={subfield.id}
+                field={subfield}
+                onUpdate={(updatedField) => handleUpdateSubfield(index, updatedField)}
+                onDelete={() => handleDeleteSubfield(index)}
+              />
+            ))}
+            {field.repeatableConfig?.fields.length === 0 && (
+              <div className="text-sm text-muted-foreground">
+                No fields added yet. Click &quot;Add Field&quot; to add a field to this section.
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-4">
+            <div>
+              <Label>Min Items</Label>
+              <div className="text-sm text-muted-foreground">
+                {field.repeatableConfig?.minItems || 0}
+              </div>
+            </div>
+            <div>
+              <Label>Max Items</Label>
+              <div className="text-sm text-muted-foreground">
+                {field.repeatableConfig?.maxItems || 'Unlimited'}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return null;
   };
 
@@ -193,4 +293,4 @@ export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
       </div>
     </Card>
   );
-} 
+}

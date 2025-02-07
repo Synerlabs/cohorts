@@ -76,6 +76,11 @@ const FIELD_TYPES = [
     label: 'File Upload',
     description: 'Allow users to upload files',
   },
+  {
+    type: 'repeatable',
+    label: 'Repeatable Section',
+    description: 'Group of fields that can be repeated (e.g., work experience)',
+  },
 ];
 
 export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProps) {
@@ -83,6 +88,8 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
   const [label, setLabel] = useState('');
   const [helpText, setHelpText] = useState('');
   const [required, setRequired] = useState(false);
+  const [minItems, setMinItems] = useState(0);
+  const [maxItems, setMaxItems] = useState(0);
 
   const handleAdd = () => {
     if (!selectedType || !label.trim()) return;
@@ -100,6 +107,14 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
               maxSize: 5 * 1024 * 1024, // 5MB default
             }
           : undefined,
+      repeatableConfig:
+        selectedType === 'repeatable'
+          ? {
+              minItems: minItems || 0,
+              maxItems: maxItems || undefined,
+              fields: [], // Fields will be added later in the form builder
+            }
+          : undefined,
     };
 
     onAdd(field);
@@ -111,6 +126,8 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
     setLabel('');
     setHelpText('');
     setRequired(false);
+    setMinItems(0);
+    setMaxItems(0);
   };
 
   const handleOpenChange = (open: boolean) => {
@@ -118,6 +135,46 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
       resetForm();
     }
     onOpenChange(open);
+  };
+
+  const renderAdditionalFields = () => {
+    if (selectedType === 'repeatable') {
+      return (
+        <div className="space-y-4">
+          <div>
+            <Label htmlFor="min-items">Minimum Items</Label>
+            <Input
+              id="min-items"
+              type="number"
+              min={0}
+              value={minItems}
+              onChange={(e) => setMinItems(parseInt(e.target.value) || 0)}
+              className="mt-1"
+              placeholder="0"
+            />
+            <div className="text-xs text-muted-foreground mt-1">
+              Minimum number of sections required (0 for optional)
+            </div>
+          </div>
+          <div>
+            <Label htmlFor="max-items">Maximum Items</Label>
+            <Input
+              id="max-items"
+              type="number"
+              min={0}
+              value={maxItems}
+              onChange={(e) => setMaxItems(parseInt(e.target.value) || 0)}
+              className="mt-1"
+              placeholder="Leave empty for unlimited"
+            />
+            <div className="text-xs text-muted-foreground mt-1">
+              Maximum number of sections allowed (0 for unlimited)
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -167,6 +224,8 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
                   placeholder="Enter help text"
                 />
               </div>
+
+              {renderAdditionalFields()}
 
               <div className="flex items-center gap-2">
                 <Switch
