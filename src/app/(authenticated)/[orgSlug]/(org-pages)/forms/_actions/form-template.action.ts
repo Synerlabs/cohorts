@@ -4,37 +4,52 @@ import { z } from 'zod';
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 
-const formFieldSchema = z.object({
-  id: z.string().uuid(),
-  type: z.string(),
-  label: z.string().min(1, 'Label is required'),
-  required: z.boolean(),
-  helpText: z.string().optional(),
-  options: z
-    .array(
-      z.object({
-        label: z.string(),
-        value: z.string(),
+const formFieldSchema: z.ZodType<any> = z.lazy(() => 
+  z.object({
+    id: z.string().uuid(),
+    type: z.string(),
+    label: z.string().min(1, 'Label is required'),
+    required: z.boolean(),
+    helpText: z.string().optional(),
+    options: z
+      .array(
+        z.object({
+          label: z.string(),
+          value: z.string(),
+        })
+      )
+      .optional(),
+    fileConfig: z
+      .object({
+        accept: z.string().optional(),
+        maxSize: z.number().optional(),
       })
-    )
-    .optional(),
-  fileConfig: z
-    .object({
-      accept: z.string().optional(),
-      maxSize: z.number().optional(),
-    })
-    .optional(),
-  value: z
-    .object({
-      path: z.string(),
-      url: z.string(),
-      name: z.string(),
-      size: z.number(),
-      type: z.string(),
-    })
-    .nullable()
-    .optional(),
-});
+      .optional(),
+    value: z
+      .object({
+        path: z.string(),
+        url: z.string(),
+        name: z.string(),
+        size: z.number(),
+        type: z.string(),
+      })
+      .nullable()
+      .optional(),
+    sectionConfig: z
+      .object({
+        description: z.string().optional(),
+        fields: z.array(formFieldSchema),
+      })
+      .optional(),
+    repeatableConfig: z
+      .object({
+        minItems: z.number(),
+        maxItems: z.number().optional(),
+        fields: z.array(formFieldSchema),
+      })
+      .optional(),
+  })
+);
 
 const formTemplateSchema = z.object({
   title: z.string().min(1, 'Title is required'),

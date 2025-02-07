@@ -6,10 +6,14 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { GripVertical, Trash2, Plus, Minus } from 'lucide-react';
+import { GripVertical, Trash2, Plus, PlusCircle } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { FileUploadResult } from '@/services/file-upload.service';
+import { cn } from '@/lib/utils';
+import { useRef, useState } from 'react';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { AddFieldDialog } from './add-field-dialog';
 
 export interface FormField {
   id: string;
@@ -28,16 +32,439 @@ export interface FormField {
     maxItems?: number;
     fields: FormField[];
   };
+  sectionConfig?: {
+    description?: string;
+    fields: FormField[];
+  };
 }
 
 interface FormFieldProps {
   field: FormField;
   onUpdate: (field: FormField) => void;
   onDelete: () => void;
+  onDragStart?: (e: React.DragEvent, field: FormField) => void;
+  onDragEnd?: (e: React.DragEvent) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent, targetField: FormField) => void;
+  isDragging?: boolean;
+  isValidDropTarget?: boolean;
+  path?: string[];
+  level?: number;
+  totalSections?: number;
 }
 
-export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
+export function FormField({
+  field,
+  onUpdate,
+  onDelete,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  isDragging,
+  isValidDropTarget,
+  path = [],
+  level = 0,
+  totalSections = 1,
+}: FormFieldProps) {
   const { toast } = useToast();
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [isAddingField, setIsAddingField] = useState(false);
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.stopPropagation();
+    onDragStart?.(e, field);
+  };
+
+  const handleDragEnd = (result: any) => {
+    if (!result.destination) return;
+
+    if (field.sectionConfig) {
+      const newFields = Array.from(field.sectionConfig.fields);
+      const [reorderedItem] = newFields.splice(result.source.index, 1);
+      newFields.splice(result.destination.index, 0, reorderedItem);
+
+      onUpdate({
+        ...field,
+        sectionConfig: {
+          ...field.sectionConfig,
+          fields: newFields,
+        },
+      });
+    } else if (field.repeatableConfig) {
+      const newFields = Array.from(field.repeatableConfig.fields);
+      const [reorderedItem] = newFields.splice(result.source.index, 1);
+      newFields.splice(result.destination.index, 0, reorderedItem);
+
+      onUpdate({
+        ...field,
+        repeatableConfig: {
+          ...field.repeatableConfig,
+          fields: newFields,
+        },
+      });
+    }
+  };
+
+  const handleUpdateField = (index: number, updatedField: FormField) => {
+    if (!field.sectionConfig) return;
+
+    const newFields = [...field.sectionConfig.fields];
+    newFields[index] = updatedField;
+
+    onUpdate({
+      ...field,
+      sectionConfig: {
+        ...field.sectionConfig,
+        fields: newFields,
+      },
+    });
+  };
+
+  const handleDeleteField = (index: number) => {
+    if (!field.sectionConfig) return;
+
+    onUpdate({
+      ...field,
+      sectionConfig: {
+        ...field.sectionConfig,
+        fields: field.sectionConfig.fields.filter((f, i) => i !== index),
+      },
+    });
+  };
+
+  const handleAddField = (newField: FormField) => {
+    if (field.sectionConfig) {
+      if (newField.type === 'section') {
+        toast({
+          title: 'Error',
+          description: 'Cannot add a section within another section',
+          variant: 'destructive',
+        });
+        return;
+      }
+      
+      if (!field.sectionConfig.fields) {
+        field.sectionConfig.fields = [];
+      }
+      
+      onUpdate({
+        ...field,
+        sectionConfig: {
+          ...field.sectionConfig,
+          fields: [...field.sectionConfig.fields, newField],
+        },
+      });
+    } else if (field.repeatableConfig) {
+      if (!field.repeatableConfig.fields) {
+        field.repeatableConfig.fields = [];
+      }
+
+      onUpdate({
+        ...field,
+        repeatableConfig: {
+          ...field.repeatableConfig,
+          fields: [...field.repeatableConfig.fields, newField],
+        },
+      });
+    }
+    setIsAddingField(false);
+  };
+
+  if (field.type === 'section') {
+    const content = (dragHandleProps?: any) => (
+      <Card className="p-6">
+        <div className="space-y-4">
+          {totalSections > 1 && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                {dragHandleProps && (
+                  <div {...dragHandleProps}>
+                    <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
+                  </div>
+                )}
+                <div className="flex-1">
+                  <Input
+                    value={field.label}
+                    onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                    className="font-semibold text-lg"
+                    placeholder="Section Title"
+                    required={totalSections > 1}
+                  />
+                  <Textarea
+                    value={field.sectionConfig?.description || ''}
+                    onChange={(e) =>
+                      onUpdate({
+                        ...field,
+                        sectionConfig: {
+                          ...field.sectionConfig!,
+                          description: e.target.value,
+                        },
+                      })
+                    }
+                    className="mt-2"
+                    placeholder="Section Description (optional)"
+                  />
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onDelete}
+                className="h-8 w-8 text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">
+              {totalSections === 1 ? 'Form Fields' : 'Section Fields'}
+            </h3>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddingField(true)}
+              className="flex items-center gap-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add Field
+            </Button>
+          </div>
+
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId={`section-${field.id}`}>
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-4"
+                >
+                  {field.sectionConfig?.fields?.map((subfield, index) => (
+                    <Draggable
+                      key={subfield.id}
+                      draggableId={subfield.id}
+                      index={index}
+                    >
+                      {(provided) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div {...provided.dragHandleProps}>
+                              <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
+                            </div>
+                            <div className="flex-1">
+                              <FormField
+                                field={subfield}
+                                onUpdate={(updatedField) =>
+                                  handleUpdateField(index, updatedField)
+                                }
+                                onDelete={() => handleDeleteField(index)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+
+          {(!field.sectionConfig?.fields || field.sectionConfig.fields.length === 0) && (
+            <div className="text-center text-muted-foreground py-8">
+              No fields added yet. Click &quot;Add Field&quot; to start building
+              this section.
+            </div>
+          )}
+        </div>
+
+        <AddFieldDialog
+          open={isAddingField}
+          onOpenChange={setIsAddingField}
+          onAdd={(newField) => {
+            handleAddField(newField);
+            setIsAddingField(false);
+          }}
+        />
+      </Card>
+    );
+
+    return (
+      <>
+        {totalSections > 1 ? (
+          <Draggable draggableId={field.id} index={level}>
+            {(provided) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.draggableProps}
+              >
+                {content(provided.dragHandleProps)}
+              </div>
+            )}
+          </Draggable>
+        ) : (
+          content()
+        )}
+      </>
+    );
+  }
+
+  if (field.type === 'repeatable') {
+    return (
+      <Card className="p-6">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-2">
+              <Input
+                value={field.label}
+                onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                className="font-semibold"
+                placeholder="Repeatable Group Title"
+              />
+              <Textarea
+                value={field.helpText || ''}
+                onChange={(e) => onUpdate({ ...field, helpText: e.target.value })}
+                placeholder="Help text (optional)"
+                className="mt-1"
+              />
+              <div className="flex items-center gap-4">
+                <div>
+                  <Label htmlFor={`${field.id}-min`}>Minimum Items</Label>
+                  <Input
+                    id={`${field.id}-min`}
+                    type="number"
+                    min={0}
+                    value={field.repeatableConfig?.minItems || 0}
+                    onChange={(e) => onUpdate({
+                      ...field,
+                      repeatableConfig: {
+                        ...field.repeatableConfig!,
+                        minItems: parseInt(e.target.value) || 0,
+                        fields: field.repeatableConfig?.fields || [],
+                      },
+                    })}
+                    className="mt-1 w-24"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor={`${field.id}-max`}>Maximum Items</Label>
+                  <Input
+                    id={`${field.id}-max`}
+                    type="number"
+                    min={0}
+                    value={field.repeatableConfig?.maxItems || ''}
+                    onChange={(e) => onUpdate({
+                      ...field,
+                      repeatableConfig: {
+                        ...field.repeatableConfig!,
+                        maxItems: e.target.value ? parseInt(e.target.value) : undefined,
+                        fields: field.repeatableConfig?.fields || [],
+                      },
+                    })}
+                    className="mt-1 w-24"
+                    placeholder="No limit"
+                  />
+                </div>
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              className="h-8 w-8 text-destructive"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium">Repeatable Fields</h3>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddingField(true)}
+              className="flex items-center gap-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add Field
+            </Button>
+          </div>
+
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId={`repeatable-${field.id}`}>
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-4"
+                >
+                  {field.repeatableConfig?.fields.map((subfield, index) => (
+                    <Draggable
+                      key={subfield.id}
+                      draggableId={subfield.id}
+                      index={index}
+                    >
+                      {(provided) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div {...provided.dragHandleProps}>
+                              <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
+                            </div>
+                            <div className="flex-1">
+                              <FormField
+                                field={subfield}
+                                onUpdate={(updatedField) =>
+                                  handleUpdateField(index, updatedField)
+                                }
+                                onDelete={() => handleDeleteField(index)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+
+          {(!field.repeatableConfig?.fields || field.repeatableConfig.fields.length === 0) && (
+            <div className="text-center text-muted-foreground py-8">
+              No fields added yet. Click &quot;Add Field&quot; to define the structure
+              of repeatable items.
+            </div>
+          )}
+        </div>
+
+        <AddFieldDialog
+          open={isAddingField}
+          onOpenChange={setIsAddingField}
+          onAdd={handleAddField}
+        />
+      </Card>
+    );
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDragOver?.(e);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onDrop?.(e, field);
+  };
 
   const handleLabelChange = (value: string) => {
     onUpdate({ ...field, label: value });
@@ -68,7 +495,7 @@ export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
   };
 
   const handleAddSubfield = () => {
-    if (!field.repeatableConfig) return;
+    if (!field.repeatableConfig && !field.sectionConfig) return;
 
     const newField: FormField = {
       id: crypto.randomUUID(),
@@ -77,146 +504,132 @@ export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
       required: false,
     };
 
-    onUpdate({
-      ...field,
-      repeatableConfig: {
-        ...field.repeatableConfig,
-        fields: [...field.repeatableConfig.fields, newField],
-      },
-    });
+    if (field.repeatableConfig) {
+      onUpdate({
+        ...field,
+        repeatableConfig: {
+          ...field.repeatableConfig,
+          fields: [...field.repeatableConfig.fields, newField],
+        },
+      });
+    } else if (field.sectionConfig) {
+      onUpdate({
+        ...field,
+        sectionConfig: {
+          ...field.sectionConfig,
+          fields: [...field.sectionConfig.fields, newField],
+        },
+      });
+    }
   };
 
   const handleUpdateSubfield = (index: number, updatedField: FormField) => {
-    if (!field.repeatableConfig) return;
+    if (!field.repeatableConfig && !field.sectionConfig) return;
 
-    const newFields = [...field.repeatableConfig.fields];
+    const newFields = field.repeatableConfig
+      ? [...field.repeatableConfig.fields]
+      : [...field.sectionConfig!.fields];
     newFields[index] = updatedField;
 
-    onUpdate({
-      ...field,
-      repeatableConfig: {
-        ...field.repeatableConfig,
-        fields: newFields,
-      },
-    });
+    if (field.repeatableConfig) {
+      onUpdate({
+        ...field,
+        repeatableConfig: {
+          ...field.repeatableConfig,
+          fields: newFields,
+        },
+      });
+    } else if (field.sectionConfig) {
+      onUpdate({
+        ...field,
+        sectionConfig: {
+          ...field.sectionConfig,
+          fields: newFields,
+        },
+      });
+    }
   };
 
   const handleDeleteSubfield = (index: number) => {
-    if (!field.repeatableConfig) return;
+    if (!field.repeatableConfig && !field.sectionConfig) return;
+
+    if (field.repeatableConfig) {
+      onUpdate({
+        ...field,
+        repeatableConfig: {
+          ...field.repeatableConfig,
+          fields: field.repeatableConfig.fields.filter((_, i) => i !== index),
+        },
+      });
+    } else if (field.sectionConfig) {
+      onUpdate({
+        ...field,
+        sectionConfig: {
+          ...field.sectionConfig,
+          fields: field.sectionConfig.fields.filter((_, i) => i !== index),
+        },
+      });
+    }
+  };
+
+  const handleSectionConfigChange = (updates: Partial<FormField['sectionConfig']>) => {
+    if (!field.sectionConfig) return;
 
     onUpdate({
       ...field,
-      repeatableConfig: {
-        ...field.repeatableConfig,
-        fields: field.repeatableConfig.fields.filter((_, i) => i !== index),
+      sectionConfig: {
+        ...field.sectionConfig,
+        ...updates,
       },
     });
   };
 
-  const renderFieldConfig = () => {
-    if (field.type === 'file') {
-      return (
-        <div className="space-y-4">
-          <div>
-            <Label>Accepted File Types</Label>
-            <Input
-              value={field.fileConfig?.accept || '*'}
-              onChange={(e) =>
-                onUpdate({
-                  ...field,
-                  fileConfig: {
-                    ...field.fileConfig,
-                    accept: e.target.value,
-                  },
-                })
-              }
-              placeholder="e.g., .pdf,.doc,.docx"
-              className="mt-1"
-            />
-            <div className="text-xs text-muted-foreground mt-1">
-              Enter file extensions or MIME types, separated by commas
-            </div>
-          </div>
-          <div>
-            <Label>Max File Size (MB)</Label>
-            <Input
-              type="number"
-              value={
-                field.fileConfig?.maxSize
-                  ? Math.round(field.fileConfig.maxSize / 1024 / 1024)
-                  : 5
-              }
-              onChange={(e) =>
-                onUpdate({
-                  ...field,
-                  fileConfig: {
-                    ...field.fileConfig,
-                    maxSize: parseInt(e.target.value) * 1024 * 1024,
-                  },
-                })
-              }
-              min={1}
-              max={100}
-              className="mt-1"
-            />
-          </div>
+  const renderSubfields = (fields: FormField[], containerClass?: string) => (
+    <div className={cn('pl-4 border-l-2 space-y-4', containerClass)}>
+      {fields.map((subfield, index) => (
+        <FormField
+          key={subfield.id}
+          field={subfield}
+          onUpdate={(updatedField) => handleUpdateSubfield(index, updatedField)}
+          onDelete={() => handleDeleteSubfield(index)}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDragOver={onDragOver}
+          onDrop={onDrop}
+          path={[...path, index.toString()]}
+          level={level + 1}
+        />
+      ))}
+      {fields.length === 0 && (
+        <div
+          className={cn(
+            'text-sm text-muted-foreground p-4 border-2 border-dashed rounded-md',
+            isValidDropTarget && 'border-primary bg-primary/5'
+          )}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {isValidDropTarget
+            ? 'Drop field here'
+            : 'No fields added yet. Click "Add Field" to add a field or drag a field here.'}
         </div>
-      );
-    }
-
-    if (field.type === 'repeatable') {
-      return (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Subfields</h3>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddSubfield}
-              className="h-8"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              Add Field
-            </Button>
-          </div>
-          <div className="pl-4 border-l-2 space-y-4">
-            {field.repeatableConfig?.fields.map((subfield, index) => (
-              <FormField
-                key={subfield.id}
-                field={subfield}
-                onUpdate={(updatedField) => handleUpdateSubfield(index, updatedField)}
-                onDelete={() => handleDeleteSubfield(index)}
-              />
-            ))}
-            {field.repeatableConfig?.fields.length === 0 && (
-              <div className="text-sm text-muted-foreground">
-                No fields added yet. Click &quot;Add Field&quot; to add a field to this section.
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-4">
-            <div>
-              <Label>Min Items</Label>
-              <div className="text-sm text-muted-foreground">
-                {field.repeatableConfig?.minItems || 0}
-              </div>
-            </div>
-            <div>
-              <Label>Max Items</Label>
-              <div className="text-sm text-muted-foreground">
-                {field.repeatableConfig?.maxItems || 'Unlimited'}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return null;
-  };
+      )}
+    </div>
+  );
 
   return (
-    <Card className="p-4">
+    <Card
+      ref={cardRef}
+      className={cn('p-4', {
+        'opacity-50': isDragging,
+        'border-primary': isValidDropTarget,
+      })}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={onDragEnd}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       <div className="flex items-start gap-4">
         <div className="mt-3 cursor-move">
           <GripVertical className="h-5 w-5 text-muted-foreground" />
@@ -262,13 +675,11 @@ export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
               />
             </div>
 
-            {renderFieldConfig()}
-
             <div className="flex items-center gap-2">
               <Switch
                 id={`${field.id}-required`}
                 checked={field.required}
-                onCheckedChange={handleRequiredChange}
+                onCheckedChange={(checked) => handleRequiredChange(checked)}
               />
               <Label htmlFor={`${field.id}-required`}>Required field</Label>
             </div>
@@ -280,8 +691,8 @@ export function FormField({ field, onUpdate, onDelete }: FormFieldProps) {
                   <FileUpload
                     accept={field.fileConfig?.accept}
                     maxSize={field.fileConfig?.maxSize}
-                    onUpload={handleFileUpload}
-                    onError={handleFileError}
+                    onUpload={(file) => handleFileUpload(file)}
+                    onError={(error) => handleFileError(error)}
                     value={field.value}
                     onRemove={handleFileRemove}
                   />

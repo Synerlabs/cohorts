@@ -22,6 +22,11 @@ interface AddFieldDialogProps {
 
 const FIELD_TYPES = [
   {
+    type: 'section',
+    label: 'Section',
+    description: 'Group fields into sections or wizard steps',
+  },
+  {
     type: 'text',
     label: 'Short Text',
     description: 'Single line text input for short responses',
@@ -137,6 +142,8 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
     onOpenChange(open);
   };
 
+  const availableFieldTypes = FIELD_TYPES.filter(type => type.type !== 'section');
+
   const renderAdditionalFields = () => {
     if (selectedType === 'repeatable') {
       return (
@@ -187,7 +194,7 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
         <div className="grid gap-4 py-4">
           {!selectedType ? (
             <div className="grid grid-cols-2 gap-4">
-              {FIELD_TYPES.map((fieldType) => (
+              {availableFieldTypes.map((fieldType) => (
                 <Button
                   key={fieldType.type}
                   variant="outline"
@@ -243,7 +250,13 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
                 >
                   Back
                 </Button>
-                <Button onClick={handleAdd} disabled={!label.trim()}>
+                <Button 
+                  onClick={() => {
+                    handleAdd();
+                    handleOpenChange(false);
+                  }} 
+                  disabled={!label.trim()}
+                >
                   Add Field
                 </Button>
               </div>

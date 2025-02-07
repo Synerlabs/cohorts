@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, LayoutTemplate } from 'lucide-react';
 import { FormField, type FormField as FormFieldType } from './form-field';
 import { AddFieldDialog } from './add-field-dialog';
 import { useToast } from '@/components/ui/use-toast';
@@ -16,11 +16,6 @@ import { createFormTemplate, updateFormTemplate } from '../_actions/form-templat
 import { Database } from '@/lib/types/database.types';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
-
-interface FormSchema {
-  version: number;
-  fields: FormFieldType[];
-}
 
 interface FormBuilderProps {
   orgId: string;
@@ -31,41 +26,104 @@ interface FormBuilderProps {
 export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderProps) {
   const [title, setTitle] = useState(template?.title || '');
   const [description, setDescription] = useState(template?.description || '');
-  const [fields, setFields] = useState<FormFieldType[]>(() => {
-    if (!template?.schema) return [];
-    const schema = template.schema as unknown as FormSchema;
-    return schema.fields || [];
+  const [sections, setSections] = useState<FormFieldType[]>(() => {
+    if (!template?.schema) return [createDefaultSection()];
+    try {
+      const schema = typeof template.schema === 'string' 
+        ? JSON.parse(template.schema) 
+        : template.schema;
+      
+      // Ensure fields arrays are initialized
+      const fields = schema.fields?.map((field: FormFieldType) => {
+        // Initialize section fields
+        if (field.type === 'section') {
+          return {
+            ...field,
+            sectionConfig: {
+              ...field.sectionConfig,
+              fields: field.sectionConfig?.fields || [],
+            },
+          };
+        }
+        // Initialize repeatable fields
+        if (field.type === 'repeatable') {
+          return {
+            ...field,
+            repeatableConfig: {
+              ...field.repeatableConfig,
+              fields: field.repeatableConfig?.fields || [],
+            },
+          };
+        }
+        return field;
+      }) || [];
+
+      return fields.length > 0 ? fields : [createDefaultSection()];
+    } catch (error) {
+      console.error('Error parsing schema:', error);
+      return [createDefaultSection()];
+    }
   });
   const [isAddingField, setIsAddingField] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
 
+  function createDefaultSection(): FormFieldType {
+    return {
+      id: crypto.randomUUID(),
+      type: 'section',
+      label: 'Default Section',
+      required: false,
+      sectionConfig: {
+        description: '',
+        fields: [],
+      },
+    };
+  }
+
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination) return;
 
-    const items = Array.from(fields);
+    const items = Array.from(sections);
     const [reorderedItem] = items.splice(result.source.index, 1);
     items.splice(result.destination.index, 0, reorderedItem);
 
-    setFields(items);
+    setSections(items);
   };
 
-  const handleAddField = (field: FormFieldType) => {
-    setFields([...fields, field]);
-    setIsAddingField(false);
+  const handleAddSection = () => {
+    const newSection: FormFieldType = {
+      id: crypto.randomUUID(),
+      type: 'section',
+      label: 'New Section',
+      required: false,
+      sectionConfig: {
+        description: '',
+        fields: [],
+      },
+    };
+    setSections([...sections, newSection]);
   };
 
-  const handleUpdateField = (index: number, field: FormFieldType) => {
-    const newFields = [...fields];
-    newFields[index] = field;
-    setFields(newFields);
+  const handleUpdateSection = (index: number, section: FormFieldType) => {
+    const newSections = [...sections];
+    newSections[index] = section;
+    setSections(newSections);
   };
 
-  const handleDeleteField = (index: number) => {
-    const newFields = [...fields];
-    newFields.splice(index, 1);
-    setFields(newFields);
+  const handleDeleteSection = (index: number) => {
+    if (sections.length <= 1) {
+      toast({
+        title: 'Error',
+        description: 'Forms must have at least one section',
+        variant: 'destructive',
+      });
+      return;
+    }
+    const newSections = [...sections];
+    newSections.splice(index, 1);
+    setSections(newSections);
   };
 
   const handleSave = async () => {
@@ -78,10 +136,10 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
       return;
     }
 
-    if (fields.length === 0) {
+    if (!sections.some(section => section.sectionConfig?.fields.length > 0)) {
       toast({
         title: 'Error',
-        description: 'Please add at least one field',
+        description: 'Please add at least one field to a section',
         variant: 'destructive',
       });
       return;
@@ -93,7 +151,7 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
       const formData = {
         title: title.trim(),
         description: description.trim(),
-        fields,
+        fields: sections,
       };
 
       const result = mode === 'create'
@@ -149,65 +207,55 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
         </div>
       </Card>
 
-      <Card className="p-6">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Form Fields</h2>
-            <Button
-              variant="outline"
-              onClick={() => setIsAddingField(true)}
-              className="flex items-center gap-2"
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Sections</h2>
+        <Button
+          variant="outline"
+          onClick={handleAddSection}
+          className="flex items-center gap-2"
+        >
+          <LayoutTemplate className="h-4 w-4" />
+          Add Section
+        </Button>
+      </div>
+
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="sections">
+          {(provided) => (
+            <div
+              {...provided.droppableProps}
+              ref={provided.innerRef}
+              className="space-y-4"
             >
-              <PlusCircle className="h-4 w-4" />
-              Add Field
-            </Button>
-          </div>
-
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="fields">
-              {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="space-y-4"
+              {sections.map((section, index) => (
+                <Draggable
+                  key={section.id}
+                  draggableId={section.id}
+                  index={index}
                 >
-                  {fields.map((field, index) => (
-                    <Draggable
-                      key={field.id}
-                      draggableId={field.id}
-                      index={index}
+                  {(provided) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.draggableProps}
+                      {...provided.dragHandleProps}
                     >
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                        >
-                          <FormField
-                            field={field}
-                            onUpdate={(updatedField: FormFieldType) =>
-                              handleUpdateField(index, updatedField)
-                            }
-                            onDelete={() => handleDeleteField(index)}
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-
-          {fields.length === 0 && (
-            <div className="text-center text-muted-foreground py-8">
-              No fields added yet. Click &quot;Add Field&quot; to start building
-              your form.
+                      <FormField
+                        field={section}
+                        onUpdate={(updatedSection: FormFieldType) =>
+                          handleUpdateSection(index, updatedSection)
+                        }
+                        onDelete={() => handleDeleteSection(index)}
+                        totalSections={sections.length}
+                      />
+                    </div>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
             </div>
           )}
-        </div>
-      </Card>
+        </Droppable>
+      </DragDropContext>
 
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => router.back()}>
@@ -217,12 +265,6 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
           {isSaving ? 'Saving...' : mode === 'create' ? 'Create Form' : 'Save Changes'}
         </Button>
       </div>
-
-      <AddFieldDialog
-        open={isAddingField}
-        onOpenChange={setIsAddingField}
-        onAdd={handleAddField}
-      />
     </div>
   );
 } 

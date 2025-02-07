@@ -7,16 +7,18 @@ interface EditFormPageProps extends OrgAccessHOCProps {
   params: {
     slug: string;
     formId: string;
+    orgSlug: string;
   };
 }
 
 async function EditFormPage({ org, user, params }: EditFormPageProps) {
+  const formId = params.formId;
   const supabase = await createServiceRoleClient();
 
   const { data: template, error } = await supabase
     .from('form_templates')
     .select('*')
-    .eq('id', params.formId)
+    .eq('id', formId)
     .eq('org_id', org.id)
     .single();
 
