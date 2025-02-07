@@ -3,35 +3,32 @@
 import Stripe from 'stripe';
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 
-// Add function to check for active Stripe accounts
-async function hasActiveStripeAccount(orgId: string) {
+// Add function to get Stripe connected account
+async function getStripeConnectedAccount(groupId: string) {
   const supabase = await createServiceRoleClient();
   
-  const { data: accounts, error } = await supabase
+  const { data: account, error } = await supabase
     .from('stripe_connected_accounts')
-    .select('is_active')
-    .eq('org_id', orgId)
+    .select('account_id, is_active')
+    .eq('org_id', groupId)
     .eq('is_active', true)
-    .limit(1);
+    .single();
 
-  if (error) {
-    console.error('Failed to check for active Stripe accounts:', error);
-    return false;
-  }
-
-  return accounts && accounts.length > 0;
-}
-
-export async function createStripePaymentIntent(orderId: string, amount: number, currency: string, orgId: string) {
-  // Check for active Stripe account first
-  const hasStripeAccount = await hasActiveStripeAccount(orgId);
-  if (!hasStripeAccount) {
+  if (error || !account) {
+    console.error('Failed to get Stripe connected account:', error);
     throw new Error('No active Stripe account available for this organization');
   }
 
+  return account;
+}
+
+export async function createStripePaymentIntent(orderId: string, amount: number, currency: string, groupId: string) {
   const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
   const supabase = await createServiceRoleClient();
   
+  // Get the connected account
+  const connectedAccount = await getStripeConnectedAccount(groupId);
+
   // Get the order to get the user_id
   const { data: order, error: orderError } = await supabase
     .from('orders')
@@ -44,12 +41,22 @@ export async function createStripePaymentIntent(orderId: string, amount: number,
     throw new Error('Failed to fetch order');
   }
 
+  // Calculate platform fee (e.g., 5%)
+  const platformFeePercent = 5;
+  const platformFee = Math.round((amount * platformFeePercent) / 100);
+
   // Create the payment intent
   const paymentIntent = await stripe.paymentIntents.create({
     amount,
     currency: currency.toLowerCase(),
+    application_fee_amount: platformFee,
+    on_behalf_of: connectedAccount.account_id,
+    transfer_data: {
+      destination: connectedAccount.account_id,
+    },
     metadata: {
-      orderId
+      orderId,
+      groupId
     }
   });
 
@@ -59,11 +66,12 @@ export async function createStripePaymentIntent(orderId: string, amount: number,
     .insert({
       order_id: orderId,
       user_id: order.user_id,
-      group_id: orgId,
+      group_id: groupId,
       type: 'stripe',
       status: 'pending',
       amount,
       currency,
+      // platform_fee: platformFee,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
@@ -81,7 +89,9 @@ export async function createStripePaymentIntent(orderId: string, amount: number,
     .insert({
       payment_id: payment.id,
       stripe_payment_intent_id: paymentIntent.id,
-      stripe_status: paymentIntent.status
+      // stripe_account_id: connectedAccount.account_id,
+      stripe_status: paymentIntent.status,
+      // application_fee_amount: platformFee
     });
 
   if (stripePaymentError) {

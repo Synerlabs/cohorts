@@ -31,6 +31,7 @@ export function PaymentForm({
 }: PaymentFormProps) {
   const [clientSecret, setClientSecret] = useState<string>();
   const [selectedMethod, setSelectedMethod] = useState(defaultMethod);
+  const [isCreatingIntent, setIsCreatingIntent] = useState(false);
 
   // If no active Stripe account and card is selected, switch to manual
   useEffect(() => {
@@ -136,9 +137,11 @@ export function PaymentForm({
                     className="w-full" 
                     size="lg"
                     type="button"
+                    disabled={isCreatingIntent}
                     onClick={async (e) => {
                       e.preventDefault();
                       try {
+                        setIsCreatingIntent(true);
                         const secret = await createStripePaymentIntent(
                           order.id,
                           order.amount,
@@ -154,11 +157,13 @@ export function PaymentForm({
                           title: 'Error',
                           description: error.message || 'Failed to create payment intent. Please try again.'
                         });
+                      } finally {
+                        setIsCreatingIntent(false);
                       }
                     }}
                   >
                     <CreditCard className="mr-2 h-4 w-4" />
-                    Pay with Card
+                    {isCreatingIntent ? 'Preparing Payment...' : 'Pay with Card'}
                   </Button>
                 )}
               </div>
