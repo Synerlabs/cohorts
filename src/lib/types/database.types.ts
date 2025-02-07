@@ -95,6 +95,94 @@ export type Database = {
           },
         ]
       }
+      form_responses: {
+        Row: {
+          id: string
+          ip_address: string | null
+          response_data: Json
+          submitted_at: string | null
+          submitted_by: string | null
+          template_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          id?: string
+          ip_address?: string | null
+          response_data: Json
+          submitted_at?: string | null
+          submitted_by?: string | null
+          template_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          id?: string
+          ip_address?: string | null
+          response_data?: Json
+          submitted_at?: string | null
+          submitted_by?: string | null
+          template_id?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_responses_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      form_templates: {
+        Row: {
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          org_id: string
+          schema: Json
+          settings: Json | null
+          status: string | null
+          title: string
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          org_id: string
+          schema: Json
+          settings?: Json | null
+          status?: string | null
+          title: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          org_id?: string
+          schema?: Json
+          settings?: Json | null
+          status?: string | null
+          title?: string
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "form_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       group: {
         Row: {
           alternate_name: string | null
@@ -130,6 +218,47 @@ export type Database = {
           type?: string | null
         }
         Relationships: []
+      }
+      group_payment_gateways: {
+        Row: {
+          config: Json | null
+          created_at: string | null
+          enabled: boolean | null
+          gateway_id: string
+          group_id: string | null
+          id: string
+          status: Database["public"]["Enums"]["payment_gateway_status"] | null
+          updated_at: string | null
+        }
+        Insert: {
+          config?: Json | null
+          created_at?: string | null
+          enabled?: boolean | null
+          gateway_id: string
+          group_id?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["payment_gateway_status"] | null
+          updated_at?: string | null
+        }
+        Update: {
+          config?: Json | null
+          created_at?: string | null
+          enabled?: boolean | null
+          gateway_id?: string
+          group_id?: string | null
+          id?: string
+          status?: Database["public"]["Enums"]["payment_gateway_status"] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_payment_gateways_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       group_roles: {
         Row: {
@@ -1069,6 +1198,11 @@ export type Database = {
         | "review_required"
         | "payment_required"
         | "review_then_payment"
+      payment_gateway_status:
+        | "unconfigured"
+        | "configured"
+        | "disabled"
+        | "error"
       payment_status: "pending" | "paid" | "rejected"
       payment_type: "manual" | "stripe"
       storage_provider_type: "google-drive" | "blob-storage"

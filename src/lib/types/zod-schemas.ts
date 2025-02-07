@@ -65,14 +65,106 @@ export const applicationsRelationshipsSchema = z.tuple([
     foreignKeyName: z.literal("applications_order_id_fkey"),
     columns: z.tuple([z.literal("order_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("membership_applications_view"),
-    referencedColumns: z.tuple([z.literal("order_id")]),
+    referencedRelation: z.literal("orders"),
+    referencedColumns: z.tuple([z.literal("id")]),
   }),
   z.object({
-    foreignKeyName: z.literal("applications_order_id_fkey"),
-    columns: z.tuple([z.literal("order_id")]),
+    foreignKeyName: z.literal("applications_tier_id_fkey"),
+    columns: z.tuple([z.literal("tier_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("orders"),
+    referencedRelation: z.literal("products"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const formResponsesRowSchema = z.object({
+  id: z.string(),
+  ip_address: z.string().nullable(),
+  response_data: jsonSchema,
+  submitted_at: z.string().nullable(),
+  submitted_by: z.string().nullable(),
+  template_id: z.string(),
+  user_agent: z.string().nullable(),
+});
+
+export const formResponsesInsertSchema = z.object({
+  id: z.string().optional(),
+  ip_address: z.string().optional().nullable(),
+  response_data: jsonSchema,
+  submitted_at: z.string().optional().nullable(),
+  submitted_by: z.string().optional().nullable(),
+  template_id: z.string(),
+  user_agent: z.string().optional().nullable(),
+});
+
+export const formResponsesUpdateSchema = z.object({
+  id: z.string().optional(),
+  ip_address: z.string().optional().nullable(),
+  response_data: jsonSchema.optional(),
+  submitted_at: z.string().optional().nullable(),
+  submitted_by: z.string().optional().nullable(),
+  template_id: z.string().optional(),
+  user_agent: z.string().optional().nullable(),
+});
+
+export const formResponsesRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("form_responses_template_id_fkey"),
+    columns: z.tuple([z.literal("template_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("form_templates"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const formTemplatesRowSchema = z.object({
+  created_at: z.string().nullable(),
+  created_by: z.string().nullable(),
+  description: z.string().nullable(),
+  id: z.string(),
+  org_id: z.string(),
+  schema: jsonSchema,
+  settings: jsonSchema.nullable(),
+  status: z.string().nullable(),
+  title: z.string(),
+  updated_at: z.string().nullable(),
+  updated_by: z.string().nullable(),
+});
+
+export const formTemplatesInsertSchema = z.object({
+  created_at: z.string().optional().nullable(),
+  created_by: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  id: z.string().optional(),
+  org_id: z.string(),
+  schema: jsonSchema,
+  settings: jsonSchema.optional().nullable(),
+  status: z.string().optional().nullable(),
+  title: z.string(),
+  updated_at: z.string().optional().nullable(),
+  updated_by: z.string().optional().nullable(),
+});
+
+export const formTemplatesUpdateSchema = z.object({
+  created_at: z.string().optional().nullable(),
+  created_by: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  id: z.string().optional(),
+  org_id: z.string().optional(),
+  schema: jsonSchema.optional(),
+  settings: jsonSchema.optional().nullable(),
+  status: z.string().optional().nullable(),
+  title: z.string().optional(),
+  updated_at: z.string().optional().nullable(),
+  updated_by: z.string().optional().nullable(),
+});
+
+export const formTemplatesRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("form_templates_org_id_fkey"),
+    columns: z.tuple([z.literal("org_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);
@@ -114,6 +206,45 @@ export const groupUpdateSchema = z.object({
 });
 
 export const groupRelationshipsSchema = z.tuple([]);
+
+export const paymentGatewayStatusSchema = z.union([
+  z.literal("unconfigured"),
+  z.literal("configured"),
+  z.literal("disabled"),
+  z.literal("error"),
+]);
+
+export const groupPaymentGatewaysInsertSchema = z.object({
+  config: jsonSchema.optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  enabled: z.boolean().optional().nullable(),
+  gateway_id: z.string(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  status: paymentGatewayStatusSchema.optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+});
+
+export const groupPaymentGatewaysUpdateSchema = z.object({
+  config: jsonSchema.optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  enabled: z.boolean().optional().nullable(),
+  gateway_id: z.string().optional(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  status: paymentGatewayStatusSchema.optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+});
+
+export const groupPaymentGatewaysRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("group_payment_gateways_group_id_fkey"),
+    columns: z.tuple([z.literal("group_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
 
 export const groupRoleTypeSchema = z.union([
   z.literal("GUEST"),
@@ -196,9 +327,35 @@ export const groupUsersRelationshipsSchema = z.tuple([
   }),
 ]);
 
+export const manualPaymentsRowSchema = z.object({
+  notes: z.string().nullable(),
+  payment_id: z.string(),
+});
+
+export const manualPaymentsInsertSchema = z.object({
+  notes: z.string().optional().nullable(),
+  payment_id: z.string(),
+});
+
+export const manualPaymentsUpdateSchema = z.object({
+  notes: z.string().optional().nullable(),
+  payment_id: z.string().optional(),
+});
+
+export const manualPaymentsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("manual_payments_payment_id_fkey"),
+    columns: z.tuple([z.literal("payment_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("payments"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
 export const memberIdsRowSchema = z.object({
   created_at: z.string(),
-  group_user_id: z.string(),
+  group_id: z.string().nullable(),
+  group_user_id: z.string().nullable(),
   id: z.string(),
   member_id: z.string(),
   updated_at: z.string(),
@@ -206,7 +363,8 @@ export const memberIdsRowSchema = z.object({
 
 export const memberIdsInsertSchema = z.object({
   created_at: z.string().optional(),
-  group_user_id: z.string(),
+  group_id: z.string().optional().nullable(),
+  group_user_id: z.string().optional().nullable(),
   id: z.string().optional(),
   member_id: z.string(),
   updated_at: z.string().optional(),
@@ -214,7 +372,8 @@ export const memberIdsInsertSchema = z.object({
 
 export const memberIdsUpdateSchema = z.object({
   created_at: z.string().optional(),
-  group_user_id: z.string().optional(),
+  group_id: z.string().optional().nullable(),
+  group_user_id: z.string().optional().nullable(),
   id: z.string().optional(),
   member_id: z.string().optional(),
   updated_at: z.string().optional(),
@@ -222,11 +381,86 @@ export const memberIdsUpdateSchema = z.object({
 
 export const memberIdsRelationshipsSchema = z.tuple([
   z.object({
-    foreignKeyName: z.literal("member_ids_group_user_id_fkey"),
-    columns: z.tuple([z.literal("group_user_id")]),
+    foreignKeyName: z.literal("member_ids_group_id_fkey"),
+    columns: z.tuple([z.literal("group_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("group_users"),
+    referencedRelation: z.literal("group"),
     referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const membershipMemberIdsRowSchema = z.object({
+  created_at: z.string(),
+  id: z.string(),
+  member_id_id: z.string().nullable(),
+  membership_id: z.string().nullable(),
+  updated_at: z.string(),
+});
+
+export const membershipMemberIdsInsertSchema = z.object({
+  created_at: z.string().optional(),
+  id: z.string().optional(),
+  member_id_id: z.string().optional().nullable(),
+  membership_id: z.string().optional().nullable(),
+  updated_at: z.string().optional(),
+});
+
+export const membershipMemberIdsUpdateSchema = z.object({
+  created_at: z.string().optional(),
+  id: z.string().optional(),
+  member_id_id: z.string().optional().nullable(),
+  membership_id: z.string().optional().nullable(),
+  updated_at: z.string().optional(),
+});
+
+export const membershipMemberIdsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("membership_member_ids_member_id_id_fkey"),
+    columns: z.tuple([z.literal("member_id_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("member_ids"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("membership_member_ids_membership_id_fkey"),
+    columns: z.tuple([z.literal("membership_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("memberships"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const membershipTierSettingsRowSchema = z.object({
+  created_at: z.string(),
+  id: z.string(),
+  member_id_format: z.string(),
+  tier_id: z.string(),
+  updated_at: z.string(),
+});
+
+export const membershipTierSettingsInsertSchema = z.object({
+  created_at: z.string().optional(),
+  id: z.string().optional(),
+  member_id_format: z.string().optional(),
+  tier_id: z.string(),
+  updated_at: z.string().optional(),
+});
+
+export const membershipTierSettingsUpdateSchema = z.object({
+  created_at: z.string().optional(),
+  id: z.string().optional(),
+  member_id_format: z.string().optional(),
+  tier_id: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const membershipTierSettingsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("membership_tier_settings_tier_id_fkey"),
+    columns: z.tuple([z.literal("tier_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("membership_tiers"),
+    referencedColumns: z.tuple([z.literal("product_id")]),
   }),
 ]);
 
@@ -259,24 +493,39 @@ export const membershipTiersRelationshipsSchema = z.tuple([
 ]);
 
 export const membershipsRowSchema = z.object({
+  created_at: z.string().nullable(),
   end_date: z.string().nullable(),
   group_user_id: z.string(),
+  id: z.string(),
+  metadata: jsonSchema.nullable(),
   order_id: z.string(),
   start_date: z.string().nullable(),
+  status: z.string(),
+  tier_id: z.string().nullable(),
 });
 
 export const membershipsInsertSchema = z.object({
+  created_at: z.string().optional().nullable(),
   end_date: z.string().optional().nullable(),
   group_user_id: z.string(),
+  id: z.string().optional(),
+  metadata: jsonSchema.optional().nullable(),
   order_id: z.string(),
   start_date: z.string().optional().nullable(),
+  status: z.string().optional(),
+  tier_id: z.string().optional().nullable(),
 });
 
 export const membershipsUpdateSchema = z.object({
+  created_at: z.string().optional().nullable(),
   end_date: z.string().optional().nullable(),
   group_user_id: z.string().optional(),
+  id: z.string().optional(),
+  metadata: jsonSchema.optional().nullable(),
   order_id: z.string().optional(),
   start_date: z.string().optional().nullable(),
+  status: z.string().optional(),
+  tier_id: z.string().optional().nullable(),
 });
 
 export const membershipsRelationshipsSchema = z.tuple([
@@ -291,15 +540,15 @@ export const membershipsRelationshipsSchema = z.tuple([
     foreignKeyName: z.literal("memberships_order_id_fkey"),
     columns: z.tuple([z.literal("order_id")]),
     isOneToOne: z.literal(true),
-    referencedRelation: z.literal("membership_applications_view"),
-    referencedColumns: z.tuple([z.literal("order_id")]),
-  }),
-  z.object({
-    foreignKeyName: z.literal("memberships_order_id_fkey"),
-    columns: z.tuple([z.literal("order_id")]),
-    isOneToOne: z.literal(true),
     referencedRelation: z.literal("orders"),
     referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("memberships_tier_id_fkey"),
+    columns: z.tuple([z.literal("tier_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("membership_tiers"),
+    referencedColumns: z.tuple([z.literal("product_id")]),
   }),
 ]);
 
@@ -308,8 +557,8 @@ export const ordersRowSchema = z.object({
   completed_at: z.string().nullable(),
   created_at: z.string(),
   currency: z.string(),
+  group_id: z.string().nullable(),
   id: z.string(),
-  product_id: z.string(),
   status: z.string(),
   type: z.string(),
   updated_at: z.string(),
@@ -321,8 +570,8 @@ export const ordersInsertSchema = z.object({
   completed_at: z.string().optional().nullable(),
   created_at: z.string().optional(),
   currency: z.string(),
+  group_id: z.string().optional().nullable(),
   id: z.string().optional(),
-  product_id: z.string(),
   status: z.string(),
   type: z.string(),
   updated_at: z.string().optional(),
@@ -334,8 +583,8 @@ export const ordersUpdateSchema = z.object({
   completed_at: z.string().optional().nullable(),
   created_at: z.string().optional(),
   currency: z.string().optional(),
+  group_id: z.string().optional().nullable(),
   id: z.string().optional(),
-  product_id: z.string().optional(),
   status: z.string().optional(),
   type: z.string().optional(),
   updated_at: z.string().optional(),
@@ -344,10 +593,134 @@ export const ordersUpdateSchema = z.object({
 
 export const ordersRelationshipsSchema = z.tuple([
   z.object({
-    foreignKeyName: z.literal("orders_product_id_fkey"),
-    columns: z.tuple([z.literal("product_id")]),
+    foreignKeyName: z.literal("orders_group_id_fkey"),
+    columns: z.tuple([z.literal("group_id")]),
     isOneToOne: z.literal(false),
-    referencedRelation: z.literal("products"),
+    referencedRelation: z.literal("group"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const storageProviderTypeSchema = z.union([
+  z.literal("google-drive"),
+  z.literal("blob-storage"),
+]);
+
+export const orgStorageSettingsInsertSchema = z.object({
+  created_at: z.string().optional(),
+  credentials: jsonSchema.optional(),
+  id: z.string().optional(),
+  org_id: z.string(),
+  provider_type: storageProviderTypeSchema.optional(),
+  settings: jsonSchema.optional(),
+  updated_at: z.string().optional(),
+});
+
+export const orgStorageSettingsUpdateSchema = z.object({
+  created_at: z.string().optional(),
+  credentials: jsonSchema.optional(),
+  id: z.string().optional(),
+  org_id: z.string().optional(),
+  provider_type: storageProviderTypeSchema.optional(),
+  settings: jsonSchema.optional(),
+  updated_at: z.string().optional(),
+});
+
+export const orgStorageSettingsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("org_storage_settings_org_id_fkey"),
+    columns: z.tuple([z.literal("org_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("group"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const paymentUploadsRowSchema = z.object({
+  created_at: z.string().nullable(),
+  payment_id: z.string(),
+  upload_id: z.string(),
+});
+
+export const paymentUploadsInsertSchema = z.object({
+  created_at: z.string().optional().nullable(),
+  payment_id: z.string(),
+  upload_id: z.string(),
+});
+
+export const paymentUploadsUpdateSchema = z.object({
+  created_at: z.string().optional().nullable(),
+  payment_id: z.string().optional(),
+  upload_id: z.string().optional(),
+});
+
+export const paymentUploadsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("payment_uploads_payment_id_fkey"),
+    columns: z.tuple([z.literal("payment_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("payments"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("payment_uploads_upload_id_fkey"),
+    columns: z.tuple([z.literal("upload_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("uploads"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const paymentStatusSchema = z.union([
+  z.literal("pending"),
+  z.literal("paid"),
+  z.literal("rejected"),
+]);
+
+export const paymentTypeSchema = z.union([
+  z.literal("manual"),
+  z.literal("stripe"),
+]);
+
+export const paymentsInsertSchema = z.object({
+  amount: z.number(),
+  created_at: z.string().optional(),
+  currency: z.string(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  order_id: z.string(),
+  status: paymentStatusSchema.optional(),
+  type: paymentTypeSchema,
+  updated_at: z.string().optional(),
+  user_id: z.string(),
+});
+
+export const paymentsUpdateSchema = z.object({
+  amount: z.number().optional(),
+  created_at: z.string().optional(),
+  currency: z.string().optional(),
+  group_id: z.string().optional().nullable(),
+  id: z.string().optional(),
+  order_id: z.string().optional(),
+  status: paymentStatusSchema.optional(),
+  type: paymentTypeSchema.optional(),
+  updated_at: z.string().optional(),
+  user_id: z.string().optional(),
+});
+
+export const paymentsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("payments_group_id_fkey"),
+    columns: z.tuple([z.literal("group_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("payments_order_id_fkey"),
+    columns: z.tuple([z.literal("order_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("orders"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
 ]);
@@ -430,6 +803,245 @@ export const profilesUpdateSchema = z.object({
 
 export const profilesRelationshipsSchema = z.tuple([]);
 
+export const stripeConnectedAccountsRowSchema = z.object({
+  account_id: z.string().nullable(),
+  capabilities_status: jsonSchema.nullable(),
+  charges_enabled: z.boolean().nullable(),
+  country: z.string(),
+  created_at: z.string().nullable(),
+  disabled_reason: z.string().nullable(),
+  has_external_account: z.boolean().nullable(),
+  id: z.string(),
+  is_active: z.boolean().nullable(),
+  is_test_mode: z.boolean().nullable(),
+  last_synced_at: z.string().nullable(),
+  org_id: z.string(),
+  payouts_enabled: z.boolean().nullable(),
+  requirements_due_date: z.string().nullable(),
+  requirements_status: jsonSchema.nullable(),
+  updated_at: z.string().nullable(),
+  verification_status: jsonSchema.nullable(),
+});
+
+export const stripeConnectedAccountsInsertSchema = z.object({
+  account_id: z.string().optional().nullable(),
+  capabilities_status: jsonSchema.optional().nullable(),
+  charges_enabled: z.boolean().optional().nullable(),
+  country: z.string(),
+  created_at: z.string().optional().nullable(),
+  disabled_reason: z.string().optional().nullable(),
+  has_external_account: z.boolean().optional().nullable(),
+  id: z.string().optional(),
+  is_active: z.boolean().optional().nullable(),
+  is_test_mode: z.boolean().optional().nullable(),
+  last_synced_at: z.string().optional().nullable(),
+  org_id: z.string(),
+  payouts_enabled: z.boolean().optional().nullable(),
+  requirements_due_date: z.string().optional().nullable(),
+  requirements_status: jsonSchema.optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  verification_status: jsonSchema.optional().nullable(),
+});
+
+export const stripeConnectedAccountsUpdateSchema = z.object({
+  account_id: z.string().optional().nullable(),
+  capabilities_status: jsonSchema.optional().nullable(),
+  charges_enabled: z.boolean().optional().nullable(),
+  country: z.string().optional(),
+  created_at: z.string().optional().nullable(),
+  disabled_reason: z.string().optional().nullable(),
+  has_external_account: z.boolean().optional().nullable(),
+  id: z.string().optional(),
+  is_active: z.boolean().optional().nullable(),
+  is_test_mode: z.boolean().optional().nullable(),
+  last_synced_at: z.string().optional().nullable(),
+  org_id: z.string().optional(),
+  payouts_enabled: z.boolean().optional().nullable(),
+  requirements_due_date: z.string().optional().nullable(),
+  requirements_status: jsonSchema.optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  verification_status: jsonSchema.optional().nullable(),
+});
+
+export const stripeConnectedAccountsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("stripe_connected_accounts_org_id_fkey"),
+    columns: z.tuple([z.literal("org_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const stripePaymentsRowSchema = z.object({
+  payment_id: z.string(),
+  stripe_payment_intent_id: z.string().nullable(),
+  stripe_payment_method: z.string().nullable(),
+  stripe_status: z.string().nullable(),
+});
+
+export const stripePaymentsInsertSchema = z.object({
+  payment_id: z.string(),
+  stripe_payment_intent_id: z.string().optional().nullable(),
+  stripe_payment_method: z.string().optional().nullable(),
+  stripe_status: z.string().optional().nullable(),
+});
+
+export const stripePaymentsUpdateSchema = z.object({
+  payment_id: z.string().optional(),
+  stripe_payment_intent_id: z.string().optional().nullable(),
+  stripe_payment_method: z.string().optional().nullable(),
+  stripe_status: z.string().optional().nullable(),
+});
+
+export const stripePaymentsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("stripe_payments_payment_id_fkey"),
+    columns: z.tuple([z.literal("payment_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("payments"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const stripeSettingsRowSchema = z.object({
+  account_id: z.string().nullable(),
+  created_at: z.string(),
+  id: z.string(),
+  is_test_mode: z.boolean().nullable(),
+  org_id: z.string(),
+  refresh_url: z.string().nullable(),
+  return_url: z.string().nullable(),
+  updated_at: z.string(),
+});
+
+export const stripeSettingsInsertSchema = z.object({
+  account_id: z.string().optional().nullable(),
+  created_at: z.string().optional(),
+  id: z.string().optional(),
+  is_test_mode: z.boolean().optional().nullable(),
+  org_id: z.string(),
+  refresh_url: z.string().optional().nullable(),
+  return_url: z.string().optional().nullable(),
+  updated_at: z.string().optional(),
+});
+
+export const stripeSettingsUpdateSchema = z.object({
+  account_id: z.string().optional().nullable(),
+  created_at: z.string().optional(),
+  id: z.string().optional(),
+  is_test_mode: z.boolean().optional().nullable(),
+  org_id: z.string().optional(),
+  refresh_url: z.string().optional().nullable(),
+  return_url: z.string().optional().nullable(),
+  updated_at: z.string().optional(),
+});
+
+export const stripeSettingsRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("stripe_settings_org_id_fkey"),
+    columns: z.tuple([z.literal("org_id")]),
+    isOneToOne: z.literal(true),
+    referencedRelation: z.literal("group"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const suborderStatusSchema = z.union([
+  z.literal("pending"),
+  z.literal("processing"),
+  z.literal("completed"),
+  z.literal("failed"),
+  z.literal("cancelled"),
+]);
+
+export const subordersInsertSchema = z.object({
+  amount: z.number(),
+  cancelled_at: z.string().optional().nullable(),
+  completed_at: z.string().optional().nullable(),
+  created_at: z.string().optional(),
+  currency: z.string(),
+  failed_at: z.string().optional().nullable(),
+  id: z.string().optional(),
+  metadata: jsonSchema.optional().nullable(),
+  order_id: z.string(),
+  product_id: z.string(),
+  status: suborderStatusSchema.optional(),
+  type: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const subordersUpdateSchema = z.object({
+  amount: z.number().optional(),
+  cancelled_at: z.string().optional().nullable(),
+  completed_at: z.string().optional().nullable(),
+  created_at: z.string().optional(),
+  currency: z.string().optional(),
+  failed_at: z.string().optional().nullable(),
+  id: z.string().optional(),
+  metadata: jsonSchema.optional().nullable(),
+  order_id: z.string().optional(),
+  product_id: z.string().optional(),
+  status: suborderStatusSchema.optional(),
+  type: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export const subordersRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("suborders_order_id_fkey"),
+    columns: z.tuple([z.literal("order_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("orders"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("suborders_product_id_fkey"),
+    columns: z.tuple([z.literal("product_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("products"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
+export const uploadsRowSchema = z.object({
+  created_at: z.string().nullable(),
+  file_id: z.string().nullable(),
+  file_url: z.string(),
+  id: z.string(),
+  module: z.string(),
+  original_filename: z.string(),
+  storage_path: z.string(),
+  storage_provider: z.string(),
+  updated_at: z.string().nullable(),
+});
+
+export const uploadsInsertSchema = z.object({
+  created_at: z.string().optional().nullable(),
+  file_id: z.string().optional().nullable(),
+  file_url: z.string(),
+  id: z.string().optional(),
+  module: z.string(),
+  original_filename: z.string(),
+  storage_path: z.string(),
+  storage_provider: z.string(),
+  updated_at: z.string().optional().nullable(),
+});
+
+export const uploadsUpdateSchema = z.object({
+  created_at: z.string().optional().nullable(),
+  file_id: z.string().optional().nullable(),
+  file_url: z.string().optional(),
+  id: z.string().optional(),
+  module: z.string().optional(),
+  original_filename: z.string().optional(),
+  storage_path: z.string().optional(),
+  storage_provider: z.string().optional(),
+  updated_at: z.string().optional().nullable(),
+});
+
+export const uploadsRelationshipsSchema = z.tuple([]);
+
 export const userRolesRowSchema = z.object({
   created_at: z.string(),
   group_role_id: z.string(),
@@ -469,25 +1081,22 @@ export const userRolesRelationshipsSchema = z.tuple([
 
 export const membershipApplicationsViewRowSchema = z.object({
   activation_type: z.string().nullable(),
-  amount: z.number().nullable(),
-  application_id: z.string().nullable(),
-  application_status: z.string().nullable(),
   approved_at: z.string().nullable(),
-  currency: z.string().nullable(),
   duration_months: z.number().nullable(),
-  end_date: z.string().nullable(),
   group_id: z.string().nullable(),
+  group_name: z.string().nullable(),
+  group_slug: z.string().nullable(),
   group_user_id: z.string().nullable(),
+  id: z.string().nullable(),
+  order_data: jsonSchema.nullable(),
   order_id: z.string().nullable(),
-  order_status: z.string().nullable(),
-  payment_completed_at: z.string().nullable(),
   product_currency: z.string().nullable(),
-  product_description: z.string().nullable(),
+  product_data: jsonSchema.nullable(),
   product_id: z.string().nullable(),
   product_name: z.string().nullable(),
   product_price: z.number().nullable(),
   rejected_at: z.string().nullable(),
-  start_date: z.string().nullable(),
+  status: z.string().nullable(),
   submitted_at: z.string().nullable(),
   type: z.string().nullable(),
   updated_at: z.string().nullable(),
@@ -501,6 +1110,20 @@ export const membershipApplicationsViewRelationshipsSchema = z.tuple([
     columns: z.tuple([z.literal("group_user_id")]),
     isOneToOne: z.literal(false),
     referencedRelation: z.literal("group_users"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("applications_order_id_fkey"),
+    columns: z.tuple([z.literal("order_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("orders"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("applications_tier_id_fkey"),
+    columns: z.tuple([z.literal("product_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("products"),
     referencedColumns: z.tuple([z.literal("id")]),
   }),
   z.object({
@@ -526,12 +1149,29 @@ export const appPermissionSchema = z.union([
   z.literal("group.members.approve"),
 ]);
 
+export const manualPaymentStatusSchema = z.union([
+  z.literal("pending"),
+  z.literal("approved"),
+  z.literal("rejected"),
+]);
+
 export const membershipActivationTypeSchema = z.union([
   z.literal("automatic"),
   z.literal("review_required"),
   z.literal("payment_required"),
   z.literal("review_then_payment"),
 ]);
+
+export const groupPaymentGatewaysRowSchema = z.object({
+  config: jsonSchema.nullable(),
+  created_at: z.string().nullable(),
+  enabled: z.boolean().nullable(),
+  gateway_id: z.string(),
+  group_id: z.string().nullable(),
+  id: z.string(),
+  status: paymentGatewayStatusSchema.nullable(),
+  updated_at: z.string().nullable(),
+});
 
 export const groupRolesRowSchema = z.object({
   created_at: z.string(),
@@ -542,4 +1182,43 @@ export const groupRolesRowSchema = z.object({
   permissions: z.array(z.string()).nullable(),
   role_name: z.string().nullable(),
   type: groupRoleTypeSchema.nullable(),
+});
+
+export const orgStorageSettingsRowSchema = z.object({
+  created_at: z.string(),
+  credentials: jsonSchema,
+  id: z.string(),
+  org_id: z.string(),
+  provider_type: storageProviderTypeSchema,
+  settings: jsonSchema,
+  updated_at: z.string(),
+});
+
+export const paymentsRowSchema = z.object({
+  amount: z.number(),
+  created_at: z.string(),
+  currency: z.string(),
+  group_id: z.string().nullable(),
+  id: z.string(),
+  order_id: z.string(),
+  status: paymentStatusSchema,
+  type: paymentTypeSchema,
+  updated_at: z.string(),
+  user_id: z.string(),
+});
+
+export const subordersRowSchema = z.object({
+  amount: z.number(),
+  cancelled_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
+  created_at: z.string(),
+  currency: z.string(),
+  failed_at: z.string().nullable(),
+  id: z.string(),
+  metadata: jsonSchema.nullable(),
+  order_id: z.string(),
+  product_id: z.string(),
+  status: suborderStatusSchema,
+  type: z.string(),
+  updated_at: z.string(),
 });
