@@ -13,7 +13,18 @@ export default function useToastActionState(
   permalink?: string,
   options?: ToastOptions,
 ) {
-  const [state, formAction] = useActionState(action, initialState);
+  const [state, formAction, pending] = useActionState(async (prevState: any, formData: FormData) => {
+    try {
+      return await action(prevState, formData);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
+      return { error: error instanceof Error ? error.message : "An unexpected error occurred" };
+    }
+  }, initialState);
 
   const previousState = useRef(state);
 
@@ -57,5 +68,5 @@ export default function useToastActionState(
     });
   };
 
-  return [state, wrappedAction, false] as const;
+  return [state, wrappedAction, pending] as const;
 }

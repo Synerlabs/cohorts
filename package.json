@@ -13,7 +13,9 @@
     "db:diff": "npx supabase db diff --schema public",
     "db:types": "npx supabase gen types typescript --local > src/lib/types/database.types.ts ",
     "zod:generate": "bunx supabase-to-zod --input src/lib/types/database.types.ts --output src/lib/types/zod-schemas.ts",
-    "supabase:start": "npx supabase start"
+    "supabase:start": "npx supabase start",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -71,6 +73,11 @@
     "eslint-config-next": "15.1.1",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "@testing-library/react": "^14.2.1",
+    "@testing-library/jest-dom": "^6.4.2",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
   }
 }
