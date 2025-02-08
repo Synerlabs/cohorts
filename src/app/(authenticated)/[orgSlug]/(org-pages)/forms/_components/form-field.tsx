@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { GripVertical, Trash2, Plus, PlusCircle, ChevronDown, ChevronRight, Settings2 } from 'lucide-react';
+import { GripVertical, Trash2, Plus, PlusCircle, ChevronDown, ChevronRight, Settings2, Type, AlignLeft, Mail, Hash, Phone, Calendar, Clock, CircleDot, CheckSquare, ChevronsUpDown, Upload, Files, LayoutGrid } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { FileUploadResult } from '@/services/file-upload.service';
@@ -110,6 +110,22 @@ interface FormFieldProps {
   totalSections?: number;
   isPreview?: boolean;
 }
+
+const FIELD_ICONS = {
+  text: Type,
+  textarea: AlignLeft,
+  email: Mail,
+  number: Hash,
+  phone: Phone,
+  date: Calendar,
+  time: Clock,
+  radio: CircleDot,
+  checkbox: CheckSquare,
+  select: ChevronsUpDown,
+  file: Upload,
+  repeatable: Files,
+  section: LayoutGrid,
+} as const;
 
 export function FormField({
   field,
@@ -997,12 +1013,6 @@ export function FormField({
       onDrop={handleDrop}
     >
       <div className="flex items-start gap-4">
-        {!isPreview && (
-          <div className="mt-3 cursor-move">
-            <GripVertical className="h-5 w-5 text-muted-foreground" />
-          </div>
-        )}
-
         <div className="flex-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -1018,13 +1028,19 @@ export function FormField({
                   <ChevronRight className="h-4 w-4" />
                 )}
               </Button>
-              <div>
-                <div className="font-medium">{field.label || 'Untitled Field'}</div>
-                <div className="text-sm text-muted-foreground flex items-center gap-2">
-                  <span className="capitalize">{field.type}</span>
-                  {field.required && (
-                    <span className="text-xs text-red-500">Required</span>
-                  )}
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const Icon = FIELD_ICONS[field.type as keyof typeof FIELD_ICONS];
+                  return Icon ? <Icon className="h-4 w-4 text-muted-foreground shrink-0" /> : null;
+                })()}
+                <div>
+                  <div className="font-medium">{field.label || 'Untitled Field'}</div>
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span className="capitalize">{field.type}</span>
+                    {field.required && (
+                      <span className="text-xs text-red-500">Required</span>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

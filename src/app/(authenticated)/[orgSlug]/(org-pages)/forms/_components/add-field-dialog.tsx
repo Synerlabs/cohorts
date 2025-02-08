@@ -13,7 +13,22 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { FormField } from './form-field';
-import { Trash2 } from 'lucide-react';
+import { 
+  Trash2, 
+  Type, 
+  AlignLeft, 
+  Mail, 
+  Hash, 
+  Phone, 
+  Calendar, 
+  Clock, 
+  CircleDot, 
+  CheckSquare, 
+  ChevronsUpDown, 
+  Upload, 
+  Files, 
+  LayoutGrid 
+} from 'lucide-react';
 
 interface AddFieldDialogProps {
   open: boolean;
@@ -26,66 +41,79 @@ const FIELD_TYPES = [
     type: 'section',
     label: 'Section',
     description: 'Group fields into sections or wizard steps',
+    icon: LayoutGrid,
   },
   {
     type: 'text',
     label: 'Short Text',
     description: 'Single line text input for short responses',
+    icon: Type,
   },
   {
     type: 'textarea',
     label: 'Long Text',
     description: 'Multi-line text input for longer responses',
+    icon: AlignLeft,
   },
   {
     type: 'email',
     label: 'Email',
     description: 'Input field with email validation',
+    icon: Mail,
   },
   {
     type: 'number',
     label: 'Number',
     description: 'Input field for numeric values',
+    icon: Hash,
   },
   {
     type: 'phone',
     label: 'Phone',
     description: 'Input field for phone numbers',
+    icon: Phone,
   },
   {
     type: 'date',
     label: 'Date',
     description: 'Date picker field',
+    icon: Calendar,
   },
   {
     type: 'time',
     label: 'Time',
     description: 'Time picker field',
+    icon: Clock,
   },
   {
     type: 'radio',
     label: 'Single Select',
     description: 'Radio buttons for selecting one option',
+    icon: CircleDot,
   },
   {
     type: 'checkbox',
     label: 'Multiple Select',
     description: 'Checkboxes for selecting multiple options',
+    icon: CheckSquare,
   },
   {
     type: 'select',
     label: 'Dropdown',
     description: 'Dropdown menu for selecting one option',
+    icon: ChevronsUpDown,
   },
   {
     type: 'file',
     label: 'File Upload',
     description: 'Allow users to upload files',
+    icon: Upload,
   },
   {
     type: 'repeatable',
     label: 'Repeatable Section',
     description: 'Group of fields that can be repeated (e.g., work experience)',
+    icon: Files,
   },
 ];
 
@@ -559,27 +587,33 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
         <div className="grid gap-4 py-4">
           {!selectedType ? (
             <div className="grid grid-cols-2 gap-4">
-              {availableFieldTypes.map((fieldType) => (
-                <Button
-                  key={fieldType.type}
-                  variant="outline"
-                  className="flex flex-col items-start gap-1.5 h-auto p-4"
-                  onClick={() => {
-                    setSelectedType(fieldType.type);
-                    setField({
-                      id: crypto.randomUUID(),
-                      type: fieldType.type,
-                      label: '',
-                      required: false,
-                    });
-                  }}
-                >
-                  <span className="font-semibold">{fieldType.label}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {fieldType.description}
-                  </span>
-                </Button>
-              ))}
+              {availableFieldTypes.map((fieldType) => {
+                const Icon = fieldType.icon;
+                return (
+                  <Button
+                    key={fieldType.type}
+                    variant="outline"
+                    className="flex flex-col items-start gap-1.5 h-auto p-4"
+                    onClick={() => {
+                      setSelectedType(fieldType.type);
+                      setField({
+                        id: crypto.randomUUID(),
+                        type: fieldType.type,
+                        label: '',
+                        required: false,
+                      });
+                    }}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <Icon className="h-4 w-4 shrink-0" />
+                      <span className="font-semibold">{fieldType.label}</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {fieldType.description}
+                    </span>
+                  </Button>
+                );
+              })}
             </div>
           ) : (
             <div className="space-y-6">
