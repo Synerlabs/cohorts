@@ -15,6 +15,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { createFormTemplate, updateFormTemplate } from '../_actions/form-template.action';
 import { Database } from '@/lib/types/database.types';
 import { TemplateSelectionDialog } from './template-selection-dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FormPreview } from './form-preview';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -70,6 +72,7 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
   const [showTemplateDialog, setShowTemplateDialog] = useState(mode === 'create');
   const router = useRouter();
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
 
   function createDefaultSection(): FormFieldType {
     return {
@@ -221,55 +224,72 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
         </div>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Sections</h2>
-        <Button
-          variant="outline"
-          onClick={handleAddSection}
-          className="flex items-center gap-2"
-        >
-          <LayoutTemplate className="h-4 w-4" />
-          Add Section
-        </Button>
-      </div>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'edit' | 'preview')}>
+        <TabsList className="grid w-[400px] grid-cols-2">
+          <TabsTrigger value="edit">Edit Form</TabsTrigger>
+          <TabsTrigger value="preview">Preview Form</TabsTrigger>
+        </TabsList>
 
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="sections">
-          {(provided) => (
-            <div
-              {...provided.droppableProps}
-              ref={provided.innerRef}
-              className="space-y-4"
+        <TabsContent value="edit" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Sections</h2>
+            <Button
+              variant="outline"
+              onClick={handleAddSection}
+              className="flex items-center gap-2"
             >
-              {sections.map((section, index) => (
-                <Draggable
-                  key={section.id}
-                  draggableId={section.id}
-                  index={index}
+              <LayoutTemplate className="h-4 w-4" />
+              Add Section
+            </Button>
+          </div>
+
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="sections">
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-4"
                 >
-                  {(provided) => (
-                    <div
-                      ref={provided.innerRef}
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
+                  {sections.map((section, index) => (
+                    <Draggable
+                      key={section.id}
+                      draggableId={section.id}
+                      index={index}
                     >
-                      <FormField
-                        field={section}
-                        onUpdate={(updatedSection: FormFieldType) =>
-                          handleUpdateSection(index, updatedSection)
-                        }
-                        onDelete={() => handleDeleteSection(index)}
-                        totalSections={sections.length}
-                      />
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+                      {(provided) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                        >
+                          <FormField
+                            field={section}
+                            onUpdate={(updatedSection: FormFieldType) =>
+                              handleUpdateSection(index, updatedSection)
+                            }
+                            onDelete={() => handleDeleteSection(index)}
+                            totalSections={sections.length}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </TabsContent>
+
+        <TabsContent value="preview">
+          <FormPreview
+            title={title}
+            description={description}
+            fields={sections}
+          />
+        </TabsContent>
+      </Tabs>
 
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => router.back()}>
