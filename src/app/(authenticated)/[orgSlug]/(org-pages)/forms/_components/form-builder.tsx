@@ -14,6 +14,7 @@ import { AddFieldDialog } from './add-field-dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { createFormTemplate, updateFormTemplate } from '../_actions/form-template.action';
 import { Database } from '@/lib/types/database.types';
+import { TemplateSelectionDialog } from './template-selection-dialog';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -66,6 +67,7 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
   });
   const [isAddingField, setIsAddingField] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(mode === 'create');
   const router = useRouter();
   const { toast } = useToast();
 
@@ -182,6 +184,18 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
 
   return (
     <div className="space-y-6">
+      {mode === 'create' && (
+        <TemplateSelectionDialog
+          open={showTemplateDialog}
+          onOpenChange={setShowTemplateDialog}
+          onSelect={(selectedTemplate) => {
+            setTitle(selectedTemplate.name);
+            setDescription(selectedTemplate.description);
+            setSections(selectedTemplate.fields);
+          }}
+        />
+      )}
+
       <Card className="p-6">
         <div className="space-y-4">
           <div>
