@@ -14,8 +14,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { startTransition } from "react";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Database } from "@/lib/types/database";
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -23,12 +25,22 @@ const formSchema = z.object({
   price: z.number().min(0, "Price must be 0 or greater"),
   currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
-  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment'] as const),
+  activation_type: z.enum([
+    'automatic',
+    'review_required',
+    'payment_required',
+    'review_then_payment',
+    'form_required',
+    'form_then_payment',
+    'form_then_review',
+    'form_then_payment_then_review'
+  ] as const),
   member_id_format: z.string().min(1, "Member ID format is required")
     .refine(
       (val) => val.includes('{SEQ:') || val.includes('{YYYY}') || val.includes('{YY}') || val.includes('{MM}') || val.includes('{DD}'),
       "Format must include at least one token: {SEQ:n}, {YYYY}, {YY}, {MM}, or {DD}"
-    )
+    ),
+  form_template_id: z.string().optional().nullable()
 });
 
 interface MembershipFormProps {
@@ -58,20 +70,44 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
     }
   );
 
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  
+  useEffect(() => {
+    const fetchFormTemplates = async () => {
+      const supabase = createClientComponentClient<Database>();
+      const { data: templates, error } = await supabase
+        .from('form_templates')
+        .select('*')
+        .eq('org_id', groupId)
+        .eq('status', 'published')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching form templates:', error);
+        return;
+      }
+
+      setFormTemplates(templates || []);
+    };
+
+    fetchFormTemplates();
+  }, [groupId]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: tier?.name || '',
       description: tier?.description || '',
-      price: tier ? tier.price / 100 : 0, // Convert cents to dollars for display
+      price: tier ? tier.price / 100 : 0,
       currency: tier?.currency || "USD",
       duration_months: tier?.membership_tier?.duration_months || 1,
-      activation_type: (tier?.membership_tier?.activation_type || 'automatic') as 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment',
-      member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+      activation_type: (tier?.membership_tier?.activation_type || 'automatic') as 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment' | 'form_required' | 'form_then_payment' | 'form_then_review' | 'form_then_payment_then_review',
+      member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+      form_template_id: tier?.membership_tier?.form_template_id || null
     },
   });
 
-  // Watch price changes to update activation type
+  // Watch price and activation type changes
   const price = form.watch("price");
   const activationType = form.watch("activation_type");
   
@@ -85,6 +121,18 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       form.setValue('activation_type', 'automatic' as const);
     }
   }, [price, activationType, form]);
+
+  // Validate form template selection
+  React.useEffect(() => {
+    if (activationType.includes('form') && !form.getValues('form_template_id')) {
+      form.setError('form_template_id', {
+        type: 'required',
+        message: 'Please select a form template for form-based activation'
+      });
+    } else {
+      form.clearErrors('form_template_id');
+    }
+  }, [activationType, form]);
 
   if (state?.success && onSuccess) {
     onSuccess();
@@ -106,6 +154,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       formData.append("duration_months", values.duration_months.toString());
       formData.append("activation_type", values.activation_type);
       formData.append("member_id_format", values.member_id_format);
+      formData.append("form_template_id", values.form_template_id || "");
 
       action(formData);
     });
@@ -268,6 +317,26 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                           Admin must review and approve applications
                         </p>
                       </div>
+
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="form_required" id="form_required" />
+                          <Label htmlFor="form_required">Form Required</Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Members must submit an application form
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="form_then_review" id="form_then_review" />
+                          <Label htmlFor="form_then_review">Form then Review</Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Members must submit a form for admin review
+                        </p>
+                      </div>
                     </>
                   ) : (
                     <>
@@ -296,6 +365,32 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                           Admin must approve before payment can be made
                         </p>
                       </div>
+
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="form_then_payment"
+                            id="form_then_payment"
+                          />
+                          <Label htmlFor="form_then_payment">Form then Payment</Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Members must submit a form before payment
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col space-y-1">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem
+                            value="form_then_payment_then_review"
+                            id="form_then_payment_then_review"
+                          />
+                          <Label htmlFor="form_then_payment_then_review">Form, Payment, then Review</Label>
+                        </div>
+                        <p className="text-sm text-muted-foreground ml-6">
+                          Members must submit a form and complete payment for admin review
+                        </p>
+                      </div>
                     </>
                   )}
                 </RadioGroup>
@@ -304,6 +399,41 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
             </FormItem>
           )}
         />
+
+        {activationType.includes('form') && (
+          <FormField
+            control={form.control}
+            name="form_template_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Application Form</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value || undefined}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a form template" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {formTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {formTemplates.length === 0 && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    No published form templates available. Please create and publish a form template first.
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
 
         <Button type="submit" className="w-full" disabled={pending}>
           {pending ? "Saving..." : tier ? "Update Tier" : "Create Tier"}

@@ -75,6 +75,7 @@ export default function MembershipTable({ tiers, groupId }: MembershipTableProps
             <TableHead>Price</TableHead>
             <TableHead>Duration</TableHead>
             <TableHead>Activation</TableHead>
+            <TableHead>Form</TableHead>
             <TableHead>Members</TableHead>
             <TableHead className="w-[100px]">Actions</TableHead>
           </TableRow>
@@ -94,6 +95,18 @@ export default function MembershipTable({ tiers, groupId }: MembershipTableProps
                 </TableCell>
                 <TableCell className="capitalize">
                   {tier.membership_tier?.activation_type ?? 'automatic'}
+                </TableCell>
+                <TableCell>
+                  {tier.membership_tier?.form_template_id ? (
+                    <a 
+                      href={`/${tier.group_id}/forms/${tier.membership_tier.form_template_id}`}
+                      className="text-primary hover:underline"
+                    >
+                      View Form
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">No form</span>
+                  )}
                 </TableCell>
                 <TableCell>0</TableCell>
                 <TableCell>

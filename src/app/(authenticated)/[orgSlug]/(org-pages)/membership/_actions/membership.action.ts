@@ -15,8 +15,18 @@ const membershipTierSchema = z.object({
   currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
   group_id: z.string(),
-  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment']).default('automatic'),
-  member_id_format: z.string().min(1, "Member ID format is required").default('MEM-{YYYY}-{SEQ:3}')
+  activation_type: z.enum([
+    'automatic',
+    'review_required',
+    'payment_required',
+    'review_then_payment',
+    'form_required',
+    'form_then_payment',
+    'form_then_review',
+    'form_then_payment_then_review'
+  ]).default('automatic'),
+  member_id_format: z.string().min(1, "Member ID format is required").default('MEM-{YYYY}-{SEQ:3}'),
+  form_template_id: z.string().optional().nullable()
 });
 
 const membershipTierUpdateSchema = membershipTierSchema
@@ -147,19 +157,27 @@ export async function getMembershipsAction(groupId: string): Promise<IMembership
   return data as IMembership[];
 }
 
-function validateActivationType(price: number, activationType: string) {
+function validateActivationType(price: number, activationType: string, formTemplateId: string | null) {
   if (price === 0) {
     // Free memberships can't require payment
     if (activationType === 'payment_required' || 
-        activationType === 'review_then_payment') {
+        activationType === 'review_then_payment' ||
+        activationType === 'form_then_payment' ||
+        activationType === 'form_then_payment_then_review') {
       return "Free memberships cannot require payment";
     }
   } else {
     // Paid memberships must require payment, review, or both
-    if (activationType === 'automatic') {
+    if (activationType === 'automatic' || activationType === 'form_required') {
       return "Paid memberships must require payment, review, or both";
     }
   }
+
+  // Form-based activation types require a form template
+  if (activationType.includes('form') && !formTemplateId) {
+    return "Form-based activation types require a form template";
+  }
+
   return null;
 }
 
@@ -174,13 +192,15 @@ export async function createMembershipTierAction(
     duration_months: Number(formData.get("duration_months")),
     activation_type: formData.get("activation_type") || 'automatic',
     currency: formData.get("currency") || "USD",
-    member_id_format: formData.get("member_id_format") || 'MEM-{YYYY}-{SEQ:3}'
+    member_id_format: formData.get("member_id_format") || 'MEM-{YYYY}-{SEQ:3}',
+    form_template_id: formData.get("form_template_id") || null
   };
 
-  // Validate activation type based on price
+  // Validate activation type based on price and form template
   const validationError = validateActivationType(
     formDataObj.price, 
-    formDataObj.activation_type as string
+    formDataObj.activation_type as string,
+    formDataObj.form_template_id as string | null
   );
 
   if (validationError) {
@@ -252,13 +272,15 @@ export async function updateMembershipTierAction(
     duration_months: Number(rawFormData.duration_months),
     activation_type: rawFormData.activation_type || 'automatic',
     currency: rawFormData.currency || "USD",
-    member_id_format: rawFormData.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+    member_id_format: rawFormData.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+    form_template_id: rawFormData.form_template_id || null
   };
 
-  // Validate activation type based on price
+  // Validate activation type based on price and form template
   const validationError = validateActivationType(
     formDataObj.price, 
-    formDataObj.activation_type as string
+    formDataObj.activation_type as string,
+    formDataObj.form_template_id as string | null
   );
 
   if (validationError) {

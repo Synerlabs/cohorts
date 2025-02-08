@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { PlusCircle, LayoutTemplate } from 'lucide-react';
+import { PlusCircle, LayoutTemplate, Send } from 'lucide-react';
 import { FormField, type FormField as FormFieldType } from './form-field';
 import { AddFieldDialog } from './add-field-dialog';
 import { useToast } from '@/components/ui/use-toast';
@@ -17,6 +17,7 @@ import { Database } from '@/lib/types/database.types';
 import { TemplateSelectionDialog } from './template-selection-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FormPreview } from './form-preview';
+import { publishFormTemplate } from '../_actions/form-template.action';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -131,7 +132,7 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
     setSections(newSections);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (shouldPublish: boolean = false) => {
     if (!title.trim()) {
       toast({
         title: 'Error',
@@ -157,6 +158,7 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
         title: title.trim(),
         description: description.trim(),
         fields: sections,
+        status: shouldPublish ? 'published' : 'draft'
       };
 
       const result = mode === 'create'
@@ -169,10 +171,10 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
 
       toast({
         title: 'Success',
-        description: `Form template ${mode === 'create' ? 'created' : 'updated'} successfully`,
+        description: `Form template ${shouldPublish ? 'published' : (mode === 'create' ? 'created' : 'updated')} successfully`,
       });
 
-      router.push(`/${orgId}/forms`);
+      router.push(`/@${orgId}/forms`);
     } catch (error) {
       console.error('Error saving form template:', error);
       toast({
@@ -295,8 +297,20 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
         <Button variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button onClick={handleSave} disabled={isSaving}>
-          {isSaving ? 'Saving...' : mode === 'create' ? 'Create Form' : 'Save Changes'}
+        <Button 
+          variant="outline"
+          onClick={() => handleSave(true)}
+          disabled={isSaving}
+          className="flex items-center gap-2"
+        >
+          <Send className="h-4 w-4" />
+          {isSaving ? 'Publishing...' : 'Save & Publish'}
+        </Button>
+        <Button 
+          onClick={() => handleSave(false)} 
+          disabled={isSaving}
+        >
+          {isSaving ? 'Saving...' : mode === 'create' ? 'Save as Draft' : 'Update Draft'}
         </Button>
       </div>
     </div>
