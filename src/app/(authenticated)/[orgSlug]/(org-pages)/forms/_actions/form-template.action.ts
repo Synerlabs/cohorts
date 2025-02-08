@@ -11,41 +11,126 @@ const formFieldSchema: z.ZodType<any> = z.lazy(() =>
     label: z.string().min(1, 'Label is required'),
     required: z.boolean(),
     helpText: z.string().optional(),
+    // Text field config
+    textConfig: z
+      .object({
+        minLength: z.number().optional(),
+        maxLength: z.number().optional(),
+        pattern: z.string().optional(),
+        placeholder: z.string().optional(),
+      })
+      .optional(),
+    // Number field config
+    numberConfig: z
+      .object({
+        min: z.number().optional(),
+        max: z.number().optional(),
+        step: z.number().optional(),
+        placeholder: z.string().optional(),
+      })
+      .optional(),
+    // Email field config
+    emailConfig: z
+      .object({
+        placeholder: z.string().optional(),
+        allowedDomains: z.array(z.string()).optional(),
+      })
+      .optional(),
+    // Phone field config
+    phoneConfig: z
+      .object({
+        format: z.string().optional(),
+        placeholder: z.string().optional(),
+        defaultCountry: z.string().optional(),
+      })
+      .optional(),
+    // Date field config
+    dateConfig: z
+      .object({
+        min: z.string().optional(),
+        max: z.string().optional(),
+        format: z.string().optional(),
+      })
+      .optional(),
+    // Time field config
+    timeConfig: z
+      .object({
+        min: z.string().optional(),
+        max: z.string().optional(),
+        step: z.number().optional(), // in minutes
+      })
+      .optional(),
+    // Choice fields (radio, checkbox, select) config
     options: z
       .array(
         z.object({
           label: z.string(),
           value: z.string(),
+          description: z.string().optional(),
         })
       )
       .optional(),
+    choiceConfig: z
+      .object({
+        layout: z.enum(['vertical', 'horizontal']).optional(),
+        allowOther: z.boolean().optional(),
+        otherLabel: z.string().optional(),
+      })
+      .optional(),
+    // File field config
     fileConfig: z
       .object({
         accept: z.string().optional(),
         maxSize: z.number().optional(),
+        maxFiles: z.number().optional(),
+        allowedTypes: z.array(z.string()).optional(),
       })
       .optional(),
-    value: z
-      .object({
-        path: z.string(),
-        url: z.string(),
-        name: z.string(),
-        size: z.number(),
-        type: z.string(),
-      })
-      .nullable()
-      .optional(),
+    // Section config
     sectionConfig: z
       .object({
         description: z.string().optional(),
         fields: z.array(formFieldSchema),
+        showTitle: z.boolean().optional(),
+        isWizardStep: z.boolean().optional(),
       })
       .optional(),
+    // Repeatable config
     repeatableConfig: z
       .object({
         minItems: z.number(),
         maxItems: z.number().optional(),
         fields: z.array(formFieldSchema),
+        addLabel: z.string().optional(),
+        itemLabel: z.string().optional(),
+      })
+      .optional(),
+    // Common field value
+    value: z
+      .any()
+      .nullable()
+      .optional(),
+    // Validation
+    validation: z
+      .object({
+        required: z.boolean().optional(),
+        customMessage: z.string().optional(),
+        async: z.boolean().optional(),
+        validate: z.string().optional(), // Custom validation function as string
+      })
+      .optional(),
+    // Conditional display
+    conditional: z
+      .object({
+        field: z.string().optional(),
+        operator: z.enum(['equals', 'notEquals', 'contains', 'notContains', 'greater', 'less']).optional(),
+        value: z.any().optional(),
+        logic: z.enum(['and', 'or']).optional(),
+        conditions: z.array(z.lazy(() => z.object({
+          field: z.string().optional(),
+          operator: z.enum(['equals', 'notEquals', 'contains', 'notContains', 'greater', 'less']).optional(),
+          value: z.any().optional(),
+        }))).optional(),
       })
       .optional(),
   })

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { GripVertical, Trash2, Plus, PlusCircle } from 'lucide-react';
+import { GripVertical, Trash2, Plus, PlusCircle, ChevronDown, ChevronRight, Settings2 } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { FileUploadResult } from '@/services/file-upload.service';
@@ -21,21 +21,78 @@ export interface FormField {
   label: string;
   required: boolean;
   helpText?: string;
-  options?: { label: string; value: string }[];
+  // Text field config
+  textConfig?: {
+    minLength?: number;
+    maxLength?: number;
+    pattern?: string;
+    placeholder?: string;
+  };
+  // Number field config
+  numberConfig?: {
+    min?: number;
+    max?: number;
+    step?: number;
+    placeholder?: string;
+  };
+  // Email field config
+  emailConfig?: {
+    placeholder?: string;
+    allowedDomains?: string[];
+  };
+  // Phone field config
+  phoneConfig?: {
+    format?: string;
+    placeholder?: string;
+    defaultCountry?: string;
+  };
+  // Date field config
+  dateConfig?: {
+    min?: string;
+    max?: string;
+    format?: string;
+  };
+  // Time field config
+  timeConfig?: {
+    min?: string;
+    max?: string;
+    step?: number;
+  };
+  // Choice fields config
+  options?: { 
+    label: string; 
+    value: string;
+    description?: string;
+  }[];
+  choiceConfig?: {
+    layout?: 'vertical' | 'horizontal';
+    allowOther?: boolean;
+    otherLabel?: string;
+  };
+  // File field config
   fileConfig?: {
     accept?: string;
     maxSize?: number;
+    maxFiles?: number;
+    allowedTypes?: string[];
   };
-  value?: FileUploadResult | null;
+  // Section config
+  sectionConfig?: {
+    description?: string;
+    fields: FormField[];
+    showTitle?: boolean;
+    isWizardStep?: boolean;
+  };
+  // Repeatable config
   repeatableConfig?: {
     minItems: number;
     maxItems?: number;
     fields: FormField[];
+    addLabel?: string;
+    itemLabel?: string;
   };
-  sectionConfig?: {
-    description?: string;
-    fields: FormField[];
-  };
+  // Common field value
+  value?: any;
 }
 
 interface FormFieldProps {
@@ -70,6 +127,7 @@ export function FormField({
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
   const [isAddingField, setIsAddingField] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const handleDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
@@ -635,71 +693,100 @@ export function FormField({
           <GripVertical className="h-5 w-5 text-muted-foreground" />
         </div>
 
-        <div className="flex-1 space-y-4">
+        <div className="flex-1">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-sm font-medium capitalize">{field.type}</span>
-              {field.required && (
-                <span className="text-xs text-red-500">Required</span>
-              )}
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onDelete}
-              className="h-8 w-8 text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor={`${field.id}-label`}>Field Label</Label>
-              <Input
-                id={`${field.id}-label`}
-                value={field.label}
-                onChange={(e) => handleLabelChange(e.target.value)}
-                className="mt-1"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor={`${field.id}-help`}>Help Text</Label>
-              <Textarea
-                id={`${field.id}-help`}
-                value={field.helpText || ''}
-                onChange={(e) => handleHelpTextChange(e.target.value)}
-                className="mt-1"
-                placeholder="Optional help text"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Switch
-                id={`${field.id}-required`}
-                checked={field.required}
-                onCheckedChange={(checked) => handleRequiredChange(checked)}
-              />
-              <Label htmlFor={`${field.id}-required`}>Required field</Label>
-            </div>
-
-            {field.type === 'file' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setIsExpanded(!isExpanded)}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </Button>
               <div>
-                <Label>Preview</Label>
-                <div className="mt-1">
-                  <FileUpload
-                    accept={field.fileConfig?.accept}
-                    maxSize={field.fileConfig?.maxSize}
-                    onUpload={(file) => handleFileUpload(file)}
-                    onError={(error) => handleFileError(error)}
-                    value={field.value}
-                    onRemove={handleFileRemove}
-                  />
+                <div className="font-medium">{field.label || 'Untitled Field'}</div>
+                <div className="text-sm text-muted-foreground flex items-center gap-2">
+                  <span className="capitalize">{field.type}</span>
+                  {field.required && (
+                    <span className="text-xs text-red-500">Required</span>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="h-8 w-8"
+              >
+                <Settings2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onDelete}
+                className="h-8 w-8 text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
+
+          {isExpanded && (
+            <div className="mt-4 space-y-4 border-t pt-4">
+              <div>
+                <Label htmlFor={`${field.id}-label`}>Field Label</Label>
+                <Input
+                  id={`${field.id}-label`}
+                  value={field.label}
+                  onChange={(e) => handleLabelChange(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor={`${field.id}-help`}>Help Text</Label>
+                <Textarea
+                  id={`${field.id}-help`}
+                  value={field.helpText || ''}
+                  onChange={(e) => handleHelpTextChange(e.target.value)}
+                  className="mt-1"
+                  placeholder="Optional help text"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  id={`${field.id}-required`}
+                  checked={field.required}
+                  onCheckedChange={(checked) => handleRequiredChange(checked)}
+                />
+                <Label htmlFor={`${field.id}-required`}>Required field</Label>
+              </div>
+
+              {field.type === 'file' && (
+                <div>
+                  <Label>Preview</Label>
+                  <div className="mt-1">
+                    <FileUpload
+                      accept={field.fileConfig?.accept}
+                      maxSize={field.fileConfig?.maxSize}
+                      onUpload={(file) => handleFileUpload(file)}
+                      onError={(error) => handleFileError(error)}
+                      value={field.value}
+                      onRemove={handleFileRemove}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </Card>

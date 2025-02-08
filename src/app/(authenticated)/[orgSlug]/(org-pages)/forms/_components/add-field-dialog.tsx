@@ -105,22 +105,86 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
       label: label.trim(),
       required,
       helpText: helpText.trim() || undefined,
-      fileConfig:
-        selectedType === 'file'
-          ? {
-              accept: '*',
-              maxSize: 5 * 1024 * 1024, // 5MB default
-            }
-          : undefined,
-      repeatableConfig:
-        selectedType === 'repeatable'
-          ? {
-              minItems: minItems || 0,
-              maxItems: maxItems || undefined,
-              fields: [], // Fields will be added later in the form builder
-            }
-          : undefined,
     };
+
+    // Add type-specific configurations
+    switch (selectedType) {
+      case 'text':
+        field.textConfig = {
+          minLength: 0,
+          maxLength: undefined,
+          placeholder: '',
+        };
+        break;
+      case 'textarea':
+        field.textConfig = {
+          minLength: 0,
+          maxLength: undefined,
+          placeholder: '',
+        };
+        break;
+      case 'number':
+        field.numberConfig = {
+          min: undefined,
+          max: undefined,
+          step: 1,
+          placeholder: '',
+        };
+        break;
+      case 'email':
+        field.emailConfig = {
+          placeholder: 'Enter email',
+          allowedDomains: [],
+        };
+        break;
+      case 'phone':
+        field.phoneConfig = {
+          format: '',
+          placeholder: 'Enter phone number',
+          defaultCountry: 'US',
+        };
+        break;
+      case 'date':
+        field.dateConfig = {
+          min: undefined,
+          max: undefined,
+          format: 'YYYY-MM-DD',
+        };
+        break;
+      case 'time':
+        field.timeConfig = {
+          min: undefined,
+          max: undefined,
+          step: 15, // 15 minutes
+        };
+        break;
+      case 'radio':
+      case 'checkbox':
+      case 'select':
+        field.options = [];
+        field.choiceConfig = {
+          layout: 'vertical',
+          allowOther: false,
+        };
+        break;
+      case 'file':
+        field.fileConfig = {
+          accept: '*',
+          maxSize: 5 * 1024 * 1024, // 5MB default
+          maxFiles: 1,
+          allowedTypes: [],
+        };
+        break;
+      case 'repeatable':
+        field.repeatableConfig = {
+          minItems: minItems || 0,
+          maxItems: maxItems || undefined,
+          fields: [],
+          addLabel: 'Add Item',
+          itemLabel: 'Item',
+        };
+        break;
+    }
 
     onAdd(field);
     resetForm();
