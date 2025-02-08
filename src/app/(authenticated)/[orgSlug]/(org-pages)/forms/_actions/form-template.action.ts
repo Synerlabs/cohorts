@@ -280,4 +280,26 @@ export async function publishFormTemplate(id: string) {
       error: error instanceof Error ? error.message : 'Failed to publish form template',
     };
   }
+}
+
+export async function getPublishedFormTemplates(orgId: string) {
+  try {
+    const supabase = await createServiceRoleClient();
+    
+    const { data: templates, error } = await supabase
+      .from('form_templates')
+      .select('*')
+      .eq('org_id', orgId)
+      .eq('status', 'published')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return { data: templates };
+  } catch (error) {
+    console.error('Failed to fetch form templates:', error);
+    return {
+      error: error instanceof Error ? error.message : 'Failed to fetch form templates',
+    };
+  }
 } 

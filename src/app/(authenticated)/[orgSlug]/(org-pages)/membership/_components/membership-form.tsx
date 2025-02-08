@@ -17,7 +17,14 @@ import { startTransition } from "react";
 import React, { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
-import { Database } from "@/lib/types/database";
+import { Database } from "@/lib/types/database.types";
+import { toast } from "@/components/ui/use-toast";
+import { FormTemplateSelectionDialog } from './form-template-selection-dialog';
+import { FileText, PlusCircle } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -58,6 +65,8 @@ const currencySymbols: Record<Currency, string> = {
 };
 
 export default function MembershipForm({ groupId, tier, onSuccess }: MembershipFormProps) {
+  console.log('MembershipForm props:', { groupId, tier });
+
   const [state, action, pending] = useToastActionState(
     tier ? updateMembershipTierAction : createMembershipTierAction,
     undefined,
@@ -70,29 +79,9 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
     }
   );
 
+  const [showFormTemplateDialog, setShowFormTemplateDialog] = useState(false);
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   
-  useEffect(() => {
-    const fetchFormTemplates = async () => {
-      const supabase = createClientComponentClient<Database>();
-      const { data: templates, error } = await supabase
-        .from('form_templates')
-        .select('*')
-        .eq('org_id', groupId)
-        .eq('status', 'published')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching form templates:', error);
-        return;
-      }
-
-      setFormTemplates(templates || []);
-    };
-
-    fetchFormTemplates();
-  }, [groupId]);
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -164,7 +153,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
 
   return (
     <Form {...form}>
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
         <FormField
           control={form.control}
           name="name"
@@ -407,33 +396,74 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Application Form</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value || undefined}
-                >
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a form template" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {formTemplates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formTemplates.length === 0 && (
-                  <p className="text-sm text-muted-foreground mt-1">
-                    No published form templates available. Please create and publish a form template first.
-                  </p>
-                )}
-                <FormMessage />
+                <div className="space-y-3">
+                  <div className="flex gap-2 items-start">
+                    <Button
+                      type="button"
+                      variant={field.value ? "outline" : "default"}
+                      className="w-full text-left justify-start font-normal"
+                      onClick={() => setShowFormTemplateDialog(true)}
+                    >
+                      {field.value ? (
+                        <span className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Change selected form
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <PlusCircle className="h-4 w-4" />
+                          Select a form template
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                  {field.value ? (
+                    <Card className="p-3">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 border rounded-md">
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">
+                              {formTemplates.find(t => t.id === field.value)?.title || 'Loading...'}
+                            </p>
+                            <Badge variant="outline" className="shrink-0">Selected</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {formTemplates.find(t => t.id === field.value)?.description || 'Loading form details...'}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      Members will need to complete this form when applying for this membership tier.
+                    </p>
+                  )}
+                  <FormMessage />
+                </div>
               </FormItem>
             )}
           />
         )}
+
+        <FormTemplateSelectionDialog
+          open={showFormTemplateDialog}
+          onOpenChange={setShowFormTemplateDialog}
+          onSelect={(template) => {
+            form.setValue('form_template_id', template.id);
+            setFormTemplates(prev => {
+              const exists = prev.some(t => t.id === template.id);
+              if (!exists) {
+                return [...prev, template];
+              }
+              return prev;
+            });
+          }}
+          orgId={groupId}
+          selectedTemplateId={form.getValues('form_template_id')}
+        />
 
         <Button type="submit" className="w-full" disabled={pending}>
           {pending ? "Saving..." : tier ? "Update Tier" : "Create Tier"}

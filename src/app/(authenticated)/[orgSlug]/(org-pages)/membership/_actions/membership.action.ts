@@ -244,7 +244,8 @@ export async function createMembershipTierAction(
         currency: parsedFormData.data.currency,
         duration_months: parsedFormData.data.duration_months,
         activation_type: parsedFormData.data.activation_type,
-        member_id_format: parsedFormData.data.member_id_format
+        member_id_format: parsedFormData.data.member_id_format,
+        form_template_id: parsedFormData.data.form_template_id
       }
     );
 
@@ -322,12 +323,13 @@ export async function updateMembershipTierAction(
       parsedFormData.data.id,
       {
         name: parsedFormData.data.name,
-        description: parsedFormData.data.description,
+        description: parsedFormData.data.description || null,
         price: parsedFormData.data.price,
         currency: parsedFormData.data.currency,
         duration_months: parsedFormData.data.duration_months,
         activation_type: parsedFormData.data.activation_type,
-        member_id_format: parsedFormData.data.member_id_format
+        member_id_format: parsedFormData.data.member_id_format,
+        form_template_id: parsedFormData.data.form_template_id
       }
     );
 
