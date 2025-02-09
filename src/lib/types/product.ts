@@ -1,5 +1,6 @@
 import { Currency } from './membership';
 import { Database } from './database.types';
+import { MembershipActivationType } from "./membership";
 
 export type ProductType = 'membership_tier' | 'subscription' | 'one_time';
 
@@ -16,9 +17,13 @@ export interface IProduct {
   updated_at: string;
 }
 
-type MembershipTierRow = Database['public']['Tables']['membership_tiers']['Row'] & {
+export interface MembershipTierRow {
+  product_id: string;
+  duration_months: number;
+  activation_type: MembershipActivationType;
   member_id_format?: string;
-};
+  form_template_id?: string | null;
+}
 
 export interface IMembershipTierProduct extends IProduct {
   type: 'membership_tier';

@@ -46,6 +46,7 @@ export type Database = {
           tier_id: string
           type: string
           updated_at: string
+          form_data: Record<string, any> | null
         }
         Insert: {
           approved_at?: string | null
@@ -58,6 +59,7 @@ export type Database = {
           tier_id: string
           type?: string
           updated_at?: string
+          form_data?: Record<string, any> | null
         }
         Update: {
           approved_at?: string | null
@@ -70,6 +72,7 @@ export type Database = {
           tier_id?: string
           type?: string
           updated_at?: string
+          form_data?: Record<string, any> | null
         }
         Relationships: [
           {

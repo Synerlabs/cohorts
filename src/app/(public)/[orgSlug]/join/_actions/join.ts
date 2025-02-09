@@ -7,11 +7,12 @@ import { ProductService } from "@/services/product.service";
 import { createGroupUser } from "@/services/join.service";
 import { createMembershipApplication } from "@/services/applications.service";
 import { createClient } from "@/lib/utils/supabase/server";
+import { MembershipActivationType } from "@/lib/types/membership";
 
 type State = {
   message?: string;
   errors?: {
-    [key: string]: string[];
+    form?: string[];
   };
   redirect?: string;
 };
@@ -21,6 +22,7 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     const groupId = formData.get('groupId') as string;
     const membershipTierId = formData.get('membershipTierId') as string;
     const userId = formData.get('userId') as string;
+    const formSubmissionData = formData.get('formData') as string;
 
     if (!groupId || !membershipTierId || !userId) {
       return {
@@ -50,49 +52,67 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       };
     }
 
-    // Create application
-    const application = await createMembershipApplication(groupUser.id, membershipTierId);
+    // Create application with form data if provided
+    const application = await createMembershipApplication(
+      groupUser.id, 
+      membershipTierId,
+      formSubmissionData ? JSON.parse(formSubmissionData) : undefined
+    );
 
-    // Add to cart
-    await addItem({
-      productId: membershipTierId,
-      type: 'membership',
-      metadata: {
-        groupId,
-        groupUserId: groupUser.id,
-        applicationId: application.id
-      }
-    });
+    // For paid memberships that require payment, add to cart
+    if (membershipTier.price > 0 && (
+      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.PAYMENT_REQUIRED ||
+      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT ||
+      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+    )) {
+      await addItem({
+        productId: membershipTierId,
+        type: 'membership',
+        metadata: {
+          groupId,
+          groupUserId: groupUser.id,
+          applicationId: application.id
+        }
+      });
+    }
 
     const supabase = await createClient();
 
     // Get org for redirect
     const { data: org, error: orgError } = await supabase
-      .from('organizations')
+      .from('group')
       .select('slug')
       .eq('id', groupId)
       .single();
 
     if (orgError) throw orgError;
 
-    const groupSlug = org.slug;
-
-    // For free memberships, process immediately
-    if (membershipTier.price === 0) {
-      const order = await OrderService.createOrderFromCart(userId);
+    // For form_then_payment, redirect to application status after form submission
+    if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT) {
       return {
         message: 'Your membership application has been submitted.',
-        redirect: `/orgs/${groupSlug}/applications/${application.id}`
+        redirect: `/@${org.slug}/applications/${application.id}`
+      };
+    }
+
+    // For free memberships or those not requiring immediate payment, process immediately
+    if (membershipTier.price === 0 || (
+      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.PAYMENT_REQUIRED &&
+      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+    )) {
+      return {
+        message: 'Your membership application has been submitted.',
+        redirect: `/@${org.slug}/applications/${application.id}`
       };
     }
 
     // For paid memberships, redirect to checkout
     return {
       message: 'Please complete your payment to submit your application.',
-      redirect: `/orgs/${groupSlug}/checkout`
+      redirect: `/@${org.slug}/checkout`
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to join:', error);
     return {
       errors: {

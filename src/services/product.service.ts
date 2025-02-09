@@ -13,6 +13,7 @@ export class ProductService {
         membership_tiers!inner (
           activation_type,
           duration_months,
+          form_template_id,
           membership_tier_settings (
             member_id_format
           )

@@ -209,7 +209,8 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
 
 export async function createMembershipApplication(
   groupUserId: string,
-  productId: string
+  productId: string,
+  formData?: Record<string, any>
 ): Promise<Application> {
   const supabase = await createClient();
 
@@ -241,6 +242,18 @@ export async function createMembershipApplication(
     case 'review_then_payment':
       initialStatus = 'pending';
       break;
+    case 'form_required':
+      initialStatus = 'pending';
+      break;
+    case 'form_then_payment':
+      initialStatus = 'pending_payment';
+      break;
+    case 'form_then_review':
+      initialStatus = 'pending';
+      break;
+    case 'form_then_payment_then_review':
+      initialStatus = 'pending_payment';
+      break;
     default:
       initialStatus = 'pending';
   }
@@ -251,7 +264,8 @@ export async function createMembershipApplication(
     .insert({
       group_user_id: groupUserId,
       tier_id: productId,
-      status: initialStatus
+      status: initialStatus,
+      form_data: formData || null
     })
     .select()
     .single();

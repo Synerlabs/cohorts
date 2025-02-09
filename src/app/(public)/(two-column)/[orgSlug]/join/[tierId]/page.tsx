@@ -1,0 +1,154 @@
+import { notFound } from "next/navigation";
+import { GalleryVerticalEnd } from "lucide-react";
+import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
+import { ProductService } from "@/services/product.service";
+import { FormRenderer } from "@/components/form-renderer";
+import { join } from "@/app/(public)/[orgSlug]/join/_actions/join";
+import { IMembershipTierProduct } from "@/lib/types/product";
+import { createClient } from "@/lib/utils/supabase/server";
+import { Database } from "@/lib/types/database.types";
+
+interface JoinPageProps extends Omit<OrgAccessHOCProps, 'params'> {
+  params: {
+    tierId: string;
+    slug: string;
+  };
+}
+
+type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
+
+async function getMembershipTierAndForm(tierId: string): Promise<{ tier: IMembershipTierProduct, formTemplate: FormTemplate }> {
+  const tier = await ProductService.getMembershipTier(tierId);
+  if (!tier || !tier.membership_tier.form_template_id) {
+    console.log('No form template id', tier);
+    notFound();
+  }
+
+  const supabase = await createClient();
+  const { data: formTemplate, error } = await supabase
+    .from('form_templates')
+    .select('*')
+    .eq('id', tier.membership_tier.form_template_id)
+    .single();
+
+  if (error || !formTemplate) {
+    console.log('Error fetching form template:', error);
+    notFound();
+  }
+
+  return { tier, formTemplate };
+}
+
+async function JoinPage({ org, user, params }: JoinPageProps) {
+  if (!user) {
+    notFound();
+  }
+
+  const { tierId } = await params;
+  const { tier, formTemplate } = await getMembershipTierAndForm(tierId);
+
+  const handleFormSubmit = async (formData: any) => {
+    'use server';
+    const joinFormData = new FormData();
+    joinFormData.set('membershipTierId', tier.id);
+    joinFormData.set('groupId', org.id);
+    joinFormData.set('userId', user.id);
+    joinFormData.set('formData', JSON.stringify(formData));
+    return join({}, joinFormData);
+  };
+
+  return (
+    <div className="grid min-h-svh lg:grid-cols-2">
+      <div className="flex flex-col gap-4 p-6 md:p-10">
+        <div className="flex justify-center gap-2 md:justify-start">
+          <a href={`/@${org.slug}`} className="flex items-center gap-2 font-medium">
+            <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <GalleryVerticalEnd className="size-4" />
+            </div>
+            {org.name}
+          </a>
+        </div>
+        <div className="flex flex-1 items-start justify-center">
+          <div className="w-full max-w-lg space-y-6">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">
+                {tier.name} Application
+              </h1>
+              <p className="text-sm text-muted-foreground mt-2">
+                {tier.description}
+              </p>
+            </div>
+
+            <FormRenderer
+              formTemplateId={tier.membership_tier.form_template_id || ''}
+              formTemplate={formTemplate}
+              onSubmit={handleFormSubmit}
+              submitButtonText="Submit Application"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="relative hidden lg:block bg-muted">
+        <div className="absolute inset-0 p-10 flex flex-col justify-between">
+          <div className="space-y-6">
+            <h2 className="text-lg font-semibold">Application Process</h2>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 bg-background">
+                  <span className="text-sm font-medium">1</span>
+                </div>
+                <div>
+                  <h3 className="font-medium">Complete Application Form</h3>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Fill out all required information in the membership application form.
+                  </p>
+                </div>
+              </div>
+
+              {tier.price > 0 && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 bg-background">
+                    <span className="text-sm font-medium">2</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium">Payment</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Process the membership fee payment of {tier.currency} {(tier.price / 100).toFixed(2)}.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {tier.membership_tier.activation_type.includes('review') && (
+                <div className="flex items-start gap-3">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 bg-background">
+                    <span className="text-sm font-medium">{tier.price > 0 ? '3' : '2'}</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium">Application Review</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Our team will review your application and get back to you within 2-3 business days.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="font-medium">Membership Benefits</h3>
+            <ul className="space-y-2 text-sm text-muted-foreground">
+              <li>Access to exclusive content and resources</li>
+              <li>Participate in community events and discussions</li>
+              <li>Network with other members</li>
+              <li>Full membership access</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default withOrgAccess(JoinPage, { allowGuest: false }); 
