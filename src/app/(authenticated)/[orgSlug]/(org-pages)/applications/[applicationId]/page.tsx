@@ -6,6 +6,34 @@ import { formatDate } from "@/lib/utils";
 import { createClient } from "@/lib/utils/supabase/server";
 import { permissions } from "@/lib/types/permissions";
 
+interface FormField {
+  type: string;
+  label: string;
+  value: any;
+  required: boolean;
+}
+
+interface FormSection {
+  label: string;
+  fields: Record<string, FormField>;
+}
+
+interface FormResponseData {
+  fields: Record<string, FormField>;
+  sections: Record<string, FormSection>;
+}
+
+interface FormResponse {
+  id: string;
+  template_id: string;
+  response_data: FormResponseData;
+  form_templates: {
+    id: string;
+    title: string;
+    description?: string;
+  };
+}
+
 interface ApplicationDetailsProps extends Omit<OrgAccessHOCProps, 'params'> {
   params: {
     applicationId: string;
@@ -58,8 +86,7 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
   }
 
   // If there's a form response, fetch it
-  let formResponse = null;
-  let formFields: Record<string, { label: string; type: string }> = {};
+  let formResponse: FormResponse | null = null;
   console.log("Application", application);
   if (applicationBase?.form_response_id) {
     const { data: formResponseData, error: formResponseError } = await supabase
@@ -69,34 +96,26 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
       .single();
 
     if (!formResponseError && formResponseData) {
-        console.log("Error", formResponseError);
-      formResponse = formResponseData;
-      // Parse the form template schema to get field labels
-      try {
-        const schema = typeof formResponseData.form_templates.schema === 'string' 
-          ? JSON.parse(formResponseData.form_templates.schema) 
-          : formResponseData.form_templates.schema;
-        
-        // Recursively extract fields from sections
-        const extractFields = (fields: any[]) => {
-          fields.forEach(field => {
-            if (field.type === 'section' && field.sectionConfig?.fields) {
-              extractFields(field.sectionConfig.fields);
-            } else {
-              formFields[field.id] = {
-                label: field.label,
-                type: field.type
-              };
-            }
-          });
-        };
-        
-        if (schema.fields) {
-          extractFields(schema.fields);
+      // Ensure response_data has the correct structure
+      const rawResponseData = formResponseData.response_data?.responseData || {};
+      console.log('Raw response data:', rawResponseData);
+      
+      const validatedResponseData: FormResponseData = {
+        fields: typeof rawResponseData.fields === 'object' ? rawResponseData.fields : {},
+        sections: typeof rawResponseData.sections === 'object' ? rawResponseData.sections : {}
+      };
+
+      formResponse = {
+        id: formResponseData.id,
+        template_id: formResponseData.response_data?.templateId || formResponseData.template_id,
+        response_data: validatedResponseData,
+        form_templates: {
+          id: formResponseData.form_templates.id,
+          title: formResponseData.form_templates.title,
+          description: formResponseData.form_templates.description
         }
-      } catch (error) {
-        console.error('Error parsing form schema:', error);
-      }
+      };
+      console.log("Validated Form Response:", formResponse);
     }
   }
 
@@ -125,10 +144,15 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
   };
 
   const formatFieldValue = (value: any, type: string) => {
-    if (value === null || value === undefined) return 'Not provided';
+    if (value === null || value === undefined) return null;
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     if (Array.isArray(value)) return value.join(', ');
-    if (typeof value === 'object') return JSON.stringify(value);
+    if (typeof value === 'object') {
+      if (type === 'file') {
+        return value; // Return file object as is for special handling
+      }
+      return JSON.stringify(value);
+    }
     return value.toString();
   };
 
@@ -211,7 +235,7 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
         </Card>
 
         {/* Form Response */}
-        {formResponse && (
+        {formResponse?.response_data && (
           <Card>
             <CardHeader>
               <CardTitle>{formResponse.form_templates.title}</CardTitle>
@@ -222,43 +246,88 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
               )}
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                {/* Form Fields */}
-                {formResponse.response_data?.fields && Object.entries(formResponse.response_data.fields).map(([fieldId, value]) => {
-                  const fieldInfo = formFields[fieldId];
-                  if (!fieldInfo) return null;
-                  
-                  return (
-                    <div key={fieldId} className="space-y-1">
-                      <p className="text-sm font-medium">{fieldInfo.label}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatFieldValue(value, fieldInfo.type)}
-                      </p>
-                    </div>
-                  );
-                })}
+              <div className="space-y-8">
+                {/* Sections */}
+                {Object.entries(formResponse.response_data.sections).map(([sectionId, section]) => (
+                  <div key={sectionId} className="space-y-4">
+                    <h3 className="font-medium text-lg">{section.label}</h3>
+                    <div className="space-y-4 pl-4">
+                      {Object.entries(section.fields).map(([fieldId, field]) => {
+                        const formattedValue = formatFieldValue(field.value, field.type);
+                        if (formattedValue === null) return null;
 
-                {/* File Uploads */}
-                {formResponse.response_data?.files && (
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium">Uploaded Files</h4>
-                    <div className="space-y-2">
-                      {Object.entries(formResponse.response_data.files).map(([fieldId, file]: [string, any]) => {
-                        const fieldInfo = formFields[fieldId];
+                        if (field.type === 'file') {
+                          const fileInfo = field.value;
+                          return (
+                            <div key={fieldId} className="space-y-1">
+                              <p className="text-sm font-medium">{field.label}</p>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={fileInfo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  {fileInfo.name}
+                                </a>
+                                <span className="text-xs text-muted-foreground">
+                                  ({Math.round(fileInfo.size / 1024)}KB)
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+
                         return (
-                          <div key={fieldId} className="flex items-center gap-2">
-                            <p className="text-sm font-medium">{fieldInfo?.label || 'File'}:</p>
-                            <a
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:underline"
-                            >
-                              {file.name}
-                            </a>
-                            <span className="text-xs text-muted-foreground">
-                              ({Math.round(file.size / 1024)}KB)
-                            </span>
+                          <div key={fieldId} className="space-y-1">
+                            <p className="text-sm font-medium">{field.label}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {formattedValue}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Root Fields */}
+                {Object.keys(formResponse.response_data.fields).length > 0 && (
+                  <div className="space-y-4">
+                    <h3 className="font-medium text-lg">Additional Information</h3>
+                    <div className="space-y-4 pl-4">
+                      {Object.entries(formResponse.response_data.fields).map(([fieldId, field]) => {
+                        const formattedValue = formatFieldValue(field.value, field.type);
+                        if (formattedValue === null) return null;
+
+                        if (field.type === 'file') {
+                          const fileInfo = field.value;
+                          return (
+                            <div key={fieldId} className="space-y-1">
+                              <p className="text-sm font-medium">{field.label}</p>
+                              <div className="flex items-center gap-2">
+                                <a
+                                  href={fileInfo.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-sm text-blue-600 hover:underline"
+                                >
+                                  {fileInfo.name}
+                                </a>
+                                <span className="text-xs text-muted-foreground">
+                                  ({Math.round(fileInfo.size / 1024)}KB)
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div key={fieldId} className="space-y-1">
+                            <p className="text-sm font-medium">{field.label}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {formattedValue}
+                            </p>
                           </div>
                         );
                       })}
@@ -267,7 +336,8 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
                 )}
 
                 {/* Show message if no form data */}
-                {(!formResponse.response_data?.fields && !formResponse.response_data?.files) && (
+                {Object.keys(formResponse.response_data.sections).length === 0 && 
+                 Object.keys(formResponse.response_data.fields).length === 0 && (
                   <p className="text-sm text-muted-foreground">No form data available.</p>
                 )}
               </div>

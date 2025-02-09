@@ -204,25 +204,65 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
 
     setSubmitting(true);
     try {
-      // Upload all files sequentially
-      interface FileUpload {
-        fieldId: string;
-        uploadResult: {
-          path: string;
-          url: string;
-          name: string;
-          size: number;
-          type: string;
+      // Get field information from template
+      type FieldInfo = {
+        label: string;
+        type: string;
+        required: boolean;
+        section?: {
+          id: string;
+          label: string;
         };
-      }
+      };
+
+      const fieldInfo: Record<string, FieldInfo> = {};
+      const sectionMap: Record<string, { 
+        id: string;
+        label: string;
+        fields: string[];
+      }> = {};
+
+      const extractFields = (fields: any[], parentSection?: { id: string; label: string }) => {
+        fields.forEach(field => {
+          if (field.type === 'section' && field.sectionConfig?.fields) {
+            const sectionInfo = {
+              id: field.id,
+              label: field.label,
+              fields: []
+            };
+            sectionMap[field.id] = sectionInfo;
+            extractFields(field.sectionConfig.fields, { id: field.id, label: field.label });
+          } else {
+            fieldInfo[field.id] = {
+              label: field.label,
+              type: field.type,
+              required: field.required,
+              section: parentSection
+            };
+            if (parentSection) {
+              sectionMap[parentSection.id].fields.push(field.id);
+            }
+          }
+        });
+      };
       
-      const fileUploads: FileUpload[] = [];
+      if (template?.schema) {
+        const schema = typeof template.schema === 'string' 
+          ? JSON.parse(template.schema) 
+          : template.schema;
+        
+        if (schema.fields) {
+          extractFields(schema.fields);
+        }
+      }
+
+      // Upload all files sequentially and store their information
       for (const [fieldId, file] of Object.entries(fileFields)) {
         console.log(`Uploading file for field ${fieldId}`);
         const formData = new FormData();
         formData.append('file', file);
         
-        handleUpload(formData);
+        await handleUpload(formData);
         
         // Wait for the upload state to be updated with a timeout
         await new Promise<void>((resolve, reject) => {
@@ -238,10 +278,11 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
               reject(new Error(uploadState.error));
             } else if (uploadState?.success && uploadState.fileInfo) {
               console.log("Upload successful:", uploadState.fileInfo);
-              fileUploads.push({
-                fieldId,
-                uploadResult: uploadState.fileInfo
-              });
+              // Store file info in uploadResults
+              setUploadResults(prev => ({
+                ...prev,
+                [fieldId]: uploadState.fileInfo
+              }));
               resolve();
             } else if (attempts >= maxAttempts) {
               reject(new Error('Upload timeout'));
@@ -253,13 +294,56 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         });
       }
 
-      // Prepare the response data that will be stored in form_responses table
-      const responseData = {
-        fields: formData, // Regular form field responses
-        files: Object.fromEntries(
-          fileUploads.map(({ fieldId, uploadResult }) => [fieldId, uploadResult])
-        )
+      // Prepare the response data with hierarchical structure
+      const responseData: {
+        sections: Record<string, {
+          label: string;
+          fields: Record<string, {
+            label: string;
+            type: string;
+            required: boolean;
+            value: any;
+          }>;
+        }>;
+        fields: Record<string, {
+          label: string;
+          type: string;
+          required: boolean;
+          value: any;
+        }>;
+      } = {
+        sections: {},
+        fields: {}
       };
+
+      // Process each field
+      Object.entries(formData).forEach(([fieldId, value]) => {
+        // Skip if no field info
+        if (!fieldInfo[fieldId]) return;
+
+        const field = fieldInfo[fieldId];
+        const fieldData = {
+          label: field.label,
+          type: field.type,
+          required: field.required,
+          value: field.type === 'file' && uploadResults[fieldId] 
+            ? uploadResults[fieldId] 
+            : value
+        };
+
+        // Add to appropriate section or root fields
+        if (field.section) {
+          if (!responseData.sections[field.section.id]) {
+            responseData.sections[field.section.id] = {
+              label: field.section.label,
+              fields: {}
+            };
+          }
+          responseData.sections[field.section.id].fields[fieldId] = fieldData;
+        } else {
+          responseData.fields[fieldId] = fieldData;
+        }
+      });
 
       // Pass the response data to parent for storing in form_responses table
       await onSubmit({
