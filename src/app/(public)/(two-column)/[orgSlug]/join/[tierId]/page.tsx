@@ -2,11 +2,10 @@ import { notFound } from "next/navigation";
 import { GalleryVerticalEnd } from "lucide-react";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { ProductService } from "@/services/product.service";
-import { FormRenderer } from "@/components/form-renderer";
-import { join } from "@/app/(public)/[orgSlug]/join/_actions/join";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { createClient } from "@/lib/utils/supabase/server";
 import { Database } from "@/lib/types/database.types";
+import { JoinForm } from "./_components/join-form";
 
 interface JoinPageProps extends Omit<OrgAccessHOCProps, 'params'> {
   params: {
@@ -47,16 +46,6 @@ async function JoinPage({ org, user, params }: JoinPageProps) {
   const { tierId } = await params;
   const { tier, formTemplate } = await getMembershipTierAndForm(tierId);
 
-  const handleFormSubmit = async (formData: any) => {
-    'use server';
-    const joinFormData = new FormData();
-    joinFormData.set('membershipTierId', tier.id);
-    joinFormData.set('groupId', org.id);
-    joinFormData.set('userId', user.id);
-    joinFormData.set('formData', JSON.stringify(formData));
-    return join({}, joinFormData);
-  };
-
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">
@@ -69,23 +58,13 @@ async function JoinPage({ org, user, params }: JoinPageProps) {
           </a>
         </div>
         <div className="flex flex-1 items-start justify-center">
-          <div className="w-full max-w-lg space-y-6">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">
-                {tier.name} Application
-              </h1>
-              <p className="text-sm text-muted-foreground mt-2">
-                {tier.description}
-              </p>
-            </div>
-
-            <FormRenderer
-              formTemplateId={tier.membership_tier.form_template_id || ''}
-              formTemplate={formTemplate}
-              onSubmit={handleFormSubmit}
-              submitButtonText="Submit Application"
-            />
-          </div>
+          <JoinForm
+            tier={tier}
+            formTemplate={formTemplate}
+            orgId={org.id}
+            orgSlug={org.slug}
+            userId={user.id}
+          />
         </div>
       </div>
 

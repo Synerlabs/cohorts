@@ -1,5 +1,6 @@
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/types/database.types';
+import { createClient } from '@/lib/utils/supabase/server';
 
 export interface FileUploadResult {
   path: string;
@@ -14,7 +15,7 @@ export async function uploadFile(
   bucket: string = 'form-uploads',
   folder: string = 'files'
 ): Promise<FileUploadResult> {
-  const supabase = createClientComponentClient<Database>();
+  const supabase = await createClient();
 
   // Generate a unique file name to avoid collisions
   const timestamp = new Date().getTime();
@@ -29,7 +30,10 @@ export async function uploadFile(
     });
 
   if (error) {
-    throw new Error(`Failed to upload file: ${error.message}`);
+    return {
+      success: false,
+      error: error.message
+    }
   }
 
   const {
@@ -48,12 +52,19 @@ export async function uploadFile(
 export async function deleteFile(
   path: string,
   bucket: string = 'form-uploads'
-): Promise<void> {
+): Promise<{ success: boolean, error?: string }> {
   const supabase = createClientComponentClient<Database>();
 
   const { error } = await supabase.storage.from(bucket).remove([path]);
 
   if (error) {
-    throw new Error(`Failed to delete file: ${error.message}`);
+    return {
+      success: false,
+      error: error.message
+    }
   }
-} 
+
+  return {
+    success: true,
+  } 
+}
