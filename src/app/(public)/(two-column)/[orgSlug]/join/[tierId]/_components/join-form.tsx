@@ -33,6 +33,7 @@ export function JoinForm({ tier, formTemplate, orgId, orgSlug, userId }: JoinFor
     joinFormData.set('membershipTierId', tier.id);
     joinFormData.set('groupId', orgId);
     joinFormData.set('userId', userId);
+    console.log(formData);
     joinFormData.set('formData', JSON.stringify(formData));
     return action(joinFormData);
   };

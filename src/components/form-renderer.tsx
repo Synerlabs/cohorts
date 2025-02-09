@@ -12,8 +12,9 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/types/database.types';
 import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
-import { uploadFile } from '@/services/file-upload.service';
 import { cn } from '@/lib/utils';
+import { uploadFileAction } from '@/app/actions/upload.action';
+import useToastActionState from '@/lib/hooks/toast-action-state.hook';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -72,6 +73,33 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
   const [currentStep, setCurrentStep] = useState(0);
   const [fileFields, setFileFields] = useState<Record<string, File>>({});
   const supabase = createClientComponentClient<Database>();
+  
+  type UploadActionResult = {
+    success: boolean;
+    error?: string;
+    fileInfo?: {
+      path: string;
+      url: string;
+      name: string;
+      size: number;
+      type: string;
+    };
+  };
+
+  const [uploadState, handleUpload, isUploading] = useToastActionState(uploadFileAction);
+
+  // Track upload completion
+  const [uploadResults, setUploadResults] = useState<Record<string, any>>({});
+  
+  useEffect(() => {
+    // When upload state changes and is successful, store the result
+    if (uploadState?.success && uploadState.fileInfo) {
+      setUploadResults(prev => ({
+        ...prev,
+        [uploadState.fileInfo.path]: uploadState.fileInfo
+      }));
+    }
+  }, [uploadState]);
 
   useEffect(() => {
     async function loadFormTemplate() {
@@ -176,24 +204,38 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
 
     setSubmitting(true);
     try {
-      // Upload all files first
-      const fileUploads = await Promise.all(
-        Object.entries(fileFields).map(async ([fieldId, file]) => {
-          try {
-            const result = await uploadFile(file);
-            return { fieldId, result };
-          } catch (error) {
-            console.error(`Error uploading file for field ${fieldId}:`, error);
-            throw error;
-          }
-        })
-      );
+      // Upload all files sequentially
+      const fileUploads = [];
+      for (const [fieldId, file] of Object.entries(fileFields)) {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        handleUpload(formData);
+        
+        // Wait for the upload state to be updated
+        await new Promise<void>((resolve, reject) => {
+          const checkState = () => {
+            if (uploadState?.error) {
+              reject(new Error(uploadState.error));
+            } else if (uploadState?.success && uploadState.fileInfo) {
+              fileUploads.push({
+                fieldId,
+                uploadResult: uploadState.fileInfo
+              });
+              resolve();
+            } else {
+              setTimeout(checkState, 100);
+            }
+          };
+          checkState();
+        });
+      }
 
       // Combine regular form data with file upload results
       const finalFormData = {
         ...formData,
         ...Object.fromEntries(
-          fileUploads.map(({ fieldId, result }) => [fieldId, result])
+          fileUploads.map(({ fieldId, uploadResult }) => [fieldId, uploadResult])
         )
       };
 
@@ -424,12 +466,12 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         <Button
           type="submit"
           className="flex-1"
-          disabled={submitting}
+          disabled={submitting || isUploading}
         >
-          {submitting ? (
+          {submitting || isUploading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Submitting...
+              {isUploading ? 'Uploading...' : 'Submitting...'}
             </>
           ) : isLastStep ? (
             submitButtonText
