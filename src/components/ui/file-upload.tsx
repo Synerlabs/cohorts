@@ -12,11 +12,17 @@ interface FileUploadProps {
   id?: string;
   accept?: string;
   maxSize?: number; // in bytes
-  onUpload: (file: FileUploadResult) => void;
+  onUpload: (file: File) => void;
   onError: (error: string) => void;
   className?: string;
   uploading?: boolean;
-  value?: FileUploadResult | null;
+  value?: {
+    name: string;
+    size: number;
+    type: string;
+    path?: string;
+    url: string;
+  } | null;
   onRemove?: () => void;
 }
 
@@ -32,7 +38,6 @@ export function FileUpload({
   onRemove,
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const [isUploading, setIsUploading] = useState(uploading);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -88,15 +93,7 @@ export function FileUpload({
       return;
     }
 
-    try {
-      setIsUploading(true);
-      const result = await uploadFile(file);
-      onUpload(result);
-    } catch (error) {
-      onError(error instanceof Error ? error.message : 'Failed to upload file');
-    } finally {
-      setIsUploading(false);
-    }
+    onUpload(file);
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {

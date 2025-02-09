@@ -12,7 +12,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/types/database.types';
 import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
-import { FileUploadResult } from '@/services/file-upload.service';
+import { uploadFile } from '@/services/file-upload.service';
 import { cn } from '@/lib/utils';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
