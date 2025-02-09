@@ -94,12 +94,23 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
   useEffect(() => {
     // When upload state changes and is successful, store the result
     if (uploadState?.success && uploadState.fileInfo) {
-      setUploadResults(prev => ({
-        ...prev,
-        [uploadState.fileInfo.path]: uploadState.fileInfo
-      }));
+      const fieldId = Object.keys(fileFields).find(key => 
+        fileFields[key].name === uploadState.fileInfo?.name
+      );
+      
+      if (fieldId) {
+        setUploadResults(prev => ({
+          ...prev,
+          [fieldId]: uploadState.fileInfo
+        }));
+        // Also store in formData to ensure it's included in the response
+        setFormData(prev => ({
+          ...prev,
+          [fieldId]: uploadState.fileInfo
+        }));
+      }
     }
-  }, [uploadState]);
+  }, [uploadState, fileFields]);
 
   useEffect(() => {
     async function loadFormTemplate() {
@@ -262,24 +273,26 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         const formData = new FormData();
         formData.append('file', file);
         
-        await handleUpload(formData);
+        const result = await handleUpload(formData);
         
-        // Wait for the upload state to be updated with a timeout
+        // Wait for the upload state to be updated
         await new Promise<void>((resolve, reject) => {
           let attempts = 0;
-          const maxAttempts = 50; // 5 seconds max wait
+          const maxAttempts = 50;
           
           const checkState = () => {
             attempts++;
-            console.log(`Checking upload state attempt ${attempts}`, { uploadState });
-            
             if (uploadState?.error) {
               console.error("Upload error:", uploadState.error);
               reject(new Error(uploadState.error));
             } else if (uploadState?.success && uploadState.fileInfo) {
               console.log("Upload successful:", uploadState.fileInfo);
-              // Store file info in uploadResults
+              // Store file info in both states
               setUploadResults(prev => ({
+                ...prev,
+                [fieldId]: uploadState.fileInfo
+              }));
+              setFormData(prev => ({
                 ...prev,
                 [fieldId]: uploadState.fileInfo
               }));
@@ -317,18 +330,13 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
       };
 
       // Process each field
-      Object.entries(formData).forEach(([fieldId, value]) => {
-        // Skip if no field info
-        if (!fieldInfo[fieldId]) return;
-
-        const field = fieldInfo[fieldId];
+      Object.entries(fieldInfo).forEach(([fieldId, field]) => {
+        const value = field.type === 'file' ? formData[fieldId] || uploadResults[fieldId] : formData[fieldId];
         const fieldData = {
           label: field.label,
           type: field.type,
           required: field.required,
-          value: field.type === 'file' && uploadResults[fieldId] 
-            ? uploadResults[fieldId] 
-            : value
+          value: value
         };
 
         // Add to appropriate section or root fields
