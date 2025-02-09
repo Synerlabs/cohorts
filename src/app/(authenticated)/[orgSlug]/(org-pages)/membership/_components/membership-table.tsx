@@ -25,6 +25,7 @@ import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 interface MembershipTableProps {
   tiers: IMembershipTierProduct[];
   groupId: string;
+  slug: string;
 }
 
 const currencySymbols: Record<Currency, string> = {
@@ -41,7 +42,7 @@ function formatPrice(price: number, currency: Currency): string {
   return `${currencySymbols[currency]}${amount}`;
 }
 
-export default function MembershipTable({ tiers, groupId }: MembershipTableProps) {
+export default function MembershipTable({ tiers, groupId, slug }: MembershipTableProps) {
   const [editingTier, setEditingTier] = useState<string | null>(null);
   const [deletingTier, setDeletingTier] = useState<IMembershipTierProduct | null>(null);
   const { toast } = useToast();
@@ -99,7 +100,7 @@ export default function MembershipTable({ tiers, groupId }: MembershipTableProps
                 <TableCell>
                   {tier.membership_tier?.form_template_id ? (
                     <a 
-                      href={`/${tier.group_id}/forms/${tier.membership_tier.form_template_id}`}
+                      href={`/@${slug}/forms/${tier.membership_tier.form_template_id}/edit`}
                       className="text-primary hover:underline"
                     >
                       View Form

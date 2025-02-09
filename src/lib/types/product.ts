@@ -23,4 +23,5 @@ type MembershipTierRow = Database['public']['Tables']['membership_tiers']['Row']
 export interface IMembershipTierProduct extends IProduct {
   type: 'membership_tier';
   membership_tier: MembershipTierRow;
+  form_template_id: string;
 } 

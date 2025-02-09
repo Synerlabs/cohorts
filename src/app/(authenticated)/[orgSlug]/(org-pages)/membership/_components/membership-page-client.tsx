@@ -17,9 +17,10 @@ interface MembershipPageClientProps {
   tiers: IMembershipTierProduct[];
   memberships: IMembership[];
   groupId: string;
+  orgSlug: string;
 }
 
-export default function MembershipPageClient({ tiers, memberships, groupId }: MembershipPageClientProps) {
+export default function MembershipPageClient({ tiers, memberships, groupId, orgSlug }: MembershipPageClientProps) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -69,7 +70,7 @@ export default function MembershipPageClient({ tiers, memberships, groupId }: Me
             </Alert>
           ) : (
             <div className="rounded-md border">
-              <MembershipTable tiers={tiers} groupId={groupId} />
+              <MembershipTable tiers={tiers} groupId={groupId} slug={orgSlug} />
             </div>
           )}
         </TabsContent>
