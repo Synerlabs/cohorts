@@ -258,6 +258,24 @@ export async function createMembershipApplication(
       initialStatus = 'pending';
   }
 
+  let formResponseId: string | null = null;
+
+  // If form data is provided and there's a form template, store it in form_responses
+  if (formData && product.membership_tier.form_template_id) {
+    const { data: formResponse, error: formResponseError } = await supabase
+      .from('form_responses')
+      .insert({
+        template_id: product.membership_tier.form_template_id,
+        response_data: formData,
+        submitted_by: groupUser.user_id
+      })
+      .select()
+      .single();
+
+    if (formResponseError) throw formResponseError;
+    formResponseId = formResponse.id;
+  }
+
   // Create the application
   const { data, error } = await supabase
     .from('applications')
@@ -265,7 +283,7 @@ export async function createMembershipApplication(
       group_user_id: groupUserId,
       tier_id: productId,
       status: initialStatus,
-      form_data: formData || null
+      form_response_id: formResponseId // Link to form response if exists
     })
     .select()
     .single();

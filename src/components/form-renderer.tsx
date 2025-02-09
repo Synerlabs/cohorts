@@ -204,7 +204,6 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
 
     setSubmitting(true);
     try {
-      console.log("Starting form submission");
       // Upload all files sequentially
       interface FileUpload {
         fieldId: string;
@@ -254,15 +253,19 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         });
       }
 
-      console.log("All files uploaded, preparing submission");
-      // Pass both form data and file upload results to parent
-      await onSubmit({
-        formResponses: formData,
-        fileUploads: Object.fromEntries(
+      // Prepare the response data that will be stored in form_responses table
+      const responseData = {
+        fields: formData, // Regular form field responses
+        files: Object.fromEntries(
           fileUploads.map(({ fieldId, uploadResult }) => [fieldId, uploadResult])
         )
+      };
+
+      // Pass the response data to parent for storing in form_responses table
+      await onSubmit({
+        templateId: formTemplateId,
+        responseData
       });
-      console.log("Form submission completed");
     } catch (error) {
       console.error('Error submitting form:', error);
     } finally {
