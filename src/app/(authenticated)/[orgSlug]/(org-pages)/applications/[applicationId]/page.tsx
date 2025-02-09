@@ -34,6 +34,28 @@ interface FormResponse {
   };
 }
 
+interface FormTemplate {
+  id: string;
+  title: string;
+  description?: string;
+  schema: {
+    fields: Array<{
+      id: string;
+      type: string;
+      label: string;
+      required: boolean;
+      sectionConfig?: {
+        fields: Array<{
+          id: string;
+          type: string;
+          label: string;
+          required: boolean;
+        }>;
+      };
+    }>;
+  };
+}
+
 interface ApplicationDetailsProps extends Omit<OrgAccessHOCProps, 'params'> {
   params: {
     applicationId: string;
@@ -87,6 +109,7 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
 
   // If there's a form response, fetch it
   let formResponse: FormResponse | null = null;
+  let formTemplate: FormTemplate | null = null;
   console.log("Application", application);
   if (applicationBase?.form_response_id) {
     const { data: formResponseData, error: formResponseError } = await supabase
@@ -96,6 +119,16 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
       .single();
 
     if (!formResponseError && formResponseData) {
+      // Parse the template schema
+      formTemplate = {
+        id: formResponseData.form_templates.id,
+        title: formResponseData.form_templates.title,
+        description: formResponseData.form_templates.description,
+        schema: typeof formResponseData.form_templates.schema === 'string' 
+          ? JSON.parse(formResponseData.form_templates.schema)
+          : formResponseData.form_templates.schema
+      };
+
       // Ensure response_data has the correct structure
       const rawResponseData = formResponseData.response_data?.responseData || {};
       console.log('Raw response data:', rawResponseData);
@@ -154,6 +187,59 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
       return JSON.stringify(value);
     }
     return value.toString();
+  };
+
+  const getFieldValue = (fieldId: string, sectionId?: string) => {
+    if (!formResponse) return null;
+    
+    if (sectionId) {
+      return formResponse.response_data.sections[sectionId]?.fields[fieldId]?.value;
+    }
+    return formResponse.response_data.fields[fieldId]?.value;
+  };
+
+  const renderField = (field: any, sectionId?: string) => {
+    const value = getFieldValue(field.id, sectionId);
+    const formattedValue = formatFieldValue(value, field.type);
+
+    if (field.type === 'file') {
+      if (!value) {
+        return (
+          <div key={field.id} className="space-y-1">
+            <p className="text-sm font-medium">{field.label}</p>
+            <p className="text-sm text-muted-foreground">No file uploaded</p>
+          </div>
+        );
+      }
+
+      return (
+        <div key={field.id} className="space-y-1">
+          <p className="text-sm font-medium">{field.label}</p>
+          <div className="flex items-center gap-2">
+            <a
+              href={value.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-blue-600 hover:underline"
+            >
+              {value.name}
+            </a>
+            <span className="text-xs text-muted-foreground">
+              ({Math.round(value.size / 1024)}KB)
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={field.id} className="space-y-1">
+        <p className="text-sm font-medium">{field.label}</p>
+        <p className="text-sm text-muted-foreground">
+          {formattedValue || 'Not provided'}
+        </p>
+      </div>
+    );
   };
 
   return (
@@ -235,110 +321,42 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
         </Card>
 
         {/* Form Response */}
-        {formResponse?.response_data && (
+        {formTemplate && (
           <Card>
             <CardHeader>
-              <CardTitle>{formResponse.form_templates.title}</CardTitle>
-              {formResponse.form_templates.description && (
+              <CardTitle>{formTemplate.title}</CardTitle>
+              {formTemplate.description && (
                 <p className="text-sm text-muted-foreground">
-                  {formResponse.form_templates.description}
+                  {formTemplate.description}
                 </p>
               )}
             </CardHeader>
             <CardContent>
               <div className="space-y-8">
-                {/* Sections */}
-                {Object.entries(formResponse.response_data.sections).map(([sectionId, section]) => (
-                  <div key={sectionId} className="space-y-4">
-                    <h3 className="font-medium text-lg">{section.label}</h3>
-                    <div className="space-y-4 pl-4">
-                      {Object.entries(section.fields).map(([fieldId, field]) => {
-                        const formattedValue = formatFieldValue(field.value, field.type);
-                        if (formattedValue === null) return null;
-
-                        if (field.type === 'file') {
-                          const fileInfo = field.value;
-                          return (
-                            <div key={fieldId} className="space-y-1">
-                              <p className="text-sm font-medium">{field.label}</p>
-                              <div className="flex items-center gap-2">
-                                <a
-                                  href={fileInfo.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-600 hover:underline"
-                                >
-                                  {fileInfo.name}
-                                </a>
-                                <span className="text-xs text-muted-foreground">
-                                  ({Math.round(fileInfo.size / 1024)}KB)
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div key={fieldId} className="space-y-1">
-                            <p className="text-sm font-medium">{field.label}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formattedValue}
-                            </p>
-                          </div>
-                        );
-                      })}
+                {/* Render all sections from template */}
+                {formTemplate.schema.fields
+                  .filter(field => field.type === 'section')
+                  .map(section => (
+                    <div key={section.id} className="space-y-4">
+                      <h3 className="font-medium text-lg">{section.label}</h3>
+                      <div className="space-y-4 pl-4">
+                        {section.sectionConfig?.fields.map(field => renderField(field, section.id))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                {/* Root Fields */}
-                {Object.keys(formResponse.response_data.fields).length > 0 && (
+                {/* Render root fields from template */}
+                {formTemplate.schema.fields
+                  .filter(field => field.type !== 'section')
+                  .length > 0 && (
                   <div className="space-y-4">
                     <h3 className="font-medium text-lg">Additional Information</h3>
                     <div className="space-y-4 pl-4">
-                      {Object.entries(formResponse.response_data.fields).map(([fieldId, field]) => {
-                        const formattedValue = formatFieldValue(field.value, field.type);
-                        if (formattedValue === null) return null;
-
-                        if (field.type === 'file') {
-                          const fileInfo = field.value;
-                          return (
-                            <div key={fieldId} className="space-y-1">
-                              <p className="text-sm font-medium">{field.label}</p>
-                              <div className="flex items-center gap-2">
-                                <a
-                                  href={fileInfo.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-sm text-blue-600 hover:underline"
-                                >
-                                  {fileInfo.name}
-                                </a>
-                                <span className="text-xs text-muted-foreground">
-                                  ({Math.round(fileInfo.size / 1024)}KB)
-                                </span>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        return (
-                          <div key={fieldId} className="space-y-1">
-                            <p className="text-sm font-medium">{field.label}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formattedValue}
-                            </p>
-                          </div>
-                        );
-                      })}
+                      {formTemplate.schema.fields
+                        .filter(field => field.type !== 'section')
+                        .map(field => renderField(field))}
                     </div>
                   </div>
-                )}
-
-                {/* Show message if no form data */}
-                {Object.keys(formResponse.response_data.sections).length === 0 && 
-                 Object.keys(formResponse.response_data.fields).length === 0 && (
-                  <p className="text-sm text-muted-foreground">No form data available.</p>
                 )}
               </div>
             </CardContent>
