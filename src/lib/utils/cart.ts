@@ -10,7 +10,8 @@ function getCookieStore(): RequestCookies {
 
 export async function getCart(): Promise<Cart | null> {
   try {
-    const cartJson = getCookieStore().get(CART_SESSION_KEY)?.value;
+    const cookieStore = await getCookieStore();
+    const cartJson = cookieStore.get(CART_SESSION_KEY)?.value;
     if (!cartJson) return null;
 
     const cart = JSON.parse(cartJson) as Cart;
@@ -30,7 +31,8 @@ export async function getCart(): Promise<Cart | null> {
 
 export async function setCart(cart: Cart) {
   try {
-    getCookieStore().set(CART_SESSION_KEY, JSON.stringify(cart));
+    const cookieStore = await getCookieStore();
+    cookieStore.set(CART_SESSION_KEY, JSON.stringify(cart));
   } catch (error) {
     console.error('Failed to set cart:', error);
     throw error;
@@ -39,7 +41,8 @@ export async function setCart(cart: Cart) {
 
 export async function clearCart() {
   try {
-    getCookieStore().delete(CART_SESSION_KEY);
+    const cookieStore = await getCookieStore();
+    cookieStore.delete(CART_SESSION_KEY);
   } catch (error) {
     console.error('Failed to clear cart:', error);
     throw error;

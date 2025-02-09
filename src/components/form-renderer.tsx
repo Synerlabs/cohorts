@@ -204,25 +204,48 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
 
     setSubmitting(true);
     try {
+      console.log("Starting form submission");
       // Upload all files sequentially
-      const fileUploads = [];
+      interface FileUpload {
+        fieldId: string;
+        uploadResult: {
+          path: string;
+          url: string;
+          name: string;
+          size: number;
+          type: string;
+        };
+      }
+      
+      const fileUploads: FileUpload[] = [];
       for (const [fieldId, file] of Object.entries(fileFields)) {
+        console.log(`Uploading file for field ${fieldId}`);
         const formData = new FormData();
         formData.append('file', file);
         
         handleUpload(formData);
         
-        // Wait for the upload state to be updated
+        // Wait for the upload state to be updated with a timeout
         await new Promise<void>((resolve, reject) => {
+          let attempts = 0;
+          const maxAttempts = 50; // 5 seconds max wait
+          
           const checkState = () => {
+            attempts++;
+            console.log(`Checking upload state attempt ${attempts}`, { uploadState });
+            
             if (uploadState?.error) {
+              console.error("Upload error:", uploadState.error);
               reject(new Error(uploadState.error));
             } else if (uploadState?.success && uploadState.fileInfo) {
+              console.log("Upload successful:", uploadState.fileInfo);
               fileUploads.push({
                 fieldId,
                 uploadResult: uploadState.fileInfo
               });
               resolve();
+            } else if (attempts >= maxAttempts) {
+              reject(new Error('Upload timeout'));
             } else {
               setTimeout(checkState, 100);
             }
@@ -231,18 +254,19 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         });
       }
 
-      // Combine regular form data with file upload results
-      const finalFormData = {
-        ...formData,
-        ...Object.fromEntries(
+      console.log("All files uploaded, preparing submission");
+      // Pass both form data and file upload results to parent
+      await onSubmit({
+        formResponses: formData,
+        fileUploads: Object.fromEntries(
           fileUploads.map(({ fieldId, uploadResult }) => [fieldId, uploadResult])
         )
-      };
-
-      await onSubmit(finalFormData);
+      });
+      console.log("Form submission completed");
     } catch (error) {
       console.error('Error submitting form:', error);
     } finally {
+      console.log("Form submission cleanup");
       setSubmitting(false);
     }
   };

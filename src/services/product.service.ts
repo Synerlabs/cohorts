@@ -31,7 +31,7 @@ export class ProductService {
       throw new Error('Membership tier not found');
     }
 
-    console.log('Raw membership tier data:', JSON.stringify(data, null, 2));
+    // console.log('Raw membership tier data:', JSON.stringify(data, null, 2));
 
     return {
       ...data,
@@ -68,7 +68,7 @@ export class ProductService {
       return [];
     }
 
-    console.log('Raw membership tiers data:', JSON.stringify(data, null, 2));
+    // console.log('Raw membership tiers data:', JSON.stringify(data, null, 2));
 
     return data.map(tier => {
       console.log('Processing tier:', {

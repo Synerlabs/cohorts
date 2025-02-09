@@ -29,6 +29,7 @@ export function JoinForm({ tier, formTemplate, orgId, orgSlug, userId }: JoinFor
   );
 
   const handleFormSubmit = async (formData: any) => {
+    console.log("LET'S GO");
     const joinFormData = new FormData();
     joinFormData.set('membershipTierId', tier.id);
     joinFormData.set('groupId', orgId);
