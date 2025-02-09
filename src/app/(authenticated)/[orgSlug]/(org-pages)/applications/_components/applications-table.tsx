@@ -30,6 +30,7 @@ interface ApplicationsTableProps {
 type ActionResult = {
   success?: boolean;
   error?: string;
+  id?: string;
 };
 
 const activationTypeLabels = {
@@ -49,8 +50,8 @@ const currencySymbols = {
 
 export function ApplicationsTable({ applications, showActions = true, userPermissions = [] }: ApplicationsTableProps) {
   const router = useRouter();
-  const [approveState, approveDispatch] = useToastActionState<ActionResult>(handleApproveApplication);
-  const [rejectState, rejectDispatch] = useToastActionState<ActionResult>(handleRejectApplication);
+  const [approveState, approveDispatch] = useToastActionState(handleApproveApplication);
+  const [rejectState, rejectDispatch] = useToastActionState(handleRejectApplication);
 
   const canApprove = userPermissions.includes(permissions.applications.approve);
   const canReject = userPermissions.includes(permissions.applications.reject);
@@ -103,7 +104,11 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
         </TableHeader>
         <TableBody>
           {applications.map((application) => (
-            <TableRow key={application.id}>
+            <TableRow 
+              key={application.id}
+              className="cursor-pointer hover:bg-muted/50"
+              onClick={() => router.push(`applications/${application.id}`)}
+            >
               <TableCell>
                 <div className="flex items-center gap-4">
                   <Avatar>
@@ -148,12 +153,19 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                 )}
               </TableCell>
               {showActions && (canApprove || canReject) && (
-                <TableCell className="text-right space-x-2">
+                <TableCell 
+                  className="text-right space-x-2"
+                  onClick={(e) => e.stopPropagation()} // Prevent row click when clicking actions
+                >
                   {canApprove && application.status === 'pending' && (
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => approveDispatch({ id: application.id })}
+                      onClick={() => {
+                        const formData = new FormData();
+                        formData.append('id', application.id);
+                        approveDispatch(formData);
+                      }}
                       disabled={Boolean(approveState?.success === false || approveState?.error)}
                     >
                       <Check className="h-4 w-4" />
@@ -163,7 +175,11 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => rejectDispatch({ id: application.id })}
+                      onClick={() => {
+                        const formData = new FormData();
+                        formData.append('id', application.id);
+                        rejectDispatch(formData);
+                      }}
                       disabled={Boolean(rejectState?.success === false || rejectState?.error)}
                     >
                       <X className="h-4 w-4" />
