@@ -55,6 +55,10 @@ interface FormField {
     layout?: 'vertical' | 'horizontal';
     allowOther?: boolean;
   };
+  groupConfig?: {
+    description?: string;
+    fields?: FormField[];
+  };
 }
 
 interface FormRendererProps {
@@ -163,6 +167,7 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         emailConfig: field.emailConfig,
         phoneConfig: field.phoneConfig,
         choiceConfig: field.choiceConfig,
+        groupConfig: field.groupConfig,
       })) || [];
 
       console.log('Parsed fields with full config:', fields);
@@ -380,6 +385,36 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
           )}
           <div className="space-y-6">
             {field.sectionConfig?.fields?.map(renderField)}
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'group') {
+      return (
+        <div className="space-y-4">
+          {field.groupConfig?.description && (
+            <p className="text-sm text-muted-foreground">
+              {field.groupConfig.description}
+            </p>
+          )}
+          <div className="space-y-6 pl-4 border-l-2">
+            {field.fields?.map((subfield: FormField) => (
+              <div key={subfield.id} className="space-y-2">
+                <Label>
+                  {subfield.label}
+                  {subfield.required && (
+                    <span className="text-destructive ml-1">*</span>
+                  )}
+                </Label>
+                {subfield.help_text && (
+                  <p className="text-sm text-muted-foreground">
+                    {subfield.help_text}
+                  </p>
+                )}
+                {renderField(subfield)}
+              </div>
+            ))}
           </div>
         </div>
       );

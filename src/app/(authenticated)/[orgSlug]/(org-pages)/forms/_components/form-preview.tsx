@@ -227,6 +227,35 @@ export function FormPreview({ title, description, fields }: FormPreviewProps) {
           />
         );
 
+      case 'group':
+        return (
+          <div className="space-y-4">
+            {field.groupConfig?.description && (
+              <p className="text-sm text-muted-foreground">
+                {field.groupConfig.description}
+              </p>
+            )}
+            <div className="space-y-6 pl-4 border-l-2">
+              {field.fields?.map((subfield: any) => (
+                <div key={subfield.id} className="space-y-2">
+                  <Label>
+                    {subfield.label}
+                    {subfield.required && (
+                      <span className="text-destructive ml-1">*</span>
+                    )}
+                  </Label>
+                  {subfield.helpText && (
+                    <p className="text-sm text-muted-foreground">
+                      {subfield.helpText}
+                    </p>
+                  )}
+                  {renderField(subfield)}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
       default:
         return null;
     }

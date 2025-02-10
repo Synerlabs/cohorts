@@ -380,41 +380,30 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'group',
-              label: 'Name',
+              type: 'text',
+              label: 'Last Name',
               required: true,
-              fields: [
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Last Name',
-                  required: true,
-                  textConfig: {
-                    placeholder: 'Enter your last name',
-                  },
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'First Name',
-                  required: true,
-                  textConfig: {
-                    placeholder: 'Enter your first name',
-                  },
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Middle Initial',
-                  required: false,
-                  textConfig: {
-                    placeholder: 'M.I.',
-                    maxLength: 1,
-                  },
-                },
-              ],
-              groupConfig: {
-                showTitle: true,
+              textConfig: {
+                placeholder: 'Enter your last name',
+              },
+            },
+            {
+              id: crypto.randomUUID(),
+              type: 'text',
+              label: 'First Name',
+              required: true,
+              textConfig: {
+                placeholder: 'Enter your first name',
+              },
+            },
+            {
+              id: crypto.randomUUID(),
+              type: 'text',
+              label: 'Middle Initial',
+              required: false,
+              textConfig: {
+                placeholder: 'M.I.',
+                maxLength: 1,
               },
             },
             {
@@ -491,40 +480,29 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
             },
             {
               id: crypto.randomUUID(),
-              type: 'group',
-              label: 'Contact Numbers',
+              type: 'phone',
+              label: 'Mobile No.',
               required: true,
-              fields: [
-                {
-                  id: crypto.randomUUID(),
-                  type: 'phone',
-                  label: 'Mobile No.',
-                  required: true,
-                  phoneConfig: {
-                    placeholder: 'Enter your mobile number',
-                  },
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'phone',
-                  label: 'Home No.',
-                  required: false,
-                  phoneConfig: {
-                    placeholder: 'Enter your home number',
-                  },
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'phone',
-                  label: 'Business No.',
-                  required: false,
-                  phoneConfig: {
-                    placeholder: 'Enter your business number',
-                  },
-                },
-              ],
-              groupConfig: {
-                showTitle: true,
+              phoneConfig: {
+                placeholder: 'Enter your mobile number',
+              },
+            },
+            {
+              id: crypto.randomUUID(),
+              type: 'phone',
+              label: 'Home No.',
+              required: false,
+              phoneConfig: {
+                placeholder: 'Enter your home number',
+              },
+            },
+            {
+              id: crypto.randomUUID(),
+              type: 'phone',
+              label: 'Business No.',
+              required: false,
+              phoneConfig: {
+                placeholder: 'Enter your business number',
               },
             },
           ],
