@@ -113,6 +113,8 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                       <ApplicationActions
                         applicationId={application.id}
                         status={application.status}
+                        activationType={application.product.membership_tier.activation_type}
+                        price={application.product.price}
                         userPermissions={userPermissions}
                         size="sm"
                       />
@@ -154,6 +156,8 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <ApplicationActions
                       applicationId={application.id}
                       status={application.status}
+                      activationType={application.product.membership_tier.activation_type}
+                      price={application.product.price}
                       userPermissions={userPermissions}
                       size="sm"
                     />

@@ -48,6 +48,8 @@ export function ApplicationOverviewCard({ application, userPermissions = [] }: A
             <ApplicationActions
               applicationId={application.id}
               status={application.status}
+              activationType={application.activation_type}
+              price={application.product_price}
               userPermissions={userPermissions}
             />
           </div>
