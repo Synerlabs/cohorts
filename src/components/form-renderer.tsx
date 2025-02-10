@@ -59,6 +59,15 @@ interface FormField {
     description?: string;
     fields?: FormField[];
   };
+  dateConfig?: {
+    placeholder?: string;
+  };
+  repeatableConfig?: {
+    itemLabel?: string;
+    addLabel?: string;
+    maxItems?: number;
+    fields: FormField[];
+  };
 }
 
 interface FormRendererProps {
@@ -150,26 +159,57 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         ? JSON.parse(schema) 
         : schema;
       
-      // Extract fields from schema, preserving all field properties
-      const fields = parsedSchema.fields?.map((field: any) => ({
-        ...field,
-        id: field.id,
-        type: field.type?.toLowerCase(), // Normalize field type
-        label: field.label,
-        required: field.required,
-        help_text: field.help_text,
-        placeholder: field.placeholder,
-        options: field.options,
-        sectionConfig: field.sectionConfig,
-        fileConfig: field.fileConfig,
-        textConfig: field.textConfig,
-        numberConfig: field.numberConfig,
-        emailConfig: field.emailConfig,
-        phoneConfig: field.phoneConfig,
-        choiceConfig: field.choiceConfig,
-        groupConfig: field.groupConfig,
-      })) || [];
+      // Helper function to process group fields with default subfields
+      const processGroupField = (field: any) => {
+        if (field.type === 'group') {
+          return {
+            ...field,
+            groupConfig: field.groupConfig || { fields: [] }
+          };
+        }
+        return field;
+      };
 
+      // Process all fields recursively
+      const processFields = (fields: any[]): any[] => {
+        return fields.map(field => {
+          // Process the current field if it's a group
+          field = processGroupField(field);
+          
+          // Process fields in sections
+          if (field.type === 'section' && field.sectionConfig?.fields) {
+            field.sectionConfig.fields = processFields(field.sectionConfig.fields);
+          }
+          
+          // Process fields in repeatable
+          if (field.type === 'repeatable' && field.repeatableConfig?.fields) {
+            field.repeatableConfig.fields = processFields(field.repeatableConfig.fields);
+          }
+          
+          return {
+            ...field,
+            id: field.id,
+            type: field.type?.toLowerCase(),
+            label: field.label,
+            required: field.required,
+            help_text: field.help_text || field.helpText, // Support both formats
+            placeholder: field.placeholder,
+            options: field.options,
+            sectionConfig: field.sectionConfig,
+            fileConfig: field.fileConfig,
+            textConfig: field.textConfig,
+            numberConfig: field.numberConfig,
+            emailConfig: field.emailConfig,
+            phoneConfig: field.phoneConfig,
+            choiceConfig: field.choiceConfig,
+            groupConfig: field.groupConfig,
+            dateConfig: field.dateConfig,
+            repeatableConfig: field.repeatableConfig,
+          };
+        });
+      };
+
+      const fields = parsedSchema.fields ? processFields(parsedSchema.fields) : [];
       console.log('Parsed fields with full config:', fields);
       setFields(fields);
     } catch (error) {
@@ -248,6 +288,26 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
             };
             sectionMap[field.id] = sectionInfo;
             extractFields(field.sectionConfig.fields, { id: field.id, label: field.label });
+          } else if (field.type === 'group' && field.groupConfig?.fields) {
+            // Handle group fields
+            extractFields(field.groupConfig.fields, parentSection);
+          } else if (field.type === 'repeatable' && field.repeatableConfig?.fields) {
+            // Handle repeatable fields
+            const items = formData[field.id] || [];
+            items.forEach((item: any, index: number) => {
+              field.repeatableConfig.fields.forEach((subfield: any) => {
+                const subfieldId = `${field.id}.${index}.${subfield.id}`;
+                fieldInfo[subfieldId] = {
+                  label: `${field.label} #${index + 1} - ${subfield.label}`,
+                  type: subfield.type,
+                  required: subfield.required,
+                  section: parentSection
+                };
+                if (parentSection) {
+                  sectionMap[parentSection.id].fields.push(subfieldId);
+                }
+              });
+            });
           } else {
             fieldInfo[field.id] = {
               label: field.label,
@@ -374,7 +434,7 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
   const renderField = (field: any) => {
     if (field.type === 'section') {
       return (
-        <div key={field.id} className={cn("space-y-4 transition-opacity", {
+        <div className={cn("space-y-4 transition-opacity", {
           "animate-in fade-in": true,
         })}>
           {field.label && (
@@ -384,7 +444,11 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
             <p className="text-sm text-muted-foreground">{field.help_text}</p>
           )}
           <div className="space-y-6">
-            {field.sectionConfig?.fields?.map(renderField)}
+            {field.sectionConfig?.fields?.map((subfield: any) => (
+              <div key={subfield.id}>
+                {renderField(subfield)}
+              </div>
+            ))}
           </div>
         </div>
       );
@@ -399,19 +463,8 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
             </p>
           )}
           <div className="space-y-6 pl-4 border-l-2">
-            {field.fields?.map((subfield: FormField) => (
-              <div key={subfield.id} className="space-y-2">
-                <Label>
-                  {subfield.label}
-                  {subfield.required && (
-                    <span className="text-destructive ml-1">*</span>
-                  )}
-                </Label>
-                {subfield.help_text && (
-                  <p className="text-sm text-muted-foreground">
-                    {subfield.help_text}
-                  </p>
-                )}
+            {field.groupConfig?.fields?.map((subfield: FormField) => (
+              <div key={subfield.id}>
                 {renderField(subfield)}
               </div>
             ))}
@@ -420,8 +473,126 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
       );
     }
 
+    if (field.type === 'date') {
+      return (
+        <div className="space-y-2">
+          <Label htmlFor={field.id}>
+            {field.label}
+            {field.required && <span className="text-destructive ml-1">*</span>}
+          </Label>
+          
+          <Input
+            id={field.id}
+            type="date"
+            placeholder={field.placeholder || field.dateConfig?.placeholder || 'Select date'}
+            required={field.required}
+            value={formData[field.id] || ''}
+            onChange={(e) => handleFieldChange(field.id, e.target.value)}
+          />
+
+          {field.help_text && (
+            <p className="text-sm text-muted-foreground">{field.help_text}</p>
+          )}
+        </div>
+      );
+    }
+
+    if (field.type === 'group' && field.groupConfig?.fields) {
+      return (
+        <div className="space-y-4">
+          {field.groupConfig.description && (
+            <p className="text-sm text-muted-foreground">
+              {field.groupConfig.description}
+            </p>
+          )}
+          <div className="space-y-6 pl-4 border-l-2">
+            {field.groupConfig.fields.map((subfield: FormField) => (
+              <div key={subfield.id}>
+                {renderField(subfield)}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'repeatable' && field.repeatableConfig?.fields) {
+      // Initialize repeatable field with one item if empty
+      if (!formData[field.id]) {
+        const initialItem = field.repeatableConfig.fields.reduce((acc: any, subfield: FormField) => {
+          acc[subfield.id] = '';
+          return acc;
+        }, {});
+        handleFieldChange(field.id, [initialItem]);
+      }
+
+      return (
+        <div className="space-y-4">
+          {formData[field.id]?.map((item: any, index: number) => (
+            <div key={`${field.id}-${index}`} className="space-y-4 border rounded-lg p-4">
+              <div className="flex justify-between items-center">
+                <h4 className="text-sm font-medium">
+                  {field.repeatableConfig.itemLabel || `Item ${index + 1}`}
+                </h4>
+                {(formData[field.id]?.length || 0) > (field.repeatableConfig.minItems || 1) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const newItems = [...(formData[field.id] || [])];
+                      newItems.splice(index, 1);
+                      handleFieldChange(field.id, newItems);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <div className="space-y-4">
+                {field.repeatableConfig.fields.map((subfield: FormField) => {
+                  const subfieldId = `${field.id}.${index}.${subfield.id}`;
+                  return (
+                    <div key={subfieldId}>
+                      {renderField({
+                        ...subfield,
+                        id: subfieldId,
+                        value: item[subfield.id],
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              const currentItems = formData[field.id] || [];
+              if (field.repeatableConfig.maxItems && currentItems.length >= field.repeatableConfig.maxItems) {
+                return;
+              }
+              const newItem = field.repeatableConfig.fields.reduce((acc: any, subfield: FormField) => {
+                acc[subfield.id] = '';
+                return acc;
+              }, {});
+              handleFieldChange(field.id, [...currentItems, newItem]);
+            }}
+            disabled={
+              field.repeatableConfig.maxItems 
+                ? (formData[field.id]?.length || 0) >= field.repeatableConfig.maxItems 
+                : false
+            }
+          >
+            {field.repeatableConfig.addLabel || 'Add Item'}
+          </Button>
+        </div>
+      );
+    }
+
     return (
-      <div key={field.id} className="space-y-2">
+      <div className="space-y-2">
         <Label htmlFor={field.id}>
           {field.label}
           {field.required && <span className="text-destructive ml-1">*</span>}
@@ -482,12 +653,16 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
             value={formData[field.id] || ''}
             required={field.required}
           >
-            {field.options.map((option: string) => (
-              <div key={option} className="flex items-center space-x-2">
-                <RadioGroupItem value={option} id={`${field.id}-${option}`} />
-                <Label htmlFor={`${field.id}-${option}`}>{option}</Label>
-              </div>
-            ))}
+            {field.options.map((option: any) => {
+              const value = typeof option === 'object' ? option.value : option;
+              const label = typeof option === 'object' ? option.label : option;
+              return (
+                <div key={value} className="flex items-center space-x-2">
+                  <RadioGroupItem value={value} id={`${field.id}-${value}`} />
+                  <Label htmlFor={`${field.id}-${value}`}>{label}</Label>
+                </div>
+              );
+            })}
           </RadioGroup>
         )}
 
@@ -501,11 +676,15 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
               <SelectValue placeholder={field.placeholder || 'Select an option'} />
             </SelectTrigger>
             <SelectContent>
-              {field.options.map((option: string) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
+              {field.options.map((option: any) => {
+                const value = typeof option === 'object' ? option.value : option;
+                const label = typeof option === 'object' ? option.label : option;
+                return (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         )}

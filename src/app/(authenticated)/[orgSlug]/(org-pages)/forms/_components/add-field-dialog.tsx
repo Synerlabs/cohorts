@@ -573,8 +573,8 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
       case 'group':
         return {
           ...baseField,
-          fields: [],
           groupConfig: {
+            fields: [] as FormField[],
             showTitle: true,
             description: '',
           },

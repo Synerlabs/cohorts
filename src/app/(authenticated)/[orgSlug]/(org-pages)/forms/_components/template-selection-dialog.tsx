@@ -521,36 +521,36 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
               type: 'group',
               label: 'Present Address',
               required: true,
-              fields: [
-                {
-                  id: crypto.randomUUID(),
-                  type: 'textarea',
-                  label: 'Street Address',
-                  required: true,
-                  textConfig: {
-                    placeholder: 'Enter your street address',
-                  },
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'City',
-                  required: true,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Province',
-                  required: true,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Postal Code',
-                  required: true,
-                },
-              ],
               groupConfig: {
+                fields: [
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'textarea',
+                    label: 'Street Address',
+                    required: true,
+                    textConfig: {
+                      placeholder: 'Enter your street address',
+                    },
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'City',
+                    required: true,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Province',
+                    required: true,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Postal Code',
+                    required: true,
+                  },
+                ],
                 showTitle: true,
               },
             },
@@ -559,36 +559,36 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
               type: 'group',
               label: 'Permanent Address',
               required: true,
-              fields: [
-                {
-                  id: crypto.randomUUID(),
-                  type: 'textarea',
-                  label: 'Street Address',
-                  required: true,
-                  textConfig: {
-                    placeholder: 'Enter your street address',
-                  },
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'City',
-                  required: true,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Province',
-                  required: true,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Postal Code',
-                  required: true,
-                },
-              ],
               groupConfig: {
+                fields: [
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'textarea',
+                    label: 'Street Address',
+                    required: true,
+                    textConfig: {
+                      placeholder: 'Enter your street address',
+                    },
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'City',
+                    required: true,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Province',
+                    required: true,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Postal Code',
+                    required: true,
+                  },
+                ],
                 showTitle: true,
               },
             },
@@ -650,27 +650,27 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
               type: 'group',
               label: 'Tertiary',
               required: true,
-              fields: [
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'School',
-                  required: true,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Degree',
-                  required: true,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Inclusive Date (Year)',
-                  required: true,
-                },
-              ],
               groupConfig: {
+                fields: [
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'School',
+                    required: true,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Degree',
+                    required: true,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Inclusive Date (Year)',
+                    required: true,
+                  },
+                ],
                 showTitle: true,
               },
             },
@@ -679,27 +679,27 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
               type: 'group',
               label: 'Master\'s',
               required: false,
-              fields: [
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'School',
-                  required: false,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Degree',
-                  required: false,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Inclusive Date (Year)',
-                  required: false,
-                },
-              ],
               groupConfig: {
+                fields: [
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'School',
+                    required: false,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Degree',
+                    required: false,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Inclusive Date (Year)',
+                    required: false,
+                  },
+                ],
                 showTitle: true,
               },
             },
@@ -708,27 +708,27 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
               type: 'group',
               label: 'Doctoral',
               required: false,
-              fields: [
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'School',
-                  required: false,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Degree',
-                  required: false,
-                },
-                {
-                  id: crypto.randomUUID(),
-                  type: 'text',
-                  label: 'Inclusive Date (Year)',
-                  required: false,
-                },
-              ],
               groupConfig: {
+                fields: [
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'School',
+                    required: false,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Degree',
+                    required: false,
+                  },
+                  {
+                    id: crypto.randomUUID(),
+                    type: 'text',
+                    label: 'Inclusive Date (Year)',
+                    required: false,
+                  },
+                ],
                 showTitle: true,
               },
             },

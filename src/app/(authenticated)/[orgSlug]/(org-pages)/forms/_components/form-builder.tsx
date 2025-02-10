@@ -59,6 +59,16 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
             },
           };
         }
+        // Initialize group fields
+        if (field.type === 'group') {
+          return {
+            ...field,
+            groupConfig: {
+              ...field.groupConfig,
+              fields: field.groupConfig?.fields || [],
+            },
+          };
+        }
         return field;
       }) || [];
 

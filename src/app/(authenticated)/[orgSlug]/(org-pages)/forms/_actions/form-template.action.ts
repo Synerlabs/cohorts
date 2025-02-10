@@ -86,6 +86,14 @@ const formFieldSchema: z.ZodType<any> = z.lazy(() =>
         allowedTypes: z.array(z.string()).optional(),
       })
       .optional(),
+    // Group config
+    groupConfig: z
+      .object({
+        description: z.string().optional(),
+        fields: z.array(formFieldSchema).min(0),
+        showTitle: z.boolean().optional(),
+      })
+      .optional(),
     // Section config
     sectionConfig: z
       .object({

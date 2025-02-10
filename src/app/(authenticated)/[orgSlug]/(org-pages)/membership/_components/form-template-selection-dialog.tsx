@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -42,8 +42,6 @@ export function FormTemplateSelectionDialog({
 
   // Load templates when dialog opens
   const loadTemplates = async () => {
-    if (!open || !orgId) return;
-    
     setIsLoading(true);
     try {
       const result = await getPublishedFormTemplates(orgId);
@@ -71,53 +69,55 @@ export function FormTemplateSelectionDialog({
     }
   };
 
-  // Call loadTemplates when dialog opens or selectedTemplateId changes
-  if ((open && !isLoading && formTemplates.length === 0) || 
-      (selectedTemplateId && !selectedTemplate)) {
-    loadTemplates();
-  }
+  // Use useEffect to handle template loading
+  useEffect(() => {
+    if (open && orgId && (!formTemplates.length || selectedTemplateId)) {
+      loadTemplates();
+    }
+  }, [open, orgId, selectedTemplateId]);
 
   const renderTemplateCard = (template: FormTemplate) => {
     const isSelected = selectedTemplateId === template.id;
     return (
-      <Card
-        key={template.id}
-        className={`p-4 cursor-pointer transition-all hover:shadow-md ${
-          isSelected 
-            ? 'border-primary bg-primary/5 ring-2 ring-primary ring-offset-2' 
-            : 'hover:border-primary'
-        }`}
-        onClick={() => {
-          setSelectedTemplate(template);
-          onSelect(template);
-          onOpenChange(false);
-        }}
-      >
-        <div className="flex items-start gap-3">
-          <div className={`p-2 border rounded-md ${isSelected ? 'border-primary bg-primary/10' : ''}`}>
-            <FileText className={`h-5 w-5 ${isSelected ? 'text-primary' : ''}`} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="font-medium truncate">{template.title}</h3>
-              {isSelected && (
-                <Badge variant="default" className="shrink-0">
-                  <Check className="h-3 w-3 mr-1" />
-                  Selected
-                </Badge>
-              )}
+      <div key={template.id}>
+        <Card
+          className={`p-4 cursor-pointer transition-all hover:shadow-md ${
+            isSelected 
+              ? 'border-primary bg-primary/5 ring-2 ring-primary ring-offset-2' 
+              : 'hover:border-primary'
+          }`}
+          onClick={() => {
+            setSelectedTemplate(template);
+            onSelect(template);
+            onOpenChange(false);
+          }}
+        >
+          <div className="flex items-start gap-3">
+            <div className={`p-2 border rounded-md ${isSelected ? 'border-primary bg-primary/10' : ''}`}>
+              <FileText className={`h-5 w-5 ${isSelected ? 'text-primary' : ''}`} />
             </div>
-            {template.description && (
-              <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                {template.description}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="font-medium truncate">{template.title}</h3>
+                {isSelected && (
+                  <Badge variant="default" className="shrink-0">
+                    <Check className="h-3 w-3 mr-1" />
+                    Selected
+                  </Badge>
+                )}
+              </div>
+              {template.description && (
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                  {template.description}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                Last updated: {formatDate(template.updated_at)}
               </p>
-            )}
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              Last updated: {formatDate(template.updated_at)}
-            </p>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
     );
   };
 

@@ -17,10 +17,11 @@ import { AddFieldDialog } from './add-field-dialog';
 
 export interface FormField {
   id: string;
-  type: 'text' | 'textarea' | 'email' | 'phone' | 'date' | 'select' | 'file' | 'repeatable' | 'section' | 'group' | 'checkbox' | 'number';
+  type: 'text' | 'textarea' | 'email' | 'phone' | 'date' | 'select' | 'file' | 'repeatable' | 'section' | 'group' | 'checkbox' | 'number' | 'radio';
   label: string;
   required?: boolean;
-  fields?: FormField[];
+  helpText?: string;
+  value?: any;
   textConfig?: {
     placeholder?: string;
     minLength?: number;
@@ -37,6 +38,7 @@ export interface FormField {
   emailConfig?: {
     placeholder?: string;
     helpText?: string;
+    allowedDomains?: string[];
   };
   phoneConfig?: {
     placeholder?: string;
@@ -53,6 +55,8 @@ export interface FormField {
   };
   fileConfig?: {
     maxSize?: number;
+    maxFiles?: number;
+    accept?: string;
     allowedTypes?: string[];
     helpText?: string;
   };
@@ -60,6 +64,10 @@ export interface FormField {
     fields: FormField[];
     showTitle?: boolean;
     description?: string;
+    minItems?: number;
+    maxItems?: number;
+    addLabel?: string;
+    itemLabel?: string;
   };
   sectionConfig?: {
     fields: FormField[];
@@ -67,6 +75,7 @@ export interface FormField {
     description?: string;
   };
   groupConfig?: {
+    fields: FormField[];
     showTitle?: boolean;
     description?: string;
   };
@@ -74,6 +83,12 @@ export interface FormField {
     label?: string;
     helpText?: string;
   };
+  choiceConfig?: {
+    layout?: 'vertical' | 'horizontal';
+    allowOther?: boolean;
+    otherLabel?: string;
+  };
+  options?: { label: string; value: string; description?: string }[];
 }
 
 interface FormFieldProps {
@@ -845,6 +860,7 @@ export function FormField({
                         groupConfig: {
                           ...field.groupConfig,
                           description: e.target.value,
+                          fields: field.groupConfig?.fields || [],
                         },
                       })
                     }
@@ -874,9 +890,9 @@ export function FormField({
             )}
           </div>
 
-          {field.fields && field.fields.length > 0 && (
+          {field.groupConfig?.fields && field.groupConfig.fields.length > 0 && (
             <div className="space-y-3 pl-6">
-              {field.fields.map((subfield, index) => (
+              {field.groupConfig.fields.map((subfield, index) => (
                 <FormField
                   key={subfield.id}
                   field={subfield}
@@ -968,19 +984,24 @@ export function FormField({
   };
 
   const handleUpdateSubfield = (index: number, updatedField: FormField) => {
-    if (!field.repeatableConfig && !field.sectionConfig) return;
-
-    const newFields = field.repeatableConfig
-      ? [...field.repeatableConfig.fields]
-      : [...field.sectionConfig!.fields];
-    newFields[index] = updatedField;
-
-    if (field.repeatableConfig) {
+    if (field.type === 'group' && field.groupConfig) {
+      const newFields = [...field.groupConfig.fields];
+      newFields[index] = updatedField;
+      onUpdate({
+        ...field,
+        groupConfig: {
+          ...field.groupConfig,
+          fields: newFields,
+        },
+      });
+    } else if (field.repeatableConfig) {
       onUpdate({
         ...field,
         repeatableConfig: {
           ...field.repeatableConfig,
-          fields: newFields,
+          fields: field.repeatableConfig.fields.map((f, i) => 
+            i === index ? updatedField : f
+          ),
         },
       });
     } else if (field.sectionConfig) {
@@ -988,16 +1009,24 @@ export function FormField({
         ...field,
         sectionConfig: {
           ...field.sectionConfig,
-          fields: newFields,
+          fields: field.sectionConfig.fields.map((f, i) => 
+            i === index ? updatedField : f
+          ),
         },
       });
     }
   };
 
   const handleDeleteSubfield = (index: number) => {
-    if (!field.repeatableConfig && !field.sectionConfig) return;
-
-    if (field.repeatableConfig) {
+    if (field.type === 'group' && field.groupConfig) {
+      onUpdate({
+        ...field,
+        groupConfig: {
+          ...field.groupConfig,
+          fields: field.groupConfig.fields.filter((_, i) => i !== index),
+        },
+      });
+    } else if (field.repeatableConfig) {
       onUpdate({
         ...field,
         repeatableConfig: {
