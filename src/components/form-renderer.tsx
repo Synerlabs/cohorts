@@ -15,6 +15,7 @@ import { FileUpload } from '@/components/ui/file-upload';
 import { cn } from '@/lib/utils';
 import { uploadFileAction } from '@/app/actions/upload.action';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
+import { Card } from '@/components/ui/card';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -67,6 +68,10 @@ interface FormField {
     addLabel?: string;
     maxItems?: number;
     fields: FormField[];
+  };
+  sectionConfig?: {
+    description?: string;
+    fields?: FormField[];
   };
 }
 
@@ -432,312 +437,320 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
   };
 
   const renderField = (field: any) => {
-    if (field.type === 'section') {
-      return (
-        <div className={cn("space-y-4 transition-opacity", {
-          "animate-in fade-in": true,
-        })}>
-          {field.label && (
-            <h3 className="font-medium text-lg">{field.label}</h3>
-          )}
-          {field.help_text && (
-            <p className="text-sm text-muted-foreground">{field.help_text}</p>
-          )}
-          <div className="space-y-6">
-            {field.sectionConfig?.fields?.map((subfield: any) => (
-              <div key={subfield.id}>
-                {renderField(subfield)}
-              </div>
-            ))}
+    switch (field.type) {
+      case 'text':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <Input
+              id={field.id}
+              type="text"
+              placeholder={field.placeholder || field.textConfig?.placeholder || 'Enter text'}
+              required={field.required}
+              value={formData[field.id] || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            />
           </div>
-        </div>
-      );
-    }
+        );
 
-    if (field.type === 'group') {
-      return (
-        <div className="space-y-4">
-          {field.groupConfig?.description && (
-            <p className="text-sm text-muted-foreground">
-              {field.groupConfig.description}
-            </p>
-          )}
-          <div className="space-y-6 pl-4 border-l-2">
-            {field.groupConfig?.fields?.map((subfield: FormField) => (
-              <div key={subfield.id}>
-                {renderField(subfield)}
-              </div>
-            ))}
+      case 'textarea':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <Textarea
+              id={field.id}
+              placeholder={field.placeholder || field.textConfig?.placeholder || 'Enter text'}
+              required={field.required}
+              value={formData[field.id] || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            />
           </div>
-        </div>
-      );
-    }
+        );
 
-    if (field.type === 'date') {
-      return (
-        <div className="space-y-2">
-          <Label htmlFor={field.id}>
-            {field.label}
-            {field.required && <span className="text-destructive ml-1">*</span>}
-          </Label>
-          
-          <Input
-            id={field.id}
-            type="date"
-            placeholder={field.placeholder || field.dateConfig?.placeholder || 'Select date'}
-            required={field.required}
-            value={formData[field.id] || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-          />
-
-          {field.help_text && (
-            <p className="text-sm text-muted-foreground">{field.help_text}</p>
-          )}
-        </div>
-      );
-    }
-
-    if (field.type === 'group' && field.groupConfig?.fields) {
-      return (
-        <div className="space-y-4">
-          {field.groupConfig.description && (
-            <p className="text-sm text-muted-foreground">
-              {field.groupConfig.description}
-            </p>
-          )}
-          <div className="space-y-6 pl-4 border-l-2">
-            {field.groupConfig.fields.map((subfield: FormField) => (
-              <div key={subfield.id}>
-                {renderField(subfield)}
-              </div>
-            ))}
+      case 'email':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <Input
+              id={field.id}
+              type="email"
+              placeholder={field.placeholder || field.emailConfig?.placeholder || 'Enter email'}
+              required={field.required}
+              value={formData[field.id] || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            />
           </div>
-        </div>
-      );
-    }
+        );
 
-    if (field.type === 'repeatable' && field.repeatableConfig?.fields) {
-      // Initialize repeatable field with one item if empty
-      if (!formData[field.id]) {
-        const initialItem = field.repeatableConfig.fields.reduce((acc: any, subfield: FormField) => {
-          acc[subfield.id] = '';
-          return acc;
-        }, {});
-        handleFieldChange(field.id, [initialItem]);
-      }
+      case 'phone':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <Input
+              id={field.id}
+              type="tel"
+              placeholder={field.placeholder || field.phoneConfig?.placeholder || 'Enter phone number'}
+              required={field.required}
+              value={formData[field.id] || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            />
+          </div>
+        );
 
-      return (
-        <div className="space-y-4">
-          {formData[field.id]?.map((item: any, index: number) => (
-            <div key={`${field.id}-${index}`} className="space-y-4 border rounded-lg p-4">
-              <div className="flex justify-between items-center">
-                <h4 className="text-sm font-medium">
-                  {field.repeatableConfig.itemLabel || `Item ${index + 1}`}
-                </h4>
-                {(formData[field.id]?.length || 0) > (field.repeatableConfig.minItems || 1) && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      const newItems = [...(formData[field.id] || [])];
-                      newItems.splice(index, 1);
-                      handleFieldChange(field.id, newItems);
-                    }}
-                  >
-                    Remove
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-4">
-                {field.repeatableConfig.fields.map((subfield: FormField) => {
-                  const subfieldId = `${field.id}.${index}.${subfield.id}`;
+      case 'date':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <Input
+              id={field.id}
+              type="date"
+              required={field.required}
+              value={formData[field.id] || ''}
+              onChange={(e) => handleFieldChange(field.id, e.target.value)}
+            />
+          </div>
+        );
+
+      case 'select':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <Select
+              value={formData[field.id] || ''}
+              onValueChange={(value) => handleFieldChange(field.id, value)}
+              required={field.required}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={field.placeholder || 'Select an option'} />
+              </SelectTrigger>
+              <SelectContent>
+                {field.options?.map((option: any) => {
+                  const value = typeof option === 'object' ? option.value : option;
+                  const label = typeof option === 'object' ? option.label : option;
                   return (
-                    <div key={subfieldId}>
-                      {renderField({
-                        ...subfield,
-                        id: subfieldId,
-                        value: item[subfield.id],
-                      })}
-                    </div>
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
                   );
                 })}
-              </div>
-            </div>
-          ))}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              const currentItems = formData[field.id] || [];
-              if (field.repeatableConfig.maxItems && currentItems.length >= field.repeatableConfig.maxItems) {
-                return;
-              }
-              const newItem = field.repeatableConfig.fields.reduce((acc: any, subfield: FormField) => {
-                acc[subfield.id] = '';
-                return acc;
-              }, {});
-              handleFieldChange(field.id, [...currentItems, newItem]);
-            }}
-            disabled={
-              field.repeatableConfig.maxItems 
-                ? (formData[field.id]?.length || 0) >= field.repeatableConfig.maxItems 
-                : false
-            }
-          >
-            {field.repeatableConfig.addLabel || 'Add Item'}
-          </Button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-2">
-        <Label htmlFor={field.id}>
-          {field.label}
-          {field.required && <span className="text-destructive ml-1">*</span>}
-        </Label>
-        
-        {field.type === 'text' && (
-          <Input
-            id={field.id}
-            type="text"
-            placeholder={field.placeholder || field.textConfig?.placeholder || 'Enter text'}
-            required={field.required}
-            value={formData[field.id] || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-          />
-        )}
-
-        {field.type === 'textarea' && (
-          <Textarea
-            id={field.id}
-            placeholder={field.placeholder || field.textConfig?.placeholder || 'Enter text'}
-            required={field.required}
-            value={formData[field.id] || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-          />
-        )}
-
-        {field.type === 'number' && (
-          <Input
-            id={field.id}
-            type="number"
-            placeholder={field.placeholder || field.numberConfig?.placeholder || 'Enter number'}
-            required={field.required}
-            value={formData[field.id] || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-          />
-        )}
-
-        {field.type === 'checkbox' && (
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id={field.id}
-              checked={formData[field.id] || false}
-              onCheckedChange={(checked) => handleFieldChange(field.id, checked)}
-              required={field.required}
-            />
-            <label
-              htmlFor={field.id}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              {field.placeholder || field.label}
-            </label>
+              </SelectContent>
+            </Select>
           </div>
-        )}
+        );
 
-        {field.type === 'radio' && field.options && (
-          <RadioGroup
-            onValueChange={(value) => handleFieldChange(field.id, value)}
-            value={formData[field.id] || ''}
-            required={field.required}
-          >
-            {field.options.map((option: any) => {
-              const value = typeof option === 'object' ? option.value : option;
-              const label = typeof option === 'object' ? option.label : option;
-              return (
-                <div key={value} className="flex items-center space-x-2">
-                  <RadioGroupItem value={value} id={`${field.id}-${value}`} />
-                  <Label htmlFor={`${field.id}-${value}`}>{label}</Label>
-                </div>
-              );
-            })}
-          </RadioGroup>
-        )}
+      case 'checkbox':
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id={field.id}
+                checked={formData[field.id] || false}
+                onCheckedChange={(checked) => handleFieldChange(field.id, checked)}
+                required={field.required}
+              />
+              <Label htmlFor={field.id}>
+                {field.label}
+                {field.required && <span className="text-destructive ml-1">*</span>}
+              </Label>
+            </div>
+          </div>
+        );
 
-        {field.type === 'select' && field.options && (
-          <Select
-            value={formData[field.id] || ''}
-            onValueChange={(value) => handleFieldChange(field.id, value)}
-            required={field.required}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={field.placeholder || 'Select an option'} />
-            </SelectTrigger>
-            <SelectContent>
-              {field.options.map((option: any) => {
+      case 'radio':
+        return (
+          <div className="space-y-2">
+            <Label>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <RadioGroup
+              value={formData[field.id] || ''}
+              onValueChange={(value) => handleFieldChange(field.id, value)}
+              required={field.required}
+            >
+              {field.options?.map((option: any) => {
                 const value = typeof option === 'object' ? option.value : option;
                 const label = typeof option === 'object' ? option.label : option;
                 return (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
+                  <div key={value} className="flex items-center space-x-2">
+                    <RadioGroupItem value={value} id={`${field.id}-${value}`} />
+                    <Label htmlFor={`${field.id}-${value}`}>{label}</Label>
+                  </div>
                 );
               })}
-            </SelectContent>
-          </Select>
-        )}
+            </RadioGroup>
+          </div>
+        );
 
-        {field.type === 'email' && (
-          <Input
-            id={field.id}
-            type="email"
-            placeholder={field.placeholder || field.emailConfig?.placeholder || 'Enter email'}
-            required={field.required}
-            value={formData[field.id] || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-          />
-        )}
+      case 'file':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <FileUpload
+              id={field.id}
+              accept={field.fileConfig?.accept}
+              maxSize={field.fileConfig?.maxSize}
+              value={fileFields[field.id] ? { 
+                name: fileFields[field.id].name,
+                size: fileFields[field.id].size,
+                type: fileFields[field.id].type,
+                path: '',
+                url: URL.createObjectURL(fileFields[field.id])
+              } : undefined}
+              onUpload={(file: File) => handleFieldChange(field.id, file)}
+              onError={(error: string) => console.error('File validation error:', error)}
+              onRemove={() => {
+                const newFileFields = { ...fileFields };
+                delete newFileFields[field.id];
+                setFileFields(newFileFields);
+              }}
+            />
+          </div>
+        );
 
-        {field.type === 'phone' && (
-          <Input
-            id={field.id}
-            type="tel"
-            placeholder={field.placeholder || field.phoneConfig?.placeholder || 'Enter phone number'}
-            required={field.required}
-            value={formData[field.id] || ''}
-            onChange={(e) => handleFieldChange(field.id, e.target.value)}
-          />
-        )}
+      case 'section':
+        return (
+          <div className={cn("space-y-4 transition-opacity", {
+            "animate-in fade-in": true,
+          })}>
+            {field.label && (
+              <h3 className="font-medium text-lg">{field.label}</h3>
+            )}
+            {field.sectionConfig?.description && (
+              <p className="text-sm text-muted-foreground">{field.sectionConfig.description}</p>
+            )}
+            <div className="space-y-6">
+              {field.sectionConfig?.fields?.map((subfield: any) => (
+                <div key={subfield.id}>
+                  {renderField(subfield)}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
 
-        {field.type === 'file' && (
-          <FileUpload
-            id={field.id}
-            accept={field.fileConfig?.accept}
-            maxSize={field.fileConfig?.maxSize}
-            value={fileFields[field.id] ? { 
-              name: fileFields[field.id].name,
-              size: fileFields[field.id].size,
-              type: fileFields[field.id].type,
-              path: '',
-              url: URL.createObjectURL(fileFields[field.id])
-            } : undefined}
-            onUpload={(file: File) => handleFieldChange(field.id, file)}
-            onError={(error: string) => console.error('File validation error:', error)}
-            onRemove={() => {
-              const newFileFields = { ...fileFields };
-              delete newFileFields[field.id];
-              setFileFields(newFileFields);
-            }}
-          />
-        )}
+      case 'group':
+        return (
+          <Card className="p-4">
+            <div className="space-y-4">
+              <div>
+                <h3 className="font-medium text-lg">{field.label}</h3>
+                {field.groupConfig?.description && (
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {field.groupConfig.description}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-6">
+                {field.groupConfig?.fields?.map((subfield: any) => (
+                  <div key={subfield.id}>
+                    {renderField(subfield)}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        );
 
-        {field.help_text && (
-          <p className="text-sm text-muted-foreground">{field.help_text}</p>
-        )}
-      </div>
-    );
+      case 'repeatable':
+        return (
+          <div className="space-y-4">
+            {(formData[field.id] || [{}]).map((item: any, index: number) => (
+              <Card key={index} className="p-4">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium">
+                      {field.repeatableConfig?.itemLabel || `Item ${index + 1}`}
+                    </h4>
+                    {(formData[field.id]?.length || 0) > (field.repeatableConfig?.minItems || 1) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          const newItems = [...(formData[field.id] || [])];
+                          newItems.splice(index, 1);
+                          handleFieldChange(field.id, newItems);
+                        }}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </div>
+                  <div className="space-y-4">
+                    {field.repeatableConfig?.fields.map((subfield: any) => {
+                      const subfieldId = `${field.id}.${index}.${subfield.id}`;
+                      return (
+                        <div key={subfieldId}>
+                          {renderField({
+                            ...subfield,
+                            id: subfieldId,
+                            value: item[subfield.id],
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </Card>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                const currentItems = formData[field.id] || [];
+                if (field.repeatableConfig?.maxItems && currentItems.length >= field.repeatableConfig.maxItems) {
+                  return;
+                }
+                const newItem = field.repeatableConfig?.fields.reduce((acc: any, subfield: any) => {
+                  acc[subfield.id] = '';
+                  return acc;
+                }, {});
+                handleFieldChange(field.id, [...currentItems, newItem]);
+              }}
+              disabled={
+                field.repeatableConfig?.maxItems 
+                  ? (formData[field.id]?.length || 0) >= field.repeatableConfig.maxItems 
+                  : false
+              }
+            >
+              {field.repeatableConfig?.addLabel || 'Add Item'}
+            </Button>
+          </div>
+        );
+
+      default:
+        return null;
+    }
   };
 
   if (loading) {
