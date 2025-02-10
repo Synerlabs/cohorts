@@ -176,29 +176,94 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
     return formatter.format(price / 100);
   };
 
+  const getFieldValue = (fieldId: string, sectionId?: string) => {
+    if (!formResponse) return null;
+    
+    if (sectionId) {
+      return formResponse.response_data.sections[sectionId].fields[fieldId]?.value;
+    }
+    return formResponse.response_data.fields[fieldId]?.value;
+  };
+
+  const getRepeatableFields = (repeatableId: string, sectionId: string) => {
+    if (!formResponse) return [];
+
+    // Get all fields that belong to this repeatable field
+    const fields = formResponse.response_data.sections[sectionId].fields;
+    const repeatableFields = Object.entries(fields)
+      .filter(([key]) => key.startsWith(`${repeatableId}.`))
+      .reduce((acc: Record<number, any[]>, [key, value]) => {
+        const match = key.match(/^.+\.(\d+)\..+$/);
+        if (match) {
+          const index = parseInt(match[1]);
+          if (!acc[index]) {
+            acc[index] = [];
+          }
+          acc[index].push({ key, ...value });
+        }
+        return acc;
+      }, {});
+
+    return Object.entries(repeatableFields)
+      .map(([index, fields]) => ({
+        index: parseInt(index),
+        fields,
+      }))
+      .sort((a, b) => a.index - b.index);
+  };
+
   const formatFieldValue = (value: any, type: string) => {
     if (value === null || value === undefined) return null;
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     if (Array.isArray(value)) return value.join(', ');
     if (typeof value === 'object') {
       if (type === 'file') {
-        return value; // Return file object as is for special handling
+        return value;
       }
       return JSON.stringify(value);
     }
     return value.toString();
   };
 
-  const getFieldValue = (fieldId: string, sectionId?: string) => {
-    if (!formResponse) return null;
-    
-    if (sectionId) {
-      return formResponse.response_data.sections[sectionId]?.fields[fieldId]?.value;
-    }
-    return formResponse.response_data.fields[fieldId]?.value;
-  };
-
   const renderField = (field: any, sectionId?: string) => {
+    if (field.type === 'repeatable' && sectionId) {
+      const items = getRepeatableFields(field.id, sectionId);
+
+      if (items.length === 0) {
+        return (
+          <div key={field.id} className="space-y-1">
+            <p className="text-sm font-medium">{field.label}</p>
+            <p className="text-sm text-muted-foreground">No items added</p>
+          </div>
+        );
+      }
+
+      return (
+        <div key={field.id} className="space-y-4">
+          <p className="text-sm font-medium">{field.label}</p>
+          {items.map(({ index, fields }) => (
+            <div key={`${field.id}-${index}`} className="border rounded-md p-4 space-y-4">
+              <p className="text-sm font-medium">{field.repeatableConfig?.itemLabel || `Item ${index + 1}`}</p>
+              <div className="space-y-4">
+                {field.repeatableConfig?.fields.map((subfield: any) => {
+                  const matchingField = fields.find((f: any) => f.key.endsWith(subfield.id));
+                  if (!matchingField) return null;
+                  return (
+                    <div key={matchingField.key} className="space-y-1">
+                      <p className="text-sm font-medium">{subfield.label}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {matchingField.value || 'Not provided'}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
     const value = getFieldValue(field.id, sectionId);
     const formattedValue = formatFieldValue(value, field.type);
 
@@ -227,6 +292,20 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
             <span className="text-xs text-muted-foreground">
               ({Math.round(value.size / 1024)}KB)
             </span>
+          </div>
+        </div>
+      );
+    }
+
+    if (field.type === 'group') {
+      return (
+        <div key={field.id} className="space-y-4">
+          <h4 className="font-medium">{field.label}</h4>
+          {field.groupConfig?.description && (
+            <p className="text-sm text-muted-foreground">{field.groupConfig.description}</p>
+          )}
+          <div className="space-y-4 pl-4 border-l-2">
+            {field.groupConfig?.fields?.map((subfield: any) => renderField(subfield, sectionId))}
           </div>
         </div>
       );
