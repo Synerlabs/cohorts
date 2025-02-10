@@ -2,6 +2,7 @@ import { createClient } from "@/lib/utils/supabase/server";
 import { Database } from "@/lib/types/database.types";
 import { OrderService } from "./order.service";
 import { ProductService } from "./product.service";
+import { MembershipActivationType } from "@/lib/types/membership";
 
 export type Application = {
   id: string;
@@ -103,12 +104,29 @@ export async function approveApplication(applicationId: string): Promise<Applica
   if (!application) throw new Error('Application not found');
 
   const now = new Date().toISOString();
-  const shouldActivate = application.product_price === 0 || 
-    (application.activation_type !== 'payment_required' && 
-     application.activation_type !== 'review_then_payment');
 
-  // Update application status
-  const newStatus = application.activation_type === 'review_then_payment' 
+  // Determine if we should activate the membership now
+  // We should activate if:
+  // 1. It's a free membership OR
+  // 2. It's a paid membership but doesn't require payment first
+  const shouldActivate = application.product_price === 0 || 
+    ![
+      MembershipActivationType.PAYMENT_REQUIRED,
+      MembershipActivationType.REVIEW_THEN_PAYMENT,
+      MembershipActivationType.FORM_THEN_PAYMENT,
+      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+    ].includes(application.activation_type as MembershipActivationType);
+
+  // Determine the new status
+  // We should set to pending_payment if:
+  // 1. It's a paid membership AND
+  // 2. The activation type requires payment after approval
+  const newStatus = (application.product_price > 0 && 
+    [
+      MembershipActivationType.REVIEW_THEN_PAYMENT,
+      MembershipActivationType.FORM_THEN_REVIEW,
+      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+    ].includes(application.activation_type as MembershipActivationType))
     ? 'pending_payment' 
     : 'approved';
 
