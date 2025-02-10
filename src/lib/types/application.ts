@@ -25,6 +25,7 @@ export interface IMembershipApplication {
   submitted_at: string;
   updated_at: string;
   type: ApplicationType;
+  form_data: Record<string, any> | null;
   group_id: string;
   user_data?: {
     id: string;
@@ -37,6 +38,7 @@ export interface IMembershipApplication {
     currency: string;
     duration_months: number;
     activation_type: string;
+    form_template_id: string | null;
   };
   order_data?: {
     status: string;

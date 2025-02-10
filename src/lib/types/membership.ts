@@ -2,7 +2,11 @@ export enum MembershipActivationType {
   AUTOMATIC = 'automatic',
   REVIEW_REQUIRED = 'review_required',
   PAYMENT_REQUIRED = 'payment_required',
-  REVIEW_THEN_PAYMENT = 'review_then_payment'
+  REVIEW_THEN_PAYMENT = 'review_then_payment',
+  FORM_REQUIRED = 'form_required',
+  FORM_THEN_PAYMENT = 'form_then_payment',
+  FORM_THEN_REVIEW = 'form_then_review',
+  FORM_THEN_PAYMENT_THEN_REVIEW = 'form_then_payment_then_review'
 }
 
 export type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD';
@@ -19,6 +23,7 @@ export type MembershipTier = {
   created_at: string;
   group_id: string;
   member_count?: number;
+  form_template_id?: string | null;
 };
 
 export type MembershipTierRow = {
@@ -31,6 +36,7 @@ export type MembershipTierRow = {
   activation_type: MembershipActivationType;
   created_at: string;
   group_id: string;
+  form_template_id?: string | null;
 };
 
 export enum MembershipStatus {

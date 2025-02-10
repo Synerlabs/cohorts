@@ -13,6 +13,7 @@ export class ProductService {
         membership_tiers!inner (
           activation_type,
           duration_months,
+          form_template_id,
           membership_tier_settings (
             member_id_format
           )
@@ -30,7 +31,7 @@ export class ProductService {
       throw new Error('Membership tier not found');
     }
 
-    console.log('Raw membership tier data:', JSON.stringify(data, null, 2));
+    // console.log('Raw membership tier data:', JSON.stringify(data, null, 2));
 
     return {
       ...data,
@@ -67,7 +68,7 @@ export class ProductService {
       return [];
     }
 
-    console.log('Raw membership tiers data:', JSON.stringify(data, null, 2));
+    // console.log('Raw membership tiers data:', JSON.stringify(data, null, 2));
 
     return data.map(tier => {
       console.log('Processing tier:', {
@@ -94,6 +95,7 @@ export class ProductService {
     duration_months: number;
     activation_type: string;
     member_id_format: string;
+    form_template_id?: string | null;
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
@@ -128,7 +130,8 @@ export class ProductService {
         .insert({
           product_id: product.id,
           duration_months: tier.duration_months,
-          activation_type: tier.activation_type
+          activation_type: tier.activation_type,
+          form_template_id: tier.form_template_id
         })
         .select()
         .single();
@@ -175,10 +178,11 @@ export class ProductService {
     duration_months?: number;
     activation_type?: string;
     member_id_format?: string;
+    form_template_id?: string | null;
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
-    const { name, description, price, currency, duration_months, activation_type, member_id_format } = tier;
+    const { name, description, price, currency, duration_months, activation_type, member_id_format, form_template_id } = tier;
 
     // Start a transaction
     await supabase.rpc('begin_transaction');
@@ -208,7 +212,8 @@ export class ProductService {
         .from('membership_tiers')
         .update({
           duration_months,
-          activation_type
+          activation_type,
+          form_template_id
         })
         .eq('product_id', id)
         .select()

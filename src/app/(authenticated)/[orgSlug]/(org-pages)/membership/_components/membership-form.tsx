@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Currency } from "@/lib/types/membership";
+import { Currency, MembershipActivationType } from "@/lib/types/membership";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { createMembershipTierAction, updateMembershipTierAction } from "../_actions/membership.action";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
@@ -14,8 +14,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { startTransition } from "react";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
+import { Database } from "@/lib/types/database.types";
+import { toast } from "@/components/ui/use-toast";
+import { FormTemplateSelectionDialog } from './form-template-selection-dialog';
+import { FileText, PlusCircle } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+
+type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -23,12 +34,15 @@ const formSchema = z.object({
   price: z.number().min(0, "Price must be 0 or greater"),
   currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
-  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment'] as const),
+  requires_form: z.boolean().default(false),
+  requires_review: z.boolean().default(false),
+  review_before_payment: z.boolean().default(false),
   member_id_format: z.string().min(1, "Member ID format is required")
     .refine(
       (val) => val.includes('{SEQ:') || val.includes('{YYYY}') || val.includes('{YY}') || val.includes('{MM}') || val.includes('{DD}'),
       "Format must include at least one token: {SEQ:n}, {YYYY}, {YY}, {MM}, or {DD}"
-    )
+    ),
+  form_template_id: z.string().optional().nullable()
 });
 
 interface MembershipFormProps {
@@ -45,7 +59,77 @@ const currencySymbols: Record<Currency, string> = {
   AUD: 'A$'
 };
 
+// Activation type descriptions for better UX
+const ACTIVATION_TYPE_DESCRIPTIONS: Record<MembershipActivationType, string> = {
+  [MembershipActivationType.AUTOMATIC]: 'Members are granted access immediately upon joining',
+  [MembershipActivationType.REVIEW_REQUIRED]: 'Admin must review and approve each application before membership is granted',
+  [MembershipActivationType.PAYMENT_REQUIRED]: 'Members must complete payment before membership is granted',
+  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Admin must approve the application before the member can proceed with payment',
+  [MembershipActivationType.FORM_REQUIRED]: 'Members must complete an application form before membership is granted',
+  [MembershipActivationType.FORM_THEN_PAYMENT]: 'Members must complete an application form before proceeding to payment',
+  [MembershipActivationType.FORM_THEN_REVIEW]: 'Members submit an application form that must be reviewed and approved by an admin',
+  [MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW]: 'Members submit a form and complete payment, then an admin reviews the application'
+};
+
+// Group activation types by category for better organization
+const ACTIVATION_TYPE_GROUPS = {
+  basic: [MembershipActivationType.AUTOMATIC, MembershipActivationType.PAYMENT_REQUIRED],
+  review: [MembershipActivationType.REVIEW_REQUIRED, MembershipActivationType.REVIEW_THEN_PAYMENT],
+  form: [
+    MembershipActivationType.FORM_REQUIRED,
+    MembershipActivationType.FORM_THEN_REVIEW,
+    MembershipActivationType.FORM_THEN_PAYMENT,
+    MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+  ]
+} as const;
+
+// Helper function to convert step configuration to MembershipActivationType
+function getActivationType({
+  price,
+  requires_form,
+  requires_review,
+  review_before_payment
+}: {
+  price: number,
+  requires_form: boolean,
+  requires_review: boolean,
+  review_before_payment: boolean
+}): MembershipActivationType {
+  if (price === 0) {
+    if (!requires_form && !requires_review) return MembershipActivationType.AUTOMATIC;
+    if (requires_form && !requires_review) return MembershipActivationType.FORM_REQUIRED;
+    if (!requires_form && requires_review) return MembershipActivationType.REVIEW_REQUIRED;
+    if (requires_form && requires_review) return MembershipActivationType.FORM_THEN_REVIEW;
+  } else {
+    if (!requires_form && !requires_review) return MembershipActivationType.PAYMENT_REQUIRED;
+    if (!requires_form && requires_review) {
+      return review_before_payment ? MembershipActivationType.REVIEW_THEN_PAYMENT : MembershipActivationType.PAYMENT_REQUIRED;
+    }
+    if (requires_form && !requires_review) return MembershipActivationType.FORM_THEN_PAYMENT;
+    if (requires_form && requires_review) {
+      return review_before_payment ? MembershipActivationType.FORM_THEN_REVIEW : MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW;
+    }
+  }
+  return price === 0 ? MembershipActivationType.AUTOMATIC : MembershipActivationType.PAYMENT_REQUIRED;
+}
+
+// Helper function to convert MembershipActivationType to step configuration
+function getStepConfiguration(type: MembershipActivationType): {
+  requires_form: boolean;
+  requires_review: boolean;
+  review_before_payment: boolean;
+} {
+  return {
+    requires_form: type.includes('form'),
+    requires_review: type.includes('review'),
+    review_before_payment: type === MembershipActivationType.REVIEW_THEN_PAYMENT || 
+                         type === MembershipActivationType.FORM_THEN_REVIEW
+  };
+}
+
 export default function MembershipForm({ groupId, tier, onSuccess }: MembershipFormProps) {
+  console.log('MembershipForm props:', { groupId, tier });
+
   const [state, action, pending] = useToastActionState(
     tier ? updateMembershipTierAction : createMembershipTierAction,
     undefined,
@@ -58,33 +142,38 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
     }
   );
 
+  const [showFormTemplateDialog, setShowFormTemplateDialog] = useState(false);
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: tier?.name || '',
       description: tier?.description || '',
-      price: tier ? tier.price / 100 : 0, // Convert cents to dollars for display
+      price: tier ? tier.price / 100 : 0,
       currency: tier?.currency || "USD",
       duration_months: tier?.membership_tier?.duration_months || 1,
-      activation_type: (tier?.membership_tier?.activation_type || 'automatic') as 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment',
-      member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+      ...getStepConfiguration(tier?.membership_tier?.activation_type as MembershipActivationType || MembershipActivationType.AUTOMATIC),
+      member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+      form_template_id: tier?.membership_tier?.form_template_id || null
     },
   });
 
-  // Watch price changes to update activation type
+  // Watch form values
   const price = form.watch("price");
-  const activationType = form.watch("activation_type");
-  
-  React.useEffect(() => {
-    // If price changes from free to paid
-    if (price > 0 && activationType === 'automatic') {
-      form.setValue('activation_type', 'payment_required' as const);
-    }
-    // If price changes from paid to free and has a payment-related activation type
-    else if (price === 0 && (activationType === 'payment_required' || activationType === 'review_then_payment')) {
-      form.setValue('activation_type', 'automatic' as const);
-    }
-  }, [price, activationType, form]);
+  const requires_form = form.watch("requires_form");
+  const requires_review = form.watch("requires_review");
+  const review_before_payment = form.watch("review_before_payment");
+
+  // Compute current activation type
+  const activationType = getActivationType({
+    price,
+    requires_form,
+    requires_review,
+    review_before_payment
+  });
+
+  const isFree = price === 0;
 
   if (state?.success && onSuccess) {
     onSuccess();
@@ -104,18 +193,22 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       formData.append("price", Math.round(values.price * 100).toString()); // Convert dollars to cents
       formData.append("currency", values.currency);
       formData.append("duration_months", values.duration_months.toString());
-      formData.append("activation_type", values.activation_type);
+      formData.append("activation_type", getActivationType({
+        price: values.price,
+        requires_form: values.requires_form,
+        requires_review: values.requires_review,
+        review_before_payment: values.review_before_payment
+      }));
       formData.append("member_id_format", values.member_id_format);
+      formData.append("form_template_id", values.form_template_id || "");
 
       action(formData);
     });
   });
 
-  const isFree = price === 0;
-
   return (
     <Form {...form}>
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
         <FormField
           control={form.control}
           name="name"
@@ -235,74 +328,167 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
           )}
         />
 
-        <FormField
-          control={form.control}
-          name="activation_type"
-          render={({ field }) => (
-            <FormItem className="space-y-3">
-              <FormLabel>Activation Type</FormLabel>
-              <FormControl>
-                <RadioGroup
-                  onValueChange={field.onChange}
-                  value={field.value}
-                  className="space-y-4"
-                >
-                  {isFree ? (
-                    <>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="automatic" id="automatic" />
-                          <Label htmlFor="automatic">Automatic</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Members are granted access immediately
-                        </p>
-                      </div>
+        <div className="space-y-6 rounded-lg border p-4">
+          <div className="space-y-2">
+            <h3 className="font-medium">Activation Steps</h3>
+            <p className="text-sm text-muted-foreground">Configure how members are activated for this tier</p>
+          </div>
 
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="review_required" id="review_required" />
-                          <Label htmlFor="review_required">Review Required</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Admin must review and approve applications
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="payment_required"
-                            id="payment_required"
-                          />
-                          <Label htmlFor="payment_required">Payment Required</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Members must complete payment before membership is granted
-                        </p>
-                      </div>
+          <FormField
+            control={form.control}
+            name="requires_form"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <FormLabel>Application Form</FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    Require members to complete an application form
+                  </p>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
 
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="review_then_payment"
-                            id="review_then_payment"
-                          />
-                          <Label htmlFor="review_then_payment">Review Then Payment</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Admin must approve before payment can be made
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </RadioGroup>
-              </FormControl>
-              <FormMessage />
-            </FormItem>
+          <FormField
+            control={form.control}
+            name="requires_review"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <FormLabel>Admin Review</FormLabel>
+                  <p className="text-sm text-muted-foreground">
+                    Require admin approval before membership is granted
+                  </p>
+                </div>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          {!isFree && requires_review && (
+            <FormField
+              control={form.control}
+              name="review_before_payment"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Review Before Payment</FormLabel>
+                    <p className="text-sm text-muted-foreground">
+                      Review applications before allowing members to pay
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
           )}
+
+          <div className="rounded-lg bg-muted p-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-medium">Current Flow:</span>
+              <span className="text-muted-foreground">
+                {requires_form && "Complete Form → "}
+                {requires_review && review_before_payment ? "Admin Review → " : ""}
+                {!isFree && "Payment → "}
+                {requires_review && !review_before_payment ? "Admin Review → " : ""}
+                Membership Granted
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {requires_form && (
+          <FormField
+            control={form.control}
+            name="form_template_id"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Application Form Template</FormLabel>
+                <div className="space-y-3">
+                  <div className="flex gap-2 items-start">
+                    <Button
+                      type="button"
+                      variant={field.value ? "outline" : "default"}
+                      className="w-full text-left justify-start font-normal"
+                      onClick={() => setShowFormTemplateDialog(true)}
+                    >
+                      {field.value ? (
+                        <span className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          Change form template
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <PlusCircle className="h-4 w-4" />
+                          Select a form template
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                  {field.value ? (
+                    <Card className="p-3 border-dashed">
+                      <div className="flex items-start gap-3">
+                        <div className="p-2 bg-muted rounded-md">
+                          <FileText className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium truncate">
+                              {formTemplates.find(t => t.id === field.value)?.title || 'Loading...'}
+                            </p>
+                            <Badge variant="secondary" className="shrink-0">Selected</Badge>
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                            {formTemplates.find(t => t.id === field.value)?.description || 'Loading form details...'}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ) : (
+                    <div className="rounded-lg border-2 border-dashed p-4">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Select a form template that members will need to complete when applying for this membership tier
+                      </p>
+                    </div>
+                  )}
+                  <FormMessage />
+                </div>
+              </FormItem>
+            )}
+          />
+        )}
+
+        <FormTemplateSelectionDialog
+          open={showFormTemplateDialog}
+          onOpenChange={setShowFormTemplateDialog}
+          onSelect={(template) => {
+            form.setValue('form_template_id', template.id);
+            setFormTemplates(prev => {
+              const exists = prev.some(t => t.id === template.id);
+              if (!exists) {
+                return [...prev, template];
+              }
+              return prev;
+            });
+          }}
+          orgId={groupId}
+          selectedTemplateId={form.getValues('form_template_id')}
         />
 
         <Button type="submit" className="w-full" disabled={pending}>

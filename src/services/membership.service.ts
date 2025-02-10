@@ -1,6 +1,11 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { Membership, MembershipStatus, MembershipTier } from "@/lib/types/membership";
 import { MemberIdService } from "@/services/member-id.service";
+import { ProductService } from "@/services/product.service";
+import { IMembershipTierProduct } from "@/lib/types/product";
+import { Database } from "@/lib/types/database.types";
+
+type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
 export class MembershipService {
   static async getMembership(id: string): Promise<Membership | null> {
@@ -151,6 +156,84 @@ export class MembershipService {
     
     if (error) throw error;
     return count || 0;
+  }
+
+  static async getMembershipTierAndForm(tierId: string): Promise<{ tier: IMembershipTierProduct, formTemplate: FormTemplate }> {
+    const tier = await ProductService.getMembershipTier(tierId);
+    if (!tier || !tier.membership_tier.form_template_id) {
+      throw new Error('No form template id found for this membership tier');
+    }
+
+    const supabase = await createClient();
+    const { data: formTemplate, error } = await supabase
+      .from('form_templates')
+      .select('*')
+      .eq('id', tier.membership_tier.form_template_id)
+      .single();
+
+    if (error || !formTemplate) {
+      throw new Error('Error fetching form template');
+    }
+
+    return { tier, formTemplate };
+  }
+
+  static async checkExistingMembership(userId: string, groupId: string, tierId: string): Promise<{ 
+    hasMembership: boolean;
+    hasApplication: boolean;
+    applicationId?: string;
+    membershipId?: string;
+  }> {
+    const supabase = await createClient();
+
+    // First get the group_user record
+    const { data: groupUser, error: groupUserError } = await supabase
+      .from('group_users')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('group_id', groupId)
+      .single();
+
+    if (groupUserError && groupUserError.code !== 'PGRST116') {
+      throw groupUserError;
+    }
+
+    if (!groupUser) {
+      return { hasMembership: false, hasApplication: false };
+    }
+
+    // Check for active membership
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select('id')
+      .eq('group_user_id', groupUser.id)
+      .eq('tier_id', tierId)
+      .eq('status', 'active')
+      .single();
+
+    if (membershipError && membershipError.code !== 'PGRST116') {
+      throw membershipError;
+    }
+
+    // Check for pending application
+    const { data: application, error: applicationError } = await supabase
+      .from('applications')
+      .select('id')
+      .eq('group_user_id', groupUser.id)
+      .eq('tier_id', tierId)
+      .eq('status', 'pending')
+      .single();
+
+    if (applicationError && applicationError.code !== 'PGRST116') {
+      throw applicationError;
+    }
+
+    return {
+      hasMembership: !!membership,
+      hasApplication: !!application,
+      membershipId: membership?.id,
+      applicationId: application?.id
+    };
   }
 }
 

@@ -83,10 +83,10 @@ type ActionResponse = {
 
 export async function handleApproveApplication(
   prevState: ActionResponse | null,
-  data: { id: string }
+  formData: FormData
 ): Promise<ActionResponse> {
   try {
-    const applicationId = data.id;
+    const applicationId = formData.get('id') as string;
     if (!applicationId) {
       return {
         error: "Application ID is required",
@@ -111,10 +111,10 @@ export async function handleApproveApplication(
 
 export async function handleRejectApplication(
   prevState: ActionResponse | null,
-  data: { id: string }
+  formData: FormData
 ): Promise<ActionResponse> {
   try {
-    const applicationId = data.id;
+    const applicationId = formData.get('id') as string;
     if (!applicationId) {
       return {
         error: "Application ID is required",

@@ -159,6 +159,16 @@
             "  allowGuest: true",
             "});"
           ]
+        },
+        "migration": {
+          "command": "npx supabase migration new {name}",
+          "path": "supabase/migrations/{timestamp}_{name}.sql",
+          "template": [
+            "-- Migration: {name}",
+            "-- Description: {description}",
+            "",
+            "-- Write your SQL migration here"
+          ]
         }
       }
     }

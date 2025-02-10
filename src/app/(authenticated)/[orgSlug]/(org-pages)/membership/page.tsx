@@ -13,6 +13,7 @@ async function MembershipPage({ org }: OrgAccessHOCProps) {
     tiers={tiers} 
     memberships={memberships}
     groupId={org.id} 
+    orgSlug={org.slug}
   />;
 }
 

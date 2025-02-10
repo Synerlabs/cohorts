@@ -2,6 +2,7 @@ import { createClient } from "@/lib/utils/supabase/server";
 import { Database } from "@/lib/types/database.types";
 import { OrderService } from "./order.service";
 import { ProductService } from "./product.service";
+import { MembershipActivationType } from "@/lib/types/membership";
 
 export type Application = {
   id: string;
@@ -103,12 +104,29 @@ export async function approveApplication(applicationId: string): Promise<Applica
   if (!application) throw new Error('Application not found');
 
   const now = new Date().toISOString();
-  const shouldActivate = application.product_price === 0 || 
-    (application.activation_type !== 'payment_required' && 
-     application.activation_type !== 'review_then_payment');
 
-  // Update application status
-  const newStatus = application.activation_type === 'review_then_payment' 
+  // Determine if we should activate the membership now
+  // We should activate if:
+  // 1. It's a free membership OR
+  // 2. It's a paid membership but doesn't require payment first
+  const shouldActivate = application.product_price === 0 || 
+    ![
+      MembershipActivationType.PAYMENT_REQUIRED,
+      MembershipActivationType.REVIEW_THEN_PAYMENT,
+      MembershipActivationType.FORM_THEN_PAYMENT,
+      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+    ].includes(application.activation_type as MembershipActivationType);
+
+  // Determine the new status
+  // We should set to pending_payment if:
+  // 1. It's a paid membership AND
+  // 2. The activation type requires payment after approval
+  const newStatus = (application.product_price > 0 && 
+    [
+      MembershipActivationType.REVIEW_THEN_PAYMENT,
+      MembershipActivationType.FORM_THEN_REVIEW,
+      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+    ].includes(application.activation_type as MembershipActivationType))
     ? 'pending_payment' 
     : 'approved';
 
@@ -209,7 +227,8 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
 
 export async function createMembershipApplication(
   groupUserId: string,
-  productId: string
+  productId: string,
+  formData?: Record<string, any>
 ): Promise<Application> {
   const supabase = await createClient();
 
@@ -233,9 +252,13 @@ export async function createMembershipApplication(
       initialStatus = 'approved';
       break;
     case 'review_required':
+    case 'form_required':
+    case 'form_then_review':
       initialStatus = 'pending';
       break;
     case 'payment_required':
+    case 'form_then_payment':
+    case 'form_then_payment_then_review':
       initialStatus = 'pending_payment';
       break;
     case 'review_then_payment':
@@ -245,31 +268,50 @@ export async function createMembershipApplication(
       initialStatus = 'pending';
   }
 
+  let formResponseId: string | null = null;
+
+  // If form data is provided and there's a form template, store it in form_responses
+  if (formData && product.membership_tier.form_template_id) {
+    const { data: formResponse, error: formResponseError } = await supabase
+      .from('form_responses')
+      .insert({
+        template_id: product.membership_tier.form_template_id,
+        response_data: formData,
+        submitted_by: groupUser.user_id
+      })
+      .select()
+      .single();
+
+    if (formResponseError) throw formResponseError;
+    formResponseId = formResponse.id;
+  }
+
   // Create the application
-  const { data, error } = await supabase
+  const { data: newApplication, error: insertError } = await supabase
     .from('applications')
     .insert({
       group_user_id: groupUserId,
       tier_id: productId,
-      status: initialStatus
+      status: initialStatus,
+      form_response_id: formResponseId
     })
     .select()
     .single();
 
-  if (error) throw error;
-  if (!data) throw new Error('Failed to create application');
+  if (insertError) throw insertError;
+  if (!newApplication) throw new Error('Failed to create application');
 
-  // Fetch the full application details
-  const { data: fullApplication, error: fetchError } = await supabase
+  // Fetch the full application details from the view
+  const { data: application, error: viewError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('id', data.id)
+    .eq('id', newApplication.id)
     .single();
 
-  if (fetchError) throw fetchError;
-  if (!fullApplication) throw new Error('Failed to fetch application details');
+  if (viewError) throw viewError;
+  if (!application) throw new Error('Failed to fetch application details');
 
-  return mapViewToApplication(fullApplication as ApplicationView);
+  return mapViewToApplication(application as ApplicationView);
 }
 
 export async function getUserMembershipApplications(userId: string, groupId: string): Promise<Application[]> {
