@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card } from '@/components/ui/card';
-import { 
-  GraduationCap, 
-  Briefcase, 
-  ClipboardList, 
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card } from "@/components/ui/card";
+import {
+  GraduationCap,
+  Briefcase,
+  ClipboardList,
   FileText,
   Users,
   CalendarRange,
   FileSpreadsheet,
   FileCheck,
   UserPlus,
-} from 'lucide-react';
-import { FormField } from './form-field';
+} from "lucide-react";
+import { FormField } from "./form-field";
 
 interface TemplateSelectionDialogProps {
   open: boolean;
@@ -38,50 +38,51 @@ interface FormTemplate {
 
 const PREDEFINED_TEMPLATES: FormTemplate[] = [
   {
-    id: 'student-application',
-    name: 'Student Application',
-    description: 'Standard student application form with personal details, academic history, and program preferences.',
+    id: "student-application",
+    name: "Student Application",
+    description:
+      "Standard student application form with personal details, academic history, and program preferences.",
     icon: GraduationCap,
     fields: [
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Personal Information',
+        type: "section",
+        label: "Personal Information",
         required: false,
         sectionConfig: {
-          description: 'Please provide your personal details',
+          description: "Please provide your personal details",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Full Name',
+              type: "text",
+              label: "Full Name",
               required: true,
               textConfig: {
-                placeholder: 'Enter your full name',
+                placeholder: "Enter your full name",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'email',
-              label: 'Email Address',
+              type: "email",
+              label: "Email Address",
               required: true,
               emailConfig: {
-                placeholder: 'Enter your email address',
+                placeholder: "Enter your email address",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'phone',
-              label: 'Phone Number',
+              type: "phone",
+              label: "Phone Number",
               required: true,
               phoneConfig: {
-                placeholder: 'Enter your phone number',
+                placeholder: "Enter your phone number",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'date',
-              label: 'Date of Birth',
+              type: "date",
+              label: "Date of Birth",
               required: true,
             },
           ],
@@ -89,36 +90,36 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Academic History',
+        type: "section",
+        label: "Academic History",
         required: false,
         sectionConfig: {
-          description: 'Tell us about your educational background',
+          description: "Tell us about your educational background",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'repeatable',
-              label: 'Education',
+              type: "repeatable",
+              label: "Education",
               required: true,
               repeatableConfig: {
                 minItems: 1,
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Institution Name',
+                    type: "text",
+                    label: "Institution Name",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Degree/Certificate',
+                    type: "text",
+                    label: "Degree/Certificate",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'number',
-                    label: 'GPA',
+                    type: "number",
+                    label: "GPA",
                     required: true,
                     numberConfig: {
                       min: 0,
@@ -134,27 +135,27 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Program Preferences',
+        type: "section",
+        label: "Program Preferences",
         required: false,
         sectionConfig: {
-          description: 'Select your preferred programs',
+          description: "Select your preferred programs",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'select',
-              label: 'Preferred Program',
+              type: "select",
+              label: "Preferred Program",
               required: true,
               options: [
-                { label: 'Computer Science', value: 'cs' },
-                { label: 'Business Administration', value: 'ba' },
-                { label: 'Engineering', value: 'eng' },
+                { label: "Computer Science", value: "cs" },
+                { label: "Business Administration", value: "ba" },
+                { label: "Engineering", value: "eng" },
               ],
             },
             {
               id: crypto.randomUUID(),
-              type: 'textarea',
-              label: 'Statement of Purpose',
+              type: "textarea",
+              label: "Statement of Purpose",
               required: true,
               textConfig: {
                 minLength: 250,
@@ -167,35 +168,36 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
     ],
   },
   {
-    id: 'job-application',
-    name: 'Job Application',
-    description: 'Professional job application form with work experience, skills, and references.',
+    id: "job-application",
+    name: "Job Application",
+    description:
+      "Professional job application form with work experience, skills, and references.",
     icon: Briefcase,
     fields: [
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Personal Information',
+        type: "section",
+        label: "Personal Information",
         required: false,
         sectionConfig: {
-          description: 'Please provide your contact information',
+          description: "Please provide your contact information",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Full Name',
+              type: "text",
+              label: "Full Name",
               required: true,
             },
             {
               id: crypto.randomUUID(),
-              type: 'email',
-              label: 'Email Address',
+              type: "email",
+              label: "Email Address",
               required: true,
             },
             {
               id: crypto.randomUUID(),
-              type: 'phone',
-              label: 'Phone Number',
+              type: "phone",
+              label: "Phone Number",
               required: true,
             },
           ],
@@ -203,48 +205,48 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Professional Experience',
+        type: "section",
+        label: "Professional Experience",
         required: false,
         sectionConfig: {
-          description: 'Tell us about your work history',
+          description: "Tell us about your work history",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'repeatable',
-              label: 'Work Experience',
+              type: "repeatable",
+              label: "Work Experience",
               required: true,
               repeatableConfig: {
                 minItems: 1,
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Company Name',
+                    type: "text",
+                    label: "Company Name",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Position',
+                    type: "text",
+                    label: "Position",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'textarea',
-                    label: 'Responsibilities',
+                    type: "textarea",
+                    label: "Responsibilities",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'date',
-                    label: 'Start Date',
+                    type: "date",
+                    label: "Start Date",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'date',
-                    label: 'End Date',
+                    type: "date",
+                    label: "End Date",
                     required: false,
                   },
                 ],
@@ -255,36 +257,36 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Skills & Qualifications',
+        type: "section",
+        label: "Skills & Qualifications",
         required: false,
         sectionConfig: {
-          description: 'List your relevant skills and qualifications',
+          description: "List your relevant skills and qualifications",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'repeatable',
-              label: 'Skills',
+              type: "repeatable",
+              label: "Skills",
               required: true,
               repeatableConfig: {
                 minItems: 1,
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Skill',
+                    type: "text",
+                    label: "Skill",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'select',
-                    label: 'Proficiency Level',
+                    type: "select",
+                    label: "Proficiency Level",
                     required: true,
                     options: [
-                      { label: 'Beginner', value: 'beginner' },
-                      { label: 'Intermediate', value: 'intermediate' },
-                      { label: 'Advanced', value: 'advanced' },
-                      { label: 'Expert', value: 'expert' },
+                      { label: "Beginner", value: "beginner" },
+                      { label: "Intermediate", value: "intermediate" },
+                      { label: "Advanced", value: "advanced" },
+                      { label: "Expert", value: "expert" },
                     ],
                   },
                 ],
@@ -295,30 +297,30 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Documents',
+        type: "section",
+        label: "Documents",
         required: false,
         sectionConfig: {
-          description: 'Upload your resume and cover letter',
+          description: "Upload your resume and cover letter",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'file',
-              label: 'Resume',
+              type: "file",
+              label: "Resume",
               required: true,
               fileConfig: {
-                accept: '.pdf,.doc,.docx',
+                accept: ".pdf,.doc,.docx",
                 maxSize: 5 * 1024 * 1024,
                 maxFiles: 1,
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'file',
-              label: 'Cover Letter',
+              type: "file",
+              label: "Cover Letter",
               required: false,
               fileConfig: {
-                accept: '.pdf,.doc,.docx',
+                accept: ".pdf,.doc,.docx",
                 maxSize: 5 * 1024 * 1024,
                 maxFiles: 1,
               },
@@ -329,131 +331,133 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
     ],
   },
   {
-    id: 'event-registration',
-    name: 'Event Registration',
-    description: 'Event registration form with participant details and preferences.',
+    id: "event-registration",
+    name: "Event Registration",
+    description:
+      "Event registration form with participant details and preferences.",
     icon: CalendarRange,
     fields: [
       // Add event registration template fields
     ],
   },
   {
-    id: 'feedback-survey',
-    name: 'Feedback Survey',
-    description: 'Comprehensive feedback form with various question types.',
+    id: "feedback-survey",
+    name: "Feedback Survey",
+    description: "Comprehensive feedback form with various question types.",
     icon: FileCheck,
     fields: [
       // Add feedback survey template fields
     ],
   },
   {
-    id: 'blank',
-    name: 'Blank Form',
-    description: 'Start with a blank form and add your own fields.',
+    id: "blank",
+    name: "Blank Form",
+    description: "Start with a blank form and add your own fields.",
     icon: FileText,
     fields: [
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Form Fields',
+        type: "section",
+        label: "Form Fields",
         required: false,
         sectionConfig: {
-          description: '',
+          description: "",
           fields: [],
         },
       },
     ],
   },
   {
-    id: 'membership-application',
-    name: 'Membership Application',
-    description: 'Comprehensive membership application form with personal details, contact information, educational background, and work experience.',
+    id: "membership-application",
+    name: "Membership Application",
+    description:
+      "Comprehensive membership application form with personal details, contact information, educational background, and work experience.",
     icon: UserPlus,
     fields: [
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Personal Information',
+        type: "section",
+        label: "Personal Information",
         required: false,
         sectionConfig: {
-          description: 'Please provide your personal details',
+          description: "Please provide your personal details",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Last Name',
+              type: "text",
+              label: "Last Name",
               required: true,
               textConfig: {
-                placeholder: 'Enter your last name',
+                placeholder: "Enter your last name",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'First Name',
+              type: "text",
+              label: "First Name",
               required: true,
               textConfig: {
-                placeholder: 'Enter your first name',
+                placeholder: "Enter your first name",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Middle Initial',
+              type: "text",
+              label: "Middle Initial",
               required: false,
               textConfig: {
-                placeholder: 'M.I.',
+                placeholder: "M.I.",
                 maxLength: 1,
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'date',
-              label: 'Date of Birth',
+              type: "date",
+              label: "Date of Birth",
               required: true,
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Civil Status',
+              type: "text",
+              label: "Civil Status",
               required: true,
             },
             {
               id: crypto.randomUUID(),
-              type: 'select',
-              label: 'Gender',
+              type: "select",
+              label: "Gender",
               required: true,
               options: [
-                { label: 'Male', value: 'male' },
-                { label: 'Female', value: 'female' },
-                { label: 'Other', value: 'other' },
+                { label: "Male", value: "male" },
+                { label: "Female", value: "female" },
+                { label: "Other", value: "other" },
               ],
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Place of Birth',
+              type: "text",
+              label: "Place of Birth",
               required: true,
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Religion',
+              type: "text",
+              label: "Religion",
               required: true,
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Region',
+              type: "text",
+              label: "Region",
               required: true,
             },
             {
               id: crypto.randomUUID(),
-              type: 'file',
-              label: '1.5 x 1.5 Picture',
+              type: "file",
+              label: "1.5 x 1.5 Picture",
               required: true,
               fileConfig: {
-                accept: 'image/*',
+                accept: "image/*",
                 maxSize: 5 * 1024 * 1024, // 5MB
                 maxFiles: 1,
               },
@@ -463,46 +467,46 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Contact Information',
+        type: "section",
+        label: "Contact Information",
         required: false,
         sectionConfig: {
-          description: 'Please provide your contact details',
+          description: "Please provide your contact details",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'email',
-              label: 'Email Address',
+              type: "email",
+              label: "Email Address",
               required: true,
               emailConfig: {
-                placeholder: 'Enter your email address',
+                placeholder: "Enter your email address",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'phone',
-              label: 'Mobile No.',
+              type: "phone",
+              label: "Mobile No.",
               required: true,
               phoneConfig: {
-                placeholder: 'Enter your mobile number',
+                placeholder: "Enter your mobile number",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'phone',
-              label: 'Home No.',
+              type: "phone",
+              label: "Home No.",
               required: false,
               phoneConfig: {
-                placeholder: 'Enter your home number',
+                placeholder: "Enter your home number",
               },
             },
             {
               id: crypto.randomUUID(),
-              type: 'phone',
-              label: 'Business No.',
+              type: "phone",
+              label: "Business No.",
               required: false,
               phoneConfig: {
-                placeholder: 'Enter your business number',
+                placeholder: "Enter your business number",
               },
             },
           ],
@@ -510,44 +514,44 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Address Information',
+        type: "section",
+        label: "Address Information",
         required: false,
         sectionConfig: {
-          description: 'Please provide your address details',
+          description: "Please provide your address details",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'group',
-              label: 'Present Address',
+              type: "group",
+              label: "Present Address",
               required: true,
               groupConfig: {
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'textarea',
-                    label: 'Street Address',
+                    type: "textarea",
+                    label: "Street Address",
                     required: true,
                     textConfig: {
-                      placeholder: 'Enter your street address',
+                      placeholder: "Enter your street address",
                     },
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'City',
+                    type: "text",
+                    label: "City",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Province',
+                    type: "text",
+                    label: "Province",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Postal Code',
+                    type: "text",
+                    label: "Postal Code",
                     required: true,
                   },
                 ],
@@ -556,36 +560,36 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
             },
             {
               id: crypto.randomUUID(),
-              type: 'group',
-              label: 'Permanent Address',
+              type: "group",
+              label: "Permanent Address",
               required: true,
               groupConfig: {
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'textarea',
-                    label: 'Street Address',
+                    type: "textarea",
+                    label: "Street Address",
                     required: true,
                     textConfig: {
-                      placeholder: 'Enter your street address',
+                      placeholder: "Enter your street address",
                     },
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'City',
+                    type: "text",
+                    label: "City",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Province',
+                    type: "text",
+                    label: "Province",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Postal Code',
+                    type: "text",
+                    label: "Postal Code",
                     required: true,
                   },
                 ],
@@ -594,44 +598,45 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
             },
             {
               id: crypto.randomUUID(),
-              type: 'checkbox',
-              label: 'Same as Present Address',
+              type: "checkbox",
+              label: "Same as Present Address",
               required: false,
-              helpText: 'Check if permanent address is the same as present address',
+              helpText:
+                "Check if permanent address is the same as present address",
             },
           ],
         },
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Professional Information',
+        type: "section",
+        label: "Professional Information",
         required: false,
         sectionConfig: {
-          description: 'Please provide your current professional details',
+          description: "Please provide your current professional details",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Current Company/Business Name',
+              type: "text",
+              label: "Current Company/Business Name",
               required: false,
             },
             {
               id: crypto.randomUUID(),
-              type: 'textarea',
-              label: 'Company/Business Address',
+              type: "textarea",
+              label: "Company/Business Address",
               required: false,
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Position',
+              type: "text",
+              label: "Position",
               required: false,
             },
             {
               id: crypto.randomUUID(),
-              type: 'text',
-              label: 'Specialization',
+              type: "text",
+              label: "Specialization",
               required: false,
             },
           ],
@@ -639,35 +644,35 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Educational Attainment',
+        type: "section",
+        label: "Educational Attainment",
         required: false,
         sectionConfig: {
-          description: 'Please provide your educational background',
+          description: "Please provide your educational background",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'group',
-              label: 'Tertiary',
+              type: "group",
+              label: "Tertiary",
               required: true,
               groupConfig: {
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'School',
+                    type: "text",
+                    label: "School",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Degree',
+                    type: "text",
+                    label: "Degree",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Inclusive Date (Year)',
+                    type: "text",
+                    label: "Inclusive Date (Year)",
                     required: true,
                   },
                 ],
@@ -676,27 +681,27 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
             },
             {
               id: crypto.randomUUID(),
-              type: 'group',
-              label: 'Master\'s',
+              type: "group",
+              label: "Master's",
               required: false,
               groupConfig: {
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'School',
+                    type: "text",
+                    label: "School",
                     required: false,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Degree',
+                    type: "text",
+                    label: "Degree",
                     required: false,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Inclusive Date (Year)',
+                    type: "text",
+                    label: "Inclusive Date (Year)",
                     required: false,
                   },
                 ],
@@ -705,27 +710,27 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
             },
             {
               id: crypto.randomUUID(),
-              type: 'group',
-              label: 'Doctoral',
+              type: "group",
+              label: "Doctoral",
               required: false,
               groupConfig: {
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'School',
+                    type: "text",
+                    label: "School",
                     required: false,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Degree',
+                    type: "text",
+                    label: "Degree",
                     required: false,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Inclusive Date (Year)',
+                    type: "text",
+                    label: "Inclusive Date (Year)",
                     required: false,
                   },
                 ],
@@ -737,39 +742,39 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Work Experience',
+        type: "section",
+        label: "Work Experience",
         required: false,
         sectionConfig: {
-          description: 'Please provide your work experience',
+          description: "Please provide your work experience",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'repeatable',
-              label: 'Work History',
+              type: "repeatable",
+              label: "Work History",
               required: false,
               repeatableConfig: {
                 minItems: 0,
                 maxItems: 10,
-                addLabel: 'Add Work Experience',
-                itemLabel: 'Work Experience',
+                addLabel: "Add Work Experience",
+                itemLabel: "Work Experience",
                 fields: [
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Company',
+                    type: "text",
+                    label: "Company",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Position',
+                    type: "text",
+                    label: "Position",
                     required: true,
                   },
                   {
                     id: crypto.randomUUID(),
-                    type: 'text',
-                    label: 'Inclusive Date (Year)',
+                    type: "text",
+                    label: "Inclusive Date (Year)",
                     required: true,
                   },
                 ],
@@ -780,23 +785,24 @@ const PREDEFINED_TEMPLATES: FormTemplate[] = [
       },
       {
         id: crypto.randomUUID(),
-        type: 'section',
-        label: 'Agreement',
+        type: "section",
+        label: "Agreement",
         required: false,
         sectionConfig: {
-          description: 'Please review and sign the agreement',
+          description: "Please review and sign the agreement",
           fields: [
             {
               id: crypto.randomUUID(),
-              type: 'signature',
-              label: 'Signature',
+              type: "signature",
+              label: "Signature",
               required: true,
-              helpText: 'I certify that the facts contained in this form are true and correct. Any false information will disqualify my application.',
+              helpText:
+                "I certify that the facts contained in this form are true and correct. Any false information will disqualify my application.",
             },
             {
               id: crypto.randomUUID(),
-              type: 'date',
-              label: 'Date',
+              type: "date",
+              label: "Date",
               required: true,
             },
           ],
@@ -850,4 +856,4 @@ export function TemplateSelectionDialog({
       </DialogContent>
     </Dialog>
   );
-} 
+}
