@@ -25,6 +25,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { getFormTemplateById } from "../../forms/_actions/form-template.action";
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -144,7 +145,44 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
 
   const [showFormTemplateDialog, setShowFormTemplateDialog] = useState(false);
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   
+  // Add useEffect to load form template when component mounts
+  useEffect(() => {
+    const loadFormTemplate = async () => {
+      const formTemplateId = form.getValues('form_template_id');
+      if (!formTemplateId) return;
+      
+      setIsLoadingTemplate(true);
+      try {
+        const supabase = createClientComponentClient<Database>();
+        const { data, error } = await getFormTemplateById(formTemplateId);
+
+        if (error) throw error;
+        if (data) {
+          setFormTemplates(prev => {
+            const exists = prev.some(t => t.id === data.id);
+            if (!exists) {
+              return [...prev, data];
+            }
+            return prev;
+          });
+        }
+      } catch (error) {
+        console.error('Error loading form template:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load form template details',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingTemplate(false);
+      }
+    };
+
+    loadFormTemplate();
+  }, []);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -450,12 +488,20 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
                             <p className="font-medium truncate">
-                              {formTemplates.find(t => t.id === field.value)?.title || 'Loading...'}
+                              {isLoadingTemplate ? (
+                                "Loading..."
+                              ) : (
+                                formTemplates.find(t => t.id === field.value)?.title || 'Form Template'
+                              )}
                             </p>
                             <Badge variant="secondary" className="shrink-0">Selected</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                            {formTemplates.find(t => t.id === field.value)?.description || 'Loading form details...'}
+                            {isLoadingTemplate ? (
+                              "Loading form details..."
+                            ) : (
+                              formTemplates.find(t => t.id === field.value)?.description || 'No description available'
+                            )}
                           </p>
                         </div>
                       </div>

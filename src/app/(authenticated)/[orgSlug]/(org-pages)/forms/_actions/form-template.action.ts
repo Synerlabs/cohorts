@@ -290,6 +290,27 @@ export async function publishFormTemplate(id: string) {
   }
 }
 
+export async function getFormTemplateById(id: string) {
+  try {
+    const supabase = await createServiceRoleClient();
+
+    const { data: template, error } = await supabase
+      .from('form_templates')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+
+    return { data: template };
+  } catch (error) {
+    console.error('Failed to get form template by id:', error);
+    return {
+      error: error instanceof Error ? error.message : 'Failed to get form template by id',
+    };
+  }
+}
+
 export async function getPublishedFormTemplates(orgId: string) {
   try {
     const supabase = await createServiceRoleClient();
