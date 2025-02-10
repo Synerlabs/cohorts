@@ -101,7 +101,7 @@ export default function GroupRoleForm({
   return (
     <FormProvider {...form}>
       <form
-        className="container py-6"
+        className="container max-w-full px-4 py-6"
         ref={formRef}
         onSubmit={submitHandler}
       >
@@ -165,7 +165,7 @@ export default function GroupRoleForm({
           )}
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_400px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_25%] xxl:grid-cols-[minmax(0,1fr)_400px] gap-6">
           {/* Left Column - Permissions */}
           <FormField
             name="permissions"
@@ -178,21 +178,21 @@ export default function GroupRoleForm({
                 value={field.value?.filter(Boolean) || []}
                 onValueChange={(value) => field.onChange(value?.filter(Boolean) || [])}
               >
-                <Card>
+                <Card className="overflow-hidden">
                   <CardHeader>
                     <CardTitle>Permissions</CardTitle>
                     <CardDescription>
                       Manage permissions for this role
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="relative">
+                  <CardContent className="relative p-0">
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead className="w-[100px] sticky left-0 bg-background">Module</TableHead>
-                            <TableHead className="min-w-[200px]">Description</TableHead>
-                            <TableHead className="text-right min-w-[300px]">
+                            <TableHead className="sticky left-0 bg-background">Module</TableHead>
+                            <TableHead >Description</TableHead>
+                            <TableHead className="text-right">
                               Permissions
                             </TableHead>
                           </TableRow>
