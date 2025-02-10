@@ -15,7 +15,7 @@ async function NewFormPage({ org, user }: NewFormPageProps) {
           Design your form by adding and configuring fields.
         </p>
       </div>
-      <FormBuilder orgId={org.id} />
+      <FormBuilder org={org} />
     </div>
   );
 }

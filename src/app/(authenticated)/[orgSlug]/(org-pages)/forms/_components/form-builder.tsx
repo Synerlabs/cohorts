@@ -18,16 +18,18 @@ import { TemplateSelectionDialog } from './template-selection-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FormPreview } from './form-preview';
 import { publishFormTemplate } from '../_actions/form-template.action';
+import { Org } from '@/lib/types/org.type';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
 interface FormBuilderProps {
-  orgId: string;
+  org: Org;
   template?: FormTemplate;
   mode?: 'create' | 'edit';
 }
 
-export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderProps) {
+export function FormBuilder({ org, template, mode = 'create' }: FormBuilderProps) {
+  const orgId = org.id;
   const [title, setTitle] = useState(template?.title || '');
   const [description, setDescription] = useState(template?.description || '');
   const [sections, setSections] = useState<FormFieldType[]>(() => {
@@ -184,7 +186,7 @@ export function FormBuilder({ orgId, template, mode = 'create' }: FormBuilderPro
         description: `Form template ${shouldPublish ? 'published' : (mode === 'create' ? 'created' : 'updated')} successfully`,
       });
 
-      router.push(`/@${orgId}/forms`);
+      router.push(`/@${org.slug}/forms`);
     } catch (error) {
       console.error('Error saving form template:', error);
       toast({

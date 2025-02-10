@@ -36,7 +36,7 @@ async function EditFormPage({ org, user, params }: EditFormPageProps) {
         </p>
       </div>
       <FormBuilder
-        orgId={org.id}
+        org={org}
         template={template}
         mode="edit"
       />
