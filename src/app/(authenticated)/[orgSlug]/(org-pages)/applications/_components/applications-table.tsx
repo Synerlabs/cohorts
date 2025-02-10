@@ -21,7 +21,17 @@ import { permissions } from "@/lib/types/permissions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { getActivationTypeBadgeVariant, getApplicationStatusBadgeVariant } from "@/lib/utils/badges";
-import { formatPrice } from "@/lib/utils/price";
+import { formatPrice, CurrencyCode } from "@/lib/utils/price";
+import { useCallback, useMemo } from "react";
+
+type ActivationType = 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment';
+
+const activationTypeLabels: Record<ActivationType, string> = {
+  'automatic': 'Automatic',
+  'review_required': 'Review Required',
+  'payment_required': 'Payment Required',
+  'review_then_payment': 'Review then Payment'
+} as const;
 
 interface ApplicationsTableProps {
   applications: Application[];
@@ -29,26 +39,41 @@ interface ApplicationsTableProps {
   userPermissions?: string[];
 }
 
-type ActionResult = {
-  success?: boolean;
-  error?: string;
-  id?: string;
-};
-
-const activationTypeLabels = {
-  'automatic': 'Automatic',
-  'review_required': 'Review Required',
-  'payment_required': 'Payment Required',
-  'review_then_payment': 'Review then Payment'
-} as const;
-
 export function ApplicationsTable({ applications, showActions = true, userPermissions = [] }: ApplicationsTableProps) {
   const router = useRouter();
   const [approveState, approveDispatch] = useToastActionState(handleApproveApplication);
   const [rejectState, rejectDispatch] = useToastActionState(handleRejectApplication);
 
-  const canApprove = userPermissions.includes(permissions.applications.approve);
-  const canReject = userPermissions.includes(permissions.applications.reject);
+  const canApprove = useMemo(() => 
+    userPermissions.includes(permissions.applications.approve),
+    [userPermissions]
+  );
+  
+  const canReject = useMemo(() => 
+    userPermissions.includes(permissions.applications.reject),
+    [userPermissions]
+  );
+
+  const handleApprove = useCallback((applicationId: string) => {
+    const formData = new FormData();
+    formData.append('id', applicationId);
+    approveDispatch(formData);
+  }, [approveDispatch]);
+
+  const handleReject = useCallback((applicationId: string) => {
+    const formData = new FormData();
+    formData.append('id', applicationId);
+    rejectDispatch(formData);
+  }, [rejectDispatch]);
+
+  const handleRowClick = useCallback((applicationId: string) => {
+    router.push(`applications/${applicationId}`);
+  }, [router]);
+
+  const handlePaymentClick = useCallback((groupSlug: string, applicationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    router.push(`/@${groupSlug}/join/payments?applicationId=${applicationId}`);
+  }, [router]);
 
   if (!applications?.length) {
     return (
@@ -79,7 +104,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
             <TableRow 
               key={application.id}
               className="cursor-pointer hover:bg-muted/50"
-              onClick={() => router.push(`applications/${application.id}`)}
+              onClick={() => handleRowClick(application.id)}
             >
               <TableCell>
                 <div className="flex items-center gap-4">
@@ -103,11 +128,11 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                 {application.product.name}
               </TableCell>
               <TableCell>
-                {formatPrice(application.product.price, application.product.currency)}
+                {formatPrice(application.product.price, application.product.currency as CurrencyCode)}
               </TableCell>
               <TableCell>
                 <Badge variant={getActivationTypeBadgeVariant(application.product.membership_tier.activation_type)}>
-                  {activationTypeLabels[application.product.membership_tier.activation_type as keyof typeof activationTypeLabels]}
+                  {activationTypeLabels[application.product.membership_tier.activation_type as ActivationType]}
                 </Badge>
               </TableCell>
               <TableCell>
@@ -133,11 +158,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => {
-                        const formData = new FormData();
-                        formData.append('id', application.id);
-                        approveDispatch(formData);
-                      }}
+                      onClick={() => handleApprove(application.id)}
                       disabled={Boolean(approveState?.success === false || approveState?.error)}
                     >
                       <Check className="h-4 w-4" />
@@ -147,11 +168,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => {
-                        const formData = new FormData();
-                        formData.append('id', application.id);
-                        rejectDispatch(formData);
-                      }}
+                      onClick={() => handleReject(application.id)}
                       disabled={Boolean(rejectState?.success === false || rejectState?.error)}
                     >
                       <X className="h-4 w-4" />
@@ -161,7 +178,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => router.push(`/@${application.group.slug}/join/payments?applicationId=${application.id}`)}
+                      onClick={(e) => handlePaymentClick(application.group.slug, application.id, e)}
                     >
                       <CreditCard className="h-4 w-4" />
                     </Button>
