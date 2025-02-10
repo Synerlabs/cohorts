@@ -101,15 +101,20 @@ export function FormFieldRenderer({ field, sectionId, value, repeatableItems, fo
         </CardHeader>
         <CardContent className="pt-4">
           <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
-            {field.groupConfig?.fields?.map((subfield) => (
-              <FormFieldRenderer
-                key={subfield.id}
-                field={subfield}
-                sectionId={sectionId}
-                value={getFieldValue(formResponse, `${field.id}.${subfield.id}`, sectionId)}
-                formResponse={formResponse}
-              />
-            ))}
+            {field.groupConfig?.fields?.map((subfield) => {
+              const subfieldValue = sectionId ? 
+                formResponse?.response_data.sections[sectionId]?.fields[subfield.id]?.value : 
+                formResponse?.response_data.fields[subfield.id]?.value;
+              
+              return (
+                <div key={subfield.id} className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">{subfield.label}</p>
+                  <p className="text-sm">
+                    {subfieldValue || <span className="italic text-muted-foreground">Not provided</span>}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>

@@ -12,10 +12,47 @@ export function getFieldValue(formResponse: FormResponse | null, fieldId: string
   if (!formResponse) return null;
   
   try {
+    console.log('Getting field value:', { fieldId, sectionId, responseData: formResponse.response_data });
+    
     if (sectionId) {
-      return formResponse.response_data.sections[sectionId]?.fields[fieldId]?.value ?? null;
+      const sectionFields = formResponse.response_data.sections[sectionId]?.fields || {};
+      console.log('Section fields:', { sectionId, fields: sectionFields });
+      
+      // If this is a direct field, return its value
+      if (sectionFields[fieldId]?.value !== undefined) {
+        return sectionFields[fieldId].value;
+      }
+      
+      // If this is a group field, collect all fields that start with this ID
+      const groupFields = Object.entries(sectionFields)
+        .filter(([key]) => key.startsWith(`${fieldId}.`))
+        .reduce((acc, [key, value]) => {
+          // Extract the subfield ID (everything after the last dot)
+          const subfieldId = key.split('.').pop() || '';
+          acc[subfieldId] = value.value;
+          return acc;
+        }, {} as Record<string, any>);
+      
+      return Object.keys(groupFields).length > 0 ? groupFields : null;
     }
-    return formResponse.response_data.fields[fieldId]?.value ?? null;
+    
+    const rootFields = formResponse.response_data.fields || {};
+    console.log('Root fields:', { fieldId, fields: rootFields });
+    
+    // Same logic for root fields
+    if (rootFields[fieldId]?.value !== undefined) {
+      return rootFields[fieldId].value;
+    }
+    
+    const groupFields = Object.entries(rootFields)
+      .filter(([key]) => key.startsWith(`${fieldId}.`))
+      .reduce((acc, [key, value]) => {
+        const subfieldId = key.split('.').pop() || '';
+        acc[subfieldId] = value.value;
+        return acc;
+      }, {} as Record<string, any>);
+    
+    return Object.keys(groupFields).length > 0 ? groupFields : null;
   } catch (error) {
     console.error(`Error getting field value for ${fieldId}:`, error);
     return null;
