@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { formatDate } from "@/lib/utils";
 import { createClient } from "@/lib/utils/supabase/server";
 import { permissions } from "@/lib/types/permissions";
+import { FileText } from "lucide-react";
 
 interface FormField {
   type: string;
@@ -232,34 +233,42 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
       if (items.length === 0) {
         return (
           <div key={field.id} className="space-y-1">
-            <p className="text-sm font-medium">{field.label}</p>
-            <p className="text-sm text-muted-foreground">No items added</p>
+            <h4 className="text-sm font-medium text-muted-foreground">{field.label}</h4>
+            <p className="text-sm italic text-muted-foreground">No items added</p>
           </div>
         );
       }
 
       return (
         <div key={field.id} className="space-y-4">
-          <p className="text-sm font-medium">{field.label}</p>
-          {items.map(({ index, fields }) => (
-            <div key={`${field.id}-${index}`} className="border rounded-md p-4 space-y-4">
-              <p className="text-sm font-medium">{field.repeatableConfig?.itemLabel || `Item ${index + 1}`}</p>
-              <div className="space-y-4">
-                {field.repeatableConfig?.fields.map((subfield: any) => {
-                  const matchingField = fields.find((f: any) => f.key.endsWith(subfield.id));
-                  if (!matchingField) return null;
-                  return (
-                    <div key={matchingField.key} className="space-y-1">
-                      <p className="text-sm font-medium">{subfield.label}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {matchingField.value || 'Not provided'}
-                      </p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+          <h4 className="text-base font-medium text-muted-foreground">{field.label}</h4>
+          <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+            {items.map(({ index, fields }) => (
+              <Card key={`${field.id}-${index}`} className="overflow-hidden">
+                <CardHeader className="bg-muted/50 pb-4">
+                  <CardTitle className="text-sm font-medium">
+                    {field.repeatableConfig?.itemLabel || `Item ${index + 1}`}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-4">
+                  <div className="grid gap-3">
+                    {field.repeatableConfig?.fields.map((subfield: any) => {
+                      const matchingField = fields.find((f: any) => f.key.endsWith(subfield.id));
+                      if (!matchingField) return null;
+                      return (
+                        <div key={matchingField.key} className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground">{subfield.label}</p>
+                          <p className="text-sm">
+                            {matchingField.value || 'Not provided'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       );
     }
@@ -271,27 +280,28 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
       if (!value) {
         return (
           <div key={field.id} className="space-y-1">
-            <p className="text-sm font-medium">{field.label}</p>
-            <p className="text-sm text-muted-foreground">No file uploaded</p>
+            <p className="text-xs font-medium text-muted-foreground">{field.label}</p>
+            <p className="text-sm italic text-muted-foreground">No file uploaded</p>
           </div>
         );
       }
 
       return (
         <div key={field.id} className="space-y-1">
-          <p className="text-sm font-medium">{field.label}</p>
+          <p className="text-xs font-medium text-muted-foreground">{field.label}</p>
           <div className="flex items-center gap-2">
             <a
               href={value.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm text-blue-600 hover:underline"
+              className="text-sm text-primary hover:underline inline-flex items-center gap-1"
             >
+              <FileText className="h-3 w-3" />
               {value.name}
             </a>
-            <span className="text-xs text-muted-foreground">
-              ({Math.round(value.size / 1024)}KB)
-            </span>
+            <Badge variant="secondary" className="text-xs">
+              {Math.round(value.size / 1024)}KB
+            </Badge>
           </div>
         </div>
       );
@@ -299,23 +309,27 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
 
     if (field.type === 'group') {
       return (
-        <div key={field.id} className="space-y-4">
-          <h4 className="font-medium">{field.label}</h4>
-          {field.groupConfig?.description && (
-            <p className="text-sm text-muted-foreground">{field.groupConfig.description}</p>
-          )}
-          <div className="space-y-4 pl-4 border-l-2">
-            {field.groupConfig?.fields?.map((subfield: any) => renderField(subfield, sectionId))}
-          </div>
-        </div>
+        <Card key={field.id} className="overflow-hidden">
+          <CardHeader className="bg-muted/50 pb-4">
+            <CardTitle className="text-base font-medium">{field.label}</CardTitle>
+            {field.groupConfig?.description && (
+              <p className="text-sm text-muted-foreground">{field.groupConfig.description}</p>
+            )}
+          </CardHeader>
+          <CardContent className="pt-4">
+            <div className="grid gap-4 sm:grid-cols-1 lg:grid-cols-2">
+              {field.groupConfig?.fields?.map((subfield: any) => renderField(subfield, sectionId))}
+            </div>
+          </CardContent>
+        </Card>
       );
     }
 
     return (
       <div key={field.id} className="space-y-1">
-        <p className="text-sm font-medium">{field.label}</p>
-        <p className="text-sm text-muted-foreground">
-          {formattedValue || 'Not provided'}
+        <p className="text-xs font-medium text-muted-foreground">{field.label}</p>
+        <p className="text-sm">
+          {formattedValue || <span className="italic text-muted-foreground">Not provided</span>}
         </p>
       </div>
     );
@@ -330,117 +344,130 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
         </p>
       </div>
 
-      <div className="grid gap-6">
-        {/* Application Overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Application Overview</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Applicant Info */}
-            <div className="flex items-center gap-4">
-              <Avatar>
-                <AvatarFallback>
-                  {application.user_data.full_name.split(' ').map((n: string) => n[0]).join('')}
-                </AvatarFallback>
-              </Avatar>
-              <div>
-                <h3 className="font-medium">{application.user_data.full_name}</h3>
-                <p className="text-sm text-muted-foreground">{application.user_data.email}</p>
-              </div>
-            </div>
-
-            {/* Application Status */}
-            <div className="pt-4 border-t">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium">Status</p>
-                  <Badge variant={getBadgeVariant(application.status)}>
-                    {application.status.replace('_', ' ').toUpperCase()}
-                  </Badge>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Submitted</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatDate(application.submitted_at)}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Membership Details */}
-            <div className="pt-4 border-t">
-              <h4 className="text-sm font-medium mb-2">Membership Details</h4>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm font-medium">Tier</p>
-                  <p className="text-sm text-muted-foreground">{application.product_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Price</p>
-                  <p className="text-sm text-muted-foreground">
-                    {formatPrice(application.product_price, application.product_currency)}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Duration</p>
-                  <p className="text-sm text-muted-foreground">
-                    {application.duration_months} months
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm font-medium">Activation Type</p>
-                  <p className="text-sm text-muted-foreground">
-                    {application.activation_type.replace(/_/g, ' ').toUpperCase()}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Form Response */}
-        {formTemplate && (
+      <div className="grid gap-6 lg:grid-cols-12">
+        {/* Application Overview - Takes 4 columns on large screens */}
+        <div className="lg:col-span-4 lg:self-start lg:sticky lg:top-6">
           <Card>
-            <CardHeader>
-              <CardTitle>{formTemplate.title}</CardTitle>
-              {formTemplate.description && (
-                <p className="text-sm text-muted-foreground">
-                  {formTemplate.description}
-                </p>
-              )}
+            <CardHeader className="pb-4">
+            <div className="flex items-center gap-4">
+                <Avatar className="h-12 w-12">
+                  <AvatarFallback className="text-lg">
+                    {application.user_data.full_name.split(' ').map((n: string) => n[0]).join('')}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-medium text-lg">{application.user_data.full_name}</h3>
+                  <p className="text-sm text-muted-foreground">{application.user_data.email}</p>
+                </div>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-8">
-                {/* Render all sections from template */}
-                {formTemplate.schema.fields
-                  .filter(field => field.type === 'section')
-                  .map(section => (
-                    <div key={section.id} className="space-y-4">
-                      <h3 className="font-medium text-lg">{section.label}</h3>
-                      <div className="space-y-4 pl-4">
-                        {section.sectionConfig?.fields.map(field => renderField(field, section.id))}
-                      </div>
-                    </div>
-                  ))}
+            <CardContent className="space-y-6">
+              {/* Applicant Info */}
+            
 
-                {/* Render root fields from template */}
-                {formTemplate.schema.fields
-                  .filter(field => field.type !== 'section')
-                  .length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="font-medium text-lg">Additional Information</h3>
-                    <div className="space-y-4 pl-4">
-                      {formTemplate.schema.fields
-                        .filter(field => field.type !== 'section')
-                        .map(field => renderField(field))}
-                    </div>
+              {/* Application Status */}
+              <div className="grid gap-6 border-t pt-6">
+                <div className="grid grid-cols-1 gap-y-6">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1.5">Status</p>
+                    <Badge variant={getBadgeVariant(application.status)} className="text-xs">
+                      {application.status.replace('_', ' ').toUpperCase()}
+                    </Badge>
                   </div>
-                )}
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1.5">Submitted</p>
+                    <p className="text-sm">
+                      {formatDate(application.submitted_at)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Membership Details */}
+              <div className="grid gap-6 border-t pt-6">
+                <h4 className="font-medium">Membership Details</h4>
+                <div className="grid grid-cols-1 gap-y-6">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1.5">Tier</p>
+                    <p className="text-sm">{application.product_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1.5">Price</p>
+                    <p className="text-sm">
+                      {formatPrice(application.product_price, application.product_currency)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1.5">Duration</p>
+                    <p className="text-sm">
+                      {application.duration_months} months
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground mb-1.5">Activation Type</p>
+                    <p className="text-sm">
+                      {application.activation_type.replace(/_/g, ' ').toUpperCase()}
+                    </p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
-        )}
+        </div>
+
+        {/* Form Response - Takes 8 columns on large screens */}
+        <div className="lg:col-span-8">
+          {formTemplate && (
+            <Card>
+              <CardHeader className="pb-4">
+                <CardTitle>{formTemplate.title}</CardTitle>
+                {formTemplate.description && (
+                  <p className="text-sm text-muted-foreground">
+                    {formTemplate.description}
+                  </p>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-8">
+                  {/* Render all sections from template */}
+                  {formTemplate.schema.fields
+                    .filter(field => field.type === 'section')
+                    .map(section => (
+                      <div key={section.id} className="space-y-6">
+                        <div className="border-b pb-2">
+                          <h3 className="font-medium text-lg">{section.label}</h3>
+                          {section.sectionConfig?.description && (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {section.sectionConfig.description}
+                            </p>
+                          )}
+                        </div>
+                        <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
+                          {section.sectionConfig?.fields.map(field => renderField(field, section.id))}
+                        </div>
+                      </div>
+                    ))}
+
+                  {/* Render root fields from template */}
+                  {formTemplate.schema.fields
+                    .filter(field => field.type !== 'section')
+                    .length > 0 && (
+                    <div className="space-y-6">
+                      <div className="border-b pb-2">
+                        <h3 className="font-medium text-lg">Additional Information</h3>
+                      </div>
+                      <div className="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
+                        {formTemplate.schema.fields
+                          .filter(field => field.type !== 'section')
+                          .map(field => renderField(field))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
       </div>
     </div>
   );
