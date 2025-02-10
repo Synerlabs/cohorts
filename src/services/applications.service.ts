@@ -234,25 +234,17 @@ export async function createMembershipApplication(
       initialStatus = 'approved';
       break;
     case 'review_required':
+    case 'form_required':
+    case 'form_then_review':
       initialStatus = 'pending';
       break;
     case 'payment_required':
+    case 'form_then_payment':
+    case 'form_then_payment_then_review':
       initialStatus = 'pending_payment';
       break;
     case 'review_then_payment':
       initialStatus = 'pending';
-      break;
-    case 'form_required':
-      initialStatus = 'pending';
-      break;
-    case 'form_then_payment':
-      initialStatus = 'pending_payment';
-      break;
-    case 'form_then_review':
-      initialStatus = 'pending';
-      break;
-    case 'form_then_payment_then_review':
-      initialStatus = 'pending_payment';
       break;
     default:
       initialStatus = 'pending';
@@ -277,31 +269,31 @@ export async function createMembershipApplication(
   }
 
   // Create the application
-  const { data, error } = await supabase
+  const { data: newApplication, error: insertError } = await supabase
     .from('applications')
     .insert({
       group_user_id: groupUserId,
       tier_id: productId,
       status: initialStatus,
-      form_response_id: formResponseId // Link to form response if exists
+      form_response_id: formResponseId
     })
     .select()
     .single();
 
-  if (error) throw error;
-  if (!data) throw new Error('Failed to create application');
+  if (insertError) throw insertError;
+  if (!newApplication) throw new Error('Failed to create application');
 
-  // Fetch the full application details
-  const { data: fullApplication, error: fetchError } = await supabase
+  // Fetch the full application details from the view
+  const { data: application, error: viewError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('id', data.id)
+    .eq('id', newApplication.id)
     .single();
 
-  if (fetchError) throw fetchError;
-  if (!fullApplication) throw new Error('Failed to fetch application details');
+  if (viewError) throw viewError;
+  if (!application) throw new Error('Failed to fetch application details');
 
-  return mapViewToApplication(fullApplication as ApplicationView);
+  return mapViewToApplication(application as ApplicationView);
 }
 
 export async function getUserMembershipApplications(userId: string, groupId: string): Promise<Application[]> {
