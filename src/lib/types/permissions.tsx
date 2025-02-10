@@ -5,26 +5,43 @@ import {
   SquareUserRound,
   UsersIcon,
   FileTextIcon,
+  FormInputIcon,
+  CreditCardIcon,
 } from "lucide-react";
 
 export const permissions = {
   group: {
     view: "group.view",
-    create: "group.add",
+    create: "group.create",
     edit: "group.edit",
     delete: "group.delete",
   },
   members: {
     view: "group.members.view",
-    add: "group.members.add",
+    create: "group.members.create",
     edit: "group.members.edit",
     delete: "group.members.delete",
+    invite: "group.members.invite",
+    approve: "group.members.approve",
+  },
+  roles: {
+    view: "group.roles.view",
+    create: "group.roles.create",
+    edit: "group.roles.edit",
+    delete: "group.roles.delete",
+    assign: "group.roles.assign",
+  },
+  permissions: {
+    view: "group.permissions.view",
+    assign: "group.permissions.assign",
+    edit: "group.permissions.edit",
   },
   memberships: {
     view: "group.memberships.view",
     create: "group.memberships.create",
     edit: "group.memberships.edit",
     delete: "group.memberships.delete",
+    manage: "group.memberships.manage",
   },
   applications: {
     view: "group.applications.view",
@@ -34,16 +51,21 @@ export const permissions = {
     approve: "group.applications.approve",
     reject: "group.applications.reject",
   },
-  roles: {
-    view: "group.roles.view",
-    create: "group.roles.create",
-    edit: "group.roles.edit",
-    delete: "group.roles.delete",
+  forms: {
+    view: "group.forms.view",
+    create: "group.forms.create",
+    edit: "group.forms.edit",
+    delete: "group.forms.delete",
+    submit: "group.forms.submit",
+    manage: "group.forms.manage",
   },
-  permissions: {
-    view: "group.roles.permissions.view",
-    edit: "group.roles.permissions.edit",
-    delete: "group.roles.permissions.delete",
+  payments: {
+    view: "group.payments.view",
+    create: "group.payments.create",
+    edit: "group.payments.edit",
+    delete: "group.payments.delete",
+    process: "group.payments.process",
+    refund: "group.payments.refund",
   },
 };
 
@@ -54,6 +76,8 @@ export const permissionModuleDescriptions = {
   permissions: "Manage group role permissions",
   memberships: "Manage group memberships",
   applications: "Manage group applications",
+  forms: "Manage group forms",
+  payments: "Manage group payments",
 };
 
 export const permissionModuleIcons = {
@@ -63,6 +87,8 @@ export const permissionModuleIcons = {
   permissions: <FolderKeyIcon className="h-5 w-5" />,
   memberships: <UsersIcon className="h-5 w-5" />,
   applications: <FileTextIcon className="h-5 w-5" />,
+  forms: <FormInputIcon className="h-5 w-5" />,
+  payments: <CreditCardIcon className="h-5 w-5" />,
 };
 
 // type for permissionModuleIcons

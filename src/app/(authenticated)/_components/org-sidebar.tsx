@@ -9,6 +9,7 @@ import {
   Users,
   InboxIcon,
   CreditCard,
+  FormInput,
 } from "lucide-react";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
@@ -21,7 +22,7 @@ type SidebarProps = {
 };
 
 export async function OrgSidebar({ org, user }: SidebarProps) {
-  const { userPermissions } = getAuthenticatedServerContext();
+  const { userPermissions = [] } = getAuthenticatedServerContext();
   const links = [
     {
       name: "Dashboard",
@@ -43,15 +44,20 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       href: `/@${org.slug}/membership`,
       icon: <Package className="h-4 w-4" />,
     },
-    userPermissions?.includes(permissions.members.edit) && {
+    userPermissions?.includes(permissions.applications?.view) && {
       name: "Applications",
       href: `/@${org.slug}/applications`,
       icon: <InboxIcon className="h-4 w-4" />,
     },
-    userPermissions?.includes(permissions.members.edit) && {
+    userPermissions?.includes(permissions.payments?.view) && {
       name: "Payments",
       href: `/@${org.slug}/payments`,
       icon: <CreditCard className="h-4 w-4" />,
+    },
+    userPermissions?.includes(permissions.forms?.view) && {
+      name: "Forms",
+      href: `/@${org.slug}/forms`,
+      icon: <FormInput className="h-4 w-4" />,
     },
     userPermissions?.includes(permissions.roles.view) && {
       name: "Roles & Permissions",

@@ -1,4 +1,5 @@
 import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';
+import { permissions } from '@/lib/types/permissions';
 import { FormBuilder } from '../_components/form-builder';
 
 interface NewFormPageProps extends OrgAccessHOCProps {
@@ -20,6 +21,6 @@ async function NewFormPage({ org, user }: NewFormPageProps) {
 }
 
 export default withOrgAccess(NewFormPage, {
-  permissions: [], // We'll add form permissions later
+  permissions: [permissions.forms.create],
   allowGuest: false
 }); 

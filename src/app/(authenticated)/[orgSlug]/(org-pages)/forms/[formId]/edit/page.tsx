@@ -1,4 +1,5 @@
 import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';
+import { permissions } from '@/lib/types/permissions';
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { FormBuilder } from '../../_components/form-builder';
 import { notFound } from 'next/navigation';
@@ -44,6 +45,6 @@ async function EditFormPage({ org, user, params }: EditFormPageProps) {
 }
 
 export default withOrgAccess(EditFormPage, {
-  permissions: [], // We'll add form permissions later
+  permissions: [permissions.forms.edit],
   allowGuest: false
 }); 
