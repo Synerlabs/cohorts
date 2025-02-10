@@ -5,12 +5,14 @@ import { getApplicationStatusBadgeVariant } from "@/lib/utils/badges";
 import { formatPrice, CurrencyCode } from "@/lib/utils/price";
 import { formatDate } from "@/lib/utils";
 import { Application } from "@/services/application.service";
+import { ApplicationActions } from "../../_components/application-actions";
 
 interface ApplicationOverviewCardProps {
   application: Application;
+  userPermissions?: string[];
 }
 
-export function ApplicationOverviewCard({ application }: ApplicationOverviewCardProps) {
+export function ApplicationOverviewCard({ application, userPermissions = [] }: ApplicationOverviewCardProps) {
   return (
     <Card>
       <CardHeader className="pb-4">
@@ -42,6 +44,12 @@ export function ApplicationOverviewCard({ application }: ApplicationOverviewCard
                 {formatDate(application.submitted_at)}
               </p>
             </div>
+            {/* Action Buttons */}
+            <ApplicationActions
+              applicationId={application.id}
+              status={application.status}
+              userPermissions={userPermissions}
+            />
           </div>
         </div>
 

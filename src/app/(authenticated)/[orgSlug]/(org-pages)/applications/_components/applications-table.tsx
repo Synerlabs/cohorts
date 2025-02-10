@@ -11,18 +11,15 @@ import {
 import { Application } from "@/services/applications.service";
 import { formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Check, X, CreditCard } from "lucide-react";
-import useToastActionState from "@/lib/hooks/toast-action-state.hook";
-import { handleApproveApplication, handleRejectApplication } from "../_actions/applications";
+import { CreditCard } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { ComponentPermission } from "@/components/ComponentPermission";
 import { permissions } from "@/lib/types/permissions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
 import { getActivationTypeBadgeVariant, getApplicationStatusBadgeVariant } from "@/lib/utils/badges";
 import { formatPrice, CurrencyCode } from "@/lib/utils/price";
 import { useCallback, useMemo } from "react";
+import { ApplicationActions } from "./application-actions";
 
 type ActivationType = 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment';
 
@@ -41,8 +38,6 @@ interface ApplicationsTableProps {
 
 export function ApplicationsTable({ applications, showActions = true, userPermissions = [] }: ApplicationsTableProps) {
   const router = useRouter();
-  const [approveState, approveDispatch] = useToastActionState(handleApproveApplication);
-  const [rejectState, rejectDispatch] = useToastActionState(handleRejectApplication);
 
   const canApprove = useMemo(() => 
     userPermissions.includes(permissions.applications.approve),
@@ -53,18 +48,6 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
     userPermissions.includes(permissions.applications.reject),
     [userPermissions]
   );
-
-  const handleApprove = useCallback((applicationId: string) => {
-    const formData = new FormData();
-    formData.append('id', applicationId);
-    approveDispatch(formData);
-  }, [approveDispatch]);
-
-  const handleReject = useCallback((applicationId: string) => {
-    const formData = new FormData();
-    formData.append('id', applicationId);
-    rejectDispatch(formData);
-  }, [rejectDispatch]);
 
   const handleRowClick = useCallback((applicationId: string) => {
     router.push(`applications/${applicationId}`);
@@ -107,21 +90,34 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
               onClick={() => handleRowClick(application.id)}
             >
               <TableCell>
-                <div className="flex items-center gap-4">
-                  <Avatar>
-                    <AvatarFallback>
-                      {application.user.first_name?.[0]}
-                      {application.user.last_name?.[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex flex-col">
-                    <span className="font-medium">
-                      {application.user.full_name}
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {application.user.email}
-                    </span>
+                <div className="flex flex-col space-y-4">
+                  <div className="flex items-center gap-4">
+                    <Avatar>
+                      <AvatarFallback>
+                        {application.user.first_name?.[0]}
+                        {application.user.last_name?.[0]}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="font-medium">
+                        {application.user.full_name}
+                      </span>
+                      <span className="text-sm text-muted-foreground">
+                        {application.user.email}
+                      </span>
+                    </div>
                   </div>
+                  {/* Approve/Reject buttons for small screens */}
+                  {showActions && (
+                    <div className="md:hidden" onClick={(e) => e.stopPropagation()}>
+                      <ApplicationActions
+                        applicationId={application.id}
+                        status={application.status}
+                        userPermissions={userPermissions}
+                        size="sm"
+                      />
+                    </div>
+                  )}
                 </div>
               </TableCell>
               <TableCell>
@@ -151,38 +147,26 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
               </TableCell>
               {showActions && (canApprove || canReject) && (
                 <TableCell 
-                  className="text-right space-x-2"
+                  className="text-right hidden md:table-cell"
                   onClick={(e) => e.stopPropagation()} // Prevent row click when clicking actions
                 >
-                  {canApprove && application.status === 'pending' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleApprove(application.id)}
-                      disabled={Boolean(approveState?.success === false || approveState?.error)}
-                    >
-                      <Check className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {canReject && application.status === 'pending' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleReject(application.id)}
-                      disabled={Boolean(rejectState?.success === false || rejectState?.error)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                  {application.status === 'pending_payment' && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={(e) => handlePaymentClick(application.group.slug, application.id, e)}
-                    >
-                      <CreditCard className="h-4 w-4" />
-                    </Button>
-                  )}
+                  <div className="flex justify-end">
+                    <ApplicationActions
+                      applicationId={application.id}
+                      status={application.status}
+                      userPermissions={userPermissions}
+                      size="sm"
+                    />
+                    {application.status === 'pending_payment' && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => handlePaymentClick(application.group.slug, application.id, e)}
+                      >
+                        <CreditCard className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </TableCell>
               )}
             </TableRow>

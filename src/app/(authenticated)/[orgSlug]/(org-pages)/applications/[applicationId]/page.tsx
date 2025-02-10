@@ -13,7 +13,7 @@ interface ApplicationDetailsProps extends Omit<OrgAccessHOCProps, 'params'> {
   };
 }
 
-async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetailsProps) {
+async function ApplicationDetailsPage({ org, params: _params, userPermissions }: ApplicationDetailsProps) {
   const params = await _params;
 
   // Get application base data
@@ -51,7 +51,10 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
       <div className="grid gap-6 lg:grid-cols-12">
         {/* Application Overview - Takes 4 columns on large screens */}
         <div className="lg:col-span-4 lg:self-start lg:sticky lg:top-6">
-          <ApplicationOverviewCard application={application} />
+          <ApplicationOverviewCard 
+            application={application} 
+            userPermissions={userPermissions}
+          />
         </div>
 
         {/* Form Response - Takes 8 columns on large screens */}
