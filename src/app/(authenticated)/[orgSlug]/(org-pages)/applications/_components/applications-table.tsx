@@ -20,6 +20,8 @@ import { ComponentPermission } from "@/components/ComponentPermission";
 import { permissions } from "@/lib/types/permissions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { getActivationTypeBadgeVariant, getApplicationStatusBadgeVariant } from "@/lib/utils/badges";
+import { formatPrice } from "@/lib/utils/price";
 
 interface ApplicationsTableProps {
   applications: Application[];
@@ -40,14 +42,6 @@ const activationTypeLabels = {
   'review_then_payment': 'Review then Payment'
 } as const;
 
-const currencySymbols = {
-  'USD': '$',
-  'EUR': '€',
-  'GBP': '£',
-  'CAD': 'C$',
-  'AUD': 'A$'
-} as const;
-
 export function ApplicationsTable({ applications, showActions = true, userPermissions = [] }: ApplicationsTableProps) {
   const router = useRouter();
   const [approveState, approveDispatch] = useToastActionState(handleApproveApplication);
@@ -56,26 +50,6 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
   const canApprove = userPermissions.includes(permissions.applications.approve);
   const canReject = userPermissions.includes(permissions.applications.reject);
 
-  const getBadgeVariant = (activationType: string) => {
-    switch (activationType) {
-      case 'automatic':
-        return 'default';
-      case 'review_required':
-        return 'secondary';
-      case 'payment_required':
-        return 'destructive';
-      case 'review_then_payment':
-        return 'outline';
-      default:
-        return 'default';
-    }
-  };
-
-  const formatPrice = (price: number, currency: string) => {
-    const symbol = currencySymbols[currency as keyof typeof currencySymbols] || '$';
-    return `${symbol}${(price / 100).toFixed(2)}`;
-  };
-
   if (!applications?.length) {
     return (
       <div className="text-center py-4 text-gray-500">
@@ -83,8 +57,6 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
       </div>
     );
   }
-
-  console.log(applications);
 
   return (
     <div className="rounded-md border">
@@ -134,7 +106,7 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
                 {formatPrice(application.product.price, application.product.currency)}
               </TableCell>
               <TableCell>
-                <Badge variant={getBadgeVariant(application.product.membership_tier.activation_type)}>
+                <Badge variant={getActivationTypeBadgeVariant(application.product.membership_tier.activation_type)}>
                   {activationTypeLabels[application.product.membership_tier.activation_type as keyof typeof activationTypeLabels]}
                 </Badge>
               </TableCell>
@@ -143,13 +115,13 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
               </TableCell>
               <TableCell>
                 {application.rejected_at ? (
-                  <Badge variant="destructive">Rejected</Badge>
+                  <Badge variant={getApplicationStatusBadgeVariant('rejected')}>Rejected</Badge>
                 ) : application.status === 'pending_payment' ? (
-                  <Badge variant="secondary">Pending Payment</Badge>
+                  <Badge variant={getApplicationStatusBadgeVariant('pending_payment')}>Pending Payment</Badge>
                 ) : application.status === 'approved' ? (
-                  <Badge variant="outline">Active</Badge>
+                  <Badge variant={getApplicationStatusBadgeVariant('approved')}>Active</Badge>
                 ) : (
-                  <Badge variant="secondary">Pending Review</Badge>
+                  <Badge variant={getApplicationStatusBadgeVariant('pending')}>Pending Review</Badge>
                 )}
               </TableCell>
               {showActions && (canApprove || canReject) && (

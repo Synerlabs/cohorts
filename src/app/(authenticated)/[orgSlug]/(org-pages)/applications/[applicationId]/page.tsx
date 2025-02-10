@@ -6,6 +6,8 @@ import { formatDate } from "@/lib/utils";
 import { createClient } from "@/lib/utils/supabase/server";
 import { permissions } from "@/lib/types/permissions";
 import { FileText } from "lucide-react";
+import { getApplicationStatusBadgeVariant } from "@/lib/utils/badges";
+import { formatPrice } from "@/lib/utils/price";
 
 interface FormField {
   type: string;
@@ -152,30 +154,6 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
       console.log("Validated Form Response:", formResponse);
     }
   }
-
-  const getBadgeVariant = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'secondary';
-      case 'pending_payment':
-        return 'secondary';
-      case 'approved':
-        return 'outline';
-      case 'rejected':
-        return 'destructive';
-      default:
-        return 'default';
-    }
-  };
-
-  const formatPrice = (price: number, currency: string) => {
-    const formatter = new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 2,
-    });
-    return formatter.format(price / 100);
-  };
 
   const getFieldValue = (fieldId: string, sectionId?: string) => {
     if (!formResponse) return null;
@@ -370,7 +348,7 @@ async function ApplicationDetailsPage({ org, params: _params }: ApplicationDetai
                 <div className="grid grid-cols-1 gap-y-6">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground mb-1.5">Status</p>
-                    <Badge variant={getBadgeVariant(application.status)} className="text-xs">
+                    <Badge variant={getApplicationStatusBadgeVariant(application.status)} className="text-xs">
                       {application.status.replace('_', ' ').toUpperCase()}
                     </Badge>
                   </div>
