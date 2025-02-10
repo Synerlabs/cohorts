@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Currency } from "@/lib/types/membership";
+import { Currency, MembershipActivationType } from "@/lib/types/membership";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { createMembershipTierAction, updateMembershipTierAction } from "../_actions/membership.action";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
@@ -32,16 +32,7 @@ const formSchema = z.object({
   price: z.number().min(0, "Price must be 0 or greater"),
   currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
-  activation_type: z.enum([
-    'automatic',
-    'review_required',
-    'payment_required',
-    'review_then_payment',
-    'form_required',
-    'form_then_payment',
-    'form_then_review',
-    'form_then_payment_then_review'
-  ] as const),
+  activation_type: z.nativeEnum(MembershipActivationType),
   member_id_format: z.string().min(1, "Member ID format is required")
     .refine(
       (val) => val.includes('{SEQ:') || val.includes('{YYYY}') || val.includes('{YY}') || val.includes('{MM}') || val.includes('{DD}'),
@@ -63,6 +54,30 @@ const currencySymbols: Record<Currency, string> = {
   CAD: 'C$',
   AUD: 'A$'
 };
+
+// Activation type descriptions for better UX
+const ACTIVATION_TYPE_DESCRIPTIONS: Record<MembershipActivationType, string> = {
+  [MembershipActivationType.AUTOMATIC]: 'Members are granted access immediately upon joining',
+  [MembershipActivationType.REVIEW_REQUIRED]: 'Admin must review and approve each application before membership is granted',
+  [MembershipActivationType.PAYMENT_REQUIRED]: 'Members must complete payment before membership is granted',
+  [MembershipActivationType.REVIEW_THEN_PAYMENT]: 'Admin must approve the application before the member can proceed with payment',
+  [MembershipActivationType.FORM_REQUIRED]: 'Members must complete an application form before membership is granted',
+  [MembershipActivationType.FORM_THEN_PAYMENT]: 'Members must complete an application form before proceeding to payment',
+  [MembershipActivationType.FORM_THEN_REVIEW]: 'Members submit an application form that must be reviewed and approved by an admin',
+  [MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW]: 'Members submit a form and complete payment, then an admin reviews the application'
+};
+
+// Group activation types by category for better organization
+const ACTIVATION_TYPE_GROUPS = {
+  basic: [MembershipActivationType.AUTOMATIC, MembershipActivationType.PAYMENT_REQUIRED],
+  review: [MembershipActivationType.REVIEW_REQUIRED, MembershipActivationType.REVIEW_THEN_PAYMENT],
+  form: [
+    MembershipActivationType.FORM_REQUIRED,
+    MembershipActivationType.FORM_THEN_REVIEW,
+    MembershipActivationType.FORM_THEN_PAYMENT,
+    MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+  ]
+} as const;
 
 export default function MembershipForm({ groupId, tier, onSuccess }: MembershipFormProps) {
   console.log('MembershipForm props:', { groupId, tier });
@@ -90,7 +105,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       price: tier ? tier.price / 100 : 0,
       currency: tier?.currency || "USD",
       duration_months: tier?.membership_tier?.duration_months || 1,
-      activation_type: (tier?.membership_tier?.activation_type || 'automatic') as 'automatic' | 'review_required' | 'payment_required' | 'review_then_payment' | 'form_required' | 'form_then_payment' | 'form_then_review' | 'form_then_payment_then_review',
+      activation_type: (tier?.membership_tier?.activation_type || MembershipActivationType.AUTOMATIC) as MembershipActivationType,
       member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
       form_template_id: tier?.membership_tier?.form_template_id || null
     },
@@ -102,12 +117,12 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
   
   React.useEffect(() => {
     // If price changes from free to paid
-    if (price > 0 && activationType === 'automatic') {
-      form.setValue('activation_type', 'payment_required' as const);
+    if (price > 0 && activationType === MembershipActivationType.AUTOMATIC) {
+      form.setValue('activation_type', MembershipActivationType.PAYMENT_REQUIRED as const);
     }
     // If price changes from paid to free and has a payment-related activation type
-    else if (price === 0 && (activationType === 'payment_required' || activationType === 'review_then_payment')) {
-      form.setValue('activation_type', 'automatic' as const);
+    else if (price === 0 && (activationType === MembershipActivationType.PAYMENT_REQUIRED || activationType === MembershipActivationType.REVIEW_THEN_PAYMENT)) {
+      form.setValue('activation_type', MembershipActivationType.AUTOMATIC as const);
     }
   }, [price, activationType, form]);
 
@@ -285,103 +300,75 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                   value={field.value}
                   className="space-y-4"
                 >
-                  {isFree ? (
-                    <>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="automatic" id="automatic" />
-                          <Label htmlFor="automatic">Automatic</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Members are granted access immediately
-                        </p>
-                      </div>
+                  {/* Basic Options */}
+                  {ACTIVATION_TYPE_GROUPS.basic.map(type => {
+                    // Only show automatic for free tiers and payment_required for paid tiers
+                    if ((type === MembershipActivationType.AUTOMATIC && !isFree) ||
+                        (type === MembershipActivationType.PAYMENT_REQUIRED && isFree)) {
+                      return null;
+                    }
 
-                      <div className="flex flex-col space-y-1">
+                    return (
+                      <div key={type} className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="review_required" id="review_required" />
-                          <Label htmlFor="review_required">Review Required</Label>
+                          <RadioGroupItem value={type} id={type} />
+                          <Label htmlFor={type}>{type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</Label>
                         </div>
                         <p className="text-sm text-muted-foreground ml-6">
-                          Admin must review and approve applications
+                          {ACTIVATION_TYPE_DESCRIPTIONS[type]}
                         </p>
                       </div>
+                    );
+                  })}
 
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="form_required" id="form_required" />
-                          <Label htmlFor="form_required">Form Required</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Members must submit an application form
-                        </p>
-                      </div>
+                  {/* Review Options */}
+                  <div className="mt-4 mb-2">
+                    <h4 className="text-sm font-medium text-muted-foreground">Review-based Options</h4>
+                  </div>
 
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem value="form_then_review" id="form_then_review" />
-                          <Label htmlFor="form_then_review">Form then Review</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Members must submit a form for admin review
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="payment_required"
-                            id="payment_required"
-                          />
-                          <Label htmlFor="payment_required">Payment Required</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Members must complete payment before membership is granted
-                        </p>
-                      </div>
+                  {ACTIVATION_TYPE_GROUPS.review.map(type => {
+                    // Only show review_then_payment for paid tiers
+                    if (type === MembershipActivationType.REVIEW_THEN_PAYMENT && isFree) {
+                      return null;
+                    }
 
-                      <div className="flex flex-col space-y-1">
+                    return (
+                      <div key={type} className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="review_then_payment"
-                            id="review_then_payment"
-                          />
-                          <Label htmlFor="review_then_payment">Review Then Payment</Label>
+                          <RadioGroupItem value={type} id={type} />
+                          <Label htmlFor={type}>{type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</Label>
                         </div>
                         <p className="text-sm text-muted-foreground ml-6">
-                          Admin must approve before payment can be made
+                          {ACTIVATION_TYPE_DESCRIPTIONS[type]}
                         </p>
                       </div>
+                    );
+                  })}
 
-                      <div className="flex flex-col space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="form_then_payment"
-                            id="form_then_payment"
-                          />
-                          <Label htmlFor="form_then_payment">Form then Payment</Label>
-                        </div>
-                        <p className="text-sm text-muted-foreground ml-6">
-                          Members must submit a form before payment
-                        </p>
-                      </div>
+                  {/* Form-based Options */}
+                  <div className="mt-4 mb-2">
+                    <h4 className="text-sm font-medium text-muted-foreground">Form-based Options</h4>
+                  </div>
 
-                      <div className="flex flex-col space-y-1">
+                  {ACTIVATION_TYPE_GROUPS.form.map(type => {
+                    // Hide payment-related options for free tiers
+                    if (isFree && (type === MembershipActivationType.FORM_THEN_PAYMENT || 
+                        type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW)) {
+                      return null;
+                    }
+
+                    return (
+                      <div key={type} className="flex flex-col space-y-1">
                         <div className="flex items-center space-x-2">
-                          <RadioGroupItem
-                            value="form_then_payment_then_review"
-                            id="form_then_payment_then_review"
-                          />
-                          <Label htmlFor="form_then_payment_then_review">Form, Payment, then Review</Label>
+                          <RadioGroupItem value={type} id={type} />
+                          <Label htmlFor={type}>{type.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</Label>
                         </div>
                         <p className="text-sm text-muted-foreground ml-6">
-                          Members must submit a form and complete payment for admin review
+                          {ACTIVATION_TYPE_DESCRIPTIONS[type]}
                         </p>
                       </div>
-                    </>
-                  )}
+                    );
+                  })}
                 </RadioGroup>
               </FormControl>
               <FormMessage />
@@ -395,7 +382,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
             name="form_template_id"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Application Form</FormLabel>
+                <FormLabel>Application Form Template</FormLabel>
                 <div className="space-y-3">
                   <div className="flex gap-2 items-start">
                     <Button
@@ -407,7 +394,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                       {field.value ? (
                         <span className="flex items-center gap-2">
                           <FileText className="h-4 w-4" />
-                          Change selected form
+                          Change form template
                         </span>
                       ) : (
                         <span className="flex items-center gap-2">
@@ -418,9 +405,9 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                     </Button>
                   </div>
                   {field.value ? (
-                    <Card className="p-3">
+                    <Card className="p-3 border-dashed">
                       <div className="flex items-start gap-3">
-                        <div className="p-2 border rounded-md">
+                        <div className="p-2 bg-muted rounded-md">
                           <FileText className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
@@ -428,7 +415,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                             <p className="font-medium truncate">
                               {formTemplates.find(t => t.id === field.value)?.title || 'Loading...'}
                             </p>
-                            <Badge variant="outline" className="shrink-0">Selected</Badge>
+                            <Badge variant="secondary" className="shrink-0">Selected</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
                             {formTemplates.find(t => t.id === field.value)?.description || 'Loading form details...'}
@@ -437,9 +424,11 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                       </div>
                     </Card>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      Members will need to complete this form when applying for this membership tier.
-                    </p>
+                    <div className="rounded-lg border-2 border-dashed p-4">
+                      <p className="text-sm text-muted-foreground text-center">
+                        Select a form template that members will need to complete when applying for this membership tier
+                      </p>
+                    </div>
                   )}
                   <FormMessage />
                 </div>
