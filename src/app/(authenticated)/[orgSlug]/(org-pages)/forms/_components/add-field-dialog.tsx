@@ -6,6 +6,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
+  DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,8 +29,14 @@ import {
   ChevronsUpDown, 
   Upload, 
   Files, 
-  LayoutGrid 
+  LayoutGrid,
+  Folder,
+  List,
+  Copy,
+  Layers
 } from 'lucide-react';
+import { nanoid } from 'nanoid';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface AddFieldDialogProps {
   open: boolean;
@@ -36,261 +44,131 @@ interface AddFieldDialogProps {
   onAdd: (field: FormField) => void;
 }
 
-const FIELD_TYPES = [
-  {
-    type: 'section',
-    label: 'Section',
-    description: 'Group fields into sections or wizard steps',
-    icon: LayoutGrid,
-  },
+export const FIELD_TYPES = [
   {
     type: 'text',
-    label: 'Short Text',
-    description: 'Single line text input for short responses',
+    label: 'Text',
+    description: 'Single line text input',
     icon: Type,
   },
   {
     type: 'textarea',
-    label: 'Long Text',
-    description: 'Multi-line text input for longer responses',
+    label: 'Text Area',
+    description: 'Multi-line text input',
     icon: AlignLeft,
-  },
-  {
-    type: 'email',
-    label: 'Email',
-    description: 'Input field with email validation',
-    icon: Mail,
   },
   {
     type: 'number',
     label: 'Number',
-    description: 'Input field for numeric values',
+    description: 'Numeric input with optional validation',
     icon: Hash,
+  },
+  {
+    type: 'email',
+    label: 'Email',
+    description: 'Email address input with validation',
+    icon: Mail,
   },
   {
     type: 'phone',
     label: 'Phone',
-    description: 'Input field for phone numbers',
+    description: 'Phone number input with validation',
     icon: Phone,
   },
   {
     type: 'date',
     label: 'Date',
-    description: 'Date picker field',
+    description: 'Date picker input',
     icon: Calendar,
   },
   {
-    type: 'time',
-    label: 'Time',
-    description: 'Time picker field',
-    icon: Clock,
-  },
-  {
-    type: 'radio',
-    label: 'Single Select',
-    description: 'Radio buttons for selecting one option',
-    icon: CircleDot,
-  },
-  {
-    type: 'checkbox',
-    label: 'Multiple Select',
-    description: 'Checkboxes for selecting multiple options',
-    icon: CheckSquare,
-  },
-  {
     type: 'select',
-    label: 'Dropdown',
-    description: 'Dropdown menu for selecting one option',
-    icon: ChevronsUpDown,
+    label: 'Select',
+    description: 'Dropdown selection from a list of options',
+    icon: List,
   },
   {
     type: 'file',
     label: 'File Upload',
-    description: 'Allow users to upload files',
+    description: 'File upload with optional type restrictions',
     icon: Upload,
   },
   {
     type: 'repeatable',
     label: 'Repeatable Section',
-    description: 'Group of fields that can be repeated (e.g., work experience)',
-    icon: Files,
+    description: 'Group of fields that can be repeated',
+    icon: Copy,
   },
-];
+  {
+    type: 'section',
+    label: 'Section',
+    description: 'Group of fields with a title and description',
+    icon: Layers,
+  },
+  {
+    type: 'group',
+    label: 'Field Group',
+    description: 'Group related fields together (e.g., name fields, address fields)',
+    icon: Folder,
+  },
+  {
+    type: 'checkbox',
+    label: 'Checkbox',
+    description: 'Single checkbox for boolean values',
+    icon: CheckSquare,
+  },
+] as const;
 
 export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProps) {
-  const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [label, setLabel] = useState('');
-  const [helpText, setHelpText] = useState('');
-  const [required, setRequired] = useState(false);
-  const [minItems, setMinItems] = useState(0);
-  const [maxItems, setMaxItems] = useState(0);
+  const [selectedType, setSelectedType] = useState<(typeof FIELD_TYPES)[number]['type'] | null>(null);
   const [field, setField] = useState<FormField | null>(null);
 
-  const handleAdd = () => {
-    if (!selectedType || !label.trim()) return;
-
-    const newField: FormField = field || {
-      id: crypto.randomUUID(),
-      type: selectedType,
-      label: label.trim(),
-      required,
-      helpText: helpText.trim() || undefined,
-    };
-
-    // Add type-specific configurations
-    switch (selectedType) {
-      case 'text':
-      case 'textarea':
-        newField.textConfig = {
-          minLength: 0,
-          maxLength: undefined,
-          placeholder: '',
-        };
-        break;
-      case 'number':
-        newField.numberConfig = {
-          min: undefined,
-          max: undefined,
-          step: 1,
-          placeholder: '',
-        };
-        break;
-      case 'email':
-        newField.emailConfig = {
-          placeholder: 'Enter email',
-          allowedDomains: [],
-        };
-        break;
-      case 'phone':
-        newField.phoneConfig = {
-          format: '',
-          placeholder: 'Enter phone number',
-          defaultCountry: 'US',
-        };
-        break;
-      case 'date':
-        newField.dateConfig = {
-          min: undefined,
-          max: undefined,
-          format: 'YYYY-MM-DD',
-        };
-        break;
-      case 'time':
-        newField.timeConfig = {
-          min: undefined,
-          max: undefined,
-          step: 15, // 15 minutes
-        };
-        break;
-      case 'radio':
-      case 'checkbox':
-      case 'select':
-        newField.options = [];
-        newField.choiceConfig = {
-          layout: 'vertical',
-          allowOther: false,
-        };
-        break;
-      case 'file':
-        newField.fileConfig = {
-          accept: '*',
-          maxSize: 5 * 1024 * 1024, // 5MB default
-          maxFiles: 1,
-          allowedTypes: [],
-        };
-        break;
-      case 'repeatable':
-        newField.repeatableConfig = {
-          minItems: minItems || 0,
-          maxItems: maxItems || undefined,
-          fields: [],
-          addLabel: 'Add Item',
-          itemLabel: 'Item',
-        };
-        break;
-    }
-
-    onAdd(newField);
-    resetForm();
+  const handleFieldChange = (updates: Partial<FormField>) => {
+    if (!field) return;
+    setField({ ...field, ...updates });
   };
 
-  const resetForm = () => {
-    setSelectedType(null);
-    setLabel('');
-    setHelpText('');
-    setRequired(false);
-    setMinItems(0);
-    setMaxItems(0);
-    setField(null);
+  const handleConfigChange = <T extends keyof FormField>(
+    configKey: T,
+    updates: Partial<FormField[T]>
+  ) => {
+    if (!field) return;
+    setField({
+      ...field,
+      [configKey]: {
+        ...(field[configKey] as any),
+        ...updates,
+      },
+    });
   };
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open) {
-      resetForm();
-    }
-    onOpenChange(open);
-  };
-
-  const availableFieldTypes = FIELD_TYPES.filter(type => type.type !== 'section');
-
-  const renderFieldSettings = () => {
+  const renderFieldConfig = () => {
     if (!field) return null;
 
-    switch (selectedType) {
+    switch (field.type) {
       case 'text':
       case 'textarea':
         return (
           <div className="space-y-4">
             <div>
-              <Label>Text Settings</Label>
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                <div>
-                  <Label htmlFor="minLength">Min Length</Label>
-                  <Input
-                    id="minLength"
-                    type="number"
-                    min={0}
-                    value={field.textConfig?.minLength || 0}
-                    onChange={(e) => setField({
-                      ...field,
-                      textConfig: {
-                        ...field.textConfig,
-                        minLength: parseInt(e.target.value) || 0,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxLength">Max Length</Label>
-                  <Input
-                    id="maxLength"
-                    type="number"
-                    min={0}
-                    value={field.textConfig?.maxLength || ''}
-                    onChange={(e) => setField({
-                      ...field,
-                      textConfig: {
-                        ...field.textConfig,
-                        maxLength: e.target.value ? parseInt(e.target.value) : undefined,
-                      },
-                    })}
-                  />
-                </div>
-              </div>
-              <div className="mt-2">
-                <Label htmlFor="placeholder">Placeholder</Label>
-                <Input
-                  id="placeholder"
-                  value={field.textConfig?.placeholder || ''}
-                  onChange={(e) => setField({
-                    ...field,
-                    textConfig: {
-                      ...field.textConfig,
-                      placeholder: e.target.value,
-                    },
-                  })}
-                />
-              </div>
+              <Label>Placeholder</Label>
+              <Input
+                value={field.textConfig?.placeholder || ''}
+                onChange={(e) =>
+                  handleConfigChange('textConfig', { placeholder: e.target.value })
+                }
+                placeholder="Enter placeholder text"
+              />
+            </div>
+            <div>
+              <Label>Help Text</Label>
+              <Input
+                value={field.textConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('textConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
+              />
             </div>
           </div>
         );
@@ -299,70 +177,57 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
         return (
           <div className="space-y-4">
             <div>
-              <Label>Number Settings</Label>
-              <div className="grid grid-cols-3 gap-4 mt-2">
-                <div>
-                  <Label htmlFor="min">Min Value</Label>
-                  <Input
-                    id="min"
-                    type="number"
-                    value={field.numberConfig?.min || ''}
-                    onChange={(e) => setField({
-                      ...field,
-                      numberConfig: {
-                        ...field.numberConfig,
-                        min: e.target.value ? parseInt(e.target.value) : undefined,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="max">Max Value</Label>
-                  <Input
-                    id="max"
-                    type="number"
-                    value={field.numberConfig?.max || ''}
-                    onChange={(e) => setField({
-                      ...field,
-                      numberConfig: {
-                        ...field.numberConfig,
-                        max: e.target.value ? parseInt(e.target.value) : undefined,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="step">Step</Label>
-                  <Input
-                    id="step"
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    value={field.numberConfig?.step || 1}
-                    onChange={(e) => setField({
-                      ...field,
-                      numberConfig: {
-                        ...field.numberConfig,
-                        step: parseFloat(e.target.value) || 1,
-                      },
-                    })}
-                  />
-                </div>
-              </div>
-              <div className="mt-2">
-                <Label htmlFor="placeholder">Placeholder</Label>
-                <Input
-                  id="placeholder"
-                  value={field.numberConfig?.placeholder || ''}
-                  onChange={(e) => setField({
-                    ...field,
-                    numberConfig: {
-                      ...field.numberConfig,
-                      placeholder: e.target.value,
-                    },
-                  })}
-                />
-              </div>
+              <Label>Placeholder</Label>
+              <Input
+                value={field.numberConfig?.placeholder || ''}
+                onChange={(e) =>
+                  handleConfigChange('numberConfig', { placeholder: e.target.value })
+                }
+                placeholder="Enter placeholder text"
+              />
+            </div>
+            <div>
+              <Label>Help Text</Label>
+              <Input
+                value={field.numberConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('numberConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
+              />
+            </div>
+            <div>
+              <Label>Minimum Value</Label>
+              <Input
+                type="number"
+                value={field.numberConfig?.min || ''}
+                onChange={(e) =>
+                  handleConfigChange('numberConfig', { min: Number(e.target.value) })
+                }
+                placeholder="Enter minimum value"
+              />
+            </div>
+            <div>
+              <Label>Maximum Value</Label>
+              <Input
+                type="number"
+                value={field.numberConfig?.max || ''}
+                onChange={(e) =>
+                  handleConfigChange('numberConfig', { max: Number(e.target.value) })
+                }
+                placeholder="Enter maximum value"
+              />
+            </div>
+            <div>
+              <Label>Step</Label>
+              <Input
+                type="number"
+                value={field.numberConfig?.step || ''}
+                onChange={(e) =>
+                  handleConfigChange('numberConfig', { step: Number(e.target.value) })
+                }
+                placeholder="Enter step value"
+              />
             </div>
           </div>
         );
@@ -371,106 +236,144 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
         return (
           <div className="space-y-4">
             <div>
-              <Label>Email Settings</Label>
-              <div className="mt-2">
-                <Label htmlFor="placeholder">Placeholder</Label>
-                <Input
-                  id="placeholder"
-                  value={field.emailConfig?.placeholder || ''}
-                  onChange={(e) => setField({
-                    ...field,
-                    emailConfig: {
-                      ...field.emailConfig,
-                      placeholder: e.target.value,
-                    },
-                  })}
-                />
-              </div>
-              <div className="mt-2">
-                <Label>Allowed Domains (Optional)</Label>
-                <Textarea
-                  value={field.emailConfig?.allowedDomains?.join('\n') || ''}
-                  onChange={(e) => setField({
-                    ...field,
-                    emailConfig: {
-                      ...field.emailConfig,
-                      allowedDomains: e.target.value ? e.target.value.split('\n').map(d => d.trim()) : [],
-                    },
-                  })}
-                  placeholder="Enter one domain per line"
-                />
-              </div>
+              <Label>Placeholder</Label>
+              <Input
+                value={field.emailConfig?.placeholder || ''}
+                onChange={(e) =>
+                  handleConfigChange('emailConfig', { placeholder: e.target.value })
+                }
+                placeholder="Enter placeholder text"
+              />
+            </div>
+            <div>
+              <Label>Help Text</Label>
+              <Input
+                value={field.emailConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('emailConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
+              />
             </div>
           </div>
         );
 
-      case 'radio':
-      case 'checkbox':
+      case 'phone':
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label>Placeholder</Label>
+              <Input
+                value={field.phoneConfig?.placeholder || ''}
+                onChange={(e) =>
+                  handleConfigChange('phoneConfig', { placeholder: e.target.value })
+                }
+                placeholder="Enter placeholder text"
+              />
+            </div>
+            <div>
+              <Label>Help Text</Label>
+              <Input
+                value={field.phoneConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('phoneConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
+              />
+            </div>
+          </div>
+        );
+
+      case 'date':
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label>Placeholder</Label>
+              <Input
+                value={field.dateConfig?.placeholder || ''}
+                onChange={(e) =>
+                  handleConfigChange('dateConfig', { placeholder: e.target.value })
+                }
+                placeholder="Enter placeholder text"
+              />
+            </div>
+            <div>
+              <Label>Help Text</Label>
+              <Input
+                value={field.dateConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('dateConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
+              />
+            </div>
+          </div>
+        );
+
       case 'select':
         return (
           <div className="space-y-4">
             <div>
-              <Label>Choice Settings</Label>
-              <div className="mt-2">
-                <Label>Options</Label>
-                <div className="space-y-2">
-                  {field.options?.map((option, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Input
-                        value={option.label}
-                        onChange={(e) => {
-                          const newOptions = [...(field.options || [])];
-                          newOptions[index] = { ...option, label: e.target.value, value: e.target.value.toLowerCase() };
-                          setField({
-                            ...field,
-                            options: newOptions,
-                          });
-                        }}
-                        placeholder="Option label"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          const newOptions = field.options?.filter((_, i) => i !== index);
-                          setField({
-                            ...field,
-                            options: newOptions,
-                          });
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const newOptions = [...(field.options || [])];
-                      newOptions.push({ label: '', value: '' });
-                      setField({
-                        ...field,
-                        options: newOptions,
-                      });
-                    }}
-                  >
-                    Add Option
-                  </Button>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center gap-2">
-                <Switch
-                  id="allowOther"
-                  checked={field.choiceConfig?.allowOther || false}
-                  onCheckedChange={(checked) => setField({
-                    ...field,
-                    choiceConfig: {
-                      ...field.choiceConfig,
-                      allowOther: checked,
-                    },
-                  })}
-                />
-                <Label htmlFor="allowOther">Allow "Other" option</Label>
+              <Label>Placeholder</Label>
+              <Input
+                value={field.selectConfig?.placeholder || ''}
+                onChange={(e) =>
+                  handleConfigChange('selectConfig', { placeholder: e.target.value })
+                }
+                placeholder="Enter placeholder text"
+              />
+            </div>
+            <div>
+              <Label>Help Text</Label>
+              <Input
+                value={field.selectConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('selectConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
+              />
+            </div>
+            <div>
+              <Label>Options</Label>
+              <div className="space-y-2">
+                {field.selectConfig?.options.map((option, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <Input
+                      value={option.label}
+                      onChange={(e) => {
+                        const newOptions = [...(field.selectConfig?.options || [])];
+                        newOptions[index] = {
+                          ...newOptions[index],
+                          label: e.target.value,
+                          value: e.target.value.toLowerCase().replace(/\s+/g, '-'),
+                        };
+                        handleConfigChange('selectConfig', { options: newOptions });
+                      }}
+                      placeholder="Option label"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        const newOptions = [...(field.selectConfig?.options || [])];
+                        newOptions.splice(index, 1);
+                        handleConfigChange('selectConfig', { options: newOptions });
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const newOptions = [...(field.selectConfig?.options || [])];
+                    newOptions.push({ label: '', value: '' });
+                    handleConfigChange('selectConfig', { options: newOptions });
+                  }}
+                >
+                  Add Option
+                </Button>
               </div>
             </div>
           </div>
@@ -480,94 +383,91 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
         return (
           <div className="space-y-4">
             <div>
-              <Label>File Upload Settings</Label>
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                <div>
-                  <Label htmlFor="maxSize">Max Size (MB)</Label>
-                  <Input
-                    id="maxSize"
-                    type="number"
-                    min={0}
-                    value={(field.fileConfig?.maxSize || 0) / (1024 * 1024)}
-                    onChange={(e) => setField({
-                      ...field,
-                      fileConfig: {
-                        ...field.fileConfig,
-                        maxSize: parseInt(e.target.value) * 1024 * 1024,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxFiles">Max Files</Label>
-                  <Input
-                    id="maxFiles"
-                    type="number"
-                    min={1}
-                    value={field.fileConfig?.maxFiles || 1}
-                    onChange={(e) => setField({
-                      ...field,
-                      fileConfig: {
-                        ...field.fileConfig,
-                        maxFiles: parseInt(e.target.value) || 1,
-                      },
-                    })}
-                  />
-                </div>
-              </div>
-              <div className="mt-2">
-                <Label>Allowed File Types</Label>
-                <Input
-                  value={field.fileConfig?.accept || ''}
-                  onChange={(e) => setField({
-                    ...field,
-                    fileConfig: {
-                      ...field.fileConfig,
-                      accept: e.target.value,
-                    },
-                  })}
-                  placeholder=".pdf,.doc,.docx"
-                />
-                <div className="text-xs text-muted-foreground mt-1">
-                  Enter file extensions separated by commas (e.g., .pdf,.doc,.docx)
-                </div>
-              </div>
+              <Label>Help Text</Label>
+              <Input
+                value={field.fileConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('fileConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
+              />
+            </div>
+            <div>
+              <Label>Maximum File Size (bytes)</Label>
+              <Input
+                type="number"
+                value={field.fileConfig?.maxSize || ''}
+                onChange={(e) =>
+                  handleConfigChange('fileConfig', { maxSize: Number(e.target.value) })
+                }
+                placeholder="Enter maximum file size"
+              />
+            </div>
+            <div>
+              <Label>Allowed File Types</Label>
+              <Input
+                value={field.fileConfig?.allowedTypes?.join(', ') || ''}
+                onChange={(e) =>
+                  handleConfigChange('fileConfig', {
+                    allowedTypes: e.target.value.split(',').map((type) => type.trim()),
+                  })
+                }
+                placeholder="Enter allowed file types (comma-separated)"
+              />
             </div>
           </div>
         );
 
       case 'repeatable':
+      case 'section':
+      case 'group':
+        const configKey = `${field.type}Config` as const;
         return (
           <div className="space-y-4">
             <div>
-              <Label htmlFor="min-items">Minimum Items</Label>
+              <Label>Description</Label>
               <Input
-                id="min-items"
-                type="number"
-                min={0}
-                value={minItems}
-                onChange={(e) => setMinItems(parseInt(e.target.value) || 0)}
-                className="mt-1"
-                placeholder="0"
+                value={field[configKey]?.description || ''}
+                onChange={(e) =>
+                  handleConfigChange(configKey, { description: e.target.value })
+                }
+                placeholder="Enter description"
               />
-              <div className="text-xs text-muted-foreground mt-1">
-                Minimum number of sections required (0 for optional)
-              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                checked={field[configKey]?.showTitle || false}
+                onCheckedChange={(checked) =>
+                  handleConfigChange(configKey, { showTitle: !!checked })
+                }
+              />
+              <Label>Show Title</Label>
+            </div>
+          </div>
+        );
+
+      case 'checkbox':
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label>Checkbox Label</Label>
+              <Input
+                value={field.checkboxConfig?.label || ''}
+                onChange={(e) =>
+                  handleConfigChange('checkboxConfig', { label: e.target.value })
+                }
+                placeholder="Enter checkbox label"
+              />
             </div>
             <div>
-              <Label htmlFor="max-items">Maximum Items</Label>
+              <Label>Help Text</Label>
               <Input
-                id="max-items"
-                type="number"
-                min={0}
-                value={maxItems}
-                onChange={(e) => setMaxItems(parseInt(e.target.value) || 0)}
-                className="mt-1"
-                placeholder="Leave empty for unlimited"
+                value={field.checkboxConfig?.helpText || ''}
+                onChange={(e) =>
+                  handleConfigChange('checkboxConfig', { helpText: e.target.value })
+                }
+                placeholder="Enter help text"
               />
-              <div className="text-xs text-muted-foreground mt-1">
-                Maximum number of sections allowed (0 for unlimited)
-              </div>
             </div>
           </div>
         );
@@ -577,116 +477,204 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
     }
   };
 
+  function createDefaultField(type: (typeof FIELD_TYPES)[number]['type']): FormField {
+    const baseField = {
+      id: nanoid(),
+      type,
+      label: '',
+      required: false,
+    };
+
+    switch (type) {
+      case 'text':
+        return {
+          ...baseField,
+          textConfig: {
+            placeholder: '',
+            helpText: '',
+          },
+        };
+      case 'textarea':
+        return {
+          ...baseField,
+          textConfig: {
+            placeholder: '',
+            helpText: '',
+          },
+        };
+      case 'number':
+        return {
+          ...baseField,
+          numberConfig: {
+            placeholder: '',
+            helpText: '',
+          },
+        };
+      case 'email':
+        return {
+          ...baseField,
+          emailConfig: {
+            placeholder: '',
+            helpText: '',
+          },
+        };
+      case 'phone':
+        return {
+          ...baseField,
+          phoneConfig: {
+            placeholder: '',
+            helpText: '',
+          },
+        };
+      case 'date':
+        return {
+          ...baseField,
+          dateConfig: {
+            placeholder: '',
+            helpText: '',
+          },
+        };
+      case 'select':
+        return {
+          ...baseField,
+          selectConfig: {
+            options: [],
+            placeholder: '',
+            helpText: '',
+          },
+        };
+      case 'file':
+        return {
+          ...baseField,
+          fileConfig: {
+            maxSize: 5 * 1024 * 1024, // 5MB
+            allowedTypes: [],
+            helpText: '',
+          },
+        };
+      case 'repeatable':
+        return {
+          ...baseField,
+          repeatableConfig: {
+            fields: [],
+            showTitle: true,
+            description: '',
+          },
+        };
+      case 'section':
+        return {
+          ...baseField,
+          sectionConfig: {
+            fields: [],
+            showTitle: true,
+            description: '',
+          },
+        };
+      case 'group':
+        return {
+          ...baseField,
+          fields: [],
+          groupConfig: {
+            showTitle: true,
+            description: '',
+          },
+        };
+      case 'checkbox':
+        return {
+          ...baseField,
+          checkboxConfig: {
+            label: '',
+            helpText: '',
+          },
+        };
+      default:
+        return baseField as FormField;
+    }
+  }
+
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add Form Field</DialogTitle>
+          <DialogTitle>Add Field</DialogTitle>
+          <DialogDescription>
+            Choose a field type and configure its properties
+          </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 py-4">
           {!selectedType ? (
             <div className="grid grid-cols-2 gap-4">
-              {availableFieldTypes.map((fieldType) => {
-                const Icon = fieldType.icon;
-                return (
-                  <Button
-                    key={fieldType.type}
-                    variant="outline"
-                    className="flex flex-col items-start gap-1.5 h-auto p-4"
-                    onClick={() => {
-                      setSelectedType(fieldType.type);
-                      setField({
-                        id: crypto.randomUUID(),
-                        type: fieldType.type,
-                        label: '',
-                        required: false,
-                      });
-                    }}
-                  >
-                    <div className="flex items-center gap-2 w-full">
-                      <Icon className="h-4 w-4 shrink-0" />
-                      <span className="font-semibold">{fieldType.label}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {fieldType.description}
-                    </span>
-                  </Button>
-                );
-              })}
+              {FIELD_TYPES.map((fieldType) => (
+                <Button
+                  key={fieldType.type}
+                  variant="outline"
+                  className="h-auto flex-col items-start p-4 space-y-2"
+                  onClick={() => {
+                    setSelectedType(fieldType.type);
+                    setField(createDefaultField(fieldType.type));
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <fieldType.icon className="h-4 w-4" />
+                    <span className="font-medium">{fieldType.label}</span>
+                  </div>
+                  <p className="text-sm text-muted-foreground text-left">
+                    {fieldType.description}
+                  </p>
+                </Button>
+              ))}
             </div>
           ) : (
-            <div className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="label">Field Label</Label>
-                  <Input
-                    id="label"
-                    value={label}
-                    onChange={(e) => {
-                      setLabel(e.target.value);
-                      if (field) {
-                        setField({ ...field, label: e.target.value });
-                      }
-                    }}
-                    className="mt-1"
-                    placeholder="Enter field label"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="help-text">Help Text (Optional)</Label>
-                  <Textarea
-                    id="help-text"
-                    value={helpText}
-                    onChange={(e) => {
-                      setHelpText(e.target.value);
-                      if (field) {
-                        setField({ ...field, helpText: e.target.value });
-                      }
-                    }}
-                    className="mt-1"
-                    placeholder="Enter help text"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Switch
-                    id="required"
-                    checked={required}
-                    onCheckedChange={(checked) => {
-                      setRequired(checked);
-                      if (field) {
-                        setField({ ...field, required: checked });
-                      }
-                    }}
-                  />
-                  <Label htmlFor="required">Required field</Label>
-                </div>
+            <div className="space-y-4">
+              <div>
+                <Label>Label</Label>
+                <Input
+                  value={field?.label || ''}
+                  onChange={(e) => handleFieldChange({ label: e.target.value })}
+                  placeholder="Enter field label"
+                />
               </div>
-
-              {renderFieldSettings()}
-
-              <div className="flex justify-end gap-2 pt-4 border-t">
-                <Button
-                  variant="outline"
-                  onClick={() => setSelectedType(null)}
-                >
-                  Back
-                </Button>
-                <Button 
-                  onClick={() => {
-                    handleAdd();
-                    handleOpenChange(false);
-                  }} 
-                  disabled={!label.trim()}
-                >
-                  Add Field
-                </Button>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={field?.required || false}
+                  onCheckedChange={(checked) =>
+                    handleFieldChange({ required: !!checked })
+                  }
+                />
+                <Label>Required</Label>
               </div>
+              {renderFieldConfig()}
             </div>
           )}
         </div>
+
+        <DialogFooter>
+          {selectedType && (
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSelectedType(null);
+                setField(null);
+              }}
+            >
+              Back
+            </Button>
+          )}
+          <Button
+            onClick={() => {
+              if (field) {
+                onAdd(field);
+                setSelectedType(null);
+                setField(null);
+                onOpenChange(false);
+              }
+            }}
+            disabled={!field || !field.label}
+          >
+            Add Field
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

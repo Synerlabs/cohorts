@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { GripVertical, Trash2, Plus, PlusCircle, ChevronDown, ChevronRight, Settings2, Type, AlignLeft, Mail, Hash, Phone, Calendar, Clock, CircleDot, CheckSquare, ChevronsUpDown, Upload, Files, LayoutGrid } from 'lucide-react';
+import { GripVertical, Trash2, Plus, PlusCircle, ChevronDown, ChevronRight, Settings2, Type, AlignLeft, Mail, Hash, Phone, Calendar, Clock, CircleDot, CheckSquare, ChevronsUpDown, Upload, Files, LayoutGrid, Folder } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { FileUploadResult } from '@/services/file-upload.service';
@@ -17,82 +17,63 @@ import { AddFieldDialog } from './add-field-dialog';
 
 export interface FormField {
   id: string;
-  type: string;
+  type: 'text' | 'textarea' | 'email' | 'phone' | 'date' | 'select' | 'file' | 'repeatable' | 'section' | 'group' | 'checkbox' | 'number';
   label: string;
-  required: boolean;
-  helpText?: string;
-  // Text field config
+  required?: boolean;
+  fields?: FormField[];
   textConfig?: {
+    placeholder?: string;
     minLength?: number;
     maxLength?: number;
-    pattern?: string;
-    placeholder?: string;
+    helpText?: string;
   };
-  // Number field config
   numberConfig?: {
     min?: number;
     max?: number;
     step?: number;
     placeholder?: string;
+    helpText?: string;
   };
-  // Email field config
   emailConfig?: {
     placeholder?: string;
-    allowedDomains?: string[];
+    helpText?: string;
   };
-  // Phone field config
   phoneConfig?: {
-    format?: string;
     placeholder?: string;
-    defaultCountry?: string;
+    helpText?: string;
   };
-  // Date field config
   dateConfig?: {
-    min?: string;
-    max?: string;
-    format?: string;
+    placeholder?: string;
+    helpText?: string;
   };
-  // Time field config
-  timeConfig?: {
-    min?: string;
-    max?: string;
-    step?: number;
+  selectConfig?: {
+    options: { label: string; value: string }[];
+    placeholder?: string;
+    helpText?: string;
   };
-  // Choice fields config
-  options?: { 
-    label: string; 
-    value: string;
-    description?: string;
-  }[];
-  choiceConfig?: {
-    layout?: 'vertical' | 'horizontal';
-    allowOther?: boolean;
-    otherLabel?: string;
-  };
-  // File field config
   fileConfig?: {
-    accept?: string;
     maxSize?: number;
-    maxFiles?: number;
     allowedTypes?: string[];
+    helpText?: string;
   };
-  // Section config
-  sectionConfig?: {
-    description?: string;
+  repeatableConfig?: {
     fields: FormField[];
     showTitle?: boolean;
-    isWizardStep?: boolean;
+    description?: string;
   };
-  // Repeatable config
-  repeatableConfig?: {
-    minItems: number;
-    maxItems?: number;
+  sectionConfig?: {
     fields: FormField[];
-    addLabel?: string;
-    itemLabel?: string;
+    showTitle?: boolean;
+    description?: string;
   };
-  // Common field value
-  value?: any;
+  groupConfig?: {
+    showTitle?: boolean;
+    description?: string;
+  };
+  checkboxConfig?: {
+    label?: string;
+    helpText?: string;
+  };
 }
 
 interface FormFieldProps {
@@ -125,6 +106,7 @@ const FIELD_ICONS = {
   file: Upload,
   repeatable: Files,
   section: LayoutGrid,
+  group: Folder,
 } as const;
 
 export function FormField({
@@ -834,6 +816,86 @@ export function FormField({
         />
       </Card>
     );
+  }
+
+  if (field.type === 'group') {
+    const content = (dragHandleProps?: any) => (
+      <Card className="p-4">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {!isPreview && dragHandleProps && (
+                <div {...dragHandleProps}>
+                  <GripVertical className="h-5 w-5 text-gray-400" />
+                </div>
+              )}
+              <div className="space-y-1">
+                <Input
+                  value={field.label}
+                  onChange={(e) => handleLabelChange(e.target.value)}
+                  className="font-medium"
+                  placeholder="Group Title"
+                />
+                {field.groupConfig?.description && (
+                  <Textarea
+                    value={field.groupConfig.description}
+                    onChange={(e) =>
+                      onUpdate({
+                        ...field,
+                        groupConfig: {
+                          ...field.groupConfig,
+                          description: e.target.value,
+                        },
+                      })
+                    }
+                    placeholder="Group description (optional)"
+                    className="mt-1"
+                  />
+                )}
+              </div>
+            </div>
+            {!isPreview && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsAddingField(true)}
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onDelete}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {field.fields && field.fields.length > 0 && (
+            <div className="space-y-3 pl-6">
+              {field.fields.map((subfield, index) => (
+                <FormField
+                  key={subfield.id}
+                  field={subfield}
+                  onUpdate={(updatedField) =>
+                    handleUpdateSubfield(index, updatedField)
+                  }
+                  onDelete={() => handleDeleteSubfield(index)}
+                  path={[...path, field.id]}
+                  level={index}
+                  isPreview={isPreview}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+    );
+
+    return content();
   }
 
   const handleDragOver = (e: React.DragEvent) => {
