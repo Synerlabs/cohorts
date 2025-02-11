@@ -16,7 +16,12 @@ interface PaymentFormProps {
     id: string;
     amount: number;
     currency: string;
+    status: string;
     payments?: any[];
+    application?: {
+      id: string;
+      status: string;
+    } | null;
   };
   orgId: string;
   defaultMethod?: string;
@@ -32,6 +37,51 @@ export function PaymentForm({
   const [clientSecret, setClientSecret] = useState<string>();
   const [selectedMethod, setSelectedMethod] = useState(defaultMethod);
   const [isCreatingIntent, setIsCreatingIntent] = useState(false);
+  const [paymentError, setPaymentError] = useState<string>();
+
+  // Calculate if payments are allowed
+  const isOrderSettled = order.status === 'completed' || order.status === 'paid';
+  const isApplicationSettled = order.application?.status === 'approved' || order.application?.status === 'completed';
+  const totalPaid = order.payments
+    ?.filter(p => p.status === 'approved' || p.status === 'paid')
+    ?.reduce((sum, p) => sum + (p.amount || 0), 0) ?? 0;
+  const isFullyPaid = totalPaid >= order.amount;
+  const canAcceptPayments = !isOrderSettled && !isApplicationSettled && !isFullyPaid;
+
+  // If payments are not allowed, show appropriate message
+  if (!canAcceptPayments) {
+    return (
+      <Card>
+        <CardHeader className="border-b">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Payment Status</CardTitle>
+              <CardDescription className="mt-1.5">
+                {isFullyPaid ? 'Payment completed' : 'Payment not required'}
+              </CardDescription>
+            </div>
+            <div className="text-2xl font-semibold">
+              {(order.amount / 100).toLocaleString(undefined, {
+                style: 'currency',
+                currency: order.currency
+              })}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <Alert>
+            <AlertDescription>
+              {isFullyPaid 
+                ? 'This order has been fully paid.' 
+                : isOrderSettled 
+                  ? 'This order has already been completed.'
+                  : 'This application has already been processed.'}
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // If no active Stripe account and card is selected, switch to manual
   useEffect(() => {
@@ -46,12 +96,47 @@ export function PaymentForm({
   };
 
   const handleStripeError = (error: string) => {
+    setPaymentError(error);
     toast({
       variant: 'destructive',
       title: 'Payment failed',
       description: error
     });
   };
+
+  const initializeStripePayment = async () => {
+    setIsCreatingIntent(true);
+    setPaymentError(undefined);
+    
+    try {
+      const secret = await createStripePaymentIntent(
+        order.id,
+        order.amount,
+        order.currency,
+        orgId
+      );
+      if (secret) {
+        setClientSecret(secret);
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || 'Failed to create payment intent. Please try again.';
+      setPaymentError(errorMessage);
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: errorMessage
+      });
+    } finally {
+      setIsCreatingIntent(false);
+    }
+  };
+
+  // Automatically initialize Stripe payment when card method is selected
+  useEffect(() => {
+    if (selectedMethod === 'card' && !clientSecret && !isCreatingIntent) {
+      initializeStripePayment();
+    }
+  }, [selectedMethod]);
 
   return (
     <Card>
@@ -124,6 +209,13 @@ export function PaymentForm({
                 <p className="text-sm text-muted-foreground mb-4">
                   Complete your payment securely using your credit or debit card.
                 </p>
+                
+                {paymentError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertDescription>{paymentError}</AlertDescription>
+                  </Alert>
+                )}
+
                 {clientSecret ? (
                   <StripePaymentForm
                     clientSecret={clientSecret}
@@ -133,38 +225,24 @@ export function PaymentForm({
                     onError={handleStripeError}
                   />
                 ) : (
-                  <Button 
-                    className="w-full" 
-                    size="lg"
-                    type="button"
-                    disabled={isCreatingIntent}
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      try {
-                        setIsCreatingIntent(true);
-                        const secret = await createStripePaymentIntent(
-                          order.id,
-                          order.amount,
-                          order.currency,
-                          orgId
-                        );
-                        if (secret) {
-                          setClientSecret(secret);
-                        }
-                      } catch (error: any) {
-                        toast({
-                          variant: 'destructive',
-                          title: 'Error',
-                          description: error.message || 'Failed to create payment intent. Please try again.'
-                        });
-                      } finally {
-                        setIsCreatingIntent(false);
-                      }
-                    }}
-                  >
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    {isCreatingIntent ? 'Preparing Payment...' : 'Pay with Card'}
-                  </Button>
+                  <div className="flex justify-center">
+                    {isCreatingIntent ? (
+                      <div className="flex items-center gap-2">
+                        <div className="animate-spin">
+                          <CreditCard className="h-4 w-4" />
+                        </div>
+                        <span>Preparing payment...</span>
+                      </div>
+                    ) : (
+                      <Button 
+                        onClick={initializeStripePayment}
+                        disabled={isCreatingIntent}
+                      >
+                        <CreditCard className="mr-2 h-4 w-4" />
+                        Retry Card Payment
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
             </TabsContent>
