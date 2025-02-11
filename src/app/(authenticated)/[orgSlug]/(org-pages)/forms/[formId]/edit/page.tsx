@@ -5,15 +5,15 @@ import { FormBuilder } from '../../_components/form-builder';
 import { notFound } from 'next/navigation';
 
 interface EditFormPageProps extends OrgAccessHOCProps {
-  params: {
+  params: Promise<{
     slug: string;
     formId: string;
     orgSlug: string;
-  };
+  }>;
 }
 
 async function EditFormPage({ org, user, params }: EditFormPageProps) {
-  const formId = params.formId;
+  const {formId} = await params;
   const supabase = await createServiceRoleClient();
 
   const { data: template, error } = await supabase

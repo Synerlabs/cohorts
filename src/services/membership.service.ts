@@ -165,6 +165,7 @@ export class MembershipService {
     }
 
     const supabase = await createClient();
+    console.log('tier.membership_tier.form_template_id', tier.membership_tier.form_template_id);
     const { data: formTemplate, error } = await supabase
       .from('form_templates')
       .select('*')
@@ -172,6 +173,7 @@ export class MembershipService {
       .single();
 
     if (error || !formTemplate) {
+      console.error('Error fetching form template:', error);
       throw new Error('Error fetching form template');
     }
 
