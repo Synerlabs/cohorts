@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { ProductService } from "@/services/product.service";
 import { createMembershipApplication } from "@/services/applications.service";
-import { IMembershipTierProduct } from "@/lib/types/product";
+import { IMembershipTierProduct, MembershipTierRow } from "@/lib/types/product";
+import { Currency, MembershipActivationType } from "@/lib/types/membership";
 
 export async function getMembershipTierDetails(tierId: string): Promise<IMembershipTierProduct | null> {
   return await ProductService.getMembershipTier(tierId);
@@ -33,40 +34,31 @@ export async function createUserMembership(userId: string, tierId: string, group
   const tier = await ProductService.getMembershipTier(tierId);
   if (!tier) throw new Error("Membership tier not found");
 
-  // Create or get the group user
+  // Use upsert to atomically get or create the group user
   const { data: groupUser, error: groupUserError } = await supabase
     .from('group_users')
-    .select()
-    .eq('user_id', userId)
-    .eq('group_id', groupId)
-    .single();
-
-  if (groupUserError && groupUserError.code !== 'PGRST116') {
-    throw groupUserError;
-  }
-
-  let groupUserId: string;
-
-  if (!groupUser) {
-    // Create new group user
-    const { data: newGroupUser, error: newGroupUserError } = await supabase
-      .from('group_users')
-      .insert({
+    .upsert(
+      {
         user_id: userId,
         group_id: groupId,
-        is_active: tier.membership_tier.activation_type === 'automatic'
-      })
-      .select()
-      .single();
+        is_active: tier.membership_tier.activation_type === 'automatic',
+        updated_at: new Date().toISOString()
+      },
+      {
+        onConflict: 'user_id,group_id',
+        ignoreDuplicates: true // Changed to true to update existing records
+      }
+    )
+    .select()
+    .single();
 
-    if (newGroupUserError) throw newGroupUserError;
-    groupUserId = newGroupUser.id;
-  } else {
-    groupUserId = groupUser.id;
-  }
+  if (groupUserError) throw groupUserError;
+  if (!groupUser) throw new Error("Failed to create or get group user");
 
   // Create the application
-  await createMembershipApplication(groupUserId, tierId);
+  await createMembershipApplication(groupUser.id, tierId);
+
+  return groupUser.id;
 }
 
 export async function getMembershipDetails(tierId: string): Promise<IMembershipTierProduct | null> {
@@ -390,34 +382,57 @@ interface ApplicationWithTier {
   tier_id: string;
   tier: {
     id: string;
-    type: string;
+    type: 'membership_tier';
     name: string;
     description: string | null;
     price: number;
-    currency: string;
+    currency: Currency;
     group_id: string;
     is_active: boolean;
     created_at: string;
     updated_at: string;
-    membership_tier: Array<{
+    form_template_id: string;
+    membership_tier: MembershipTierRow;
+  };
+}
+
+interface ApplicationResponse {
+  id: string;
+  group_user_id: string;
+  tier_id: string;
+  tier: {
+    id: string;
+    type: 'membership_tier';
+    name: string;
+    description: string | null;
+    price: number;
+    currency: Currency;
+    group_id: string;
+    is_active: boolean;
+    created_at: string;
+    updated_at: string;
+    form_template_id: string;
+    membership_tiers: Array<{
+      product_id: string;
       duration_months: number;
-      activation_type: string;
+      activation_type: MembershipActivationType;
+      member_id_format?: string;
+      form_template_id?: string;
     }>;
   };
 }
 
 export async function approveApplication(applicationId: string) {
   const supabase = await createClient();
-  console.log('Starting application approval process for:', applicationId);
 
-  // Get the application details
-  const { data, error: applicationError } = await supabase
+  // Get application with tier details
+  const { data, error: appError } = await supabase
     .from('applications')
     .select(`
       id,
       group_user_id,
       tier_id,
-      tier:products!inner(
+      tier:products!inner (
         id,
         type,
         name,
@@ -428,122 +443,53 @@ export async function approveApplication(applicationId: string) {
         is_active,
         created_at,
         updated_at,
-        membership_tier:membership_tiers(
+        form_template_id,
+        membership_tiers!inner (
+          product_id,
           duration_months,
-          activation_type
+          activation_type,
+          member_id_format,
+          form_template_id
         )
       )
     `)
     .eq('id', applicationId)
     .single();
 
-  console.log('Application query result:', { data, error: applicationError });
+  if (appError) throw appError;
 
-  if (applicationError) throw applicationError;
-  if (!data) throw new Error("Application not found");
+  const application = data as ApplicationResponse;
+  if (!application) throw new Error('Application not found');
 
-  const application = {
-    id: data.id,
-    group_user_id: data.group_user_id,
-    tier_id: data.tier_id,
-    tier: {
-      id: data.tier[0].id,
-      type: data.tier[0].type,
-      name: data.tier[0].name,
-      description: data.tier[0].description,
-      price: data.tier[0].price,
-      currency: data.tier[0].currency,
-      group_id: data.tier[0].group_id,
-      is_active: data.tier[0].is_active,
-      created_at: data.tier[0].created_at,
-      updated_at: data.tier[0].updated_at,
-      membership_tier: data.tier[0].membership_tier
-    }
-  } as ApplicationWithTier;
+  const membershipTier = application.tier.membership_tiers[0];
+  if (!membershipTier) throw new Error('Membership tier not found');
 
-  console.log('Parsed application data:', application);
+  // Calculate membership dates
+  const startDate = new Date().toISOString();
+  const endDate = membershipTier.duration_months ? 
+    new Date(Date.now() + membershipTier.duration_months * 30 * 24 * 60 * 60 * 1000).toISOString() : 
+    null;
 
-  if (!application.tier) throw new Error("Membership tier not found");
-  if (!application.tier.membership_tier?.[0]) throw new Error("Membership tier details not found");
+  // Create membership record
+  const { error: membershipError } = await supabase
+    .from('memberships')
+    .insert({
+      group_user_id: application.group_user_id,
+      tier_id: application.tier_id,
+      status: 'active',
+      start_date: startDate,
+      end_date: endDate
+    });
 
-  const tier: IMembershipTierProduct = {
-    id: application.tier.id,
-    type: 'membership_tier',
-    name: application.tier.name,
-    description: application.tier.description,
-    price: application.tier.price,
-    currency: application.tier.currency as IMembershipTierProduct['currency'],
-    group_id: application.tier.group_id,
-    is_active: application.tier.is_active,
-    created_at: application.tier.created_at,
-    updated_at: application.tier.updated_at,
-    membership_tier: {
-      duration_months: application.tier.membership_tier[0].duration_months,
-      activation_type: application.tier.membership_tier[0].activation_type as IMembershipTierProduct['membership_tier']['activation_type'],
-      product_id: application.tier.id
-    }
-  };
+  if (membershipError) throw membershipError;
 
-  console.log('Membership tier details:', tier);
+  // Activate the group user
+  const { error: userError } = await supabase
+    .from('group_users')
+    .update({ is_active: true })
+    .eq('id', application.group_user_id);
 
-  const isPaymentRequired = tier.membership_tier.activation_type === 'payment_required';
-  const newStatus = isPaymentRequired ? 'pending_payment' : 'approved';
-  console.log('Application status will be set to:', newStatus);
-
-  // Update the application status
-  const { error: updateError } = await supabase
-    .from('applications')
-    .update({
-      status: newStatus,
-      approved_at: new Date().toISOString()
-    })
-    .eq('id', applicationId);
-
-  console.log('Application status update result:', { error: updateError });
-
-  if (updateError) throw updateError;
-
-  // If application is approved (no payment required), create membership and activate user
-  if (newStatus === 'approved') {
-    console.log('Creating membership for approved application');
-    
-    // Calculate membership dates
-    const startDate = new Date().toISOString();
-    const endDate = tier.membership_tier.duration_months ? 
-      new Date(Date.now() + tier.membership_tier.duration_months * 30 * 24 * 60 * 60 * 1000).toISOString() : 
-      null;
-
-    console.log('Membership dates:', { startDate, endDate, durationMonths: tier.membership_tier.duration_months });
-
-    // Create membership record
-    const { error: membershipError } = await supabase
-      .from('memberships')
-      .insert({
-        group_user_id: application.group_user_id,
-        tier_id: tier.id,
-        status: 'active',
-        start_date: startDate,
-        end_date: endDate
-      });
-
-    console.log('Membership creation result:', { error: membershipError });
-
-    if (membershipError) throw membershipError;
-
-    // Activate the group user
-    const { error: groupUserError } = await supabase
-      .from('group_users')
-      .update({ is_active: true })
-      .eq('id', application.group_user_id);
-
-    console.log('Group user activation result:', { error: groupUserError });
-
-    if (groupUserError) throw groupUserError;
-  } else {
-    console.log('Skipping membership creation - payment required');
-  }
-
-  console.log('Application approval process completed');
+  if (userError) throw userError;
 }
 
 interface ApplicationWithTierDetails {
@@ -552,9 +498,7 @@ interface ApplicationWithTierDetails {
   tier_id: string;
   tier: {
     id: string;
-    membership_tiers: Array<{
-      duration_months: number;
-    }>;
+    membership_tiers: MembershipTierRow[];
   };
 }
 

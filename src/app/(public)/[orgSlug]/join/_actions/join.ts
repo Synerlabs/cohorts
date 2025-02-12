@@ -8,6 +8,7 @@ import { createGroupUser } from "@/services/join.service";
 import { createMembershipApplication } from "@/services/applications.service";
 import { createClient } from "@/lib/utils/supabase/server";
 import { MembershipActivationType } from "@/lib/types/membership";
+import { getGroupUser } from "@/services/user.service";
 
 type State = {
   message?: string;
@@ -43,14 +44,18 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     }
 
     // Create group user if not exists
-    const groupUser = await createGroupUser(groupId, userId);
+    let groupUser = await getGroupUser({userId, groupId});
+
     if (!groupUser) {
-      return {
-        errors: {
-          form: ['Failed to create group user']
-        }
-      };
-    }
+      const groupUser = await createGroupUser(groupId, userId);
+      if (!groupUser) {
+        return {
+          errors: {
+            form: ['Failed to create group user']
+          }
+        };
+      }
+    } 
 
     // Create application with form data if provided
     const application = await createMembershipApplication(
