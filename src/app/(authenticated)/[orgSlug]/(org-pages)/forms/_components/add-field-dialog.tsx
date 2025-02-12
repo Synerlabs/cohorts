@@ -35,7 +35,6 @@ import {
   Copy,
   Layers
 } from 'lucide-react';
-import { nanoid } from 'nanoid';
 import { Checkbox } from '@/components/ui/checkbox';
 
 interface AddFieldDialogProps {
@@ -477,9 +476,9 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
     }
   };
 
-  function createDefaultField(type: (typeof FIELD_TYPES)[number]['type']): FormField {
+  function createDefaultField(type: FormField['type']): FormField {
     const baseField = {
-      id: nanoid(),
+      id: crypto.randomUUID(),
       type,
       label: '',
       required: false,
@@ -574,7 +573,7 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
         return {
           ...baseField,
           groupConfig: {
-            fields: [] as FormField[],
+            fields: [],
             showTitle: true,
             description: '',
           },
@@ -587,8 +586,17 @@ export function AddFieldDialog({ open, onOpenChange, onAdd }: AddFieldDialogProp
             helpText: '',
           },
         };
+      case 'radio':
+        return {
+          ...baseField,
+          options: [],
+          choiceConfig: {
+            layout: 'vertical',
+            allowOther: false,
+          },
+        };
       default:
-        return baseField as FormField;
+        return baseField;
     }
   }
 

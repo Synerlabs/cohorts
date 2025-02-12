@@ -28,6 +28,49 @@ interface FormBuilderProps {
   mode?: 'create' | 'edit';
 }
 
+function ensureValidUUIDs(field: FormFieldType): FormFieldType {
+  // Ensure the field itself has a valid UUID
+  const updatedField = {
+    ...field,
+    id: field.id || crypto.randomUUID()
+  };
+
+  // Handle nested fields in sections
+  if (field.type === 'section' && field.sectionConfig?.fields) {
+    return {
+      ...updatedField,
+      sectionConfig: {
+        ...field.sectionConfig,
+        fields: field.sectionConfig.fields.map(ensureValidUUIDs)
+      }
+    };
+  }
+
+  // Handle nested fields in repeatable sections
+  if (field.type === 'repeatable' && field.repeatableConfig?.fields) {
+    return {
+      ...updatedField,
+      repeatableConfig: {
+        ...field.repeatableConfig,
+        fields: field.repeatableConfig.fields.map(ensureValidUUIDs)
+      }
+    };
+  }
+
+  // Handle nested fields in groups
+  if (field.type === 'group' && field.groupConfig?.fields) {
+    return {
+      ...updatedField,
+      groupConfig: {
+        ...field.groupConfig,
+        fields: field.groupConfig.fields.map(ensureValidUUIDs)
+      }
+    };
+  }
+
+  return updatedField;
+}
+
 export function FormBuilder({ org, template, mode = 'create' }: FormBuilderProps) {
   const orgId = org.id;
   const [title, setTitle] = useState(template?.title || '');
@@ -39,40 +82,8 @@ export function FormBuilder({ org, template, mode = 'create' }: FormBuilderProps
         ? JSON.parse(template.schema) 
         : template.schema;
       
-      // Ensure fields arrays are initialized
-      const fields = schema.fields?.map((field: FormFieldType) => {
-        // Initialize section fields
-        if (field.type === 'section') {
-          return {
-            ...field,
-            sectionConfig: {
-              ...field.sectionConfig,
-              fields: field.sectionConfig?.fields || [],
-            },
-          };
-        }
-        // Initialize repeatable fields
-        if (field.type === 'repeatable') {
-          return {
-            ...field,
-            repeatableConfig: {
-              ...field.repeatableConfig,
-              fields: field.repeatableConfig?.fields || [],
-            },
-          };
-        }
-        // Initialize group fields
-        if (field.type === 'group') {
-          return {
-            ...field,
-            groupConfig: {
-              ...field.groupConfig,
-              fields: field.groupConfig?.fields || [],
-            },
-          };
-        }
-        return field;
-      }) || [];
+      // Ensure fields arrays are initialized and have valid UUIDs
+      const fields = schema.fields?.map((field: FormFieldType) => ensureValidUUIDs(field)) || [];
 
       return fields.length > 0 ? fields : [createDefaultSection()];
     } catch (error) {

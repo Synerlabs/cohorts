@@ -207,8 +207,14 @@ export function FormField({
   };
 
   const handleAddField = (newField: FormField) => {
+    // Ensure the new field has a valid UUID
+    const fieldWithUUID = {
+      ...newField,
+      id: newField.id || crypto.randomUUID()
+    };
+
     if (field.sectionConfig) {
-      if (newField.type === 'section') {
+      if (fieldWithUUID.type === 'section') {
         toast({
           title: 'Error',
           description: 'Cannot add a section within another section',
@@ -225,7 +231,7 @@ export function FormField({
         ...field,
         sectionConfig: {
           ...field.sectionConfig,
-          fields: [...field.sectionConfig.fields, newField],
+          fields: [...field.sectionConfig.fields, fieldWithUUID],
         },
       });
     } else if (field.repeatableConfig) {
@@ -237,7 +243,7 @@ export function FormField({
         ...field,
         repeatableConfig: {
           ...field.repeatableConfig,
-          fields: [...field.repeatableConfig.fields, newField],
+          fields: [...field.repeatableConfig.fields, fieldWithUUID],
         },
       });
     }
