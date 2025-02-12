@@ -7,21 +7,13 @@ import { PaymentService } from "@/services/payment.service";
 import { Payment } from "@/services/payment/types";
 import { getCurrentUser } from "@/services/user.service";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
-
+import JoinNowHero from "./_components/JoinNowHero";
 async function OrgHomePage({ org, user, isGuest }: OrgAccessHOCProps) {
   // Since we're not allowing guests, user will always be defined
   const membership = await getUserMembership(user!.id, org.id);
 
   if (!membership) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full">
-        <h1 className="text-2xl font-bold mb-4">Welcome to {org.slug}!</h1>
-        <p className="text-gray-600 mb-8">Join us to access exclusive content and features.</p>
-        <Button asChild>
-          <Link href={`/${org.slug}/join`}>Join Now</Link>
-        </Button>
-      </div>
-    );
+    return <JoinNowHero org={org} />;
   }
 
   // Only fetch pending payments for non-guest users

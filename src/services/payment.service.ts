@@ -53,14 +53,13 @@ export class PaymentService {
       .select(`
         *,
         orders(
-          *,
-          product:products(*)
+          *
         ),
         payment_uploads(
           upload:uploads(*)
         )
       `)
-      .eq('orders.products.group_id', orgId)
+      .eq('group_id', orgId)
       .order('created_at', { ascending: false });
 
     if (error || !payments) {

@@ -269,22 +269,14 @@ export async function getUserMembership(userId: string, groupId: string) {
   }
 
   // If no application found, check for active membership
+  console.log('groupUser.id', groupUser.id);
   const { data: membership, error: membershipError } = await supabase
     .from('memberships')
     .select(`
       id,
       status,
       start_date,
-      end_date,
-      orders (
-        id,
-        status,
-        created_at,
-        payments (
-          id,
-          status
-        )
-      )
+      end_date
     `)
     .eq('group_user_id', groupUser.id)
     .eq('status', 'active')
@@ -319,7 +311,7 @@ export async function getUserMembership(userId: string, groupId: string) {
     return {
       id: membership.id,
       status,
-      created_at: membership.orders?.[0]?.created_at,
+      created_at: membership.created_at,
       product: {
         ...membership.tier,
         membership_tiers: {
