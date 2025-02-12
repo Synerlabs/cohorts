@@ -50,7 +50,7 @@ async function JoinPage({ org, user, params }: JoinPageProps) {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 mt-8">
               <h3 className="text-sm">Application Process</h3>
               <ApplicationStepper 
                 tier={tier}

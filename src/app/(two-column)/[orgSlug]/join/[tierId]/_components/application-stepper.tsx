@@ -23,20 +23,49 @@ import {
         },
       ];
   
-      if (tier.price > 0) {
+      if (tier.membership_tier.activation_type === 'review_then_payment' && tier.price > 0) {
+        steps.push(
+          {
+            step: 2,
+            title: "Application Review",
+            description: "Our team will review your application.",
+          },
+          {
+            step: 3,
+            title: "Payment",
+            description: `Process the membership fee payment of ${tier.currency} ${(tier.price / 100).toFixed(2)}.`,
+          }
+        );
+      } else if (tier.membership_tier.activation_type === 'form_then_review') {
         steps.push({
           step: 2,
-          title: "Payment",
-          description: `Process the membership fee payment of ${tier.currency} ${(tier.price / 100).toFixed(2)}.`,
-        });
-      }
-  
-      if (tier.membership_tier.activation_type.includes('review')) {
-        steps.push({
-          step: steps.length + 1,
           title: "Application Review",
           description: "Our team will review your application.",
         });
+
+        if (tier.price > 0) {
+          steps.push({
+            step: 3,
+            title: "Payment",
+            description: `Process the membership fee payment of ${tier.currency} ${(tier.price / 100).toFixed(2)}.`,
+          });
+        }
+      } else {
+        if (tier.price > 0) {
+          steps.push({
+            step: 2,
+            title: "Payment",
+            description: `Process the membership fee payment of ${tier.currency} ${(tier.price / 100).toFixed(2)}.`,
+          });
+        }
+  
+        if (tier.membership_tier.activation_type.includes('review')) {
+          steps.push({
+            step: steps.length + 1,
+            title: "Application Review",
+            description: "Our team will review your application.",
+          });
+        }
       }
   
       return steps;
