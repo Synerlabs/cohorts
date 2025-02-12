@@ -16,8 +16,8 @@ export async function createStorageProvider(orgId: string): Promise<StorageProvi
     .single();
 
   if (error) {
-    console.error('Error fetching storage settings:', error);
-    return null;
+    // console.error('Error fetching storage settings:', error);
+    return {};
   }
 
   if (!settings) {

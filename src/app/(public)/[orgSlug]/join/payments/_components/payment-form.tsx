@@ -10,6 +10,7 @@ import { StripePaymentForm } from './stripe-payment-form';
 import { toast } from "@/components/ui/use-toast";
 import { createStripePaymentIntent } from '../actions';
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { formatAmount } from '@/lib/utils/currency';
 
 interface PaymentFormProps {
   order: {
@@ -38,15 +39,186 @@ export function PaymentForm({
   const [selectedMethod, setSelectedMethod] = useState(defaultMethod);
   const [isCreatingIntent, setIsCreatingIntent] = useState(false);
   const [paymentError, setPaymentError] = useState<string>();
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState({
+    status: order.status,
+    totalPaid: 0 // Initialize with 0 to avoid hydration mismatch
+  });
+
+  // Pre-format the amount to ensure consistent rendering
+  const formattedAmount = formatAmount(order.amount, order.currency);
+
+  // Set initial state after hydration
+  useEffect(() => {
+    setIsClient(true);
+    setPaymentStatus({
+      status: order.status,
+      totalPaid: order.payments
+        ?.filter(p => p.status === 'approved' || p.status === 'paid')
+        ?.reduce((sum, p) => sum + (p.amount || 0), 0) ?? 0
+    });
+  }, [order.status, order.payments]);
+
+  // Handle Stripe account availability
+  useEffect(() => {
+    if (!isClient) return;
+    if (!hasActiveStripeAccount && selectedMethod === 'card') {
+      setSelectedMethod('manual');
+    }
+  }, [isClient, hasActiveStripeAccount, selectedMethod]);
+
+  // Initialize Stripe payment when card method is selected
+  useEffect(() => {
+    if (selectedMethod === 'card' && !clientSecret && !isCreatingIntent) {
+      initializeStripePayment();
+    }
+  }, [selectedMethod, clientSecret, isCreatingIntent]);
+
+  // Check URL params for payment success (only on client)
+  useEffect(() => {
+    if (!isClient) return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    // Check both our custom success parameter and Stripe's redirect parameters
+    const isSuccess = 
+      searchParams.get('payment_status') === 'success' || 
+      searchParams.get('redirect_status') === 'succeeded' ||
+      searchParams.get('payment_intent_client_secret') !== null;
+
+    if (isSuccess) {
+      setPaymentSuccess(true);
+
+      // Only start polling if payment is not already completed
+      if (order.status !== 'paid' && order.status !== 'completed') {
+        let pollCount = 0;
+        const maxPolls = 20; // Maximum number of polling attempts (1 minute)
+        let pollInterval: ReturnType<typeof setTimeout>;
+        
+        const checkPaymentStatus = async () => {
+          try {
+            const response = await fetch(`/api/payments/${order.id}/status`);
+            const data = await response.json();
+            
+            setPaymentStatus({
+              status: data.status,
+              totalPaid: data.totalPaid
+            });
+
+            // Stop polling if payment is complete or we've reached max attempts
+            if (data.status === 'paid' || data.status === 'completed' || !data.hasPendingPayment) {
+              // Only reload if the status has actually changed
+              if (data.status !== order.status) {
+                window.location.reload();
+              }
+            } else if (pollCount < maxPolls) {
+              pollCount++;
+              pollInterval = setTimeout(checkPaymentStatus, 3000);
+            } else {
+              // After max attempts, show a message but don't refresh
+              toast({
+                title: "Payment Status Update",
+                description: "The payment is still being processed. You can refresh the page to check the latest status.",
+                duration: 10000,
+              });
+            }
+          } catch (error) {
+            console.error('Error checking payment status:', error);
+            if (pollCount < maxPolls) {
+              pollCount++;
+              pollInterval = setTimeout(checkPaymentStatus, 3000);
+            }
+          }
+        };
+
+        // Start checking payment status
+        pollInterval = setTimeout(checkPaymentStatus, 3000);
+
+        // Cleanup interval on unmount
+        return () => {
+          if (pollInterval) {
+            clearTimeout(pollInterval);
+          }
+        };
+      }
+    }
+  }, [isClient, order.id, order.status]);
 
   // Calculate if payments are allowed
-  const isOrderSettled = order.status === 'completed' || order.status === 'paid';
+  const isOrderSettled = paymentStatus.status === 'completed' || paymentStatus.status === 'paid';
   const isApplicationSettled = order.application?.status === 'approved' || order.application?.status === 'completed';
-  const totalPaid = order.payments
-    ?.filter(p => p.status === 'approved' || p.status === 'paid')
-    ?.reduce((sum, p) => sum + (p.amount || 0), 0) ?? 0;
-  const isFullyPaid = totalPaid >= order.amount;
-  const canAcceptPayments = !isOrderSettled && !isApplicationSettled && !isFullyPaid;
+  const isFullyPaid = paymentStatus.totalPaid >= order.amount;
+  const canAcceptPayments = !isOrderSettled && !isApplicationSettled && !isFullyPaid && !paymentSuccess;
+
+  // If we haven't hydrated yet, show a loading state or the initial server state
+  if (!isClient) {
+    return (
+      <Card>
+        <CardHeader className="border-b">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Loading Payment Status</CardTitle>
+              <CardDescription className="mt-1.5">Please wait...</CardDescription>
+            </div>
+            <div className="text-2xl font-semibold">
+              {formattedAmount}
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  // If payment was successful but still processing
+  if (paymentSuccess) {
+    const showProcessingMessage = order.status !== 'paid' && order.status !== 'completed';
+    
+    return (
+      <Card>
+        <CardHeader className="border-b">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>
+                {showProcessingMessage ? 'Payment Processing' : 'Payment Complete'}
+              </CardTitle>
+              <CardDescription className="mt-1.5">
+                {showProcessingMessage ? 'Your payment is being processed' : 'Your payment has been processed successfully'}
+              </CardDescription>
+            </div>
+            <div className="text-2xl font-semibold">
+              {formattedAmount}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6">
+          <div className="space-y-4">
+            <Alert className="bg-green-50 border-green-200">
+              <div className="flex items-center gap-2">
+                {showProcessingMessage ? (
+                  <>
+                    <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
+                    <AlertDescription className="text-green-800">
+                      Payment successful! Please wait while we process your payment. This may take a few moments.
+                    </AlertDescription>
+                  </>
+                ) : (
+                  <AlertDescription className="text-green-800">
+                    Your payment has been processed successfully.
+                  </AlertDescription>
+                )}
+              </div>
+            </Alert>
+            {showProcessingMessage && (
+              <div className="text-sm text-muted-foreground">
+                <p>Your payment has been confirmed and is being processed. The page will automatically update to show your payment status.</p>
+                <p className="mt-2">If the status doesn't update after a few minutes, you can safely refresh the page.</p>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   // If payments are not allowed, show appropriate message
   if (!canAcceptPayments) {
@@ -61,10 +233,7 @@ export function PaymentForm({
               </CardDescription>
             </div>
             <div className="text-2xl font-semibold">
-              {(order.amount / 100).toLocaleString(undefined, {
-                style: 'currency',
-                currency: order.currency
-              })}
+              {formattedAmount}
             </div>
           </div>
         </CardHeader>
@@ -83,16 +252,14 @@ export function PaymentForm({
     );
   }
 
-  // If no active Stripe account and card is selected, switch to manual
-  useEffect(() => {
-    if (!hasActiveStripeAccount && selectedMethod === 'card') {
-      setSelectedMethod('manual');
-    }
-  }, [hasActiveStripeAccount, selectedMethod]);
-
   const handleStripeSuccess = async () => {
-    // Refresh the page to show updated payment status
-    window.location.reload();
+    // Set success state
+    setPaymentSuccess(true);
+    
+    // Add success parameter to URL
+    const url = new URL(window.location.href);
+    url.searchParams.set('payment_status', 'success');
+    window.history.replaceState({}, '', url.toString());
   };
 
   const handleStripeError = (error: string) => {
@@ -131,13 +298,6 @@ export function PaymentForm({
     }
   };
 
-  // Automatically initialize Stripe payment when card method is selected
-  useEffect(() => {
-    if (selectedMethod === 'card' && !clientSecret && !isCreatingIntent) {
-      initializeStripePayment();
-    }
-  }, [selectedMethod]);
-
   return (
     <Card>
       <CardHeader className="border-b">
@@ -149,10 +309,7 @@ export function PaymentForm({
             </CardDescription>
           </div>
           <div className="text-2xl font-semibold">
-            {(order.amount / 100).toLocaleString(undefined, {
-              style: 'currency',
-              currency: order.currency
-            })}
+            {formattedAmount}
           </div>
         </div>
       </CardHeader>
