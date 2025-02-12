@@ -6,7 +6,7 @@ import { createClient } from "@/lib/utils/supabase/server";
 import { Database } from "@/lib/types/database.types";
 import { JoinForm } from "./_components/join-form";
 import { MembershipService } from "@/services/membership.service";
-
+import ApplicationStepper from "./_components/application-stepper";
 interface JoinPageProps extends Omit<OrgAccessHOCProps, 'params'> {
   params: {
     tierId: string;
@@ -28,68 +28,33 @@ async function JoinPage({ org, user, params }: JoinPageProps) {
     const { tier, formTemplate } = await MembershipService.getMembershipTierAndForm(tierId);
     
     return (
-      <div className="grid min-h-svh lg:grid-cols-2">
+      <div className="grid min-h-svh lg:grid-cols-[1fr_2fr]">
         <div className="relative hidden lg:block lg:sticky lg:top-0 lg:h-screen bg-muted">
           <div className="absolute inset-0 p-10 flex flex-col justify-between overflow-y-auto">
             <div className="space-y-6">
               <div className="flex justify-center gap-2 md:justify-start">
-            <a href={`/@${org.slug}`} className="flex items-center gap-2 font-medium">
-              <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary text-primary-foreground">
-                <GalleryVerticalEnd className="size-4" />
+                <a href={`/@${org.slug}`} className="font-medium">
+                  <div className="flex h-6 w-6 mb-2 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                    <GalleryVerticalEnd className="size-4" />
+                  </div>
+                  {org.name}
+                </a>
               </div>
-              {org.name}
-            </a>
-          </div>
-            <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {tier.name} Application
-        </h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          {tier.description}
-        </p>
-      </div>
-              <h2 className="text-md font-semibold">Application Process</h2>
-              <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 bg-background">
-                    <span className="text-sm font-medium">1</span>
-                  </div>
-                  <div>
-                    <h4 className="font-medium">Complete Application Form</h4>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Fill out all required information in the membership application form.
-                    </p>
-                  </div>
-                </div>
-
-                {tier.price > 0 && (
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 bg-background">
-                      <span className="text-sm font-medium">2</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Payment</h4>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Process the membership fee payment of {tier.currency} {(tier.price / 100).toFixed(2)}.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {tier.membership_tier.activation_type.includes('review') && (
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-full border-2 bg-background">
-                      <span className="text-sm font-medium">{tier.price > 0 ? '3' : '2'}</span>
-                    </div>
-                    <div>
-                      <h4 className="font-medium">Application Review</h4>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Our team will review your application and get back to you within 2-3 business days.
-                      </p>
-                    </div>
-                  </div>
-                )}
+              <div>
+                <h1 className="text-2xl font-semibold tracking-tight">
+                  {tier.name} Application
+                </h1>
+                <p className="text-sm text-muted-foreground mt-2">
+                  {tier.description}
+                </p>
               </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="text-sm">Application Process</h3>
+              <ApplicationStepper 
+                tier={tier}
+              />
             </div>
           </div>
         </div>
