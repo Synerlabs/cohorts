@@ -108,7 +108,28 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
 
   // Track upload completion
   const [uploadResults, setUploadResults] = useState<Record<string, any>>({});
+  const [pendingUploads, setPendingUploads] = useState<boolean>(false);
+  const [formReadyToSubmit, setFormReadyToSubmit] = useState<boolean>(false);
+  const [formDataToSubmit, setFormDataToSubmit] = useState<any>(null);
   
+  // Define types for form response data
+  type FormFieldData = {
+    label: string;
+    type: string;
+    required: boolean;
+    value: any;
+  };
+
+  type FormSectionData = {
+    label: string;
+    fields: Record<string, FormFieldData>;
+  };
+
+  type FormResponseData = {
+    sections: Record<string, FormSectionData>;
+    fields: Record<string, FormFieldData>;
+  };
+
   useEffect(() => {
     // When upload state changes and is successful, store the result
     if (uploadState?.success && uploadState.fileInfo) {
@@ -117,18 +138,74 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
       );
       
       if (fieldId) {
-        setUploadResults(prev => ({
-          ...prev,
+        const newUploadResults = {
+          ...uploadResults,
           [fieldId]: uploadState.fileInfo
-        }));
-        // Also store in formData to ensure it's included in the response
-        setFormData(prev => ({
-          ...prev,
-          [fieldId]: uploadState.fileInfo
-        }));
+        };
+        setUploadResults(newUploadResults);
+
+        // Check if all files have been uploaded
+        const allUploadsComplete = Object.keys(fileFields).every(fieldId => {
+          return newUploadResults[fieldId] || 
+            (uploadState.fileInfo && fileFields[fieldId].name === uploadState.fileInfo.name);
+        });
+
+        if (allUploadsComplete && formDataToSubmit) {
+          // Update form data with file upload results and submit
+          const updatedFormData = {
+            ...formDataToSubmit,
+            responseData: {
+              ...formDataToSubmit.responseData,
+              fields: {
+                ...formDataToSubmit.responseData.fields
+              },
+              sections: {
+                ...formDataToSubmit.responseData.sections
+              }
+            }
+          };
+
+          // Update file fields in the response data
+          Object.entries(newUploadResults).forEach(([fieldId, fileInfo]) => {
+            // Find field info from the fields array
+            const field = fields.find(f => f.id === fieldId) || 
+              fields.flatMap(f => 
+                f.type === 'section' && f.sectionConfig?.fields 
+                  ? f.sectionConfig.fields 
+                  : []
+              ).find(f => f.id === fieldId);
+
+            if (field) {
+              const sectionField = fields.find(f => 
+                f.type === 'section' && 
+                f.sectionConfig?.fields?.some(sf => sf.id === fieldId)
+              );
+
+              if (sectionField) {
+                if (updatedFormData.responseData.sections[sectionField.id]?.fields) {
+                  updatedFormData.responseData.sections[sectionField.id].fields[fieldId].value = fileInfo;
+                }
+              } else if (updatedFormData.responseData.fields[fieldId]) {
+                updatedFormData.responseData.fields[fieldId].value = fileInfo;
+              }
+            }
+          });
+
+          // Batch state updates
+          setPendingUploads(false);
+          setFormReadyToSubmit(true);
+          onSubmit(updatedFormData);
+        }
       }
     }
-  }, [uploadState, fileFields]);
+  }, [uploadState, fileFields, fields, formDataToSubmit]);
+
+  // Reset form ready state after submission
+  useEffect(() => {
+    if (formReadyToSubmit) {
+      setFormReadyToSubmit(false);
+    }
+  }, [formReadyToSubmit]);
 
   useEffect(() => {
     async function loadFormTemplate() {
@@ -294,10 +371,8 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
             sectionMap[field.id] = sectionInfo;
             extractFields(field.sectionConfig.fields, { id: field.id, label: field.label });
           } else if (field.type === 'group' && field.groupConfig?.fields) {
-            // Handle group fields
             extractFields(field.groupConfig.fields, parentSection);
           } else if (field.type === 'repeatable' && field.repeatableConfig?.fields) {
-            // Handle repeatable fields
             const items = formData[field.id] || [];
             items.forEach((item: any, index: number) => {
               field.repeatableConfig.fields.forEach((subfield: any) => {
@@ -337,64 +412,8 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         }
       }
 
-      // Upload all files sequentially and store their information
-      for (const [fieldId, file] of Object.entries(fileFields)) {
-        console.log(`Uploading file for field ${fieldId}`);
-        const formData = new FormData();
-        formData.append('file', file);
-        
-        const result = await handleUpload(formData);
-        
-        // Wait for the upload state to be updated
-        await new Promise<void>((resolve, reject) => {
-          let attempts = 0;
-          const maxAttempts = 50;
-          
-          const checkState = () => {
-            attempts++;
-            if (uploadState?.error) {
-              console.error("Upload error:", uploadState.error);
-              reject(new Error(uploadState.error));
-            } else if (uploadState?.success && uploadState.fileInfo) {
-              console.log("Upload successful:", uploadState.fileInfo);
-              // Store file info in both states
-              setUploadResults(prev => ({
-                ...prev,
-                [fieldId]: uploadState.fileInfo
-              }));
-              setFormData(prev => ({
-                ...prev,
-                [fieldId]: uploadState.fileInfo
-              }));
-              resolve();
-            } else if (attempts >= maxAttempts) {
-              reject(new Error('Upload timeout'));
-            } else {
-              setTimeout(checkState, 100);
-            }
-          };
-          checkState();
-        });
-      }
-
-      // Prepare the response data with hierarchical structure
-      const responseData: {
-        sections: Record<string, {
-          label: string;
-          fields: Record<string, {
-            label: string;
-            type: string;
-            required: boolean;
-            value: any;
-          }>;
-        }>;
-        fields: Record<string, {
-          label: string;
-          type: string;
-          required: boolean;
-          value: any;
-        }>;
-      } = {
+      // Prepare the response data
+      const responseData: FormResponseData = {
         sections: {},
         fields: {}
       };
@@ -409,7 +428,6 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
           value: value
         };
 
-        // Add to appropriate section or root fields
         if (field.section) {
           if (!responseData.sections[field.section.id]) {
             responseData.sections[field.section.id] = {
@@ -423,16 +441,32 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         }
       });
 
-      // Pass the response data to parent for storing in form_responses table
-      await onSubmit({
+      const formSubmitData = {
         templateId: formTemplateId,
         responseData
-      });
+      };
+
+      // Check if there are files to upload
+      if (Object.keys(fileFields).length > 0) {
+        setPendingUploads(true);
+        setFormDataToSubmit(formSubmitData);
+        
+        // Start uploading files
+        for (const [fieldId, file] of Object.entries(fileFields)) {
+          const formData = new FormData();
+          formData.append('file', file);
+          await handleUpload(formData);
+        }
+      } else {
+        // No files to upload, submit form directly
+        await onSubmit(formSubmitData);
+      }
     } catch (error) {
       console.error('Error submitting form:', error);
     } finally {
-      console.log("Form submission cleanup");
-      setSubmitting(false);
+      if (!pendingUploads) {
+        setSubmitting(false);
+      }
     }
   };
 
@@ -809,12 +843,12 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         <Button
           type="submit"
           className="flex-1"
-          disabled={submitting || isUploading}
+          disabled={submitting || isUploading || pendingUploads}
         >
-          {submitting || isUploading ? (
+          {submitting || isUploading || pendingUploads ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {isUploading ? 'Uploading...' : 'Submitting...'}
+              {isUploading || pendingUploads ? 'Uploading...' : 'Submitting...'}
             </>
           ) : isLastStep ? (
             submitButtonText
