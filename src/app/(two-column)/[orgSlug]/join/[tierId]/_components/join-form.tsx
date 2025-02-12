@@ -48,15 +48,6 @@ export function JoinForm({ tier, formTemplate, orgId, orgSlug, userId }: JoinFor
 
   return (
     <div className="w-full max-w-lg space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {tier.name} Application
-        </h1>
-        <p className="text-sm text-muted-foreground mt-2">
-          {tier.description}
-        </p>
-      </div>
-
       <FormRenderer
         formTemplateId={tier.membership_tier.form_template_id || ''}
         formTemplate={formTemplate}
