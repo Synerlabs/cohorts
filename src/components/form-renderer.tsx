@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { uploadFileAction } from '@/app/actions/upload.action';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
 import { Card } from '@/components/ui/card';
+import { UploadProgressOverlay } from '@/components/ui/upload-progress';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -130,6 +131,10 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
     fields: Record<string, FormFieldData>;
   };
 
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadedFiles, setUploadedFiles] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+
   useEffect(() => {
     // When upload state changes and is successful, store the result
     if (uploadState?.success && uploadState.fileInfo) {
@@ -143,6 +148,11 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
           [fieldId]: uploadState.fileInfo
         };
         setUploadResults(newUploadResults);
+
+        // Update upload progress
+        const newUploadedFiles = Object.keys(newUploadResults).length;
+        setUploadedFiles(newUploadedFiles);
+        setUploadProgress(Math.round((newUploadedFiles / totalFiles) * 100));
 
         // Check if all files have been uploaded
         const allUploadsComplete = Object.keys(fileFields).every(fieldId => {
@@ -450,6 +460,12 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
       if (Object.keys(fileFields).length > 0) {
         setPendingUploads(true);
         setFormDataToSubmit(formSubmitData);
+        
+        // Reset upload progress
+        const filesToUpload = Object.keys(fileFields).length;
+        setTotalFiles(filesToUpload);
+        setUploadedFiles(0);
+        setUploadProgress(0);
         
         // Start uploading files
         for (const [fieldId, file] of Object.entries(fileFields)) {
@@ -809,57 +825,65 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Progress indicator */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-medium">Step {currentStep + 1} of {sections.length}</p>
-          <p className="text-sm text-muted-foreground">{sections[currentStep].label}</p>
+    <div className="relative min-h-full">
+      <UploadProgressOverlay 
+        isUploading={pendingUploads} 
+        progress={uploadProgress}
+        totalFiles={totalFiles}
+        uploadedFiles={uploadedFiles}
+      />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Progress indicator */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium">Step {currentStep + 1} of {sections.length}</p>
+            <p className="text-sm text-muted-foreground">{sections[currentStep].label}</p>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div 
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: `${((currentStep + 1) / sections.length) * 100}%` }}
+            />
+          </div>
         </div>
-        <div className="h-2 bg-muted rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${((currentStep + 1) / sections.length) * 100}%` }}
-          />
-        </div>
-      </div>
 
-      {/* Current section */}
-      {renderField(sections[currentStep])}
+        {/* Current section */}
+        {renderField(sections[currentStep])}
 
-      {/* Navigation buttons */}
-      <div className="flex gap-4 pt-4">
-        {!isFirstStep && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handlePrevious}
-            className="flex-1"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Previous
-          </Button>
-        )}
-        <Button
-          type="submit"
-          className="flex-1"
-          disabled={submitting || isUploading || pendingUploads}
-        >
-          {submitting || isUploading || pendingUploads ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {isUploading || pendingUploads ? 'Uploading...' : 'Submitting...'}
-            </>
-          ) : isLastStep ? (
-            submitButtonText
-          ) : (
-            <>
-              Next
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </>
+        {/* Navigation buttons */}
+        <div className="flex gap-4 pt-4">
+          {!isFirstStep && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePrevious}
+              className="flex-1"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Previous
+            </Button>
           )}
-        </Button>
-      </div>
-    </form>
+          <Button
+            type="submit"
+            className="flex-1"
+            disabled={submitting || isUploading || pendingUploads}
+          >
+            {submitting || isUploading || pendingUploads ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                {isUploading || pendingUploads ? 'Uploading...' : 'Submitting...'}
+              </>
+            ) : isLastStep ? (
+              submitButtonText
+            ) : (
+              <>
+                Next
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </>
+            )}
+          </Button>
+        </div>
+      </form>
+    </div>
   );
 } 
