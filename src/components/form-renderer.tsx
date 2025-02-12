@@ -639,11 +639,11 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
 
       case 'section':
         return (
-          <div className={cn("space-y-4 transition-opacity", {
+          <div className={cn("space-y-8 transition-opacity", {
             "animate-in fade-in": true,
           })}>
             {field.label && (
-              <h3 className="font-medium text-lg">{field.label}</h3>
+              <h3 className="font-medium text-xl -mb-8">{field.label}</h3>
             )}
             {field.sectionConfig?.description && (
               <p className="text-sm text-muted-foreground">{field.sectionConfig.description}</p>
@@ -687,10 +687,7 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
             {(formData[field.id] || [{}]).map((item: any, index: number) => (
               <Card key={index} className="p-4">
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-medium">
-                      {field.repeatableConfig?.itemLabel || `Item ${index + 1}`}
-                    </h4>
+                  <div className="flex items-center justify-end">
                     {(formData[field.id]?.length || 0) > (field.repeatableConfig?.minItems || 1) && (
                       <Button
                         type="button"
