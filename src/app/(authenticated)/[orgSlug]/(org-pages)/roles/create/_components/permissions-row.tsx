@@ -1,8 +1,8 @@
 import { ToggleGroupItem } from "@/components/ui/toggle-group";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
-  permissionModuleDescriptions,
-  permissionModuleIcons,
+  permissionModules,
+  type PermissionModule
 } from "@/lib/types/permissions";
 
 export default function PermissionsRow({
@@ -21,16 +21,17 @@ export default function PermissionsRow({
         </ToggleGroupItem>
       );
     } else if (typeof value === "object") {
+      const module = permissionModules[key as PermissionModule];
       return (
         <TableRow key={key} className="hover:bg-gray-100">
           <TableCell className="font-semibold">
             <div className="flex items-center gap-2">
-              {permissionModuleIcons[key]}{" "}
+              {module?.icon}{" "}
               {key.charAt(0).toUpperCase() + key.slice(1)}
             </div>
           </TableCell>
           <TableCell className="text-neutral-400">
-            {permissionModuleDescriptions[key]}
+            {module?.description}
           </TableCell>
           <TableCell className="flex gap-1 justify-end">
             <PermissionsRow permissions={value} field={field} />
