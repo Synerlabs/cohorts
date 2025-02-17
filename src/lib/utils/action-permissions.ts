@@ -1,10 +1,11 @@
 "use server";
 import { createClient } from "@/lib/utils/supabase/server";
-import { getUserRoles } from "@/services/user.service";
+import { checkUserAccess } from "@/lib/utils/permissions";
 
 type ActionContext = {
   groupId: string;
   requiredPermissions: string[];
+  allowGuest?: boolean;
 };
 
 type ActionResult<T> = {
@@ -29,27 +30,26 @@ export async function withPermissions<T, P>(
         return { error: userError || "You must be logged in to perform this action" };
       }
 
-      const { groupId, requiredPermissions } = getActionContext(params);
+      const { groupId, requiredPermissions, allowGuest = false } = getActionContext(params);
       
       if (!groupId) {
         return { error: "Invalid group ID" };
       }
 
-      // Get user roles and check permissions
-      const userRoles = await getUserRoles({ id: user.id, groupId });
-      const userPermissions = userRoles?.reduce((acc: string[], role) => {
-        if (role.group_roles?.permissions) {
-          return [...acc, ...role.group_roles.permissions];
-        }
-        return acc;
-      }, []) || [];
+      // Check permissions using the shared utility
+      const accessResult = await checkUserAccess({
+        userId: user.id,
+        groupId,
+        requiredPermissions,
+        allowGuest
+      });
 
-      const hasPermission = requiredPermissions.every(permission =>
-        userPermissions.includes(permission)
-      );
-
-      if (!hasPermission) {
-        return { error: "You do not have permission to perform this action" };
+      if (!accessResult.hasAccess) {
+        return { 
+          error: accessResult.isGuest 
+            ? "You must be a member to perform this action"
+            : "You do not have permission to perform this action" 
+        };
       }
 
       // Execute the action with the authenticated context

@@ -1,12 +1,13 @@
 import { redirect, notFound } from "next/navigation";
 import React from "react";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
-import { getUserRoles, getGroupUser } from "@/services/user.service";
+import { getGroupUser } from "@/services/user.service";
 import { Camelized } from "humps";
 import { Database, Tables } from "@/lib/types/database.types";
 import { PageProps } from "../types/next";
 import { User } from "@supabase/auth-helpers-nextjs";
 import { getCachedOrgBySlug, getCachedCurrentUser } from "@/lib/utils/cache";
+import { checkUserAccess } from "@/lib/utils/permissions";
 
 type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
 type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
@@ -73,7 +74,7 @@ function DefaultAccessDenied({
 
 export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
   const { 
-    permissions: requiredPermissions, 
+    permissions: requiredPermissions = [], 
     allowGuest, 
     redirectUnauthenticated,
     onAccessDenied = { action: 'redirect' }
@@ -106,50 +107,38 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       }
     }
 
-    const [userRoles, groupUser] = await Promise.all([
-      AuthServerContext.user
-        ? getUserRoles({ id: AuthServerContext.user.id, groupId: AuthServerContext.org.id })
-        : [],
+    // If no authenticated user and guests aren't allowed, redirect
+    if (!AuthServerContext.user && !allowGuest) {
+      redirect(`/@${AuthServerContext.org.slug}`);
+    }
+
+    // Check permissions if we have a user
+    const [accessResult, groupUser] = await Promise.all([
+      AuthServerContext.user ? checkUserAccess({
+        userId: AuthServerContext.user.id,
+        groupId: AuthServerContext.org.id,
+        requiredPermissions,
+        allowGuest
+      }) : {
+        hasAccess: allowGuest,
+        isGuest: true,
+        userPermissions: [],
+        userRoles: []
+      },
       AuthServerContext.user
         ? getGroupUser({ userId: AuthServerContext.user.id, groupId: AuthServerContext.org.id })
         : null,
     ]);
 
     // Update AuthServerContext with org-specific roles and permissions
-    AuthServerContext.groupRoles = userRoles || [];
-    AuthServerContext.userPermissions =
-      userRoles?.reduce((acc: string[], role) => {
-        if (role.group_roles?.permissions) {
-          return [...acc, ...role.group_roles.permissions];
-        }
-        return acc;
-      }, []) || [];
+    AuthServerContext.groupRoles = accessResult.userRoles;
+    AuthServerContext.userPermissions = accessResult.userPermissions;
 
-    const isGuest =
-      !userRoles?.find((role) => role.is_active) &&
-      (!groupUser || !groupUser.isActive);
-
-    // Check access permissions
-    let hasRequiredPermissions = true;
-    if (requiredPermissions && requiredPermissions.length > 0) {
-      hasRequiredPermissions = requiredPermissions.every(permission =>
-        AuthServerContext.userPermissions.includes(permission)
-      );
-    }
-
-    // Determine if user should have access
-    const shouldHaveAccess = (
-      // Either guest access is allowed or user is not a guest
-      (allowGuest || !isGuest) &&
-      // And user has required permissions (if any)
-      hasRequiredPermissions
-    );
-
-    if (!shouldHaveAccess) {
+    if (!accessResult.hasAccess) {
       console.warn(
-        `Access denied:`,
-        isGuest ? 'User is guest' : 'User lacks permissions:',
-        requiredPermissions?.join(', ')
+        `Access denied for org ${AuthServerContext.org.slug}:`,
+        accessResult.isGuest ? 'User is guest' : 'User lacks permissions:',
+        requiredPermissions.join(', ')
       );
 
       if (onAccessDenied.action === 'redirect') {
@@ -161,9 +150,9 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
         const ErrorComponent = onAccessDenied.errorComponent || DefaultAccessDenied;
         return (
           <ErrorComponent
-            isGuest={isGuest}
+            isGuest={accessResult.isGuest}
             requiredPermissions={requiredPermissions}
-            userPermissions={AuthServerContext.userPermissions}
+            userPermissions={accessResult.userPermissions}
           />
         );
       }
@@ -173,10 +162,10 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       <Component
         user={AuthServerContext.user}
         org={AuthServerContext.org}
-        isGuest={isGuest}
-        userRoles={userRoles}
+        isGuest={accessResult.isGuest}
+        userRoles={accessResult.userRoles}
         groupUser={groupUser}
-        userPermissions={AuthServerContext.userPermissions}
+        userPermissions={accessResult.userPermissions}
         params={params}
         {...props}
       />
