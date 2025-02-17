@@ -29,9 +29,9 @@ export default function PermissionsRow({
               {module?.icon}{" "}
               {key.charAt(0).toUpperCase() + key.slice(1)}
             </div>
-          </TableCell>
-          <TableCell className="text-neutral-400">
-            {module?.description}
+            <span className="text-neutral-400 text-sm font-normal ml-7">
+              {module?.description}
+            </span>
           </TableCell>
           <TableCell className="flex gap-1 justify-end">
             <PermissionsRow permissions={value} field={field} />

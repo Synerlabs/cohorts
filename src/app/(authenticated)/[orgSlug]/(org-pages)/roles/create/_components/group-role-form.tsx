@@ -191,7 +191,6 @@ export default function GroupRoleForm({
                         <TableHeader>
                           <TableRow>
                             <TableHead className="sticky left-0 bg-background">Module</TableHead>
-                            <TableHead >Description</TableHead>
                             <TableHead className="text-right">
                               Permissions
                             </TableHead>
