@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/dialog";
 import { DialogBody } from "next/dist/client/components/react-dev-overlay/internal/components/Dialog";
 import AddUserToRole from "@/app/(authenticated)/[orgSlug]/(org-pages)/roles/[roleId]/users/_components/add-user-to-role";
+import { ComponentPermission } from "@/components/ComponentPermission";
+import { permissions } from "@/lib/types/permissions";
 
 interface PageProps extends OrgAccessHOCProps {
   params: {
@@ -38,7 +40,11 @@ async function Page({ params }: PageProps) {
     <div className="w-full max-w-screen-lg flex flex-col justify-center items-center mx-auto">
       <div className="flex gap-4 w-full justify-center items-center align-middle mb-4 mt-8">
         <div className="flex align-end justify-end w-full">
-          <AddUserToRole groupRoleId={_params.roleId} />
+          <ComponentPermission
+            requiredPermissions={[permissions.roles.assign]}
+          >
+            <AddUserToRole groupRoleId={_params.roleId} />
+          </ComponentPermission>
         </div>
       </div>
       <Card className="w-full">

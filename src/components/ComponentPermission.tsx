@@ -1,4 +1,3 @@
-import { flattenedPermissions, permissions } from "@/lib/types/permissions";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 
 type ComponentPermissionProps = {
@@ -12,6 +11,7 @@ export function ComponentPermission({
 }: ComponentPermissionProps) {
   const AuthServerContext = getAuthenticatedServerContext();
   const { user, userPermissions } = AuthServerContext;
+  console.log(userPermissions);
   if (!user) {
     return <></>;
   }

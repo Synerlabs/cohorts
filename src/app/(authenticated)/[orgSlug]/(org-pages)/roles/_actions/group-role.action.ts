@@ -39,7 +39,7 @@ const handleGroupRoleAction = async (
   const { data: org, error: orgError } = await supabase
     .from("group")
     .select("slug")
-    .eq("id", parsedFormData.data.group_id)
+    .eq("id", context.groupId)
     .single();
 
   if (orgError) {
@@ -54,6 +54,7 @@ const handleGroupRoleAction = async (
     .from("group_roles")
     .upsert({
       ...parsedFormData.data,
+      group_id: context.groupId,
       created_by: context.userId
     })
     .select("id")
@@ -81,8 +82,10 @@ export async function createGroupRoleAction(
 ) {
   const handler = await withPermissions(
     handleGroupRoleAction,
-    (params) => ({
-      groupId: params.form.groupId as string,
+    () => ({
+      groupId: form.id ? undefined : form.group_id as string,
+      moduleId: form.id,
+      moduleType: form.id ? 'role' : undefined,
       requiredPermissions: [
         form.id ? permissions.roles.edit : permissions.roles.create
       ],
