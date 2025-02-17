@@ -11,12 +11,14 @@ import { Camelized } from "humps";
 import { Tables } from "@/lib/types/database.types";
 import snakecaseKeys from "snakecase-keys";
 import { groupUpdateSchema } from "@/lib/types/zod-schemas";
+import { permissions } from "@/lib/types/permissions";
+import { withPermissions } from "@/lib/utils/action-permissions";
 
-export async function updateSlugAction(
-  currentState: z.infer<typeof groupUpdateSchema>,
-  data: FormData,
-) {
-  const formData = snakecaseKeys(Object.fromEntries(data));
+const updateSlug = async (
+  context: { userId: string; groupId: string },
+  params: { formData: FormData }
+) => {
+  const formData = snakecaseKeys(Object.fromEntries(params.formData));
   const parsedFormData = groupUpdateSchema
     .pick({ slug: true, id: true })
     .safeParse(formData);
@@ -26,23 +28,39 @@ export async function updateSlugAction(
   }
 
   const supabase = await createClient();
-  const {
-    error: userError,
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || userError) {
-    return { error: userError || "You must be logged in to update a cohort" };
-  }
-
   const { data: groupData, error } = await supabase
     .from("group")
-    .update({ ...parsedFormData.data, created_by: user.id })
-    .eq("id", parsedFormData.data.id!);
+    .update({ ...parsedFormData.data, created_by: context.userId })
+    .eq("id", context.groupId);
 
   if (error) {
-    return { form: formData, error: error.message };
-  } else {
-    redirect(`/@${parsedFormData.data.slug}/settings`);
+    return { error: error.message };
   }
+
+  // Return the new slug for redirection
+  return { success: true, data: { slug: parsedFormData.data.slug } };
+};
+
+export async function updateSlugAction(
+  currentState: any,
+  formData: FormData
+) {
+  const handler = await withPermissions(
+    updateSlug,
+    (params: { formData: FormData }) => {
+      const formData = Object.fromEntries(params.formData);
+      return {
+        groupId: formData.id as string,
+        requiredPermissions: [permissions.group.edit],
+      };
+    }
+  );
+  
+  const result = await handler(currentState, { formData });
+  
+  if (result.success && result.data?.slug) {
+    redirect(`/@${result.data.slug}/settings`);
+  }
+  
+  return result;
 }
