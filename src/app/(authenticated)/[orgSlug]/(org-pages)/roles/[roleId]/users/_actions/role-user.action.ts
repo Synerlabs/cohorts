@@ -2,6 +2,8 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { permissions } from "@/lib/types/permissions";
+import { withPermissions } from "@/lib/utils/action-permissions";
 
 type PrevState = {
   message?: string;
@@ -9,26 +11,18 @@ type PrevState = {
   fields?: any[];
 } | null;
 
-export async function addRoleUserAction(
-  prevState: PrevState,
-  form: { userIds: string[]; groupRoleId: string },
-) {
+const handleAddRoleUserAction = async (
+  context: { userId: string; groupId: string },
+  params: { userIds: string[]; groupRoleId: string; groupId: string }
+) => {
   const supabase = await createClient();
-  const {
-    error: userError,
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || userError) {
-    return { error: userError || "You must be logged in to update a cohort" };
-  }
-
   const { data, error } = await supabase
     .from("user_roles")
     .upsert(
-      form.userIds.map((id) => ({
+      params.userIds.map((id) => ({
         user_id: id,
-        group_role_id: form.groupRoleId,
+        group_role_id: params.groupRoleId,
+        is_active: true
       })),
     )
     .select("id");
@@ -39,32 +33,55 @@ export async function addRoleUserAction(
     revalidatePath("/", "layout");
     return { success: true };
   }
+};
+
+export async function addRoleUserAction(
+  prevState: PrevState,
+  form: { userIds: string[]; groupRoleId: string; groupId: string }
+) {
+  const handler = await withPermissions(
+    handleAddRoleUserAction,
+    (params) => ({
+      groupId: params.groupId,
+      requiredPermissions: [permissions.roles.assign],
+    })
+  );
+
+  return handler(prevState, form);
 }
 
-export async function removeRoleUserAction(
-  prevState: PrevState,
-  form: { id: string },
-) {
+const handleRemoveRoleUserAction = async (
+  context: { userId: string; groupId: string },
+  params: { userId: string; groupRoleId: string; groupId: string }
+) => {
   const supabase = await createClient();
-  const {
-    error: userError,
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user || userError) {
-    return { error: userError || "You must be logged in to update a cohort" };
-  }
-
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("user_roles")
     .delete()
-    .match({ id: form.id });
+    .match({
+      user_id: params.userId,
+      group_role_id: params.groupRoleId,
+    });
 
-  console.log("WTH", form, data, error);
   if (error) {
     return { issues: error, message: error.message };
   } else {
     revalidatePath("/", "layout");
-    return { success: true, message: "User removed successfully." };
+    return { success: true };
   }
+};
+
+export async function removeRoleUserAction(
+  prevState: PrevState,
+  form: { userId: string; groupRoleId: string; groupId: string }
+) {
+  const handler = await withPermissions(
+    handleRemoveRoleUserAction,
+    (params) => ({
+      groupId: params.groupId,
+      requiredPermissions: [permissions.roles.assign],
+    })
+  );
+
+  return handler(prevState, form);
 }

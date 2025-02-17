@@ -3,12 +3,13 @@ import snakecaseKeys from "snakecase-keys";
 import {
   groupRolesInsertSchema,
   groupRolesUpdateSchema,
-  rolePermissionsInsertSchema,
 } from "@/lib/types/zod-schemas";
 import { createClient } from "@/lib/utils/supabase/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { permissions } from "@/lib/types/permissions";
+import { withPermissions } from "@/lib/utils/action-permissions";
 
 type PrevState = {
   message?: string;
@@ -16,13 +17,13 @@ type PrevState = {
   fields?: any[];
 } | null;
 
-export async function createGroupRoleAction(
-  prevState: PrevState,
-  form:
-    | z.infer<typeof groupRolesInsertSchema>
-    | z.infer<typeof groupRolesUpdateSchema>,
-) {
-  const formData = snakecaseKeys(form);
+const handleGroupRoleAction = async (
+  context: { userId: string; groupId: string },
+  params: {
+    form: z.infer<typeof groupRolesInsertSchema> | z.infer<typeof groupRolesUpdateSchema>;
+  }
+) => {
+  const formData = snakecaseKeys(params.form);
   const parsedFormData = formData.id
     ? groupRolesUpdateSchema.safeParse(formData)
     : groupRolesInsertSchema.safeParse(formData);
@@ -51,7 +52,10 @@ export async function createGroupRoleAction(
 
   const { data, error } = await supabase
     .from("group_roles")
-    .upsert(parsedFormData.data)
+    .upsert({
+      ...parsedFormData.data,
+      created_by: context.userId
+    })
     .select("id")
     .single();
 
@@ -69,4 +73,21 @@ export async function createGroupRoleAction(
     message: "Group role created successfully",
     id: data.id,
   };
+};
+
+export async function createGroupRoleAction(
+  prevState: PrevState,
+  form: z.infer<typeof groupRolesInsertSchema> | z.infer<typeof groupRolesUpdateSchema>
+) {
+  const handler = await withPermissions(
+    handleGroupRoleAction,
+    (params) => ({
+      groupId: params.form.groupId as string,
+      requiredPermissions: [
+        form.id ? permissions.roles.edit : permissions.roles.create
+      ],
+    })
+  );
+
+  return handler(prevState, { form });
 }
