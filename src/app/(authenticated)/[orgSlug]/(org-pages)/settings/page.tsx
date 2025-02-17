@@ -4,6 +4,7 @@ import { getOrgBySlug } from "@/services/org.service";
 import SlugForm from "@/app/(authenticated)/[orgSlug]/(org-pages)/settings/_components/SlugForm";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { permissions } from "@/lib/types/permissions";
 
 async function OrgSettingsPage({ org }: OrgAccessHOCProps) {
   const { data } = await getOrgBySlug(org.slug);
@@ -28,4 +29,9 @@ async function OrgSettingsPage({ org }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(OrgSettingsPage);
+export default withOrgAccess(OrgSettingsPage, {
+  permissions: [permissions.group.edit],
+  onAccessDenied: {
+    action: "error"
+  }
+});

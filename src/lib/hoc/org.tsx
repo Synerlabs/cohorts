@@ -11,6 +11,23 @@ import { getCachedOrgBySlug, getCachedCurrentUser } from "@/lib/utils/cache";
 type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
 type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
 
+export type OrgAccessOptions = {
+  permissions?: string[];
+  allowGuest?: boolean;
+  redirectUnauthenticated?: string | ((params: any) => Promise<string>) | ((params: any) => string);
+  onAccessDenied?: {
+    action: 'redirect' | 'error';
+    // For redirect action
+    redirectTo?: string | ((params: any) => Promise<string>) | ((params: any) => string);
+    // For error action
+    errorComponent?: React.ComponentType<{
+      isGuest: boolean;
+      requiredPermissions?: string[];
+      userPermissions: string[];
+    }>;
+  };
+};
+
 export type OrgAccessHOCProps = {
   org: Camelized<Tables<"group">>;
   user?: User;
@@ -20,14 +37,47 @@ export type OrgAccessHOCProps = {
   userPermissions: string[];
 } & PageProps;
 
-export type OrgAccessOptions = {
-  permissions?: string[];
-  allowGuest?: boolean;
-  redirectUnauthenticated?: string;
-};
+// Default error component for access denied
+function DefaultAccessDenied({ 
+  isGuest, 
+  requiredPermissions,
+  userPermissions 
+}: { 
+  isGuest: boolean; 
+  requiredPermissions?: string[];
+  userPermissions: string[];
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
+      <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
+      <p className="text-muted-foreground mb-2">
+        {isGuest 
+          ? "You must be a member to access this page." 
+          : "You don't have the required permissions to access this page."}
+      </p>
+      {!isGuest && requiredPermissions && (
+        <div className="text-sm text-muted-foreground">
+          <p>Required permissions:</p>
+          <ul className="list-disc list-inside">
+            {requiredPermissions.map(perm => (
+              <li key={perm} className={userPermissions.includes(perm) ? "text-green-600" : "text-red-600"}>
+                {perm}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
-  const { permissions, allowGuest, redirectUnauthenticated } = options || {};
+  const { 
+    permissions: requiredPermissions, 
+    allowGuest, 
+    redirectUnauthenticated,
+    onAccessDenied = { action: 'redirect' }
+  } = options || {};
 
   return async function WithOrgAccess(props: any) {
     const AuthServerContext = getAuthenticatedServerContext();
@@ -39,7 +89,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       const slug = decodeURIComponent(orgSlug).replace(/^@/, "");
       const response = await getCachedOrgBySlug(slug);
       if (response.error || !response.data) {
-        console.error(`withOrgAccess - not found`, response);
+        console.error(`withOrgAccess - ${slug} not found`, response);
         return notFound();
       }
       AuthServerContext.org = response.data;
@@ -79,8 +129,44 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       !userRoles?.find((role) => role.is_active) &&
       (!groupUser || !groupUser.isActive);
 
-    if (!allowGuest && isGuest) {
-      // Your existing guest handling logic
+    // Check access permissions
+    let hasRequiredPermissions = true;
+    if (requiredPermissions && requiredPermissions.length > 0) {
+      hasRequiredPermissions = requiredPermissions.every(permission =>
+        AuthServerContext.userPermissions.includes(permission)
+      );
+    }
+
+    // Determine if user should have access
+    const shouldHaveAccess = (
+      // Either guest access is allowed or user is not a guest
+      (allowGuest || !isGuest) &&
+      // And user has required permissions (if any)
+      hasRequiredPermissions
+    );
+
+    if (!shouldHaveAccess) {
+      console.warn(
+        `Access denied:`,
+        isGuest ? 'User is guest' : 'User lacks permissions:',
+        requiredPermissions?.join(', ')
+      );
+
+      if (onAccessDenied.action === 'redirect') {
+        const redirectPath = typeof onAccessDenied.redirectTo === 'function'
+          ? await onAccessDenied.redirectTo(params)
+          : onAccessDenied.redirectTo || `/@${AuthServerContext.org.slug}`;
+        redirect(redirectPath);
+      } else {
+        const ErrorComponent = onAccessDenied.errorComponent || DefaultAccessDenied;
+        return (
+          <ErrorComponent
+            isGuest={isGuest}
+            requiredPermissions={requiredPermissions}
+            userPermissions={AuthServerContext.userPermissions}
+          />
+        );
+      }
     }
 
     return (
@@ -95,5 +181,5 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
         {...props}
       />
     );
-  }
+  };
 }
