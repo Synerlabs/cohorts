@@ -6,6 +6,7 @@ import {
   FileTextIcon,
   FormInputIcon,
   CreditCardIcon,
+  PackageIcon,
 } from "lucide-react";
 
 /**
@@ -158,6 +159,15 @@ export const permissions = {
     process: "group.payments.process",
     refund: "group.payments.refund",
   },
+  orders: {
+    view: "group.orders.view",
+    create: "group.orders.create",
+    edit: "group.orders.edit",
+    delete: "group.orders.delete",
+    process: "group.orders.process",
+    cancel: "group.orders.cancel",
+    refund: "group.orders.refund",
+  },
 } as const;
 
 // Module metadata
@@ -203,6 +213,12 @@ export const permissionModules = {
     description: "Manage group payments",
     icon: <CreditCardIcon className="h-5 w-5" />,
     permissions: permissions.payments,
+  },
+  orders: {
+    name: "Orders",
+    description: "Manage group orders",
+    icon: <PackageIcon className="h-5 w-5" />,
+    permissions: permissions.orders,
   },
 } as const;
 
