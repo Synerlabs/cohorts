@@ -34,4 +34,9 @@ async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
   );
 }
 
-export default withOrgAccess(MembersPage, {permissions: [permissions.members.view]});
+export default withOrgAccess(MembersPage, {
+  permissions: [permissions.members.view],
+  onAccessDenied: {
+    action: "error"
+  }
+});
