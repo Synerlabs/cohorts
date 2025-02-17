@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import LoadingButton from "@/components/ui/loading-button";
 import { useState } from "react";
+import { ComponentPermission } from "@/components/ComponentPermission";
+import { permissions } from "@/lib/types/permissions";
 
 export default function UserTableRow({ userRole }: { userRole: any }) {
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -58,37 +60,40 @@ export default function UserTableRow({ userRole }: { userRole: any }) {
         {userRole.createdAt}
       </TableCell>
       <TableCell>
-        <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
-          <AlertDialogTrigger asChild>
-            <Button
-              aria-haspopup="true"
-              size="icon"
-              variant="ghost"
-              className="hover:bg-destructive hover:text-destructive-foreground"
-            >
-              <TrashIcon className="h-4 w-4" />
-              <span className="sr-only">Remove user from role</span>
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Remove user from role</AlertDialogTitle>
-              <AlertDialogDescription>
-                Are you sure you want to remove this user from the role?
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <LoadingButton
-                onClick={handleDelete}
-                variant="destructive"
-                loading={deletePending}
+        <ComponentPermission    
+          requiredPermissions={[permissions.roles.assign]}>
+            <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+                <AlertDialogTrigger asChild>
+                  <Button
+                aria-haspopup="true"
+                size="icon"
+                variant="ghost"
+                className="hover:bg-destructive hover:text-destructive-foreground"
               >
-                Remove user
-              </LoadingButton>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+                <TrashIcon className="h-4 w-4" />
+                <span className="sr-only">Remove user from role</span>
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove user from role</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to remove this user from the role?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <LoadingButton
+                  onClick={handleDelete}
+                  variant="destructive"
+                  loading={deletePending}
+                >
+                  Remove user
+                </LoadingButton>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </ComponentPermission>
       </TableCell>
     </TableRow>
   );

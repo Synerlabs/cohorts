@@ -11,6 +11,15 @@ type PrevState = {
   fields?: any[];
 } | null;
 
+interface UserRole {
+  id: string;
+  user_id: string;
+  group_role_id: string;
+  group_roles: {
+    group_id: string;
+  } | null;
+}
+
 const handleAddRoleUserAction = async (
   context: { userId: string; groupId: string },
   params: { userIds: string[]; groupRoleId: string }
@@ -37,35 +46,48 @@ const handleAddRoleUserAction = async (
 
 export async function addRoleUserAction(
   prevState: PrevState,
-  form: { userIds: string[]; groupRoleId: string }
+  formData: FormData
 ) {
+  const groupRoleId = formData.get('groupRoleId') as string;
+  const userIds = formData.getAll('userIds[]').map(id => id.toString());
+
   const handler = await withPermissions(
     handleAddRoleUserAction,
     () => ({
-      moduleId: form.groupRoleId,
-      moduleType: 'role',
-      requiredPermissions: [permissions.roles.assign],
+      moduleId: groupRoleId,
+      moduleType: 'user_role' as const,
+      requiredPermissions: permissions.roles.assign
     })
   );
 
-  return handler(prevState, { userIds: form.userIds, groupRoleId: form.groupRoleId });
+  return handler(prevState, { userIds, groupRoleId });
 }
 
 const handleRemoveRoleUserAction = async (
   context: { userId: string; groupId: string },
-  params: { userId: string; groupRoleId: string }
+  params: { userRoleId: string }
 ) => {
   const supabase = await createClient();
-  const { error } = await supabase
+
+  // First get the user role details to verify it exists
+  const { data: userRole, error: fetchError } = await supabase
+    .from("user_roles")
+    .select("id")
+    .eq("id", params.userRoleId)
+    .single();
+
+  if (fetchError || !userRole) {
+    return { issues: fetchError, message: fetchError?.message || "User role not found" };
+  }
+
+  // Now delete the user role
+  const { error: deleteError } = await supabase
     .from("user_roles")
     .delete()
-    .match({
-      user_id: params.userId,
-      group_role_id: params.groupRoleId,
-    });
+    .eq("id", params.userRoleId);
 
-  if (error) {
-    return { issues: error, message: error.message };
+  if (deleteError) {
+    return { issues: deleteError, message: deleteError.message };
   } else {
     revalidatePath("/", "layout");
     return { success: true };
@@ -74,16 +96,18 @@ const handleRemoveRoleUserAction = async (
 
 export async function removeRoleUserAction(
   prevState: PrevState,
-  form: { userId: string; groupRoleId: string }
+  formData: {id: string}
 ) {
+  const userRoleId = formData.id;
+
   const handler = await withPermissions(
     handleRemoveRoleUserAction,
     () => ({
-      moduleId: form.groupRoleId,
-      moduleType: 'role',
-      requiredPermissions: [permissions.roles.assign],
+      moduleId: userRoleId,
+      moduleType: 'user_role' as const,
+      requiredPermissions: permissions.roles.assign
     })
   );
 
-  return handler(prevState, { userId: form.userId, groupRoleId: form.groupRoleId });
+  return handler(prevState, { userRoleId });
 }

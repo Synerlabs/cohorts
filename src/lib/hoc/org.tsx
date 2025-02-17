@@ -13,7 +13,11 @@ type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
 type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
 
 export type OrgAccessOptions = {
-  permissions?: string[];
+  permissions?: string | string[] | string[][] | { 
+    any?: string[][],     // OR conditions
+    all?: string[],       // AND conditions
+    solo?: string[]       // Override permissions - any of these grants access
+  };
   allowGuest?: boolean;
   redirectUnauthenticated?: string | ((params: any) => Promise<string>) | ((params: any) => string);
   onAccessDenied?: {
@@ -23,7 +27,11 @@ export type OrgAccessOptions = {
     // For error action
     errorComponent?: React.ComponentType<{
       isGuest: boolean;
-      requiredPermissions?: string[];
+      requiredPermissions?: string | string[] | string[][] | { 
+        any?: string[][],
+        all?: string[],
+        solo?: string[]
+      };
       userPermissions: string[];
     }>;
   };
@@ -45,9 +53,98 @@ function DefaultAccessDenied({
   userPermissions 
 }: { 
   isGuest: boolean; 
-  requiredPermissions?: string[];
+  requiredPermissions?: string | string[] | string[][] | { 
+    any?: string[][],
+    all?: string[],
+    solo?: string[]
+  };
   userPermissions: string[];
 }) {
+  const renderPermissions = () => {
+    if (!requiredPermissions) return null;
+
+    if (typeof requiredPermissions === 'string') {
+      return (
+        <li key={requiredPermissions} className={userPermissions.includes(requiredPermissions) ? "text-green-600" : "text-red-600"}>
+          {requiredPermissions}
+        </li>
+      );
+    }
+
+    if (Array.isArray(requiredPermissions)) {
+      if (requiredPermissions.length === 0) return null;
+      if (Array.isArray(requiredPermissions[0])) {
+        // OR conditions
+        return (requiredPermissions as string[][]).map((permSet: string[], i: number) => (
+          <li key={`set-${i}`} className="mb-2">
+            <span className="font-medium">Any of:</span>
+            <ul className="ml-4 list-disc">
+              {permSet.map((perm: string) => (
+                <li key={`perm-${perm}`} className={userPermissions.includes(perm) ? "text-green-600" : "text-red-600"}>
+                  {perm}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ));
+      }
+      // AND conditions
+      return (requiredPermissions as string[]).map((perm: string) => (
+        <li key={`perm-${perm}`} className={userPermissions.includes(perm) ? "text-green-600" : "text-red-600"}>
+          {perm}
+        </li>
+      ));
+    }
+
+    // Object format
+    return (
+      <>
+        {requiredPermissions.solo && (
+          <li key="solo" className="mb-2">
+            <span className="font-medium">Solo (Override) Permissions:</span>
+            <ul className="ml-4 list-disc">
+              {requiredPermissions.solo.map((perm: string) => (
+                <li key={`solo-${perm}`} className={userPermissions.includes(perm) ? "text-green-600" : "text-red-600"}>
+                  {perm}
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
+        {requiredPermissions.any && (
+          <li key="any" className="mb-2">
+            <span className="font-medium">Any of these sets:</span>
+            <ul className="ml-4 list-disc">
+              {requiredPermissions.any.map((permSet: string[], i: number) => (
+                <li key={`any-set-${i}`}>
+                  <ul className="list-disc ml-4">
+                    {permSet.map((perm: string) => (
+                      <li key={`any-${perm}`} className={userPermissions.includes(perm) ? "text-green-600" : "text-red-600"}>
+                        {perm}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
+        {requiredPermissions.all && (
+          <li key="all" className="mb-2">
+            <span className="font-medium">All of these:</span>
+            <ul className="ml-4 list-disc">
+              {requiredPermissions.all.map((perm: string) => (
+                <li key={`all-${perm}`} className={userPermissions.includes(perm) ? "text-green-600" : "text-red-600"}>
+                  {perm}
+                </li>
+              ))}
+            </ul>
+          </li>
+        )}
+      </>
+    );
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] p-4">
       <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
@@ -59,12 +156,8 @@ function DefaultAccessDenied({
       {!isGuest && requiredPermissions && (
         <div className="text-sm text-muted-foreground">
           <p>Required permissions:</p>
-          <ul className="list-disc list-inside">
-            {requiredPermissions.map(perm => (
-              <li key={perm} className={userPermissions.includes(perm) ? "text-green-600" : "text-red-600"}>
-                {perm}
-              </li>
-            ))}
+          <ul className="list-disc list-inside mt-2">
+            {renderPermissions()}
           </ul>
         </div>
       )}
@@ -138,7 +231,11 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       console.warn(
         `Access denied for org ${AuthServerContext.org.slug}:`,
         accessResult.isGuest ? 'User is guest' : 'User lacks permissions:',
-        requiredPermissions.join(', ')
+        typeof requiredPermissions === 'object' && !Array.isArray(requiredPermissions)
+          ? JSON.stringify(requiredPermissions)
+          : Array.isArray(requiredPermissions)
+            ? requiredPermissions.join(', ')
+            : requiredPermissions
       );
 
       if (onAccessDenied.action === 'redirect') {

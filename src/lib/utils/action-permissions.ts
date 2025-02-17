@@ -2,13 +2,17 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { checkUserAccess } from "@/lib/utils/permissions";
 
-type ModuleType = 'role' | 'group' | 'form' | 'membership';
+type ModuleType = 'role' | 'group' | 'form' | 'membership' | 'user_role';
 
 type ActionContext = {
   groupId?: string;
   moduleId?: string;
   moduleType?: ModuleType;
-  requiredPermissions: string[];
+  requiredPermissions: string | string[] | string[][] | { 
+    any?: string[][],     // OR conditions
+    all?: string[],       // AND conditions
+    solo?: string[]       // Override permissions - any of these grants access
+  };
   allowGuest?: boolean;
 };
 
@@ -45,9 +49,126 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
         .eq("id", moduleId)
         .single();
       return membership?.group_id || null;
+
+    case 'user_role':
+      // First get the group role ID
+      const { data: userRole } = await supabase
+        .from("user_roles")
+        .select("group_role_id")
+        .eq("id", moduleId)
+        .single();
+
+      if (!userRole?.group_role_id) return null;
+
+      // Then get the group ID from the role
+      const { data: groupRole } = await supabase
+        .from("group_roles")
+        .select("group_id")
+        .eq("id", userRole.group_role_id)
+        .single();
+
+      return groupRole?.group_id || null;
       
     default:
       return null;
+  }
+}
+
+async function checkPermissions(
+  userId: string,
+  groupId: string,
+  permissions: ActionContext['requiredPermissions'],
+  allowGuest: boolean
+): Promise<{ hasAccess: boolean; isGuest?: boolean }> {
+  // Handle single permission string
+  if (typeof permissions === 'string') {
+    return await checkUserAccess({
+      userId,
+      groupId,
+      requiredPermissions: [permissions],
+      allowGuest
+    });
+  }
+
+  // First check solo permissions if they exist
+  if (typeof permissions === 'object' && !Array.isArray(permissions) && permissions.solo) {
+    const soloCheck = await checkUserAccess({
+      userId,
+      groupId,
+      requiredPermissions: permissions.solo,
+      allowGuest
+    });
+    
+    if (soloCheck.hasAccess) {
+      return soloCheck;
+    }
+  }
+
+  // If no solo permissions or they didn't match, check regular permissions
+  if (Array.isArray(permissions)) {
+    // Legacy array format
+    const isOrPermissions = Array.isArray(permissions[0]);
+    let accessResult;
+
+    if (isOrPermissions) {
+      // Try each permission set until one succeeds
+      for (const permissionSet of permissions as string[][]) {
+        accessResult = await checkUserAccess({
+          userId,
+          groupId,
+          requiredPermissions: permissionSet,
+          allowGuest
+        });
+        
+        if (accessResult.hasAccess) {
+          return accessResult;
+        }
+      }
+      return accessResult || { hasAccess: false, isGuest: false };
+    } else {
+      // Single permission set - all permissions required
+      return await checkUserAccess({
+        userId,
+        groupId,
+        requiredPermissions: permissions as string[],
+        allowGuest
+      });
+    }
+  } else {
+    // New object format
+    let accessResult;
+    
+    // Check 'any' conditions (OR)
+    if (permissions.any) {
+      for (const permissionSet of permissions.any) {
+        accessResult = await checkUserAccess({
+          userId,
+          groupId,
+          requiredPermissions: permissionSet,
+          allowGuest
+        });
+        
+        if (accessResult.hasAccess) {
+          return accessResult;
+        }
+      }
+    }
+    
+    // Check 'all' conditions (AND)
+    if (permissions.all) {
+      accessResult = await checkUserAccess({
+        userId,
+        groupId,
+        requiredPermissions: permissions.all,
+        allowGuest
+      });
+      
+      if (accessResult.hasAccess) {
+        return accessResult;
+      }
+    }
+    
+    return accessResult || { hasAccess: false, isGuest: false };
   }
 }
 
@@ -90,13 +211,13 @@ export async function withPermissions<T, P>(
         return { error: "Invalid group ID" };
       }
 
-      // Check permissions using the shared utility
-      const accessResult = await checkUserAccess({
-        userId: user.id,
-        groupId: verifiedGroupId,
+      // Check all permission types
+      const accessResult = await checkPermissions(
+        user.id,
+        verifiedGroupId,
         requiredPermissions,
         allowGuest
-      });
+      );
 
       if (!accessResult.hasAccess) {
         return { 

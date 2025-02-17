@@ -20,8 +20,28 @@ import { addRoleUserAction } from "@/app/(authenticated)/[orgSlug]/(org-pages)/r
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import LoadingButton from "@/components/ui/loading-button";
 
-export default function AddUserToRoleForm({ users, groupRoleId }) {
-  const form = useForm({
+interface User {
+  id: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  avatar_url?: string;
+}
+
+interface AddUserToRoleFormProps {
+  users: {
+    data: User[];
+  };
+  groupRoleId: string;
+}
+
+interface FormValues {
+  userIds: string[];
+  groupRoleId: string;
+}
+
+export default function AddUserToRoleForm({ users, groupRoleId }: AddUserToRoleFormProps) {
+  const form = useForm<FormValues>({
     defaultValues: {
       userIds: [],
       groupRoleId,
@@ -29,8 +49,8 @@ export default function AddUserToRoleForm({ users, groupRoleId }) {
   });
   const [state, addRoleUser, pending] = useToastActionState(
     addRoleUserAction,
-    { form: form.getValues() },
-    null,
+    {},
+    "",
     {
       successTitle: "Success",
       successDescription: "Your user has been added to the role successfully.",
@@ -45,6 +65,14 @@ export default function AddUserToRoleForm({ users, groupRoleId }) {
     }
   }, [AddOpen, form]);
 
+  const handleSubmit = async (data: FormValues) => {
+    const formData = new FormData();
+    formData.append('groupRoleId', data.groupRoleId);
+    data.userIds.forEach(userId => formData.append('userIds[]', userId));
+    await addRoleUser(formData);
+    setAddOpen(false);
+  };
+
   return (
     <FormProvider {...form}>
       <Dialog open={AddOpen} onOpenChange={setAddOpen}>
@@ -57,15 +85,7 @@ export default function AddUserToRoleForm({ users, groupRoleId }) {
         <DialogContent>
           <form
             ref={formRef}
-            action={addRoleUser}
-            onSubmit={(evt) => {
-              evt.preventDefault();
-              console.log("WHAT");
-              form.handleSubmit(async (e) => {
-                console.log(e);
-                await addRoleUser(e);
-              })(evt);
-            }}
+            onSubmit={form.handleSubmit(handleSubmit)}
             className="flex flex-col gap-4"
           >
             <DialogHeader>

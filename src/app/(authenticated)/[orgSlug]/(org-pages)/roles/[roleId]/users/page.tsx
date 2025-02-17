@@ -67,4 +67,9 @@ async function Page({ params }: PageProps) {
   );
 }
 
-export default withOrgAccess(Page);
+export default withOrgAccess(Page, {
+  permissions: [[permissions.roles.view], [permissions.roles.assign]],
+  onAccessDenied: {
+    action: "error"
+  },
+});
