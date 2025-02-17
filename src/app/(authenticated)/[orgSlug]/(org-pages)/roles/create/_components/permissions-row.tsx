@@ -16,14 +16,14 @@ export default function PermissionsRow({
     const value = permissions[key] || [];
     if (typeof value === "string") {
       return (
-        <ToggleGroupItem name={value} key={value} value={value}>
+        <ToggleGroupItem name={value} key={value} value={value} className="hover:bg-gray-200">
           {key.charAt(0).toUpperCase() + key.slice(1)}
         </ToggleGroupItem>
       );
     } else if (typeof value === "object") {
       const module = permissionModules[key as PermissionModule];
       return (
-        <TableRow key={key} className="hover:bg-gray-100">
+        <TableRow key={key} className="hover:bg-gray-50">
           <TableCell className="font-semibold">
             <div className="flex items-center gap-2">
               {module?.icon}{" "}

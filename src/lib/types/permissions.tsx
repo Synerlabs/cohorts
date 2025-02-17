@@ -7,6 +7,8 @@ import {
   FormInputIcon,
   CreditCardIcon,
   PackageIcon,
+  FolderIcon,
+  Settings2Icon,
 } from "lucide-react";
 
 /**
@@ -115,7 +117,7 @@ export const permissions = {
   },
   members: {
     view: "group.members.view",
-    create: "group.members.create",
+    // create: "group.members.create",
     edit: "group.members.edit",
     delete: "group.members.delete",
     invite: "group.members.invite",
@@ -132,41 +134,42 @@ export const permissions = {
     view: "group.memberships.view",
     create: "group.memberships.create",
     edit: "group.memberships.edit",
-    delete: "group.memberships.delete",
-    manage: "group.memberships.manage",
+    delete: "group.memberships.delete"
   },
   applications: {
     view: "group.applications.view",
     create: "group.applications.create",
     edit: "group.applications.edit",
     delete: "group.applications.delete",
-    approve: "group.applications.approve",
-    reject: "group.applications.reject",
+    process: "group.applications.process"
   },
   forms: {
     view: "group.forms.view",
     create: "group.forms.create",
     edit: "group.forms.edit",
-    delete: "group.forms.delete",
-    submit: "group.forms.submit",
-    manage: "group.forms.manage",
+    delete: "group.forms.delete"
   },
   payments: {
     view: "group.payments.view",
-    create: "group.payments.create",
-    edit: "group.payments.edit",
-    delete: "group.payments.delete",
+    // create: "group.payments.create",
+    // edit: "group.payments.edit",
+    // delete: "group.payments.delete",
     process: "group.payments.process",
-    refund: "group.payments.refund",
+    // refund: "group.payments.refund",
   },
   orders: {
     view: "group.orders.view",
-    create: "group.orders.create",
-    edit: "group.orders.edit",
-    delete: "group.orders.delete",
-    process: "group.orders.process",
-    cancel: "group.orders.cancel",
-    refund: "group.orders.refund",
+    // create: "group.orders.create",
+    // edit: "group.orders.edit",
+    // delete: "group.orders.delete",
+    // process: "group.orders.process",
+    // cancel: "group.orders.cancel",
+    // refund: "group.orders.refund",
+  },
+  files: {
+    view: "group.files.view",
+    download: "group.files.download",
+    delete: "group.files.delete",
   },
 } as const;
 
@@ -219,6 +222,18 @@ export const permissionModules = {
     description: "Manage group orders",
     icon: <PackageIcon className="h-5 w-5" />,
     permissions: permissions.orders,
+  },
+  files: {
+    name: "Files",
+    description: "Access and work with files",
+    icon: <FolderIcon className="h-5 w-5" />,
+    permissions: permissions.files,
+  },
+  fileManagement: {
+    name: "File Management",
+    description: "Manage file system settings and permissions",
+    icon: <Settings2Icon className="h-5 w-5" />,
+    permissions: permissions.fileManagement,
   },
 } as const;
 
