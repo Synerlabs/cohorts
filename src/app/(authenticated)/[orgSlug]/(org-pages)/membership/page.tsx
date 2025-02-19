@@ -3,7 +3,7 @@ import { getMembershipTiersAction, getMembershipsAction } from "./_actions/membe
 import { permissions } from "@/lib/types/permissions";
 import MembershipPageClient from "./_components/membership-page-client";
 
-async function MembershipPage({ org }: OrgAccessHOCProps) {
+async function MembershipPage({ org, userPermissions }: OrgAccessHOCProps) {
   const [tiers, memberships] = await Promise.all([
     getMembershipTiersAction(org.id),
     getMembershipsAction(org.id)
@@ -14,6 +14,7 @@ async function MembershipPage({ org }: OrgAccessHOCProps) {
     memberships={memberships}
     groupId={org.id} 
     orgSlug={org.slug}
+    userPermissions={userPermissions}
   />;
 }
 

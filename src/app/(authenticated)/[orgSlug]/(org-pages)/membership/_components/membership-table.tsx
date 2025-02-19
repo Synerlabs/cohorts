@@ -17,15 +17,19 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { deleteMembershipTierAction } from "../_actions/membership.action";
 import { useToast } from "@/components/ui/use-toast";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
+import { usePermissions } from "@/lib/hooks/use-permissions";
+import { permissions } from "@/lib/types/permissions";
 
 interface MembershipTableProps {
   tiers: IMembershipTierProduct[];
   groupId: string;
   slug: string;
+  userPermissions: string[];
 }
 
 const currencySymbols: Record<Currency, string> = {
@@ -42,27 +46,22 @@ function formatPrice(price: number, currency: Currency): string {
   return `${currencySymbols[currency]}${amount}`;
 }
 
-export default function MembershipTable({ tiers, groupId, slug }: MembershipTableProps) {
+export default function MembershipTable({ tiers, groupId, slug, userPermissions }: MembershipTableProps) {
   const [editingTier, setEditingTier] = useState<string | null>(null);
   const [deletingTier, setDeletingTier] = useState<IMembershipTierProduct | null>(null);
   const { toast } = useToast();
+  const { hasPermission } = usePermissions(userPermissions);
   
-  const [deleteState, deleteTier, isPending] = useToastActionState(
+  const [state, deleteTier, isPending] = useToastActionState(
     deleteMembershipTierAction,
-    undefined,
-    undefined,
-    {
-      successTitle: "Success",
-      successDescription: "Membership tier deleted successfully"
-    }
   );
 
   const handleDelete = async () => {
     if (!deletingTier) return;
-    
+
     const formData = new FormData();
     formData.append('id', deletingTier.id);
-    await deleteTier(formData);
+    deleteTier(formData);
     setDeletingTier(null);
   };
 
@@ -110,62 +109,56 @@ export default function MembershipTable({ tiers, groupId, slug }: MembershipTabl
                   )}
                 </TableCell>
                 <TableCell>0</TableCell>
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Sheet open={editingTier === tier.id} onOpenChange={(open) => setEditingTier(open ? tier.id : null)}>
-                      <SheetTrigger asChild>
+                <TableCell className="flex gap-2">
+                  <Sheet open={editingTier === tier.id} onOpenChange={(open) => setEditingTier(open ? tier.id : null)}>
+                    <SheetTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    </SheetTrigger>
+                    <SheetContent className="overflow-y-auto">
+                      <SheetHeader>
+                        <SheetTitle>Edit Membership Tier</SheetTitle>
+                      </SheetHeader>
+                      <div className="mt-4 pb-6">
+                        <MembershipForm 
+                          groupId={groupId} 
+                          tier={tier} 
+                          onSuccess={() => setEditingTier(null)}
+                        />
+                      </div>
+                    </SheetContent>
+                  </Sheet>
+
+                  {hasPermission(permissions.memberships.delete) && (
+                    <AlertDialog open={deletingTier?.id === tier.id} onOpenChange={(open) => setDeletingTier(open ? tier : null)}>
+                      <AlertDialogTrigger asChild>
                         <Button variant="ghost" size="icon">
-                          <Edit className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                      </SheetTrigger>
-                      <SheetContent className="overflow-y-auto">
-                        <SheetHeader>
-                          <SheetTitle>Edit Membership Tier</SheetTitle>
-                        </SheetHeader>
-                        <div className="mt-4 pb-6">
-                          <MembershipForm 
-                            groupId={groupId} 
-                            tier={tier} 
-                            onSuccess={() => setEditingTier(null)}
-                          />
-                        </div>
-                      </SheetContent>
-                    </Sheet>
-                    <Button 
-                      variant="ghost" 
-                      size="icon"
-                      onClick={() => setDeletingTier(tier)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete the membership tier and cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDelete} disabled={isPending}>
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
                 </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
-
-      <AlertDialog open={!!deletingTier} onOpenChange={(open) => !isPending && setDeletingTier(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Membership Tier</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete the membership tier "{deletingTier?.name}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={handleDelete}
-              disabled={isPending}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {isPending ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   );
 } 

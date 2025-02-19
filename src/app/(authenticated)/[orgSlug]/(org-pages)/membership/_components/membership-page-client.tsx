@@ -12,16 +12,19 @@ import MembershipsTable from "./memberships-table";
 import { useState } from "react";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { IMembership } from "../_actions/membership.action";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 interface MembershipPageClientProps {
   tiers: IMembershipTierProduct[];
   memberships: IMembership[];
   groupId: string;
   orgSlug: string;
+  userPermissions: string[];
 }
 
-export default function MembershipPageClient({ tiers, memberships, groupId, orgSlug }: MembershipPageClientProps) {
+export default function MembershipPageClient({ tiers, memberships, groupId, orgSlug, userPermissions }: MembershipPageClientProps) {
   const [open, setOpen] = useState(false);
+  const { hasPermission } = usePermissions(userPermissions);
 
   return (
     <div className="space-y-4">
@@ -70,7 +73,7 @@ export default function MembershipPageClient({ tiers, memberships, groupId, orgS
             </Alert>
           ) : (
             <div className="rounded-md border">
-              <MembershipTable tiers={tiers} groupId={groupId} slug={orgSlug} />
+              <MembershipTable tiers={tiers} groupId={groupId} slug={orgSlug} userPermissions={userPermissions} />
             </div>
           )}
         </TabsContent>
