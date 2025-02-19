@@ -13,6 +13,7 @@ import { useState } from "react";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { IMembership } from "../_actions/membership.action";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { permissions } from "@/lib/types/permissions";
 
 interface MembershipPageClientProps {
   tiers: IMembershipTierProduct[];
@@ -30,25 +31,27 @@ export default function MembershipPageClient({ tiers, memberships, groupId, orgS
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Memberships</h2>
-        <Sheet open={open} onOpenChange={setOpen}>
-          <SheetTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Create Tier
-            </Button>
-          </SheetTrigger>
-          <SheetContent className="overflow-y-auto">
-            <SheetHeader>
-              <SheetTitle>Create Membership Tier</SheetTitle>
-            </SheetHeader>
-            <div className="mt-4 pb-6">
-              <MembershipForm 
-                groupId={groupId} 
-                onSuccess={() => setOpen(false)}
-              />
-            </div>
-          </SheetContent>
-        </Sheet>
+        {hasPermission(permissions.memberships.create) && (
+          <Sheet open={open} onOpenChange={setOpen}>
+            <SheetTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create Tier
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle>Create Membership Tier</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4 pb-6">
+                <MembershipForm 
+                  groupId={groupId} 
+                  onSuccess={() => setOpen(false)}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        )}
       </div>
 
       <Tabs defaultValue="memberships" className="space-y-4">
@@ -68,7 +71,7 @@ export default function MembershipPageClient({ tiers, memberships, groupId, orgS
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                No membership tiers found. Create a tier to start accepting members.
+                No membership tiers found. {hasPermission(permissions.memberships.create) ? "Create a tier to start accepting members." : "Contact an administrator to create membership tiers."}
               </AlertDescription>
             </Alert>
           ) : (
