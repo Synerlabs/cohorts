@@ -110,18 +110,18 @@ import {
 // Define the permission structure
 export const permissions = {
   group: {
-    view: "group.view",
-    create: "group.create",
+    // view: "group.view",
+    // create: "group.create",
     edit: "group.edit",
-    delete: "group.delete",
+    // delete: "group.delete",
   },
   members: {
     view: "group.members.view",
     // create: "group.members.create",
-    edit: "group.members.edit",
-    delete: "group.members.delete",
-    invite: "group.members.invite",
-    approve: "group.members.approve",
+    // edit: "group.members.edit",
+    // delete: "group.members.delete",
+    // invite: "group.members.invite",
+    // approve: "group.members.approve",
   },
   roles: {
     view: "group.roles.view",

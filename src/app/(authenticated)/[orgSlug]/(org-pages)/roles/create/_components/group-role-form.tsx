@@ -165,7 +165,7 @@ export default function GroupRoleForm({
           )}
         </div>
         
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px] xxl:grid-cols-[1fr_400px] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_25%] xxl:grid-cols-[minmax(0,1fr)_400px] gap-6">
           {/* Left Column - Permissions */}
           <FormField
             name="permissions"

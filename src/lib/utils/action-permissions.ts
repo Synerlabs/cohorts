@@ -2,7 +2,7 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { checkUserAccess } from "@/lib/utils/permissions";
 
-type ModuleType = 'role' | 'group' | 'form' | 'membership' | 'user_role';
+type ModuleType = 'role' | 'group' | 'form' | 'membership' | 'user_role' | 'membership_tier';
 
 type ActionContext = {
   groupId?: string;
@@ -49,6 +49,15 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
         .eq("id", moduleId)
         .single();
       return membership?.group_id || null;
+
+    case 'membership_tier':
+      const { data: tier } = await supabase
+        .from("products")
+        .select("group_id")
+        .eq("id", moduleId)
+        .eq("type", "membership_tier")
+        .single();
+      return tier?.group_id || null;
 
     case 'user_role':
       // First get the group role ID
