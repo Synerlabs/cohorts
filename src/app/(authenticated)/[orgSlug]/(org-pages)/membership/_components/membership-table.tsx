@@ -65,6 +65,10 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
     setDeletingTier(null);
   };
 
+  const canEdit = hasPermission(permissions.memberships.edit);
+  const canDelete = hasPermission(permissions.memberships.delete);
+  const showActions = canEdit || canDelete;
+
   return (
     <>
       <Table>
@@ -77,7 +81,7 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
             <TableHead>Activation</TableHead>
             <TableHead>Form</TableHead>
             <TableHead>Members</TableHead>
-            <TableHead className="w-[100px]">Actions</TableHead>
+            {showActions && <TableHead className="w-[100px]">Actions</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -109,51 +113,55 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
                   )}
                 </TableCell>
                 <TableCell>0</TableCell>
-                <TableCell className="flex gap-2">
-                  <Sheet open={editingTier === tier.id} onOpenChange={(open) => setEditingTier(open ? tier.id : null)}>
-                    <SheetTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent className="overflow-y-auto">
-                      <SheetHeader>
-                        <SheetTitle>Edit Membership Tier</SheetTitle>
-                      </SheetHeader>
-                      <div className="mt-4 pb-6">
-                        <MembershipForm 
-                          groupId={groupId} 
-                          tier={tier} 
-                          onSuccess={() => setEditingTier(null)}
-                        />
-                      </div>
-                    </SheetContent>
-                  </Sheet>
+                {showActions && (
+                  <TableCell className="flex gap-2">
+                    {canEdit && (
+                      <Sheet open={editingTier === tier.id} onOpenChange={(open) => setEditingTier(open ? tier.id : null)}>
+                        <SheetTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        </SheetTrigger>
+                        <SheetContent className="overflow-y-auto">
+                          <SheetHeader>
+                            <SheetTitle>Edit Membership Tier</SheetTitle>
+                          </SheetHeader>
+                          <div className="mt-4 pb-6">
+                            <MembershipForm 
+                              groupId={groupId} 
+                              tier={tier} 
+                              onSuccess={() => setEditingTier(null)}
+                            />
+                          </div>
+                        </SheetContent>
+                      </Sheet>
+                    )}
 
-                  {hasPermission(permissions.memberships.delete) && (
-                    <AlertDialog open={deletingTier?.id === tier.id} onOpenChange={(open) => setDeletingTier(open ? tier : null)}>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="ghost" size="icon">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This will permanently delete the membership tier and cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleDelete} disabled={isPending}>
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  )}
-                </TableCell>
+                    {canDelete && (
+                      <AlertDialog open={deletingTier?.id === tier.id} onOpenChange={(open) => setDeletingTier(open ? tier : null)}>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete the membership tier and cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDelete} disabled={isPending}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </TableCell>
+                )}
               </TableRow>
             );
           })}

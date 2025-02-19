@@ -361,7 +361,7 @@ export async function updateMembershipTierAction(
     },
     (params: { formData: FormData }) => ({
       moduleId: params.formData.get('id') as string,
-      moduleType: 'membership',
+      moduleType: 'membership_tier' as const,
       requiredPermissions: permissions.memberships.edit
     })
   );
