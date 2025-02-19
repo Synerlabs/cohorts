@@ -1,11 +1,12 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
-import { getMembershipTiersAction, getMembershipsAction } from "./_actions/membership.action";
+import { getMembershipsAction } from "./_actions/membership.action";
 import { permissions } from "@/lib/types/permissions";
 import MembershipPageClient from "./_components/membership-page-client";
+import { ProductService } from "@/services/product.service";
 
 async function MembershipPage({ org, userPermissions }: OrgAccessHOCProps) {
   const [tiers, memberships] = await Promise.all([
-    getMembershipTiersAction(org.id),
+    ProductService.getMembershipTiers(org.id),
     getMembershipsAction(org.id)
   ]);
 

@@ -49,52 +49,6 @@ type GroupUserWithGroup = {
   };
 };
 
-export async function getMembershipTiersAction(groupId: string): Promise<IMembershipTierProduct[]> {
-  const handler = await withPermissions(
-    async (context: { userId: string; groupId: string }) => {
-      const supabase = await createServiceRoleClient();
-
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          *,
-          membership_tiers!inner (
-            *,
-            membership_tier_settings (
-              member_id_format
-            )
-          )
-        `)
-        .eq('group_id', context.groupId)
-        .eq('type', 'membership_tier')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const tiers = data.map(tier => ({
-        ...tier,
-        membership_tier: {
-          ...tier.membership_tiers,
-          member_id_format: tier.membership_tiers.membership_tier_settings?.member_id_format
-        }
-      })) as IMembershipTierProduct[];
-
-      return { success: true, data: tiers };
-    },
-    () => ({
-      groupId,
-      requiredPermissions: permissions.memberships.view
-    })
-  );
-
-  const result = await handler(null, {});
-  if (!result.success || !result.data) {
-    throw new Error(result.error || "Failed to fetch membership tiers");
-  }
-  return result.data;
-}
-
 export interface IMembership {
   group_user_id: string;
   order_id: string;
@@ -390,6 +344,7 @@ export async function deleteMembershipTierAction(
         const { error } = await supabase
           .from("products")
           .update({ 
+            is_deleted: true,
             deleted_at: new Date().toISOString(),
             deleted_by: context.userId
           })

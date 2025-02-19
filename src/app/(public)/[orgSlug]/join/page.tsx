@@ -19,7 +19,7 @@ export const revalidate = 0;
 
 type CamelizedGroup = Camelized<Tables<"group">>;
 
-async function getMembershipData(orgId: string): Promise<IMembershipTierProduct[]> {
+async function getMembershipData(orgId: string, isDeleted = false): Promise<IMembershipTierProduct[]> {
   const memberships = await ProductService.getMembershipTiers(orgId);
   return memberships;
 }

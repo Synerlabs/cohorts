@@ -42,10 +42,10 @@ export class ProductService {
     } as IMembershipTierProduct;
   }
 
-  static async getMembershipTiers(groupId: string): Promise<IMembershipTierProduct[]> {
+  static async getMembershipTiers(groupId: string, isDeleted = false): Promise<IMembershipTierProduct[]> {
     const supabase = await createClient();
     
-    const { data, error } = await supabase
+    const query = supabase
       .from('products')
       .select(`
         *,
@@ -60,6 +60,16 @@ export class ProductService {
       .eq('group_id', groupId)
       .eq('type', 'membership_tier');
 
+    // Only include deleted items if explicitly requested
+    if (isDeleted) {
+      query.eq('is_deleted', true);
+    } else {
+      // Show items where is_deleted is either null or false
+      query.or('is_deleted.eq.false,is_deleted.is.null');
+    }
+
+    const { data, error } = await query;
+
     if (error) {
       throw error;
     }
@@ -68,23 +78,13 @@ export class ProductService {
       return [];
     }
 
-    // console.log('Raw membership tiers data:', JSON.stringify(data, null, 2));
-
-    return data.map(tier => {
-      console.log('Processing tier:', {
-        id: tier.id,
-        membershipTier: tier.membership_tiers,
-        settings: tier.membership_tiers?.membership_tier_settings
-      });
-
-      return {
-        ...tier,
-        membership_tier: {
-          ...tier.membership_tiers,
-          member_id_format: tier.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
-        }
-      };
-    }) as IMembershipTierProduct[];
+    return data.map(tier => ({
+      ...tier,
+      membership_tier: {
+        ...tier.membership_tiers,
+        member_id_format: tier.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+      }
+    })) as IMembershipTierProduct[];
   }
 
   static async createMembershipTier(groupId: string, tier: {
@@ -288,24 +288,19 @@ export class ProductService {
   static async deleteMembershipTier(id: string): Promise<void> {
     const supabase = await createClient();
     
-    // Delete the membership tier first (due to foreign key constraint)
-    const { error: deleteMemError } = await supabase
-      .from('membership_tiers')
-      .delete()
-      .eq('product_id', id);
-
-    if (deleteMemError) {
-      throw deleteMemError;
-    }
-
-    // Then delete the product
-    const { error: deleteError } = await supabase
+    // Soft delete by updating is_deleted and deleted_at
+    const { error: updateError } = await supabase
       .from('products')
-      .delete()
-      .eq('id', id);
+      .update({
+        is_deleted: true,
+        deleted_at: new Date().toISOString(),
+        is_active: false
+      })
+      .eq('id', id)
+      .eq('type', 'membership_tier');
 
-    if (deleteError) {
-      throw deleteError;
+    if (updateError) {
+      throw updateError;
     }
   }
 } 
