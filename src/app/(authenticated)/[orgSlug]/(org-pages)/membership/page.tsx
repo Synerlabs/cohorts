@@ -18,4 +18,4 @@ async function MembershipPage({ org, userPermissions }: OrgAccessHOCProps) {
   />;
 }
 
-export default withOrgAccess(MembershipPage, { permissions: [permissions.memberships.view] });
+export default withOrgAccess(MembershipPage, { permissions: [permissions.memberships.view], onAccessDenied: { action: "error" }});
