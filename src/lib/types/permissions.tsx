@@ -138,9 +138,9 @@ export const permissions = {
   },
   applications: {
     view: "group.applications.view",
-    create: "group.applications.create",
-    edit: "group.applications.edit",
-    delete: "group.applications.delete",
+    // create: "group.applications.create",
+    // edit: "group.applications.edit",
+    // delete: "group.applications.delete",
     process: "group.applications.process"
   },
   forms: {

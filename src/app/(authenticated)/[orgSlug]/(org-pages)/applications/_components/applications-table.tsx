@@ -40,12 +40,12 @@ export function ApplicationsTable({ applications, showActions = true, userPermis
   const router = useRouter();
 
   const canApprove = useMemo(() => 
-    userPermissions.includes(permissions.applications.approve),
+    userPermissions.includes(permissions.applications.process),
     [userPermissions]
   );
   
   const canReject = useMemo(() => 
-    userPermissions.includes(permissions.applications.reject),
+    userPermissions.includes(permissions.applications.process),
     [userPermissions]
   );
 

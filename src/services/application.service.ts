@@ -20,6 +20,7 @@ export interface Application {
   product_currency: string;
   duration_months: number;
   activation_type: string;
+  group_id: string;
 }
 
 export class ApplicationService {

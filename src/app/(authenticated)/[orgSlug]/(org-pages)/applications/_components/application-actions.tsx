@@ -6,6 +6,7 @@ import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { handleApproveApplication, handleRejectApplication } from "../_actions/applications";
 import { permissions } from "@/lib/types/permissions";
 import { MembershipActivationType } from "@/lib/types/membership";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 interface ApplicationActionsProps {
   applicationId: string;
@@ -28,9 +29,14 @@ export function ApplicationActions({
 }: ApplicationActionsProps) {
   const [approveState, approveDispatch, approveLoading] = useToastActionState(handleApproveApplication);
   const [rejectState, rejectDispatch, rejectLoading] = useToastActionState(handleRejectApplication);
+  const { hasPermission } = usePermissions(userPermissions);
 
-  const canApprove = userPermissions.includes(permissions.applications.approve);
-  const canReject = userPermissions.includes(permissions.applications.reject);
+  const canApprove = hasPermission([
+    permissions.applications.process
+  ]);
+  const canReject = hasPermission([
+    permissions.applications.process
+  ]);
 
   const handleApprove = () => {
     const formData = new FormData();
@@ -75,33 +81,39 @@ export function ApplicationActions({
         return 'Approve Membership';
       default:
         return 'Approve';
+        return "Approve";
     }
   };
 
   return (
     <div className={`flex gap-2 ${className}`}>
       {canApprove && (
-        <Button
-          variant="default"
-          size={size}
-          className="flex-1"
-          onClick={handleApprove}
+        <Button 
+          onClick={handleApprove} 
           disabled={approveLoading || rejectLoading}
+          size={size}
         >
-          { approveLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Check className="h-4 w-4 mr-2" /> }
-          { getApproveButtonText() }
+          {approveLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Check className="h-4 w-4 mr-2" />
+          )}
+          {getApproveButtonText()}
         </Button>
       )}
       {canReject && (
-        <Button
+        <Button 
+          onClick={handleReject} 
           variant="destructive"
-          size={size}
-          className="flex-1"
-          onClick={handleReject}
           disabled={approveLoading || rejectLoading}
+          size={size}
         >
-          { rejectLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <X className="h-4 w-4 mr-2" /> }
-          { rejectLoading ? 'Rejecting...' : 'Reject' }
+          {rejectLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <X className="h-4 w-4 mr-2" />
+          )}
+          Reject
         </Button>
       )}
     </div>
