@@ -2,7 +2,7 @@
 import { createClient } from "@/lib/utils/supabase/server";
 import { checkUserAccess } from "@/lib/utils/permissions";
 
-type ModuleType = 'role' | 'group' | 'form' | 'membership' | 'user_role' | 'membership_tier' | 'applications';
+type ModuleType = 'role' | 'group' | 'form_template' | 'membership' | 'user_role' | 'membership_tier' | 'applications';
 
 type ActionContext = {
   groupId?: string;
@@ -34,13 +34,13 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
         .single();
       return role?.group_id || null;
       
-    case 'form':
+    case 'form_template':
       const { data: form } = await supabase
-        .from("forms")
-        .select("group_id")
+        .from("form_templates")
+        .select("org_id")
         .eq("id", moduleId)
         .single();
-      return form?.group_id || null;
+      return form?.org_id || null;
       
     case 'membership':
       const { data: membership } = await supabase
@@ -213,7 +213,7 @@ export async function withPermissions<T, P>(
         const moduleGroupId = await getModuleGroupId(moduleType, moduleId);
         
         if (!moduleGroupId) {
-          return { error: `${moduleType} not found` };
+          return { error: `Permission check failed: groupd id for ${moduleType} module not found` };
         }
         
         // If groupId was provided, verify it matches

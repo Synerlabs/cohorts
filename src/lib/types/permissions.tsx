@@ -147,7 +147,8 @@ export const permissions = {
     view: "group.forms.view",
     create: "group.forms.create",
     edit: "group.forms.edit",
-    delete: "group.forms.delete"
+    delete: "group.forms.delete",
+    publish: "group.forms.publish"
   },
   payments: {
     view: "group.payments.view",

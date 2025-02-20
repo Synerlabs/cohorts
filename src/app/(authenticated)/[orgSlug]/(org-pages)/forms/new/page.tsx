@@ -22,5 +22,7 @@ async function NewFormPage({ org, user }: NewFormPageProps) {
 
 export default withOrgAccess(NewFormPage, {
   permissions: [permissions.forms.create],
-  allowGuest: false
+  onAccessDenied: {
+    action: 'error'
+  }
 }); 

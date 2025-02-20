@@ -192,6 +192,15 @@ export function FormBuilder({ org, template, mode = 'create' }: FormBuilderProps
         throw new Error(result.error);
       }
 
+      let publishResult = result.data?.id;
+      if (shouldPublish) {
+        publishResult = await publishFormTemplate(result.data.id);
+      }
+
+      if (publishResult.error) {
+        throw new Error(publishResult.error);
+      }
+
       toast({
         title: 'Success',
         description: `Form template ${shouldPublish ? 'published' : (mode === 'create' ? 'created' : 'updated')} successfully`,

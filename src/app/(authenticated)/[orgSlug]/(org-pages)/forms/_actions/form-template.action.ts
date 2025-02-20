@@ -3,6 +3,8 @@
 import { z } from 'zod';
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { withPermissions } from '@/lib/utils/action-permissions';
+import { permissions } from '@/lib/types/permissions';
 
 const formFieldSchema: z.ZodType<any> = z.lazy(() => 
   z.object({
@@ -153,182 +155,254 @@ const formTemplateSchema = z.object({
 
 export type FormTemplateInput = z.infer<typeof formTemplateSchema>;
 
-export async function createFormTemplate(data: FormTemplateInput) {
-  try {
-    const validated = formTemplateSchema.parse(data);
-    const supabase = await createServiceRoleClient();
+type ActionResponse<T = any> = {
+  data?: T;
+  error?: string;
+  success?: boolean;
+};
 
-    const { data: template, error } = await supabase
-      .from('form_templates')
-      .insert({
-        org_id: validated.orgId,
-        title: validated.title,
-        description: validated.description || null,
-        schema: {
-          version: 1,
-          fields: validated.fields.map((field, index) => ({
-            ...field,
-            order: index,
-          })),
-        },
-        status: 'draft',
-      })
-      .select()
-      .single();
+export async function createFormTemplate(data: FormTemplateInput): Promise<ActionResponse> {
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { data: FormTemplateInput }) => {
+      try {
+        const validated = formTemplateSchema.parse(params.data);
+        const supabase = await createServiceRoleClient();
 
-    if (error) throw error;
+        const { data: template, error } = await supabase
+          .from('form_templates')
+          .insert({
+            org_id: validated.orgId,
+            title: validated.title,
+            description: validated.description || null,
+            schema: {
+              version: 1,
+              fields: validated.fields.map((field, index) => ({
+                ...field,
+                order: index,
+              })),
+            },
+            status: 'draft',
+          })
+          .select()
+          .single();
 
-    // Revalidate the forms list page
-    revalidatePath(`/${template.org_id}/forms`);
+        if (error) throw error;
 
-    return { data: template };
-  } catch (error) {
-    console.error('Failed to create form template:', error);
-    return {
-      error: error instanceof Error ? error.message : 'Failed to create form template',
-    };
-  }
+        // Revalidate the forms list page
+        revalidatePath(`/${template.org_id}/forms`);
+
+        return { data: template };
+      } catch (error) {
+        console.error('Failed to create form template:', error);
+        return {
+          error: error instanceof Error ? error.message : 'Failed to create form template',
+        };
+      }
+    },
+    (params: { data: FormTemplateInput }) => ({
+      groupId: params.data.orgId,
+      moduleType: 'form_template',
+      requiredPermissions: [permissions.forms.create]
+    })
+  );
+
+  return handler(null, { data });
 }
 
 export async function updateFormTemplate(
   id: string,
   data: Omit<FormTemplateInput, 'orgId'>
-) {
-  try {
-    const validated = formTemplateSchema
-      .omit({ orgId: true })
-      .parse(data);
-    const supabase = await createServiceRoleClient();
+): Promise<ActionResponse> {
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { id: string; data: Omit<FormTemplateInput, 'orgId'> }) => {
+      try {
+        const validated = formTemplateSchema
+          .omit({ orgId: true })
+          .parse(params.data);
+        const supabase = await createServiceRoleClient();
 
-    const { data: template, error } = await supabase
-      .from('form_templates')
-      .update({
-        title: validated.title,
-        description: validated.description || null,
-        schema: {
-          version: 1,
-          fields: validated.fields.map((field, index) => ({
-            ...field,
-            order: index,
-          })),
-        },
-      })
-      .eq('id', id)
-      .select()
-      .single();
+        const { data: template, error } = await supabase
+          .from('form_templates')
+          .update({
+            title: validated.title,
+            description: validated.description || null,
+            schema: {
+              version: 1,
+              fields: validated.fields.map((field, index) => ({
+                ...field,
+                order: index,
+              })),
+            },
+          })
+          .eq('id', params.id)
+          .select()
+          .single();
 
-    if (error) throw error;
+        if (error) throw error;
 
-    // Revalidate both the forms list and edit pages
-    revalidatePath(`/${template.org_id}/forms`);
-    revalidatePath(`/${template.org_id}/forms/${template.id}`);
+        // Revalidate both the forms list and edit pages
+        revalidatePath(`/${template.org_id}/forms`);
+        revalidatePath(`/${template.org_id}/forms/${template.id}`);
 
-    return { data: template };
-  } catch (error) {
-    console.error('Failed to update form template:', error);
-    return {
-      error: error instanceof Error ? error.message : 'Failed to update form template',
-    };
-  }
+        return { data: template };
+      } catch (error) {
+        console.error('Failed to update form template:', error);
+        return {
+          error: error instanceof Error ? error.message : 'Failed to update form template',
+        };
+      }
+    },
+    (params: { id: string }) => ({
+      moduleId: params.id,
+      moduleType: 'form_template',
+      requiredPermissions: [permissions.forms.edit]
+    })
+  );
+
+  return handler(null, { id, data });
 }
 
-export async function deleteFormTemplate(id: string) {
-  try {
-    const supabase = await createServiceRoleClient();
+export async function deleteFormTemplate(id: string): Promise<ActionResponse> {
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { id: string }) => {
+      try {
+        const supabase = await createServiceRoleClient();
 
-    // First get the template to get the org_id for revalidation
-    const { data: template, error: fetchError } = await supabase
-      .from('form_templates')
-      .select('org_id')
-      .eq('id', id)
-      .single();
+        // First get the template to get the org_id for revalidation
+        const { data: template, error: fetchError } = await supabase
+          .from('form_templates')
+          .select('org_id')
+          .eq('id', params.id)
+          .single();
 
-    if (fetchError) throw fetchError;
+        if (fetchError) throw fetchError;
 
-    const { error } = await supabase
-      .from('form_templates')
-      .delete()
-      .eq('id', id);
+        const { error } = await supabase
+          .from('form_templates')
+          .delete()
+          .eq('id', params.id);
 
-    if (error) throw error;
+        if (error) throw error;
 
-    // Revalidate the forms list page
-    revalidatePath(`/${template.org_id}/forms`);
+        // Revalidate the forms list page
+        revalidatePath(`/${template.org_id}/forms`);
 
-    return { success: true };
-  } catch (error) {
-    console.error('Failed to delete form template:', error);
-    return {
-      error: error instanceof Error ? error.message : 'Failed to delete form template',
-    };
-  }
+        return { success: true };
+      } catch (error) {
+        console.error('Failed to delete form template:', error);
+        return {
+          error: error instanceof Error ? error.message : 'Failed to delete form template',
+        };
+      }
+    },
+    (params: { id: string }) => ({
+      moduleId: params.id,
+      moduleType: 'form_template',
+      requiredPermissions: [permissions.forms.delete]
+    })
+  );
+
+  return handler(null, { id });
 }
 
-export async function publishFormTemplate(id: string) {
-  try {
-    const supabase = await createServiceRoleClient();
+export async function publishFormTemplate(id: string): Promise<ActionResponse> {
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { id: string }) => {
+      try {
+        const supabase = await createServiceRoleClient();
 
-    const { data: template, error } = await supabase
-      .from('form_templates')
-      .update({ status: 'published' })
-      .eq('id', id)
-      .select()
-      .single();
+        const { data: template, error } = await supabase
+          .from('form_templates')
+          .update({ status: 'published' })
+          .eq('id', params.id)
+          .select()
+          .single();
 
-    if (error) throw error;
+        if (error) throw error;
 
-    // Revalidate both the forms list and edit pages
-    revalidatePath(`/${template.org_id}/forms`);
-    revalidatePath(`/${template.org_id}/forms/${template.id}`);
+        // Revalidate both the forms list and edit pages
+        revalidatePath(`/${template.org_id}/forms`);
+        revalidatePath(`/${template.org_id}/forms/${template.id}`);
 
-    return { data: template };
-  } catch (error) {
-    console.error('Failed to publish form template:', error);
-    return {
-      error: error instanceof Error ? error.message : 'Failed to publish form template',
-    };
-  }
+        return { data: template };
+      } catch (error) {
+        console.error('Failed to publish form template:', error);
+        return {
+          error: error instanceof Error ? error.message : 'Failed to publish form template',
+        };
+      }
+    },
+    (params: { id: string }) => ({
+      moduleId: params.id,
+      moduleType: 'form_template',
+      requiredPermissions: [permissions.forms.publish]
+    })
+  );
+
+  return handler(null, { id });
 }
 
-export async function getFormTemplateById(id: string) {
-  try {
-    const supabase = await createServiceRoleClient();
+export async function getFormTemplateById(id: string): Promise<ActionResponse> {
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { id: string }) => {
+      try {
+        const supabase = await createServiceRoleClient();
 
-    const { data: template, error } = await supabase
-      .from('form_templates')
-      .select('*')
-      .eq('id', id)
-      .single();
+        const { data: template, error } = await supabase
+          .from('form_templates')
+          .select('*')
+          .eq('id', params.id)
+          .single();
 
-    if (error) throw error;
+        if (error) throw error;
 
-    return { data: template };
-  } catch (error) {
-    console.error('Failed to get form template by id:', error);
-    return {
-      error: error instanceof Error ? error.message : 'Failed to get form template by id',
-    };
-  }
+        return { data: template };
+      } catch (error) {
+        console.error('Failed to get form template by id:', error);
+        return {
+          error: error instanceof Error ? error.message : 'Failed to get form template by id',
+        };
+      }
+    },
+    (params: { id: string }) => ({
+      moduleId: params.id,
+      moduleType: 'form_template',
+      requiredPermissions: [permissions.forms.view]
+    })
+  );
+
+  return handler(null, { id });
 }
 
-export async function getPublishedFormTemplates(orgId: string) {
-  try {
-    const supabase = await createServiceRoleClient();
-    
-    const { data: templates, error } = await supabase
-      .from('form_templates')
-      .select('*')
-      .eq('org_id', orgId)
-      .eq('status', 'published')
-      .order('created_at', { ascending: false });
+export async function getPublishedFormTemplates(orgId: string): Promise<ActionResponse> {
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { orgId: string }) => {
+      try {
+        const supabase = await createServiceRoleClient();
+        
+        const { data: templates, error } = await supabase
+          .from('form_templates')
+          .select('*')
+          .eq('org_id', params.orgId)
+          .eq('status', 'published')
+          .order('created_at', { ascending: false });
 
-    if (error) throw error;
+        if (error) throw error;
 
-    return { data: templates };
-  } catch (error) {
-    console.error('Failed to fetch form templates:', error);
-    return {
-      error: error instanceof Error ? error.message : 'Failed to fetch form templates',
-    };
-  }
+        return { data: templates };
+      } catch (error) {
+        console.error('Failed to fetch form templates:', error);
+        return {
+          error: error instanceof Error ? error.message : 'Failed to fetch form templates',
+        };
+      }
+    },
+    (params: { orgId: string }) => ({
+      groupId: params.orgId,
+      moduleType: 'form_template',
+      requiredPermissions: [permissions.forms.view]
+    })
+  );
+
+  return handler(null, { orgId });
 } 
