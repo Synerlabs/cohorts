@@ -47,5 +47,7 @@ async function EditFormPage({ org, user, userPermissions, params }: EditFormPage
 
 export default withOrgAccess(EditFormPage, {
   permissions: [permissions.forms.edit],
-  allowGuest: false
+  onAccessDenied: {
+    action: "error",
+  }
 }); 
