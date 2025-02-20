@@ -4,11 +4,12 @@ import { ManualPaymentService } from './manual-payment.service';
 import { StripePaymentService } from './stripe-payment.service';
 import { PaymentService } from './payment.service.interface';
 import { PaymentType } from './types';
+import { supabaseProvider } from '../storage/supabase.provider';
 
 export class PaymentServiceFactory {
   constructor(
     private readonly supabase: SupabaseClient,
-    private readonly storageProvider: StorageProvider
+    private readonly storageProvider: StorageProvider = supabaseProvider
   ) {}
 
   createService(type: PaymentType): PaymentService {

@@ -62,7 +62,12 @@ export class ManualPaymentService implements PaymentService {
       try {
         for (const file of data.proofFiles) {
           console.log('Uploading proof file for payment:', payment.id);
-          const path = `manual-payments/${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, '0')}/${String(new Date().getDate()).padStart(2, '0')}/${crypto.randomUUID()}`;
+          
+          // Generate a storage path that includes the payment ID
+          const path = this.storageProvider.generatePath(
+            `manual-payments/${payment.id}`, // Include payment ID in the module path
+            file.name
+          );
           console.log('Upload path:', path);
           
           console.log('File data:', {
@@ -71,9 +76,9 @@ export class ManualPaymentService implements PaymentService {
             base64Length: file.base64?.length
           });
 
-          const result = await this.storageProvider.upload(file, path);
+          const result = await this.storageProvider.upload(file, path, data.orgId);
           console.log('File upload result:', {
-            fileId: result.fileId,
+            path: result.path,
             hasUrl: !!result.url
           });
 
@@ -83,10 +88,10 @@ export class ManualPaymentService implements PaymentService {
             .insert({
               module: 'manual-payments',
               original_filename: file.name,
-              storage_path: result.storagePath,
-              storage_provider: 'google-drive',
+              storage_path: result.path,
+              storage_provider: this.storageProvider.providerType,
               file_url: result.url,
-              file_id: result.fileId
+              file_id: result.path
             })
             .select()
             .single();

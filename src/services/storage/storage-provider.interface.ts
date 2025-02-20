@@ -1,17 +1,13 @@
 export interface StorageConfig {
   provider: string;
-  credentials: any;
-  settings: {
-    [key: string]: any;
-  };
+  credentials?: Record<string, any>;
+  settings?: Record<string, any>;
 }
 
 export interface UploadResult {
-  fileId: string;
-  url: string;
-  metadata: any;
-  storagePath: string;
-  originalFilename: string;
+  url: string;    // The public URL of the uploaded file
+  path: string;   // The storage path of the file (used as storage_path and file_id)
+  bucket: string; // The bucket where the file is stored
 }
 
 export interface GoogleDriveCredentials {
@@ -28,7 +24,9 @@ export interface GoogleDriveCredentials {
 }
 
 export interface StorageProvider {
-  initialize(config: StorageConfig): Promise<void>;
-  upload(file: any, path: string): Promise<UploadResult>;
-  delete(fileId: string): Promise<void>;
+  providerType: string;  // The type of storage provider (e.g., 'supabase', 'google-drive')
+  initialize(config?: StorageConfig): Promise<void>;
+  upload(file: File, path: string, orgId?: string): Promise<UploadResult>;
+  delete(path: string, orgId?: string): Promise<void>;
+  generatePath(module: string, filename: string): Promise<string>; // Generate a storage path for a file
 } 

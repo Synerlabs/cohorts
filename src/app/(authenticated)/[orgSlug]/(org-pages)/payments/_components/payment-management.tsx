@@ -329,7 +329,7 @@ export function PaymentManagement({
                   {getSortIcon('status')}
                 </div>
               </TableHead>
-              <TableHead className="w-[100px] text-right">Actions</TableHead>
+              <TableHead className="w-[100px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -400,7 +400,7 @@ export function PaymentManagement({
                           </Button>
                         </>
                       ) : null}
-                      <Button
+                      {/* <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => setPaymentToDelete(payment)}
@@ -408,7 +408,7 @@ export function PaymentManagement({
                       >
                         <Trash2Icon className="h-4 w-4" />
                         <span className="sr-only">Delete</span>
-                      </Button>
+                      </Button> */}
                     </div>
                   </TableCell>
                 </TableRow>
