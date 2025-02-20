@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card } from '@/components/ui/card';
@@ -103,15 +103,6 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const { hasPermission } = usePermissions(userPermissions);
 
-  const canEdit = hasPermission(permissions.forms.edit);
-
-  // If user can't edit, force preview tab
-  useEffect(() => {
-    if (!canEdit) {
-      setActiveTab('preview');
-    }
-  }, [canEdit]);
-
   function createDefaultSection(): FormFieldType {
     return {
       id: crypto.randomUUID(),
@@ -169,20 +160,17 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     setSections(newSections);
   };
 
-  const handleSave = async (shouldPublish = false) => {
-    if (!title) {
+  const handleSave = async (shouldPublish: boolean = false) => {
+    if (!title.trim()) {
       toast({
         title: 'Error',
-        description: 'Please enter a title for the form',
+        description: 'Please enter a form title',
         variant: 'destructive',
       });
       return;
     }
 
-    if (!sections.some(section => {
-      const fields = section.sectionConfig?.fields;
-      return Array.isArray(fields) && fields.length > 0;
-    })) {
+    if (!sections.some(section => section.sectionConfig?.fields.length > 0)) {
       toast({
         title: 'Error',
         description: 'Please add at least one field to a section',
@@ -236,14 +224,9 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     }
   };
 
-  const handlePublish = (e: React.MouseEvent) => {
-    e.preventDefault();
-    handleSave(true);
-  };
-
   return (
     <div className="space-y-6">
-      {mode === 'create' && canEdit && (
+      {mode === 'create' && (
         <TemplateSelectionDialog
           open={showTemplateDialog}
           onOpenChange={setShowTemplateDialog}
@@ -259,94 +242,84 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         <div className="space-y-4">
           <div>
             <Label htmlFor="title">Form Title</Label>
-            {canEdit ? (
-              <Input
-                id="title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Enter form title"
-                className="mt-1"
-              />
-            ) : (
-              <p className="mt-1 text-muted-foreground">{title}</p>
-            )}
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Enter form title"
+              className="mt-1"
+            />
           </div>
           <div>
             <Label htmlFor="description">Description</Label>
-            {canEdit ? (
-              <Textarea
-                id="description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Enter form description"
-                className="mt-1"
-              />
-            ) : (
-              <p className="mt-1 text-muted-foreground">{description}</p>
-            )}
+            <Textarea
+              id="description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Enter form description"
+              className="mt-1"
+            />
           </div>
         </div>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={(value) => canEdit && setActiveTab(value as 'edit' | 'preview')}>
+      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'edit' | 'preview')}>
         <TabsList className="grid w-[400px] grid-cols-2">
-          <TabsTrigger value="edit" disabled={!canEdit}>Edit Form</TabsTrigger>
+          <TabsTrigger value="edit">Edit Form</TabsTrigger>
           <TabsTrigger value="preview">Preview Form</TabsTrigger>
         </TabsList>
 
-        {canEdit && (
-          <TabsContent value="edit" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Sections</h2>
-              <Button
-                variant="outline"
-                onClick={handleAddSection}
-                className="flex items-center gap-2"
-              >
-                <LayoutTemplate className="h-4 w-4" />
-                Add Section
-              </Button>
-            </div>
+        <TabsContent value="edit" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Sections</h2>
+            <Button
+              variant="outline"
+              onClick={handleAddSection}
+              className="flex items-center gap-2"
+            >
+              <LayoutTemplate className="h-4 w-4" />
+              Add Section
+            </Button>
+          </div>
 
-            <DragDropContext onDragEnd={handleDragEnd}>
-              <Droppable droppableId="sections">
-                {(provided) => (
-                  <div
-                    {...provided.droppableProps}
-                    ref={provided.innerRef}
-                    className="space-y-4"
-                  >
-                    {sections.map((section, index) => (
-                      <Draggable
-                        key={section.id}
-                        draggableId={section.id}
-                        index={index}
-                      >
-                        {(provided) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                            {...provided.dragHandleProps}
-                          >
-                            <FormField
-                              field={section}
-                              onUpdate={(updatedSection: FormFieldType) =>
-                                handleUpdateSection(index, updatedSection)
-                              }
-                              onDelete={() => handleDeleteSection(index)}
-                              totalSections={sections.length}
-                            />
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                  </div>
-                )}
-              </Droppable>
-            </DragDropContext>
-          </TabsContent>
-        )}
+          <DragDropContext onDragEnd={handleDragEnd}>
+            <Droppable droppableId="sections">
+              {(provided) => (
+                <div
+                  {...provided.droppableProps}
+                  ref={provided.innerRef}
+                  className="space-y-4"
+                >
+                  {sections.map((section, index) => (
+                    <Draggable
+                      key={section.id}
+                      draggableId={section.id}
+                      index={index}
+                    >
+                      {(provided) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.draggableProps}
+                          {...provided.dragHandleProps}
+                        >
+                          <FormField
+                            field={section}
+                            onUpdate={(updatedSection: FormFieldType) =>
+                              handleUpdateSection(index, updatedSection)
+                            }
+                            onDelete={() => handleDeleteSection(index)}
+                            totalSections={sections.length}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                  ))}
+                  {provided.placeholder}
+                </div>
+              )}
+            </Droppable>
+          </DragDropContext>
+        </TabsContent>
 
         <TabsContent value="preview">
           <FormPreview
@@ -357,37 +330,28 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         </TabsContent>
       </Tabs>
 
-      {canEdit && (
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => router.back()}>
-            Cancel
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => router.back()}>
+          Cancel
+        </Button>
+        {hasPermission(permissions.forms.publish) && (
+          <Button 
+            variant="outline"
+            onClick={() => handleSave(true)}
+            disabled={isSaving}
+            className="flex items-center gap-2"
+          >
+            <Send className="h-4 w-4" />
+            {isSaving ? 'Publishing...' : 'Save & Publish'}
           </Button>
-          <div className="flex items-center gap-2">
-            <Button
-              type="submit"
-              disabled={isSaving}
-              className="min-w-[100px]"
-              onClick={(e) => {
-                e.preventDefault();
-                handleSave(false);
-              }}
-            >
-              {isSaving ? 'Saving...' : 'Save'}
-            </Button>
-            {mode === 'edit' && template?.status !== 'published' && hasPermission(permissions.forms.publish) && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handlePublish}
-                disabled={isSaving}
-                className="min-w-[100px]"
-              >
-                Save & Publish
-              </Button>
-            )}
-          </div>
-        </div>
-      )}
+        )}
+        <Button 
+          onClick={() => handleSave(false)} 
+          disabled={isSaving}
+        >
+          {isSaving ? 'Saving...' : mode === 'create' ? 'Save as Draft' : 'Update Draft'}
+        </Button>
+      </div>
     </div>
   );
 } 
