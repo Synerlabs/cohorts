@@ -12,7 +12,7 @@ interface EditFormPageProps extends OrgAccessHOCProps {
   }>;
 }
 
-async function EditFormPage({ org, user, params }: EditFormPageProps) {
+async function EditFormPage({ org, user, userPermissions, params }: EditFormPageProps) {
   const {formId} = await params;
   const supabase = await createServiceRoleClient();
 
@@ -39,6 +39,7 @@ async function EditFormPage({ org, user, params }: EditFormPageProps) {
         org={org}
         template={template}
         mode="edit"
+        userPermissions={userPermissions || []}
       />
     </div>
   );

@@ -29,19 +29,24 @@ import { deleteFormTemplate, publishFormTemplate } from '../_actions/form-templa
 import { useToast } from '@/components/ui/use-toast';
 import { Camelized } from 'humps';
 import { Badge } from '@/components/ui/badge';
+import { permissions } from '@/lib/types/permissions';
+import { usePermissions } from '@/lib/hooks/use-permissions';
+
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
 interface FormTemplatesListProps {
   templates: FormTemplate[];
   org: Camelized<Tables<"group">>;
+  userPermissions: string[];
 }
 
-export function FormTemplatesList({ templates, org }: FormTemplatesListProps) {
+export function FormTemplatesList({ templates, org, userPermissions }: FormTemplatesListProps) {
   const [templateToDelete, setTemplateToDelete] = useState<FormTemplate | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const router = useRouter();
   const { toast } = useToast();
+  const { hasPermission } = usePermissions(userPermissions);
 
   const handlePublish = async (template: FormTemplate) => {
     try {
@@ -141,16 +146,18 @@ export function FormTemplatesList({ templates, org }: FormTemplatesListProps) {
                 <TableCell>{formatDate(template.updated_at)}</TableCell>
                 <TableCell>
                   {template.status === 'draft' ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePublish(template)}
-                      disabled={isPublishing}
-                      className="flex items-center gap-2"
-                    >
-                      <Send className="h-4 w-4" />
-                      Publish
-                    </Button>
+                    hasPermission(permissions.forms.publish) ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePublish(template)}
+                        disabled={isPublishing}
+                        className="flex items-center gap-2"
+                      >
+                        <Send className="h-4 w-4" />
+                        Publish
+                      </Button>
+                    ) : null
                   ) : (
                     <span className="text-muted-foreground text-sm">Already published</span>
                   )}

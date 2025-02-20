@@ -13,19 +13,23 @@ import { FormField, type FormField as FormFieldType } from './form-field';
 import { AddFieldDialog } from './add-field-dialog';
 import { useToast } from '@/components/ui/use-toast';
 import { createFormTemplate, updateFormTemplate } from '../_actions/form-template.action';
-import { Database } from '@/lib/types/database.types';
+import { Database, Tables } from '@/lib/types/database.types';
 import { TemplateSelectionDialog } from './template-selection-dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FormPreview } from './form-preview';
 import { publishFormTemplate } from '../_actions/form-template.action';
+import { Camelized } from 'humps';
 import { Org } from '@/lib/types/org.type';
+import { permissions } from '@/lib/types/permissions';
+import { usePermissions } from '@/lib/hooks/use-permissions';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
 interface FormBuilderProps {
-  org: Org;
+  org: Camelized<Tables<"group">>;
   template?: FormTemplate;
   mode?: 'create' | 'edit';
+  userPermissions: string[];
 }
 
 function ensureValidUUIDs(field: FormFieldType): FormFieldType {
@@ -71,7 +75,7 @@ function ensureValidUUIDs(field: FormFieldType): FormFieldType {
   return updatedField;
 }
 
-export function FormBuilder({ org, template, mode = 'create' }: FormBuilderProps) {
+export function FormBuilder({ org, template, mode = 'create', userPermissions }: FormBuilderProps) {
   const orgId = org.id;
   const [title, setTitle] = useState(template?.title || '');
   const [description, setDescription] = useState(template?.description || '');
@@ -97,6 +101,7 @@ export function FormBuilder({ org, template, mode = 'create' }: FormBuilderProps
   const router = useRouter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
+  const { hasPermission } = usePermissions(userPermissions);
 
   function createDefaultSection(): FormFieldType {
     return {
@@ -329,15 +334,17 @@ export function FormBuilder({ org, template, mode = 'create' }: FormBuilderProps
         <Button variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
-        <Button 
-          variant="outline"
-          onClick={() => handleSave(true)}
-          disabled={isSaving}
-          className="flex items-center gap-2"
-        >
-          <Send className="h-4 w-4" />
-          {isSaving ? 'Publishing...' : 'Save & Publish'}
-        </Button>
+        {hasPermission(permissions.forms.publish) && (
+          <Button 
+            variant="outline"
+            onClick={() => handleSave(true)}
+            disabled={isSaving}
+            className="flex items-center gap-2"
+          >
+            <Send className="h-4 w-4" />
+            {isSaving ? 'Publishing...' : 'Save & Publish'}
+          </Button>
+        )}
         <Button 
           onClick={() => handleSave(false)} 
           disabled={isSaving}

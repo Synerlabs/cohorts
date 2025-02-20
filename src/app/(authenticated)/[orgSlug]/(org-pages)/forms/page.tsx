@@ -34,7 +34,11 @@ async function FormsPage({ org, user, userPermissions }: FormsPageProps) {
             </a>
           )}
         </div>
-        <FormTemplatesList templates={templates || []} org={org} />
+        <FormTemplatesList 
+          templates={templates || []} 
+          org={org} 
+          userPermissions={userPermissions || []}
+        />
       </div>
     );
   } catch (error) {
