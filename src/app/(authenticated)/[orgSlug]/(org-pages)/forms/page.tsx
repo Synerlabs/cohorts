@@ -61,5 +61,7 @@ async function FormsPage({ org, user, userPermissions }: FormsPageProps) {
 
 export default withOrgAccess(FormsPage, {
   permissions: [permissions.forms.view],
-  allowGuest: false
+  onAccessDenied: {
+    action: "error",
+  }
 }); 

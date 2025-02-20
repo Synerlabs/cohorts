@@ -129,12 +129,7 @@ export function FormTemplatesList({ templates, org, userPermissions }: FormTempl
             {templates.map((template) => (
               <TableRow key={template.id}>
                 <TableCell>
-                  <a
-                    href={`/@${org.slug}/forms/${template.id}/edit`}
-                    className="font-medium hover:underline"
-                  >
                     {template.title}
-                  </a>
                 </TableCell>
                 <TableCell>{template.description}</TableCell>
                 <TableCell>
@@ -184,18 +179,6 @@ export function FormTemplatesList({ templates, org, userPermissions }: FormTempl
                       >
                         <Eye className="h-4 w-4" />
                         <span className="sr-only">Preview</span>
-                      </Button>
-                    )}
-                    {template.status !== 'published' && hasPermission(permissions.forms.publish) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handlePublish(template)}
-                        className="h-8 w-8"
-                        disabled={isPublishing}
-                      >
-                        <Send className="h-4 w-4" />
-                        <span className="sr-only">Publish</span>
                       </Button>
                     )}
                     {hasPermission(permissions.forms.delete) && (
