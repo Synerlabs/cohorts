@@ -5,6 +5,7 @@ import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { revalidatePath } from 'next/cache';
 import { withPermissions } from '@/lib/utils/action-permissions';
 import { permissions } from '@/lib/types/permissions';
+import { FormTemplateService } from '@/services/form-template.service';
 
 const formFieldSchema: z.ZodType<any> = z.lazy(() => 
   z.object({
@@ -277,9 +278,14 @@ export async function deleteFormTemplate(id: string): Promise<ActionResponse> {
 
         if (fetchError) throw fetchError;
 
+        // Perform soft delete
         const { error } = await supabase
           .from('form_templates')
-          .delete()
+          .update({
+            is_deleted: true,
+            deleted_at: new Date().toISOString(),
+            deleted_by: context.userId
+          })
           .eq('id', params.id);
 
         if (error) throw error;
@@ -346,16 +352,10 @@ export async function getFormTemplateById(id: string): Promise<ActionResponse> {
   const handler = await withPermissions(
     async (context: { userId: string; groupId: string }, params: { id: string }) => {
       try {
-        const supabase = await createServiceRoleClient();
-
-        const { data: template, error } = await supabase
-          .from('form_templates')
-          .select('*')
-          .eq('id', params.id)
-          .single();
-
-        if (error) throw error;
-
+        const template = await FormTemplateService.getFormTemplateById(params.id);
+        if (!template) {
+          throw new Error('Form template not found');
+        }
         return { data: template };
       } catch (error) {
         console.error('Failed to get form template by id:', error);
@@ -378,17 +378,7 @@ export async function getPublishedFormTemplates(orgId: string): Promise<ActionRe
   const handler = await withPermissions(
     async (context: { userId: string; groupId: string }, params: { orgId: string }) => {
       try {
-        const supabase = await createServiceRoleClient();
-        
-        const { data: templates, error } = await supabase
-          .from('form_templates')
-          .select('*')
-          .eq('org_id', params.orgId)
-          .eq('status', 'published')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-
+        const templates = await FormTemplateService.getPublishedFormTemplates(params.orgId);
         return { data: templates };
       } catch (error) {
         console.error('Failed to fetch form templates:', error);

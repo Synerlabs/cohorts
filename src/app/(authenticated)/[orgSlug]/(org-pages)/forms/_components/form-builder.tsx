@@ -160,17 +160,20 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     setSections(newSections);
   };
 
-  const handleSave = async (shouldPublish: boolean = false) => {
-    if (!title.trim()) {
+  const handleSave = async (shouldPublish = false) => {
+    if (!title) {
       toast({
         title: 'Error',
-        description: 'Please enter a form title',
+        description: 'Please enter a title for the form',
         variant: 'destructive',
       });
       return;
     }
 
-    if (!sections.some(section => section.sectionConfig?.fields.length > 0)) {
+    if (!sections.some(section => {
+      const fields = section.sectionConfig?.fields;
+      return Array.isArray(fields) && fields.length > 0;
+    })) {
       toast({
         title: 'Error',
         description: 'Please add at least one field to a section',
@@ -222,6 +225,11 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handlePublish = (e: React.MouseEvent) => {
+    e.preventDefault();
+    handleSave(true);
   };
 
   return (
@@ -334,23 +342,30 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         <Button variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
-        {hasPermission(permissions.forms.publish) && (
-          <Button 
-            variant="outline"
-            onClick={() => handleSave(true)}
+        <div className="flex items-center gap-2">
+          <Button
+            type="submit"
             disabled={isSaving}
-            className="flex items-center gap-2"
+            className="min-w-[100px]"
+            onClick={(e) => {
+              e.preventDefault();
+              handleSave(false);
+            }}
           >
-            <Send className="h-4 w-4" />
-            {isSaving ? 'Publishing...' : 'Save & Publish'}
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
-        )}
-        <Button 
-          onClick={() => handleSave(false)} 
-          disabled={isSaving}
-        >
-          {isSaving ? 'Saving...' : mode === 'create' ? 'Save as Draft' : 'Update Draft'}
-        </Button>
+          {mode === 'edit' && template?.status !== 'published' && hasPermission(permissions.forms.publish) && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handlePublish}
+              disabled={isSaving}
+              className="min-w-[100px]"
+            >
+              Save & Publish
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

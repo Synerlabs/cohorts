@@ -1,25 +1,17 @@
 import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';
 import { permissions } from '@/lib/types/permissions';
 import { FormTemplatesList } from './_components/form-templates-list';
-import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { Card } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
+import { FormTemplateService } from '@/services/form-template.service';
 
 interface FormsPageProps extends OrgAccessHOCProps {
   // Add additional props here
 }
 
 async function FormsPage({ org, user, userPermissions }: FormsPageProps) {
-  const supabase = await createServiceRoleClient();
-
   try {
-    const { data: templates, error } = await supabase
-      .from('form_templates')
-      .select('*')
-      .eq('org_id', org.id)
-      .order('created_at', { ascending: false });
-
-    if (error) throw error;
+    const templates = await FormTemplateService.getFormTemplates(org.id);
 
     return (
       <div className="container py-6">
@@ -35,7 +27,7 @@ async function FormsPage({ org, user, userPermissions }: FormsPageProps) {
           )}
         </div>
         <FormTemplatesList 
-          templates={templates || []} 
+          templates={templates} 
           org={org} 
           userPermissions={userPermissions || []}
         />

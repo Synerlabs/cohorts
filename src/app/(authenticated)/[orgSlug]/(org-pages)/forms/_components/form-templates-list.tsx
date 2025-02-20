@@ -164,34 +164,52 @@ export function FormTemplatesList({ templates, org, userPermissions }: FormTempl
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => router.push(`/@${org.slug}/forms/${template.id}/edit`)}
-                      className="h-8 w-8"
-                    >
-                      <Edit2 className="h-4 w-4" />
-                      <span className="sr-only">Edit</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => router.push(`/@${org.slug}/forms/${template.id}/preview`)}
-                      className="h-8 w-8"
-                    >
-                      <Eye className="h-4 w-4" />
-                      <span className="sr-only">Preview</span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setTemplateToDelete(template)}
-                      className="h-8 w-8 text-destructive"
-                      disabled={isDeleting}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">Delete</span>
-                    </Button>
+                    {hasPermission(permissions.forms.edit) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => router.push(`/@${org.slug}/forms/${template.id}/edit`)}
+                        className="h-8 w-8"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                        <span className="sr-only">Edit</span>
+                      </Button>
+                    )}
+                    {hasPermission(permissions.forms.view) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => router.push(`/@${org.slug}/forms/${template.id}/preview`)}
+                        className="h-8 w-8"
+                      >
+                        <Eye className="h-4 w-4" />
+                        <span className="sr-only">Preview</span>
+                      </Button>
+                    )}
+                    {template.status !== 'published' && hasPermission(permissions.forms.publish) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handlePublish(template)}
+                        className="h-8 w-8"
+                        disabled={isPublishing}
+                      >
+                        <Send className="h-4 w-4" />
+                        <span className="sr-only">Publish</span>
+                      </Button>
+                    )}
+                    {hasPermission(permissions.forms.delete) && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setTemplateToDelete(template)}
+                        className="h-8 w-8 text-destructive"
+                        disabled={isDeleting}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Delete</span>
+                      </Button>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
