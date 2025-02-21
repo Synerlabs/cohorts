@@ -167,11 +167,11 @@ export const permissions = {
     // cancel: "group.orders.cancel",
     // refund: "group.orders.refund",
   },
-  files: {
-    view: "group.files.view",
-    download: "group.files.download",
-    delete: "group.files.delete",
-  },
+  // files: {
+  //   view: "group.files.view",
+  //   download: "group.files.download",
+  //   delete: "group.files.delete",
+  // },
 } as const;
 
 // Module metadata
@@ -224,18 +224,18 @@ export const permissionModules = {
     icon: <PackageIcon className="h-5 w-5" />,
     permissions: permissions.orders,
   },
-  files: {
-    name: "Files",
-    description: "Access and work with files",
-    icon: <FolderIcon className="h-5 w-5" />,
-    permissions: permissions.files,
-  },
-  fileManagement: {
-    name: "File Management",
-    description: "Manage file system settings and permissions",
-    icon: <Settings2Icon className="h-5 w-5" />,
-    permissions: permissions.fileManagement,
-  },
+  // files: {
+  //   name: "Files",
+  //   description: "Access and work with files",
+  //   icon: <FolderIcon className="h-5 w-5" />,
+  //   permissions: permissions.files,
+  // },
+  // fileManagement: {
+  //   name: "File Management",
+  //   description: "Manage file system settings and permissions",
+  //   icon: <Settings2Icon className="h-5 w-5" />,
+  //   permissions: permissions.fileManagement,
+  // },
 } as const;
 
 // Types
