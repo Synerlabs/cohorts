@@ -267,6 +267,71 @@ type CreateOrgResult = {
   data?: any;
 };
 
+async function createOrgRoles(groupId: string): Promise<Tables<"group_roles">[]> {
+  const serviceClient = await createServiceRoleClient();
+  
+  const { data: orgRoles, error: orgRolesError } = await serviceClient
+    .from("group_roles")
+    .insert([
+      {
+        group_id: groupId,
+        role_name: "admin",
+        description: "Admin role for the organization",
+        permissions: [
+          // Group permissions
+          "group.edit",
+          // Members permissions
+          "group.members.view",
+          // Roles permissions
+          "group.roles.view",
+          "group.roles.create",
+          "group.roles.edit",
+          "group.roles.delete",
+          "group.roles.assign",
+          // Memberships permissions
+          "group.memberships.view",
+          "group.memberships.create",
+          "group.memberships.edit",
+          "group.memberships.delete",
+          // Applications permissions
+          "group.applications.view",
+          "group.applications.process",
+          // Forms permissions
+          "group.forms.view",
+          "group.forms.create",
+          "group.forms.edit",
+          "group.forms.delete",
+          "group.forms.publish",
+          // Payments permissions
+          "group.payments.view",
+          "group.payments.process",
+          // Payment gateways permissions
+          "group.paymentGateways.view",
+          "group.paymentGateways.edit",
+          "group.paymentGateways.configure",
+          // Orders permissions
+          "group.orders.view",
+        ],
+      },
+      {
+        group_id: groupId,
+        role_name: "member",
+        description: "Member role for the organization",
+      },
+    ])
+    .select();
+
+  if (orgRolesError || !orgRoles) {
+    console.error("Error creating organization roles:", {
+      error: orgRolesError,
+      groupId,
+    });
+    throw orgRolesError;
+  }
+
+  return orgRoles;
+}
+
 export async function createOrg(
   formData: CreateCohort | { name: string; slug: string },
   userId?: string
@@ -358,55 +423,12 @@ export async function createOrg(
     console.log("User added to organization successfully");
 
     // Setup org roles with explicit error handling
-    const { data: orgRoles, error: orgRolesError } = await serviceClient
-      .from("group_roles")
-      .insert([
-        {
-          group_id: org.id,
-          role_name: "admin",
-          description: "Admin role for the organization",
-          permissions: [
-            // Group permissions
-            permissions.group.view,
-            permissions.group.create,
-            permissions.group.edit,
-            permissions.group.delete,
-            // Members permissions
-            permissions.members.view,
-            permissions.members.add,
-            permissions.members.edit,
-            permissions.members.delete,
-            // Roles permissions
-            permissions.roles.view,
-            permissions.roles.create,
-            permissions.roles.edit,
-            permissions.roles.delete,
-            // Permissions management
-            permissions.permissions.view,
-            permissions.permissions.assign,
-            // Memberships
-            permissions.memberships.view,
-            permissions.memberships.manage,
-            // Applications
-            permissions.applications.view,
-            permissions.applications.create,
-            permissions.applications.edit,
-            permissions.applications.delete,
-            permissions.applications.approve,
-            permissions.applications.reject,
-          ],
-        },
-        {
-          group_id: org.id,
-          role_name: "member",
-          description: "Member role for the organization",
-        },
-      ])
-      .select();
-
-    if (orgRolesError || !orgRoles) {
+    let orgRoles;
+    try {
+      orgRoles = await createOrgRoles(org.id);
+    } catch (error) {
       console.error("Error creating organization roles:", {
-        error: orgRolesError,
+        error,
         groupId: org.id,
       });
       await serviceClient.from("group_users").delete().eq("group_id", org.id);
