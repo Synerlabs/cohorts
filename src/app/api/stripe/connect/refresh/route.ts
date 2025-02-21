@@ -1,12 +1,23 @@
 'use server';
 
-import { createServiceRoleClient } from '@/lib/utils/supabase/server';
+import { createServiceRoleClient, createClient } from '@/lib/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { getOrgById } from '@/services/org.service';
+import { checkUserAccess } from '@/lib/utils/permissions';
+import { permissions } from '@/lib/types/permissions';
+import { cookies } from 'next/headers';
 
 export async function GET(request: Request) {
   try {
+    // Get authenticated user
+    const supabase = await createClient();
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+
+    if (authError || !session?.user) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
     const requestUrl = new URL(request.url);
     const state = requestUrl.searchParams.get('state');
     const country = requestUrl.searchParams.get('country');
@@ -19,6 +30,17 @@ export async function GET(request: Request) {
 
     // Get org ID from state parameter
     const orgId = state;
+
+    // Check if user has permission to configure payment gateways
+    const { hasAccess } = await checkUserAccess({
+      userId: session.user.id,
+      groupId: orgId,
+      requiredPermissions: [permissions.paymentGateways.configure]
+    });
+
+    if (!hasAccess) {
+      return new NextResponse('Forbidden - Insufficient permissions to refresh Stripe account', { status: 403 });
+    }
 
     // Get org details
     const { data: org, error: orgError } = await getOrgById(orgId);
@@ -33,12 +55,14 @@ export async function GET(request: Request) {
     });
 
     // Check if there's an existing account
-    const supabase = await createServiceRoleClient();
-    const { data: existingAccount, error: accountError } = await supabase
+    const supabaseClient = await createServiceRoleClient();
+    const { data: existingAccount, error: accountError } = await supabaseClient
       .from('stripe_connected_accounts')
       .select('account_id')
       .eq('org_id', orgId)
       .single();
+
+    let accountId = existingAccount?.account_id;
 
     if (accountError && accountError.code !== 'PGRST116') { // PGRST116 is "not found"
       console.error('Failed to check existing account:', accountError);
@@ -56,7 +80,7 @@ export async function GET(request: Request) {
         }
 
         // Delete from our database
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await supabaseClient
           .from('stripe_connected_accounts')
           .delete()
           .eq('org_id', orgId);
@@ -89,7 +113,7 @@ export async function GET(request: Request) {
     });
 
     // Save the account ID
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from('stripe_connected_accounts')
       .upsert({
         org_id: orgId,
@@ -161,5 +185,93 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error handling Stripe Connect refresh:', error);
     return new NextResponse('Internal server error', { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    // Get authenticated user
+    const supabase = await createClient();
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+
+    if (authError || !session?.user) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    const { orgId } = await request.json();
+
+    if (!orgId) {
+      return new NextResponse('Missing orgId parameter', { status: 400 });
+    }
+
+    // Check if user has permission to configure payment gateways
+    const { hasAccess } = await checkUserAccess({
+      userId: session.user.id,
+      groupId: orgId,
+      requiredPermissions: [permissions.paymentGateways.configure]
+    });
+
+    if (!hasAccess) {
+      return new NextResponse('Forbidden - Insufficient permissions to refresh Stripe account', { status: 403 });
+    }
+
+    // Initialize Stripe
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+      apiVersion: '2024-12-18.acacia'
+    });
+
+    // Get existing account if any
+    const serviceClient = await createServiceRoleClient();
+    const { data: existingAccount } = await serviceClient
+      .from('stripe_connected_accounts')
+      .select('account_id')
+      .eq('org_id', orgId)
+      .single();
+
+    let accountId = existingAccount?.account_id;
+
+    if (!accountId) {
+      // Create a new account
+      const account = await stripe.accounts.create({
+        type: 'standard',
+        metadata: {
+          org_id: orgId
+        }
+      });
+
+      accountId = account.id;
+
+      // Save the new account
+      const { error: insertError } = await serviceClient
+        .from('stripe_connected_accounts')
+        .insert({
+          org_id: orgId,
+          account_id: accountId,
+          is_active: false,
+          charges_enabled: false,
+          payouts_enabled: false,
+          has_external_account: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (insertError) {
+        console.error('Error saving new account:', insertError);
+        return new NextResponse('Failed to save account', { status: 500 });
+      }
+    }
+
+    // Generate account link
+    const accountLink = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/@${orgId}/settings/payment-gateways/stripe?refresh=true`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/@${orgId}/settings/payment-gateways/stripe?success=true`,
+      type: 'account_onboarding'
+    });
+
+    return NextResponse.json({ url: accountLink.url });
+  } catch (error) {
+    console.error('Error refreshing Stripe account:', error);
+    return new NextResponse('Failed to refresh account', { status: 500 });
   }
 } 

@@ -1,8 +1,11 @@
 'use server';
 
-import { createServiceRoleClient } from '@/lib/utils/supabase/server';
+import { createServiceRoleClient, createClient } from '@/lib/utils/supabase/server';
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { checkUserAccess } from '@/lib/utils/permissions';
+import { permissions } from '@/lib/types/permissions';
+import { cookies } from 'next/headers';
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +14,38 @@ export async function POST(request: Request) {
     if (!accountId) {
       console.error('Missing accountId parameter');
       return new NextResponse('Missing accountId parameter', { status: 400 });
+    }
+
+    // Get authenticated user
+    const supabase = await createClient();
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+
+    if (authError || !session?.user) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    // Get the organization ID for this account
+    const serviceClient = await createServiceRoleClient();
+    const { data: account, error: accountError } = await serviceClient
+      .from('stripe_connected_accounts')
+      .select('org_id')
+      .eq('account_id', accountId)
+      .single();
+
+    if (accountError || !account) {
+      console.error('Failed to get account:', accountError);
+      return new NextResponse('Account not found', { status: 404 });
+    }
+
+    // Check if user has permission to manage payment gateways
+    const { hasAccess } = await checkUserAccess({
+      userId: session.user.id,
+      groupId: account.org_id,
+      requiredPermissions: [permissions.paymentGateways.configure]
+    });
+
+    if (!hasAccess) {
+      return new NextResponse('Unauthorized', { status: 403 });
     }
 
     // Initialize Stripe
@@ -25,10 +60,8 @@ export async function POST(request: Request) {
     const isActive = stripeAccount.charges_enabled && stripeAccount.payouts_enabled && stripeAccount.details_submitted;
     const hasExternalAccount = (stripeAccount.external_accounts?.data || []).length > 0;
 
-    const supabase = await createServiceRoleClient();
-
     // Update account status
-    const { error: updateError } = await supabase
+    const { error: updateError } = await serviceClient
       .from('stripe_connected_accounts')
       .update({
         is_active: isActive,

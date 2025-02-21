@@ -1,41 +1,53 @@
-import { NextRequest } from 'next/server';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createServiceRoleClient, createClient } from '@/lib/utils/supabase/server';
+import { NextResponse } from 'next/server';
+import { checkUserAccess } from '@/lib/utils/permissions';
+import { permissions } from '@/lib/types/permissions';
 import { cookies } from 'next/headers';
-import { getOrgById } from '@/services/org.service';
 
-export const dynamic = 'force-dynamic';
-
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const searchParams = request.nextUrl.searchParams;
+    // Get authenticated user
+    const supabase = await createClient();
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+
+    if (authError || !session?.user) {
+      return new NextResponse('Unauthorized', { status: 401 });
+    }
+
+    // Get orgId from query params
+    const { searchParams } = new URL(request.url);
     const orgId = searchParams.get('orgId');
 
     if (!orgId) {
-      return new Response('Missing orgId parameter', { status: 400 });
+      return new NextResponse('Missing orgId parameter', { status: 400 });
     }
 
-    const { data: org, error: orgError } = await getOrgById(orgId);
-    if (orgError || !org) {
-      return new Response('Organization not found', { status: 404 });
+    // Check if user has permission to view payment gateways
+    const { hasAccess } = await checkUserAccess({
+      userId: session.user.id,
+      groupId: orgId,
+      requiredPermissions: [permissions.paymentGateways.view]
+    });
+
+    if (!hasAccess) {
+      return new NextResponse('Forbidden - Insufficient permissions to view payment gateways', { status: 403 });
     }
 
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: accounts, error } = await supabase
+    // Get connected accounts
+    const serviceClient = await createServiceRoleClient();
+    const { data: accounts, error } = await serviceClient
       .from('stripe_connected_accounts')
       .select('*')
-      .eq('org_id', orgId)
-      .order('created_at', { ascending: false });
+      .eq('org_id', orgId);
 
     if (error) {
       console.error('Error fetching connected accounts:', error);
-      return new Response('Failed to fetch connected accounts', { status: 500 });
+      return new NextResponse('Failed to fetch connected accounts', { status: 500 });
     }
 
-    return new Response(JSON.stringify(accounts), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return NextResponse.json(accounts || []);
   } catch (error) {
-    console.error('Error in GET /api/stripe/connect/accounts:', error);
-    return new Response('Internal server error', { status: 500 });
+    console.error('Error in connected accounts route:', error);
+    return new NextResponse('Internal server error', { status: 500 });
   }
 } 
