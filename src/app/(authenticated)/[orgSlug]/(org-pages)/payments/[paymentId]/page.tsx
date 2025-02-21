@@ -3,15 +3,17 @@ import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { notFound } from "next/navigation";
 import { Payment } from "@/services/payment/types";
 import PaymentDetails from "./_components/payment-details";
+import { permissions } from "@/lib/types/permissions";
 
 interface PaymentDetailsPageProps extends OrgAccessHOCProps {
-  params: {
+  params: Promise<{
     slug: string;
     paymentId: string;
-  };
+    orgSlug: string;
+  }>;
 }
 
-async function PaymentDetailsPage({ org, user, params: _params }: PaymentDetailsPageProps) {
+async function PaymentDetailsPage({ org, user, userPermissions, params: _params }: PaymentDetailsPageProps) {
   const params = await _params;
   
   if (!user) {
@@ -46,7 +48,10 @@ async function PaymentDetailsPage({ org, user, params: _params }: PaymentDetails
     notFound();
   }
 
-  return <PaymentDetails payment={payment} org={org} user={user} />;
+  return <PaymentDetails payment={payment} org={org} user={user} userPermissions={userPermissions || []} />;
 }
 
-export default withOrgAccess(PaymentDetailsPage); 
+export default withOrgAccess(PaymentDetailsPage, {
+  permissions: [permissions.payments.view],
+  onAccessDenied: { action: 'error' }
+}); 

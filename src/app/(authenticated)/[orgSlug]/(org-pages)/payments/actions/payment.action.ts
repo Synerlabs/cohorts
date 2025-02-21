@@ -6,6 +6,8 @@ import { createStorageProvider } from "@/services/storage/storage-settings.servi
 import { revalidatePath } from "next/cache";
 import { PaymentServiceFactory } from '@/services/payment/payment.service.factory';
 import { CreateManualPaymentDTO, PaymentStatus, PaymentActionPayload } from '@/services/payment/types';
+import { withPermissions } from '@/lib/utils/action-permissions';
+import { permissions } from '@/lib/types/permissions';
 
 export interface PaymentFormState {
   success: boolean;
@@ -17,70 +19,102 @@ export async function approvePaymentAction(
   prevState: PaymentFormState,
   payload: PaymentActionPayload
 ): Promise<PaymentFormState> {
-  try {
-    const supabase = await createServiceRoleClient();
-    const provider = await createStorageProvider(payload.orgId);
-    if (!provider) {
-      return {
-        success: false,
-        error: 'Storage provider not configured',
-      };
-    }
-    
-    const paymentServiceFactory = new PaymentServiceFactory(supabase, provider);
-    const paymentService = paymentServiceFactory.createService('manual');
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { payload: PaymentActionPayload }) => {
+      try {
+        const supabase = await createServiceRoleClient();
+        const provider = await createStorageProvider(params.payload.orgId);
+        if (!provider) {
+          return {
+            success: false,
+            error: 'Storage provider not configured',
+          } as PaymentFormState;
+        }
+        
+        const paymentServiceFactory = new PaymentServiceFactory(supabase, provider);
+        const paymentService = paymentServiceFactory.createService('manual');
 
-    const payment = await paymentService.approvePayment(payload.paymentId, payload.notes);
+        const payment = await paymentService.approvePayment(params.payload.paymentId, params.payload.notes);
 
-    // Revalidate the payments page
-    revalidatePath(`/@${payload.orgId}/payments`);
+        // Revalidate the payments page
+        revalidatePath(`/@${params.payload.orgId}/payments`);
 
-    return {
-      success: true,
-      data: payment,
-    };
-  } catch (error: any) {
-    console.error("Error in approvePaymentAction:", error);
-    return {
-      success: false,
-      error: error.message || "An unexpected error occurred",
-    };
-  }
+        return {
+          success: true,
+          data: payment,
+        } as PaymentFormState;
+      } catch (error: any) {
+        console.error("Error in approvePaymentAction:", error);
+        return {
+          success: false,
+          error: error.message || "An unexpected error occurred",
+        } as PaymentFormState;
+      }
+    },
+    (params: { payload: PaymentActionPayload }) => ({
+      moduleId: params.payload.paymentId,
+      moduleType: 'payments' as const,
+      requiredPermissions: [permissions.payments.process]
+    })
+  );
+
+  const result = await handler(prevState, { payload });
+  return {
+    success: result.success ?? false,
+    error: result.error,
+    data: result.data
+  };
 }
 
 export async function rejectPaymentAction(
   prevState: PaymentFormState,
   payload: PaymentActionPayload & { notes: string }
 ): Promise<PaymentFormState> {
-  try {
-    const supabase = await createServiceRoleClient();
-    const provider = await createStorageProvider(payload.orgId);
-    if (!provider) {
-      return {
-        success: false,
-        error: 'Storage provider not configured',
-      };
-    }
-    
-    const paymentServiceFactory = new PaymentServiceFactory(supabase, provider);
-    const paymentService = paymentServiceFactory.createService('manual');
+  const handler = await withPermissions(
+    async (context: { userId: string; groupId: string }, params: { payload: PaymentActionPayload & { notes: string } }) => {
+      try {
+        const supabase = await createServiceRoleClient();
+        const provider = await createStorageProvider(params.payload.orgId);
+        if (!provider) {
+          return {
+            success: false,
+            error: 'Storage provider not configured',
+          } as PaymentFormState;
+        }
+        
+        const paymentServiceFactory = new PaymentServiceFactory(supabase, provider);
+        const paymentService = paymentServiceFactory.createService('manual');
 
-    const payment = await paymentService.rejectPayment(payload.paymentId, payload.notes);
+        const payment = await paymentService.rejectPayment(params.payload.paymentId, params.payload.notes);
 
-    // Revalidate the payments page
-    revalidatePath(`/@${payload.orgId}/payments`);
+        // Revalidate the payments page
+        revalidatePath(`/@${params.payload.orgId}/payments`);
 
-    return {
-      success: true,
-      data: payment,
-    };
-  } catch (error: any) {
-    console.error("Error in rejectPaymentAction:", error);
-    return {
-      success: false,
-      error: error.message || "An unexpected error occurred",
-    };
-  }
+        return {
+          success: true,
+          data: payment,
+        } as PaymentFormState;
+      } catch (error: any) {
+        console.error("Error in rejectPaymentAction:", error);
+        return {
+          success: false,
+          error: error.message || "An unexpected error occurred",
+        } as PaymentFormState;
+      }
+    },
+    (params: { payload: PaymentActionPayload & { notes: string } }) => ({
+      moduleId: params.payload.paymentId,
+      moduleType: 'payments' as const,
+      requiredPermissions: [permissions.payments.process]
+    })
+  );
+
+  const result = await handler(prevState, { payload });
+  return {
+    success: result.success ?? false,
+    error: result.error,
+    data: result.data
+  };
 }
 
 export async function getPaymentsByOrgIdAction(orgId: string): Promise<PaymentFormState> {

@@ -3,7 +3,7 @@
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { StorageConfig, StorageProvider } from './storage-provider.interface';
 import * as googleDriveProvider from './google-drive.provider';
-import { supabaseProvider } from './supabase.provider';
+import * as supabaseProvider from './supabase.provider';
 
 export async function createStorageProvider(orgId: string): Promise<StorageProvider | null> {
   const supabase = await createServiceRoleClient();
@@ -18,12 +18,20 @@ export async function createStorageProvider(orgId: string): Promise<StorageProvi
 
   if (error) {
     console.log('No storage settings found, using Supabase as default provider');
-    return supabaseProvider;
+    return {
+      initialize: supabaseProvider.initialize,
+      upload: supabaseProvider.upload,
+      delete: supabaseProvider.deleteFile
+    };
   }
 
   if (!settings) {
     console.log('No storage settings found, using Supabase as default provider');
-    return supabaseProvider;
+    return {
+      initialize: supabaseProvider.initialize,
+      upload: supabaseProvider.upload,
+      delete: supabaseProvider.deleteFile
+    };
   }
 
   console.log('Found storage settings:', {
@@ -45,19 +53,25 @@ export async function createStorageProvider(orgId: string): Promise<StorageProvi
       await googleDriveProvider.initialize(config);
       console.log('Google Drive provider initialized successfully');
       return {
-        providerType: await googleDriveProvider.getProviderType(),
         initialize: googleDriveProvider.initialize,
         upload: googleDriveProvider.upload,
-        delete: googleDriveProvider.deleteFile,
-        generatePath: googleDriveProvider.generatePath
+        delete: googleDriveProvider.deleteFile
       };
     } catch (error) {
       console.error('Error initializing Google Drive provider:', error);
       console.log('Falling back to Supabase storage provider');
-      return supabaseProvider;
+      return {
+        initialize: supabaseProvider.initialize,
+        upload: supabaseProvider.upload,
+        delete: supabaseProvider.deleteFile
+      };
     }
   }
 
   console.log('No supported provider found, using Supabase as default provider');
-  return supabaseProvider;
+  return {
+    initialize: supabaseProvider.initialize,
+    upload: supabaseProvider.upload,
+    delete: supabaseProvider.deleteFile
+  };
 } 

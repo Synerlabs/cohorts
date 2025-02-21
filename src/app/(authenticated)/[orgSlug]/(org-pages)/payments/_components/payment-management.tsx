@@ -329,7 +329,6 @@ export function PaymentManagement({
                   {getSortIcon('status')}
                 </div>
               </TableHead>
-              <TableHead className="w-[100px] text-right"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -374,42 +373,6 @@ export function PaymentManagement({
                     }`}>
                       {payment.status}
                     </span>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      {payment.status === 'pending' ? (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleApprove(payment)}
-                            disabled={approvePending}
-                            className="h-8 w-8 p-0 text-green-600 hover:text-green-700"
-                          >
-                            <CheckIcon className="h-4 w-4" />
-                            <span className="sr-only">Approve</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleReject(payment)}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                          >
-                            <XIcon className="h-4 w-4" />
-                            <span className="sr-only">Reject</span>
-                          </Button>
-                        </>
-                      ) : null}
-                      {/* <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setPaymentToDelete(payment)}
-                        className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                      >
-                        <Trash2Icon className="h-4 w-4" />
-                        <span className="sr-only">Delete</span>
-                      </Button> */}
-                    </div>
                   </TableCell>
                 </TableRow>
               ))

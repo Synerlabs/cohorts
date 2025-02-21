@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, FileIcon, ImageIcon, ExternalLinkIcon, CheckCircle, XCircle } from "lucide-react";
 import Link from "next/link";
 import { Payment } from "@/services/payment/types";
-import { approvePaymentAction, rejectPaymentAction } from "../../actions/payment.action";
+import { approvePaymentAction, rejectPaymentAction, type PaymentFormState } from "../../actions/payment.action";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -13,6 +13,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { OrgAccessHOCProps } from "@/lib/hoc/org";
+import useToastActionState from "@/lib/hooks/toast-action-state.hook";
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { Loader2 } from "lucide-react";
+import { Check, X } from "lucide-react";
+import { usePermissions } from "@/lib/hooks/use-permissions";
+import { permissions } from "@/lib/types/permissions";
 
 type Organization = OrgAccessHOCProps['org'];
 
@@ -20,6 +26,7 @@ interface PaymentDetailsProps {
   payment: any; // Temporarily use any to fix type issues
   org: Organization;
   user: any;
+  userPermissions: string[];
 }
 
 function FilePreview({ file }: { file: { originalFilename: string; fileUrl: string } }) {
@@ -49,66 +56,75 @@ function FilePreview({ file }: { file: { originalFilename: string; fileUrl: stri
   );
 }
 
-export default function PaymentDetails({ payment, org, user }: PaymentDetailsProps) {
+const wrapApproveAction = async (prevState: any, formData: FormData) => {
+  const payload = {
+    paymentId: formData.get('paymentId') as string,
+    orgId: formData.get('orgId') as string,
+    notes: formData.get('notes') as string
+  };
+  return approvePaymentAction(prevState, payload);
+};
+
+const wrapRejectAction = async (prevState: any, formData: FormData) => {
+  const payload = {
+    paymentId: formData.get('paymentId') as string,
+    orgId: formData.get('orgId') as string,
+    notes: formData.get('notes') as string
+  };
+  return rejectPaymentAction(prevState, payload);
+};
+
+export default function PaymentDetails({ payment, org, user, userPermissions }: PaymentDetailsProps) {
   const router = useRouter();
   const { toast } = useToast();
-  const [isApproving, setIsApproving] = useState(false);
-  const [isRejecting, setIsRejecting] = useState(false);
+  const { hasPermission } = usePermissions(userPermissions);
+  const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [dialogNotes, setDialogNotes] = useState("");
   const [notes, setNotes] = useState("");
   const [mounted, setMounted] = useState(false);
+
+  const [approveState, approvePayment, isApproving] = useToastActionState(wrapApproveAction);
+  const [rejectState, rejectPayment, isRejecting] = useToastActionState(wrapRejectAction);
+
+  const canProcess = hasPermission([permissions.payments.process]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  const handleApproveClick = () => {
+    setIsApproveDialogOpen(true);
+  };
+
+  const handleRejectClick = () => {
+    setIsRejectDialogOpen(true);
+  };
+
   const handleApprove = async () => {
-    setIsApproving(true);
-    try {
-      await approvePaymentAction({ success: false }, {
-        paymentId: payment.id,
-        orgId: org.id,
-        notes
-      });
-      toast({
-        title: "Payment Approved",
-        description: "The payment has been approved successfully.",
-      });
-      router.refresh();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to approve payment. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsApproving(false);
-      setNotes("");
-    }
+    const formData = new FormData();
+    formData.append('paymentId', payment.id);
+    formData.append('orgId', org.id);
+    formData.append('notes', dialogNotes);
+    
+    await approvePayment(formData);
+    setIsApproveDialogOpen(false);
+    setNotes("");
+    setDialogNotes("");
+    router.refresh();
   };
 
   const handleReject = async () => {
-    setIsRejecting(true);
-    try {
-      await rejectPaymentAction({ success: false }, {
-        paymentId: payment.id,
-        orgId: org.id,
-        notes
-      });
-      toast({
-        title: "Payment Rejected",
-        description: "The payment has been rejected.",
-      });
-      router.refresh();
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to reject payment. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsRejecting(false);
-      setNotes("");
-    }
+    const formData = new FormData();
+    formData.append('paymentId', payment.id);
+    formData.append('orgId', org.id);
+    formData.append('notes', dialogNotes);
+    
+    await rejectPayment(formData);
+    setIsRejectDialogOpen(false);
+    setNotes("");
+    setDialogNotes("");
+    router.refresh();
   };
 
   // Format currency consistently
@@ -183,22 +199,24 @@ export default function PaymentDetails({ payment, org, user }: PaymentDetailsPro
               </div>
             </div>
           </CardContent>
-          {payment.status === 'pending' && (
+          {payment.status === 'pending' && canProcess && (
             <CardFooter className="border-t pt-6 flex justify-end gap-4">
               <Button
                 variant="outline"
-                onClick={() => setIsRejecting(true)}
+                onClick={handleRejectClick}
+                disabled={isRejecting}
                 className="bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
               >
                 <XCircle className="h-4 w-4 mr-2" />
-                Reject Payment
+                Reject
               </Button>
               <Button
-                onClick={() => setIsApproving(true)}
+                onClick={handleApproveClick}
+                disabled={isApproving}
                 className="bg-green-600 text-white hover:bg-green-700"
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
-                Approve Payment
+                Approve
               </Button>
             </CardFooter>
           )}
@@ -323,65 +341,98 @@ export default function PaymentDetails({ payment, org, user }: PaymentDetailsPro
       </div>
 
       {/* Approve Dialog */}
-      <Dialog open={isApproving} onOpenChange={setIsApproving}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Approve Payment</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes (Optional)</Label>
-              <Textarea
-                id="notes"
-                placeholder="Add any notes about this approval..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
+      <AlertDialog open={isApproveDialogOpen} onOpenChange={setIsApproveDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Approve Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please confirm that you want to approve this payment. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="approve-notes" className="text-right">
+              Notes
+            </Label>
+            <Textarea
+              id="approve-notes"
+              value={dialogNotes}
+              onChange={(e) => setDialogNotes(e.target.value)}
+              placeholder="Add notes about this approval..."
+              className="mt-2"
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsApproving(false)}>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={isApproving}
+              onClick={() => {
+                setDialogNotes(notes);
+                setIsApproveDialogOpen(false);
+              }}
+            >
               Cancel
-            </Button>
-            <Button onClick={handleApprove} className="bg-green-600 text-white hover:bg-green-700">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Approve Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleApprove}
+              disabled={isApproving || !dialogNotes.trim()}
+              className="bg-green-600 text-white hover:bg-green-700"
+            >
+              {isApproving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Check className="h-4 w-4 mr-2" />
+              )}
+              {isApproving ? "Approving..." : "Approve"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Reject Dialog */}
-      <Dialog open={isRejecting} onOpenChange={setIsRejecting}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Reject Payment</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="reject-notes">Notes (Optional)</Label>
-              <Textarea
-                id="reject-notes"
-                placeholder="Add any notes about this rejection..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-              />
-            </div>
+      <AlertDialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject Payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Please confirm that you want to reject this payment. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Label htmlFor="reject-notes" className="text-right">
+              Notes
+            </Label>
+            <Textarea
+              id="reject-notes"
+              value={dialogNotes}
+              onChange={(e) => setDialogNotes(e.target.value)}
+              placeholder="Add notes about this rejection..."
+              className="mt-2"
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRejecting(false)}>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              disabled={isRejecting}
+              onClick={() => {
+                setDialogNotes(notes);
+                setIsRejectDialogOpen(false);
+              }}
+            >
               Cancel
-            </Button>
-            <Button 
+            </AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleReject}
+              disabled={isRejecting || !dialogNotes.trim()}
               className="bg-red-600 text-white hover:bg-red-700"
             >
-              <XCircle className="h-4 w-4 mr-2" />
-              Reject Payment
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              {isRejecting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <X className="h-4 w-4 mr-2" />
+              )}
+              {isRejecting ? "Rejecting..." : "Reject"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 } 
