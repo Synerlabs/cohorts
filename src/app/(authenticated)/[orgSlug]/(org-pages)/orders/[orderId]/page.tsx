@@ -6,6 +6,7 @@ import { SubordersTable } from "./_components/suborders-table";
 import { PaymentsTable } from "./_components/payments-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ISuborderData } from "@/lib/types/suborder";
+import { permissions } from "@/lib/types/permissions";
 
 interface OrderDetailsPageProps extends OrgAccessHOCProps {
   params: {
@@ -117,4 +118,9 @@ async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
   );
 }
 
-export default withOrgAccess(OrderDetailsPage); 
+export default withOrgAccess(OrderDetailsPage, {
+  permissions: [permissions.orders.view],
+  onAccessDenied: {
+    action: 'error'
+  }
+}); 
