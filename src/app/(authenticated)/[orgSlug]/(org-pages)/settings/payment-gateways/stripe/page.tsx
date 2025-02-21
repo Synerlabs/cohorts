@@ -1,6 +1,7 @@
 import { withOrgAccess } from '@/lib/hoc/org';
 import { StripeSettingsClient } from './_components/stripe-settings-client';
 import { OrgAccessHOCProps } from '@/lib/hoc/org';
+import { permissions } from '@/lib/types/permissions';
 
 // Server Component
 async function StripeSettingsPage({ params, org }: OrgAccessHOCProps & { params: { orgSlug: string } }) {
@@ -13,6 +14,6 @@ async function StripeSettingsPage({ params, org }: OrgAccessHOCProps & { params:
 }
 
 export default withOrgAccess(StripeSettingsPage, {
-  allowGuest: false,
-  permissions: ['manage_payment_gateways']
+  permissions: [permissions.paymentGateways.configure],
+  onAccessDenied: { action: 'error' }
 }); 

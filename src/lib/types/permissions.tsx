@@ -158,6 +158,11 @@ export const permissions = {
     process: "group.payments.process",
     // refund: "group.payments.refund",
   },
+  paymentGateways: {
+    view: "group.paymentGateways.view",
+    edit: "group.paymentGateways.edit",
+    configure: "group.paymentGateways.configure"
+  },
   orders: {
     view: "group.orders.view",
     // create: "group.orders.create",
@@ -217,6 +222,12 @@ export const permissionModules = {
     description: "Manage group payments",
     icon: <CreditCardIcon className="h-5 w-5" />,
     permissions: permissions.payments,
+  },
+  paymentGateways: {
+    name: "Payment Gateways",
+    description: "Manage group payment gateways",
+    icon: <CreditCardIcon className="h-5 w-5" />,
+    permissions: permissions.payments.gateways,
   },
   orders: {
     name: "Orders",

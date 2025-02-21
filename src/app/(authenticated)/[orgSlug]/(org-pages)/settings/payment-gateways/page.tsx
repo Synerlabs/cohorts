@@ -1,10 +1,8 @@
 import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';
 import { PaymentGatewaysList } from './_components/payment-gateways-list';
+import { permissions } from '@/lib/types/permissions';
 
-async function PaymentGatewaysPage({ org, params }: OrgAccessHOCProps) {
-  // Await params to follow Next.js best practices
-  const { orgSlug } = await params;
-
+async function PaymentGatewaysPage({ org, userPermissions }: OrgAccessHOCProps) {
   return (
     <div>
       <div className="container py-8">
@@ -13,14 +11,17 @@ async function PaymentGatewaysPage({ org, params }: OrgAccessHOCProps) {
           <p className="text-muted-foreground">Configure payment methods for your organization</p>
         </div>
 
-        <PaymentGatewaysList orgSlug={org.slug} />
+        <PaymentGatewaysList 
+          orgSlug={org.slug} 
+          userPermissions={userPermissions || []}
+        />
       </div>
     </div>
   );
 }
 
 export default withOrgAccess(PaymentGatewaysPage, {
-  allowGuest: false,
-  permissions: ['manage_payment_gateways']
+  permissions: [permissions.paymentGateways.view],
+  onAccessDenied: { action: 'error' }
 });
 

@@ -2,6 +2,8 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { checkUserAccess } from '@/lib/utils/permissions';
+import { permissions } from '@/lib/types/permissions';
 
 const updateGatewaySchema = z.object({
   enabled: z.boolean(),
@@ -12,7 +14,15 @@ export async function PATCH(
   { params }: { params: { orgSlug: string; gatewayId: string } }
 ) {
   try {
+    // Get authenticated user
     const supabase = createRouteHandlerClient({ cookies });
+    const { data: { session }, error: authError } = await supabase.auth.getSession();
+
+    if (authError || !session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const userId = session.user.id;
     const body = await request.json();
 
     // Validate request body
@@ -28,6 +38,38 @@ export async function PATCH(
     if (groupError || !group) {
       return NextResponse.json(
         { error: 'Group not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if user has payment gateway permissions
+    const { hasAccess } = await checkUserAccess({
+      userId,
+      groupId: group.id,
+      requiredPermissions: [
+        permissions.paymentGateways.edit,
+        permissions.paymentGateways.configure
+      ]
+    });
+
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Forbidden - Insufficient permissions to manage payment gateways' },
+        { status: 403 }
+      );
+    }
+
+    // Verify the payment gateway belongs to the group
+    const { data: gateway, error: gatewayError } = await supabase
+      .from('group_payment_gateways')
+      .select('id')
+      .eq('group_id', group.id)
+      .eq('gateway_id', params.gatewayId)
+      .single();
+
+    if (gatewayError || !gateway) {
+      return NextResponse.json(
+        { error: 'Payment gateway not found for this group' },
         { status: 404 }
       );
     }
