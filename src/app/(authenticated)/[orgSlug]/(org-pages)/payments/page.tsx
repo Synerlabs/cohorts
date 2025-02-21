@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { PaymentsClient } from "./_components/payments-client";
+import { permissions } from "@/lib/types/permissions";
 
 interface SearchParams {
   page?: string;
@@ -110,4 +111,10 @@ async function PaymentsPage(params: OrgAccessHOCProps & { searchParams: SearchPa
   );
 }
 
-export default withOrgAccess(PaymentsPage); 
+export default withOrgAccess(PaymentsPage, {
+  permissions: [permissions.payments.view],
+  onAccessDenied: {
+    action: 'error',
+  }
+
+}); 

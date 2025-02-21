@@ -2,6 +2,7 @@ import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { Order, columns } from "./columns";
 import { DataTable } from "./data-table";
+import { permissions } from "@/lib/types/permissions";
 
 interface SearchParams {
   page?: string;
@@ -92,4 +93,10 @@ async function OrdersPage(params: OrgAccessHOCProps & { searchParams: SearchPara
   );
 }
 
-export default withOrgAccess(OrdersPage); 
+export default withOrgAccess(OrdersPage, {
+  permissions: [permissions.orders.view],
+  onAccessDenied: {
+    action: 'error',
+    
+  }
+}); 
