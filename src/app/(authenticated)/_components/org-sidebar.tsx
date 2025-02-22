@@ -19,57 +19,88 @@ import { permissions } from "@/lib/types/permissions";
 type SidebarProps = {
   org: Camelized<Tables<"group">>;
   user: any;
+}; 
+
+type UserRole = Camelized<Tables<"user_roles">> & {
+  groupRoles: Camelized<Tables<"group_roles">> | null;
 };
 
 export async function OrgSidebar({ org, user }: SidebarProps) {
-  const { userPermissions = [] } = getAuthenticatedServerContext();
-  const links = [
+  const { userPermissions = [], groupRoles = [] } = getAuthenticatedServerContext();
+
+  // Check if user is a super admin
+  const isSuperAdmin = groupRoles.some((role: UserRole) => 
+    {
+      return role.is_active && role.group_roles?.is_super_admin
+    }
+  );
+
+  // Define all possible links
+  const allLinks = [
     {
       name: "Dashboard",
       href: `/@${org.slug}`,
       icon: <Home className="h-4 w-4" />,
+      permission: null, // No permission required
     },
-    userPermissions?.includes(permissions.members.view) && {
+    {
       name: "Members",
       href: `/@${org.slug}/members`,
       icon: <Users className="h-4 w-4" />,
+      permission: permissions.members.view,
     },
-    userPermissions?.includes(permissions.memberships.view) && {
+    {
       name: "Orders",
       href: `/@${org.slug}/orders`,
       icon: <ShoppingCart className="h-4 w-4" />,
+      permission: permissions.memberships.view,
     },
-    userPermissions?.includes(permissions.memberships.view) && {
+    {
       name: "Memberships",
       href: `/@${org.slug}/membership`,
       icon: <Package className="h-4 w-4" />,
+      permission: permissions.memberships.view,
     },
-    userPermissions?.includes(permissions.applications?.view) && {
+    {
       name: "Applications",
       href: `/@${org.slug}/applications`,
       icon: <InboxIcon className="h-4 w-4" />,
+      permission: permissions.applications?.view,
     },
-    userPermissions?.includes(permissions.payments?.view) && {
+    {
       name: "Payments",
       href: `/@${org.slug}/payments`,
       icon: <CreditCard className="h-4 w-4" />,
+      permission: permissions.payments?.view,
     },
-    userPermissions?.includes(permissions.forms?.view) && {
+    {
       name: "Forms",
       href: `/@${org.slug}/forms`,
       icon: <FormInput className="h-4 w-4" />,
+      permission: permissions.forms?.view,
     },
-    userPermissions?.includes(permissions.roles.view) && {
+    {
       name: "Roles & Permissions",
       href: `/@${org.slug}/roles`,
       icon: <SquareUserRound className="h-4 w-4" />,
+      permission: permissions.roles.view,
     },
-    userPermissions?.includes(permissions.group.edit) && {
+    {
       name: "Site Settings",
       href: `/@${org.slug}/settings`,
       icon: <Settings className="h-4 w-4" />,
+      permission: permissions.group.edit,
     },
   ];
+
+  console.log("SUPERADMIN", isSuperAdmin);
+
+  // Filter links based on permissions
+  const visibleLinks = allLinks.filter(link => 
+    // Show if no permission required, or user is super admin, or user has the required permission
+    !link.permission || isSuperAdmin || userPermissions.includes(link.permission)
+  );
+
   return (
     <div className="grid min-h-screen w-full lg:grid-cols-[200px_1fr]">
       <div className="hidden border-r bg-muted/40 lg:block">
@@ -79,19 +110,16 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
               <h4>{org.alternateName || org.name || "cohorts."}</h4>
             </div>
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
-              {links.map(
-                (link) =>
-                  link && (
-                    <Link
-                      key={link.name}
-                      href={link.href}
-                      className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                    >
-                      {link.icon}
-                      {link.name}
-                    </Link>
-                  ),
-              )}
+              {visibleLinks.map((link) => (
+                <Link
+                  key={link.name}
+                  href={link.href}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                >
+                  {link.icon}
+                  {link.name}
+                </Link>
+              ))}
             </nav>
           </div>
         </div>

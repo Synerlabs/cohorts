@@ -267,6 +267,28 @@ type CreateOrgResult = {
   data?: any;
 };
 
+const SUPER_ADMIN_ROLE_NAME = "super_admin";
+
+/**
+ * Gets all available permissions from the permissions object
+ * This ensures super admins always have access to all permissions,
+ * even when new ones are added in the future
+ */
+function getAllPermissions(): string[] {
+  const allPermissions: string[] = [];
+  
+  // Iterate through all permission modules
+  Object.values(permissions).forEach(modulePermissions => {
+    Object.values(modulePermissions).forEach(permission => {
+      if (typeof permission === 'string') {
+        allPermissions.push(permission);
+      }
+    });
+  });
+  
+  return allPermissions;
+}
+
 async function createOrgRoles(groupId: string): Promise<Tables<"group_roles">[]> {
   const serviceClient = await createServiceRoleClient();
   
@@ -275,8 +297,16 @@ async function createOrgRoles(groupId: string): Promise<Tables<"group_roles">[]>
     .insert([
       {
         group_id: groupId,
+        role_name: SUPER_ADMIN_ROLE_NAME,
+        description: "Super admin role with all permissions",
+        is_super_admin: true, // This flag grants all permissions automatically
+        permissions: [], // No need to store permissions explicitly
+      },
+      {
+        group_id: groupId,
         role_name: "admin",
         description: "Admin role for the organization",
+        is_super_admin: false,
         permissions: [
           // Group permissions
           "group.edit",
@@ -317,6 +347,8 @@ async function createOrgRoles(groupId: string): Promise<Tables<"group_roles">[]>
         group_id: groupId,
         role_name: "member",
         description: "Member role for the organization",
+        is_super_admin: false,
+        permissions: [],
       },
     ])
     .select();
@@ -330,6 +362,53 @@ async function createOrgRoles(groupId: string): Promise<Tables<"group_roles">[]>
   }
 
   return orgRoles;
+}
+
+/**
+ * Assigns a user to the super admin role for an organization
+ */
+export async function assignSuperAdmin(userId: string, groupId: string): Promise<{ error?: string }> {
+  const serviceClient = await createServiceRoleClient();
+
+  // First, find the super admin role for this group
+  const { data: roles, error: rolesError } = await serviceClient
+    .from("group_roles")
+    .select()
+    .eq("group_id", groupId)
+    .eq("role_name", SUPER_ADMIN_ROLE_NAME)
+    .single();
+
+  if (rolesError || !roles) {
+    console.error("Error finding super admin role:", {
+      error: rolesError,
+      groupId,
+    });
+    return { error: "Failed to find super admin role" };
+  }
+
+  // Assign the user to the super admin role
+  const { error: assignError } = await serviceClient
+    .from("user_roles")
+    .insert({
+      group_role_id: roles.id,
+      user_id: userId,
+      is_active: true,
+    });
+
+  if (assignError) {
+    console.error("Error assigning super admin role:", {
+      error: assignError,
+      userId,
+      groupId,
+    });
+    
+    if (assignError.code === "23505") {
+      return { error: "User is already a super admin" };
+    }
+    return { error: "Failed to assign super admin role" };
+  }
+
+  return {};
 }
 
 export async function createOrg(

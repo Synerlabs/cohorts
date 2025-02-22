@@ -2,7 +2,7 @@
 
 import { User } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '../utils/supabase/client'
 
 type UserContextType = {
   user: User | null
@@ -26,7 +26,7 @@ export function UserProvider({
   initialUser: User | null
 }) {
   const [user, setUser] = useState<User | null>(initialUser)
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   useEffect(() => {
     const {

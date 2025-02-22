@@ -273,6 +273,7 @@ export type Database = {
           permissions: string[] | null
           role_name: string | null
           type: Database["public"]["Enums"]["group_role_type"] | null
+          is_super_admin: boolean
         }
         Insert: {
           created_at?: string
@@ -283,6 +284,7 @@ export type Database = {
           permissions?: string[] | null
           role_name?: string | null
           type?: Database["public"]["Enums"]["group_role_type"] | null
+          is_super_admin?: boolean
         }
         Update: {
           created_at?: string
@@ -293,6 +295,7 @@ export type Database = {
           permissions?: string[] | null
           role_name?: string | null
           type?: Database["public"]["Enums"]["group_role_type"] | null
+          is_super_admin?: boolean
         }
         Relationships: [
           {

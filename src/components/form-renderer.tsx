@@ -8,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Database } from '@/lib/types/database.types';
 import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
@@ -17,6 +16,7 @@ import { uploadFileAction } from '@/app/actions/upload.action';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
 import { Card } from '@/components/ui/card';
 import { UploadProgressOverlay } from '@/components/ui/upload-progress';
+import { createClient } from '@/lib/utils/supabase/client';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -91,7 +91,7 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
   const [submitting, setSubmitting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [fileFields, setFileFields] = useState<Record<string, File>>({});
-  const supabase = createClientComponentClient<Database>();
+  const supabase = createClient();
   
   type UploadActionResult = {
     success: boolean;
