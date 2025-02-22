@@ -55,7 +55,7 @@ export async function addRoleUserAction(
     handleAddRoleUserAction,
     () => ({
       moduleId: groupRoleId,
-      moduleType: 'user_role' as const,
+      moduleType: 'role' as const,
       requiredPermissions: permissions.roles.assign
     })
   );

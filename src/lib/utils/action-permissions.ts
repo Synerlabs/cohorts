@@ -90,9 +90,8 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
         .select("group_role_id")
         .eq("id", moduleId)
         .single();
-
+      console.log("userRole", userRole);
       if (!userRole?.group_role_id) return null;
-
       // Then get the group ID from the role
       const { data: groupRole } = await supabase
         .from("group_roles")
