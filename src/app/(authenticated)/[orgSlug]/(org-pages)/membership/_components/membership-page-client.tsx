@@ -27,7 +27,7 @@ interface MembershipPageClientProps {
 export default function MembershipPageClient({ tiers, memberships, groupId, orgSlug }: MembershipPageClientProps) {
   const [open, setOpen] = useState(false);
   const { hasPermission } = usePermissions();
-
+  console.log("CLIENT MEMBERSHIPS", memberships);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">

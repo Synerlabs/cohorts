@@ -30,10 +30,11 @@ function formatDate(date: string): string {
 }
 
 function getInitials(firstName: string, lastName: string): string {
-  return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
+  return `${firstName?.charAt(0)}${lastName?.charAt(0)}`.toUpperCase();
 }
 
 export default function MembershipsTable({ memberships }: MembershipsTableProps) {
+  console.log('memberships412341234134', memberships);
   return (
     <Table>
       <TableHeader>
@@ -55,7 +56,7 @@ export default function MembershipsTable({ memberships }: MembershipsTableProps)
           </TableRow>
         ) : (
           memberships.map((membership) => {
-            const membershipTier = membership.order.suborders[0]?.product;
+            const membershipTier = membership.order?.suborders[0]?.product;
             return (
               <TableRow key={`${membership.group_user_id}-${membership.order_id}`}>
                 <TableCell>
@@ -70,7 +71,7 @@ export default function MembershipsTable({ memberships }: MembershipsTableProps)
                       </AvatarFallback>
                     </Avatar>
                     <div className="font-medium">
-                      {`${membership.group_user.user.first_name} ${membership.group_user.user.last_name}`}
+                      {`${membership.group_user?.user?.first_name} ${membership.group_user?.user?.last_name}`}
                     </div>
                   </div>
                 </TableCell>

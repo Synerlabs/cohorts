@@ -9,10 +9,10 @@ async function MembershipPage({ org, userPermissions }: OrgAccessHOCProps) {
     ProductService.getMembershipTiers(org.id),
     MembershipService.getMembershipsByGroup(org.id)
   ]);
-
+  console.log('memberships', memberships);
   return <MembershipPageClient 
     tiers={tiers} 
-    memberships={memberships}
+    memberships={memberships ?? []}
     groupId={org.id} 
     orgSlug={org.slug}
     userPermissions={userPermissions}
