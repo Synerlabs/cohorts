@@ -31,6 +31,7 @@ import { Camelized } from 'humps';
 import { Badge } from '@/components/ui/badge';
 import { permissions } from '@/lib/types/permissions';
 import { usePermissions } from '@/lib/hooks/use-permissions';
+import { ClientComponentPermission } from '@/components/ClientComponentPermission';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -159,7 +160,7 @@ export function FormTemplatesList({ templates, org, userPermissions }: FormTempl
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {hasPermission(permissions.forms.edit) && (
+                    <ClientComponentPermission requiredPermissions={[permissions.forms.edit]}>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -169,19 +170,19 @@ export function FormTemplatesList({ templates, org, userPermissions }: FormTempl
                         <Edit2 className="h-4 w-4" />
                         <span className="sr-only">Edit</span>
                       </Button>
-                    )}
-                    {hasPermission(permissions.forms.view) && (
+                    </ClientComponentPermission>
+                    <ClientComponentPermission requiredPermissions={[permissions.forms.view]}>
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => router.push(`/@${org.slug}/forms/${template.id}/preview`)}
-                        className="h-8 w-8"
-                      >
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => router.push(`/@${org.slug}/forms/${template.id}/preview`)}
+                          className="h-8 w-8"
+                        >
                         <Eye className="h-4 w-4" />
                         <span className="sr-only">Preview</span>
                       </Button>
-                    )}
-                    {hasPermission(permissions.forms.delete) && (
+                    </ClientComponentPermission>                
+                    <ClientComponentPermission requiredPermissions={[permissions.forms.delete]}>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -192,7 +193,7 @@ export function FormTemplatesList({ templates, org, userPermissions }: FormTempl
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Delete</span>
                       </Button>
-                    )}
+                    </ClientComponentPermission>
                   </div>
                 </TableCell>
               </TableRow>
