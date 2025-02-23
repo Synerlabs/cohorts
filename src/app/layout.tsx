@@ -5,8 +5,22 @@ import { Toaster } from "@/components/ui/toaster";
 import { headers, cookies } from 'next/headers'
 import { createClient } from '@/lib/utils/supabase/server'
 import { UserProvider } from '@/lib/context/UserContext'
+import { getUserRoles } from '@/services/user.service'
+import type { Database } from '@/lib/types/database.types'
 
 const inter = Inter({ subsets: ["latin"] });
+
+type GroupRole = Database['public']['Tables']['group_roles']['Row']
+type UserRole = Database['public']['Tables']['user_roles']['Row'] & {
+  group_roles: GroupRole | null
+}
+
+type GroupPermissions = {
+  [groupId: string]: {
+    permissions: string[]
+    roles: UserRole[]
+  }
+}
 
 export const metadata: Metadata = {
   title: "Create Next App",
@@ -21,10 +35,54 @@ export default async function RootLayout({
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
+  // Get user roles and permissions if user exists
+  let roles: UserRole[] = []
+  let groupPermissions: GroupPermissions = {}
+  
+  if (user) {
+    try {
+      roles = await getUserRoles({ id: user.id, groupId: '*' })
+      
+      // Group roles and permissions by group ID
+      groupPermissions = roles.reduce((acc, role) => {
+        if (!role.group_roles?.group_id) return acc;
+        
+        const groupId = role.group_roles.group_id;
+        if (!acc[groupId]) {
+          acc[groupId] = {
+            permissions: [],
+            roles: []
+          };
+        }
+
+        // Add role to group
+        acc[groupId].roles.push(role);
+
+        // Add permissions if role is active
+        if (role.is_active) {
+          if (role.group_roles.is_super_admin) {
+            acc[groupId].permissions.push('*');
+          } else if (role.group_roles.permissions) {
+            acc[groupId].permissions.push(...role.group_roles.permissions);
+          }
+        }
+
+        return acc;
+      }, {} as GroupPermissions);
+
+    } catch (error) {
+      console.error('Error fetching initial user roles:', error)
+    }
+  }
+
   return (
     <html lang="en">
       <body className={inter.className}>
-        <UserProvider initialUser={user}>
+        <UserProvider 
+          initialUser={user}
+          initialRoles={roles}
+          initialPermissions={Object.values(groupPermissions).flatMap(g => g.permissions)}
+        >
           {children}
           <Toaster />
         </UserProvider>

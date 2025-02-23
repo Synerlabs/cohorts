@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/utils/supabase/server";
-import { id } from "postcss-selector-parser";
 import camelcaseKeys from "camelcase-keys";
 import type { Database } from "@/lib/types/database.types";
 
@@ -28,38 +27,6 @@ export async function getUsers() {
   }
 }
 
-export async function getUser({ id }: { id: string }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUser(id);
-
-  if (error) {
-    return { error: error.message };
-  } else {
-    return { data };
-  }
-}
-
-export async function getUserByEmail({ email }: { email: string }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUserByEmail(email);
-
-  if (error) {
-    return { error: error.message };
-  } else {
-    return { data };
-  }
-}
-export async function getUserByProvider({ provider }: { provider: string }) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.getUserByProvider(provider);
-
-  if (error) {
-    return { error: error.message };
-  } else {
-    return { data };
-  }
-}
-
 export async function getUserRoles({
   id,
   groupId,
@@ -68,13 +35,19 @@ export async function getUserRoles({
   groupId: string;
 }): Promise<(UserRole & { group_roles: GroupRole | null })[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const query = supabase
     .from("user_roles")
     .select(
       "*, group_roles (*)",
     )
-    .eq("user_id", id)
-    .eq("group_roles.group_id", groupId);
+    .eq("user_id", id);
+
+  // Only filter by group_id if not fetching all groups
+  if (groupId !== '*') {
+    query.eq("group_roles.group_id", groupId);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     throw error;
@@ -85,16 +58,23 @@ export async function getUserRoles({
 
 export async function getUserOrgs({ id }: { id: string }) {
   const supabase = await createClient();
+  type GroupResponse = {
+    group: {
+      id: string;
+    } | null;
+  };
+  
   const { data, error } = await supabase
     .from("group_users")
-    .select("group (id)")
-    .eq("user_id", id);
+    .select("group:group_id (id)")
+    .eq("user_id", id)
+    .returns<GroupResponse[]>();
 
   if (error) {
     throw error;
-  } else {
-    return data?.map((d) => d?.group?.id);
   }
+
+  return data?.map((d) => d.group?.id).filter((id): id is string => id !== null) || [];
 }
 
 export async function getGroupUser({

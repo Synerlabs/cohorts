@@ -22,6 +22,7 @@ import { Camelized } from 'humps';
 import { Org } from '@/lib/types/org.type';
 import { permissions } from '@/lib/types/permissions';
 import { usePermissions } from '@/lib/hooks/use-permissions';
+import { ClientComponentPermission } from '@/components/ClientComponentPermission';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -334,17 +335,19 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         <Button variant="outline" onClick={() => router.back()}>
           Cancel
         </Button>
-        {hasPermission(permissions.forms.publish) && (
-          <Button 
-            variant="outline"
-            onClick={() => handleSave(true)}
-            disabled={isSaving}
-            className="flex items-center gap-2"
+        <ClientComponentPermission
+          requiredPermissions={[permissions.forms.publish]}
+        >
+            <Button 
+              variant="outline"
+              onClick={() => handleSave(true)}
+              disabled={isSaving}
+              className="flex items-center gap-2"
           >
             <Send className="h-4 w-4" />
             {isSaving ? 'Publishing...' : 'Save & Publish'}
           </Button>
-        )}
+          </ClientComponentPermission>
         <Button 
           onClick={() => handleSave(false)} 
           disabled={isSaving}
