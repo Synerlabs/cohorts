@@ -1,8 +1,15 @@
 import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';
 import { PaymentGatewaysList } from './_components/payment-gateways-list';
 import { permissions } from '@/lib/types/permissions';
+import { createClient } from '@/lib/utils/supabase/server';
 
 async function PaymentGatewaysPage({ org, userPermissions }: OrgAccessHOCProps) {
+  const supabase = await createClient();
+  const { data: gatewayRecords } = await supabase
+    .from('group_payment_gateways')
+    .select('id, gateway_id, enabled')
+    .eq('group_id', org.id);
+
   return (
     <div>
       <div className="container py-8">
@@ -15,6 +22,7 @@ async function PaymentGatewaysPage({ org, userPermissions }: OrgAccessHOCProps) 
           orgSlug={org.slug} 
           userPermissions={userPermissions || []}
           groupId={org.id}
+          gatewayRecords={gatewayRecords || []}
         />
       </div>
     </div>

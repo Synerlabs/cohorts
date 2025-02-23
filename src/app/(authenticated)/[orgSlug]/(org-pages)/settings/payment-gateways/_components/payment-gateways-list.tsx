@@ -18,14 +18,14 @@ const initialPaymentGateways: PaymentGateway[] = [
     name: 'Stripe',
     description: 'Accept payments via Stripe Connect',
     icon: 'stripe',
-    enabled: true,
+    enabled: false,
   },
   {
     id: 'manual',
     name: 'Manual',
     description: 'Manually mark payments as completed',
     icon: 'wallet',
-    enabled: true,
+    enabled: false,
   }
 ];
 
@@ -39,29 +39,18 @@ interface PaymentGatewaysListProps {
   orgSlug: string;
   userPermissions: string[];
   groupId: string;
+  gatewayRecords: PaymentGatewayRecord[];
 }
 
-export function PaymentGatewaysList({ orgSlug, userPermissions, groupId }: PaymentGatewaysListProps) {
+export function PaymentGatewaysList({ 
+  orgSlug, 
+  userPermissions, 
+  groupId,
+  gatewayRecords 
+}: PaymentGatewaysListProps) {
   const { hasPermission } = usePermissions(userPermissions);
   const canEdit = hasPermission(permissions.paymentGateways.edit);
   const canConfigure = hasPermission(permissions.paymentGateways.configure);
-  const [gatewayRecords, setGatewayRecords] = useState<PaymentGatewayRecord[]>([]);
-
-  useEffect(() => {
-    const fetchGateways = async () => {
-      const supabase = createClientComponentClient();
-      const { data } = await supabase
-        .from('group_payment_gateways')
-        .select('id, gateway_id, enabled')
-        .eq('group_id', groupId);
-      
-      if (data) {
-        setGatewayRecords(data);
-      }
-    };
-
-    fetchGateways();
-  }, [groupId]);
 
   return (
     <div className="grid gap-4">
@@ -86,7 +75,7 @@ export function PaymentGatewaysList({ orgSlug, userPermissions, groupId }: Payme
                   <GatewayToggle 
                     gatewayId={gateway.id}
                     id={record?.id}
-                    initialEnabled={record?.enabled ?? gateway.enabled}
+                    initialEnabled={record?.enabled ?? false}
                     groupId={groupId}
                   />
                 </ClientComponentPermission>
