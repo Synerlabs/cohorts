@@ -74,4 +74,41 @@ export type Application = {
     email: string;
     full_name: string;
   };
-}; 
+};
+
+export interface IMembership {
+  group_user_id: string;
+  order_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  status: string;
+  group_user: {
+    id: string;
+    user_id: string;
+    group_id: string;
+    user: {
+      id: string;
+      first_name: string;
+      last_name: string;
+      avatar_url: string | null;
+    };
+  };
+  order: {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    suborders: {
+      id: string;
+      product: {
+        id: string;
+        name: string;
+        type: string;
+        membership_tiers: {
+          duration_months: number;
+          activation_type: string;
+        }[];
+      };
+    }[];
+  };
+} 

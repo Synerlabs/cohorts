@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { startTransition } from "react";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
-import { deleteMembershipAction } from "../_actions/membership.action";
+import { MembershipService } from "@/services/membership.service";
 
 interface DeleteMembershipDialogProps {
   membershipId: string;
@@ -29,7 +29,7 @@ export default function DeleteMembershipDialog({
   children,
 }: DeleteMembershipDialogProps) {
   const [state, action, pending] = useToastActionState(
-    deleteMembershipAction,
+    MembershipService.deleteMembership,
     { success: false },
     undefined,
     {

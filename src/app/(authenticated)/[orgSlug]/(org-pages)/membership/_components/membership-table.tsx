@@ -19,17 +19,18 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { deleteMembershipTierAction } from "../_actions/membership.action";
+import { MembershipService } from "@/services/membership.service";
 import { useToast } from "@/components/ui/use-toast";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
-import { usePermissions } from "@/lib/hooks/use-permissions";
 import { permissions } from "@/lib/types/permissions";
+import { ClientComponentPermission } from "@/components/ClientComponentPermission";
+import { usePermissions } from "@/lib/hooks/use-permissions";
+import { deleteMembershipTierAction } from "../_actions/membership.action";
 
 interface MembershipTableProps {
   tiers: IMembershipTierProduct[];
   groupId: string;
   slug: string;
-  userPermissions: string[];
 }
 
 const currencySymbols: Record<Currency, string> = {
@@ -46,14 +47,14 @@ function formatPrice(price: number, currency: Currency): string {
   return `${currencySymbols[currency]}${amount}`;
 }
 
-export default function MembershipTable({ tiers, groupId, slug, userPermissions }: MembershipTableProps) {
+export default function MembershipTable({ tiers, groupId, slug }: MembershipTableProps) {
   const [editingTier, setEditingTier] = useState<string | null>(null);
   const [deletingTier, setDeletingTier] = useState<IMembershipTierProduct | null>(null);
   const { toast } = useToast();
-  const { hasPermission } = usePermissions(userPermissions);
+  const { hasPermission } = usePermissions();
   
   const [state, deleteTier, isPending] = useToastActionState(
-    deleteMembershipTierAction,
+    deleteMembershipTierAction
   );
 
   const handleDelete = async () => {
@@ -65,9 +66,7 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
     setDeletingTier(null);
   };
 
-  const canEdit = hasPermission(permissions.memberships.edit);
-  const canDelete = hasPermission(permissions.memberships.delete);
-  const showActions = canEdit || canDelete;
+  const showActions = hasPermission([permissions.memberships.edit]) || hasPermission([permissions.memberships.delete]);
 
   return (
     <>
@@ -81,7 +80,9 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
             <TableHead>Activation</TableHead>
             <TableHead>Form</TableHead>
             <TableHead>Members</TableHead>
-            {showActions && <TableHead className="w-[100px]">Actions</TableHead>}
+            {showActions && (
+              <TableHead className="w-[100px]">Actions</TableHead>
+            )}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -115,7 +116,7 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
                 <TableCell>0</TableCell>
                 {showActions && (
                   <TableCell className="flex gap-2">
-                    {canEdit && (
+                    <ClientComponentPermission requiredPermissions={[permissions.memberships.edit]}>
                       <Sheet open={editingTier === tier.id} onOpenChange={(open) => setEditingTier(open ? tier.id : null)}>
                         <SheetTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -135,9 +136,9 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
                           </div>
                         </SheetContent>
                       </Sheet>
-                    )}
+                    </ClientComponentPermission>
 
-                    {canDelete && (
+                    <ClientComponentPermission requiredPermissions={[permissions.memberships.delete]}>
                       <AlertDialog open={deletingTier?.id === tier.id} onOpenChange={(open) => setDeletingTier(open ? tier : null)}>
                         <AlertDialogTrigger asChild>
                           <Button variant="ghost" size="icon">
@@ -159,7 +160,7 @@ export default function MembershipTable({ tiers, groupId, slug, userPermissions 
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
-                    )}
+                    </ClientComponentPermission>
                   </TableCell>
                 )}
               </TableRow>

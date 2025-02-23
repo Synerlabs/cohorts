@@ -6,11 +6,13 @@ import { useOrg } from "@/lib/context/OrgContext";
 type ComponentPermissionProps = {
   requiredPermissions: string[];
   children: React.ReactNode;
+  invert?: boolean;
 };
 
 export function ClientComponentPermission({
   requiredPermissions,
   children,
+  invert = false,
 }: ComponentPermissionProps) {
   const { user } = useUser();
   const { groupPermissions } = useOrg();
@@ -24,14 +26,12 @@ export function ClientComponentPermission({
     requiredPermissions.includes(permission)
   );
 
-  if (hasExplicitPermission) {
-    return <>{children}</>;
-  }
-
   // Check for wildcard permission (super admin)
-  if (groupPermissions.permissions.includes('*')) {
-    return <>{children}</>;
-  }
+  const hasWildcardPermission = groupPermissions.permissions.includes('*');
 
-  return null;
+  const hasPermission = hasExplicitPermission || hasWildcardPermission;
+
+  // If invert is true, show content when user doesn't have permission
+  // If invert is false (default), show content when user has permission
+  return hasPermission !== invert ? <>{children}</> : null;
 } 

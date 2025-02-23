@@ -11,9 +11,10 @@ import MembershipTable from "./membership-table";
 import MembershipsTable from "./memberships-table";
 import { useState } from "react";
 import { IMembershipTierProduct } from "@/lib/types/product";
-import { IMembership } from "../_actions/membership.action";
-import { usePermissions } from "@/lib/hooks/use-permissions";
+import { IMembership } from "@/lib/types/membership";
 import { permissions } from "@/lib/types/permissions";
+import { ClientComponentPermission } from "@/components/ClientComponentPermission";
+import { usePermissions } from "@/lib/hooks/use-permissions";
 
 interface MembershipPageClientProps {
   tiers: IMembershipTierProduct[];
@@ -23,9 +24,9 @@ interface MembershipPageClientProps {
   userPermissions: string[];
 }
 
-export default function MembershipPageClient({ tiers, memberships, groupId, orgSlug, userPermissions }: MembershipPageClientProps) {
+export default function MembershipPageClient({ tiers, memberships, groupId, orgSlug }: MembershipPageClientProps) {
   const [open, setOpen] = useState(false);
-  const { hasPermission } = usePermissions(userPermissions);
+  const { hasPermission } = usePermissions();
 
   return (
     <div className="space-y-4">
@@ -54,7 +55,7 @@ export default function MembershipPageClient({ tiers, memberships, groupId, orgS
         )}
       </div>
 
-      <Tabs defaultValue="memberships" className="space-y-4">
+      <Tabs defaultValue={hasPermission(permissions.memberships.create) ? "tiers" : "memberships"} className="space-y-4">
         <TabsList>
           <TabsTrigger value="memberships">Memberships</TabsTrigger>
           <TabsTrigger value="tiers">Membership Tiers</TabsTrigger>
@@ -71,12 +72,13 @@ export default function MembershipPageClient({ tiers, memberships, groupId, orgS
             <Alert>
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>
-                No membership tiers found. {hasPermission(permissions.memberships.create) ? "Create a tier to start accepting members." : "Contact an administrator to create membership tiers."}
+                No membership tiers found. <ClientComponentPermission requiredPermissions={[permissions.memberships.create]}>Create a tier to start accepting members.</ClientComponentPermission>
+                <ClientComponentPermission requiredPermissions={[permissions.memberships.create]} invert>Contact an administrator to create membership tiers.</ClientComponentPermission>
               </AlertDescription>
             </Alert>
           ) : (
             <div className="rounded-md border">
-              <MembershipTable tiers={tiers} groupId={groupId} slug={orgSlug} userPermissions={userPermissions} />
+              <MembershipTable tiers={tiers} groupId={groupId} slug={orgSlug} />
             </div>
           )}
         </TabsContent>

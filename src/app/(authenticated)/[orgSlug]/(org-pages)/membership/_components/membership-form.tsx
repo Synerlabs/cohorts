@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Currency, MembershipActivationType } from "@/lib/types/membership";
 import { IMembershipTierProduct } from "@/lib/types/product";
-import { createMembershipTierAction, updateMembershipTierAction } from "../_actions/membership.action";
+import { MembershipService } from "@/services/membership.service";
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { getFormTemplateById } from "../../forms/_actions/form-template.action";
+import { createMembershipTierAction, updateMembershipTierAction } from "../_actions/membership.action";
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 

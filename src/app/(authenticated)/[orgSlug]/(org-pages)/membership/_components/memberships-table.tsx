@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { IMembership } from "../_actions/membership.action";
+import { IMembership } from "@/lib/types/membership";
 
 interface MembershipsTableProps {
   memberships: IMembership[];
@@ -61,11 +61,11 @@ export default function MembershipsTable({ memberships }: MembershipsTableProps)
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar>
-                      <AvatarImage src={membership.group_user.user.avatar_url || undefined} />
+                      <AvatarImage src={membership.group_user?.user?.avatar_url || undefined} />
                       <AvatarFallback>
                         {getInitials(
-                          membership.group_user.user.first_name,
-                          membership.group_user.user.last_name
+                          membership.group_user?.user?.first_name,
+                          membership.group_user?.user?.last_name
                         )}
                       </AvatarFallback>
                     </Avatar>
