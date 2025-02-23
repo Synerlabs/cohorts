@@ -379,6 +379,7 @@ export async function getPublishedFormTemplates(orgId: string): Promise<ActionRe
     async (context: { userId: string; groupId: string }, params: { orgId: string }) => {
       try {
         const templates = await FormTemplateService.getPublishedFormTemplates(params.orgId);
+        console.log('templates', templates);
         return { data: templates };
       } catch (error) {
         console.error('Failed to fetch form templates:', error);

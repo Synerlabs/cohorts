@@ -52,8 +52,7 @@ export class FormTemplateService {
       .select('*')
       .eq('org_id', orgId)
       .eq('status', 'published')
-      .is('is_deleted', null)
-      .or('is_deleted.eq.false')
+      .neq('is_deleted', true)
       .order('created_at', { ascending: false });
 
     if (error) {
