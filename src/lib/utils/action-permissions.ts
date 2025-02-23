@@ -14,6 +14,7 @@ type ActionContext = {
     solo?: string[]       // Override permissions - any of these grants access
   };
   allowGuest?: boolean;
+  isCreation?: boolean;  // Flag to indicate if this is a creation operation
 };
 
 type ActionResult<T> = {
@@ -70,7 +71,7 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
       const { data: gateway } = await supabase
         .from("group_payment_gateways")
         .select("group_id")
-        .eq("gateway_id", moduleId)
+        .eq("id", moduleId)
         .single();
       return gateway?.group_id || null;
 
@@ -220,9 +221,33 @@ export async function withPermissions<T, P>(
         return { error: userError || "You must be logged in to perform this action" };
       }
 
-      const { groupId, moduleId, moduleType, requiredPermissions, allowGuest = false } = getActionContext(params);
+      const { groupId, moduleId, moduleType, requiredPermissions, allowGuest = false, isCreation = false } = getActionContext(params);
       
-      // If we have a moduleId and moduleType, verify the module belongs to the specified group
+      // For creation operations, we only need to verify group-level permissions
+      if (isCreation) {
+        if (!groupId) {
+          return { error: "Invalid group ID" };
+        }
+
+        const accessResult = await checkPermissions(
+          user.id,
+          groupId,
+          requiredPermissions,
+          allowGuest
+        );
+
+        if (!accessResult.hasAccess) {
+          return { 
+            error: accessResult.isGuest 
+              ? "You must be a member to perform this action"
+              : "You do not have permission to perform this action" 
+          };
+        }
+
+        return action({ userId: user.id, groupId }, params);
+      }
+
+      // For edit operations, verify module ownership if moduleId is provided
       let verifiedGroupId = groupId;
       if (moduleId && moduleType) {
         const moduleGroupId = await getModuleGroupId(moduleType, moduleId);

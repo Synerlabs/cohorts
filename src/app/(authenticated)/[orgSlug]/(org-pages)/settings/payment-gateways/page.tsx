@@ -14,6 +14,7 @@ async function PaymentGatewaysPage({ org, userPermissions }: OrgAccessHOCProps) 
         <PaymentGatewaysList 
           orgSlug={org.slug} 
           userPermissions={userPermissions || []}
+          groupId={org.id}
         />
       </div>
     </div>

@@ -7,11 +7,13 @@ import useToastActionState from '@/lib/hooks/toast-action-state.hook';
 import { useState, useEffect } from 'react';
 
 interface GatewayToggleProps {
-  gatewayId: string;
+  gatewayId: string;  // This is the reference ID like 'stripe' or 'manual'
+  id?: string;        // This is the database record ID
   initialEnabled: boolean;
+  groupId: string;
 }
 
-export function GatewayToggle({ gatewayId, initialEnabled }: GatewayToggleProps) {
+export function GatewayToggle({ gatewayId, id, initialEnabled, groupId }: GatewayToggleProps) {
   const [enabled, setEnabled] = useState(initialEnabled);
   
   const [state, dispatch, isPending] = useToastActionState(updateGatewayStatus);
@@ -24,8 +26,13 @@ export function GatewayToggle({ gatewayId, initialEnabled }: GatewayToggleProps)
 
   const handleChange = (checked: boolean) => {
     const formData = new FormData();
-    formData.append('id', gatewayId);
+    if (id) {
+      formData.append('id', id);
+    } else {
+      formData.append('gateway_id', gatewayId);
+    }
     formData.append('enabled', String(checked));
+    formData.append('groupId', groupId);
     dispatch(formData);
   };
 
