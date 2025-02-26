@@ -1,5 +1,3 @@
-
-
 SET statement_timeout = 0;
 SET lock_timeout = 0;
 SET idle_in_transaction_session_timeout = 0;
@@ -727,3 +725,48 @@ ALTER DEFAULT PRIVILEGES FOR ROLE "postgres" IN SCHEMA "public" GRANT ALL ON TAB
 
 
 RESET ALL;
+
+-- Table to define which roles are associated with each membership tier
+CREATE TABLE IF NOT EXISTS "public"."membership_tier_roles" (
+    "id" "uuid" DEFAULT "gen_random_uuid"() NOT NULL,
+    "tier_id" "uuid" NOT NULL,
+    "group_role_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "now"() NOT NULL,
+    "created_by" "uuid" DEFAULT "auth"."uid"(),
+    PRIMARY KEY ("id"),
+    FOREIGN KEY ("tier_id") REFERENCES "public"."membership_tier"("id") ON DELETE CASCADE,
+    FOREIGN KEY ("group_role_id") REFERENCES "public"."group_roles"("id") ON DELETE CASCADE,
+    UNIQUE ("tier_id", "group_role_id")
+);
+
+ALTER TABLE "public"."membership_tier_roles" OWNER TO "postgres";
+
+-- Function to assign roles when a membership becomes active
+CREATE OR REPLACE FUNCTION "public"."handle_membership_roles"() RETURNS "trigger"
+    LANGUAGE "plpgsql" SECURITY DEFINER
+    AS $$
+BEGIN
+    -- If membership becomes active
+    IF (TG_OP = 'INSERT' AND NEW.is_active = true) OR 
+       (TG_OP = 'UPDATE' AND NEW.is_active = true AND OLD.is_active = false) THEN
+        -- Insert roles associated with the membership tier
+        INSERT INTO "public"."membership_role" ("membership_id", "group_role_id")
+        SELECT NEW.id, mtr.group_role_id
+        FROM "public"."membership_tier_roles" mtr
+        WHERE mtr.tier_id = NEW.tier_id;
+    -- If membership becomes inactive
+    ELSIF (TG_OP = 'UPDATE' AND NEW.is_active = false AND OLD.is_active = true) OR
+          (TG_OP = 'DELETE') THEN
+        -- Remove roles associated with the membership
+        DELETE FROM "public"."membership_role"
+        WHERE membership_id = COALESCE(NEW.id, OLD.id);
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+-- Trigger to handle role assignments when memberships change
+CREATE OR REPLACE TRIGGER "handle_membership_roles_trigger"
+    AFTER INSERT OR UPDATE OR DELETE ON "public"."memberships"
+    FOR EACH ROW
+    EXECUTE FUNCTION "public"."handle_membership_roles"();
