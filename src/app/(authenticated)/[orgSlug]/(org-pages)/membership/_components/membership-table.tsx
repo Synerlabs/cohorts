@@ -26,6 +26,7 @@ import { permissions } from "@/lib/types/permissions";
 import { ClientComponentPermission } from "@/components/ClientComponentPermission";
 import { usePermissions } from "@/lib/hooks/use-permissions";
 import { deleteMembershipTierAction } from "../_actions/membership.action";
+import Link from "next/link";
 
 interface MembershipTableProps {
   tiers: IMembershipTierProduct[];
@@ -117,25 +118,15 @@ export default function MembershipTable({ tiers, groupId, slug }: MembershipTabl
                 {showActions && (
                   <TableCell className="flex gap-2">
                     <ClientComponentPermission requiredPermissions={[permissions.memberships.edit]}>
-                      <Sheet open={editingTier === tier.id} onOpenChange={(open) => setEditingTier(open ? tier.id : null)}>
-                        <SheetTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                        </SheetTrigger>
-                        <SheetContent className="overflow-y-auto">
-                          <SheetHeader>
-                            <SheetTitle>Edit Membership Tier</SheetTitle>
-                          </SheetHeader>
-                          <div className="mt-4 pb-6">
-                            <MembershipForm 
-                              groupId={groupId} 
-                              tier={tier} 
-                              onSuccess={() => setEditingTier(null)}
-                            />
-                          </div>
-                        </SheetContent>
-                      </Sheet>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
+                      >
+                        <Link href={`/@${slug}/membership/${tier.id}/edit`}>
+                          <Edit className="h-4 w-4" />
+                        </Link>
+                      </Button>
                     </ClientComponentPermission>
 
                     <ClientComponentPermission requiredPermissions={[permissions.memberships.delete]}>
