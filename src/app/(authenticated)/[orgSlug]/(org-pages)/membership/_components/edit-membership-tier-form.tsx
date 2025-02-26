@@ -26,6 +26,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { RoleSelectionDialog } from './role-selection-dialog';
 import { getRolesAction } from '../_actions/roles.action';
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
+import { PostgrestError } from '@supabase/supabase-js';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 type GroupRole = Database['public']['Tables']['group_roles']['Row'];
@@ -53,6 +54,8 @@ interface EditMembershipTierFormProps {
   tier: IMembershipTierProduct;
   groupId: string;
   onSuccess?: () => void;
+  initialFormTemplate?: FormTemplate | null;
+  initialRoles?: GroupRole[];
 }
 
 const currencySymbols: Record<Currency, string> = {
@@ -131,7 +134,13 @@ function getStepConfiguration(type: MembershipActivationType): {
   };
 }
 
-export function EditMembershipTierForm({ tier, groupId, onSuccess }: EditMembershipTierFormProps) {
+export function EditMembershipTierForm({ 
+  tier, 
+  groupId, 
+  onSuccess,
+  initialFormTemplate,
+  initialRoles = []
+}: EditMembershipTierFormProps) {
   const [state, action, pending] = useToastActionState(
     updateMembershipTierAction,
     undefined,
@@ -143,13 +152,19 @@ export function EditMembershipTierForm({ tier, groupId, onSuccess }: EditMembers
   );
 
   const [showFormTemplateDialog, setShowFormTemplateDialog] = useState(false);
-  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>(
+    initialFormTemplate ? [initialFormTemplate] : []
+  );
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
   const [roles, setRoles] = useState<Array<{
     id: string;
     role_name: string;
     permissions: string[];
-  }>>([]);
+  }>>(initialRoles.map(role => ({
+    id: role.id,
+    role_name: role.role_name || '',
+    permissions: role.permissions || []
+  })));
   const [isLoadingRoles, setIsLoadingRoles] = useState(false);
   const [showRoleDialog, setShowRoleDialog] = useState(false);
 
@@ -169,76 +184,10 @@ export function EditMembershipTierForm({ tier, groupId, onSuccess }: EditMembers
     },
   });
 
-  // Load form template
-  useEffect(() => {
-    const loadFormTemplate = async () => {
-      const formTemplateId = form.getValues('form_template_id');
-      if (!formTemplateId) return;
-      
-      setIsLoadingTemplate(true);
-      try {
-        const { data, error } = await getFormTemplateById(formTemplateId);
-        if (error) throw error;
-        if (data) {
-          setFormTemplates(prev => {
-            const exists = prev.some(t => t.id === data.id);
-            if (!exists) {
-              return [...prev, data];
-            }
-            return prev;
-          });
-        }
-      } catch (error) {
-        console.error('Error loading form template:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load form template details',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoadingTemplate(false);
-      }
-    };
-
-    loadFormTemplate();
-  }, []);
-
-  // Load roles
-  useEffect(() => {
-    const loadRoles = async () => {
-      console.log('Loading roles for group:', groupId);
-      setIsLoadingRoles(true);
-      try {
-        const roleData = await getRolesAction(groupId);
-        console.log('Roles loaded:', roleData);
-        
-        const mappedRoles = roleData.map(role => ({
-          id: role.id,
-          role_name: role.role_name || '',
-          permissions: role.permissions || []
-        }));
-        console.log('Mapped roles:', mappedRoles);
-        setRoles(mappedRoles);
-      } catch (error) {
-        console.error('Error loading roles:', error);
-        toast({
-          title: 'Error',
-          description: 'Failed to load group roles',
-          variant: 'destructive',
-        });
-      } finally {
-        setIsLoadingRoles(false);
-      }
-    };
-
-    if (groupId) {
-      loadRoles();
-    }
-  }, [groupId]);
-
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     const formData = new FormData();
     formData.append('id', tier.id);
+    formData.append('group_id', groupId);
     formData.append('name', values.name);
     formData.append('description', values.description || '');
     formData.append('price', String(Math.round(values.price * 100)));
@@ -622,16 +571,42 @@ export function EditMembershipTierForm({ tier, groupId, onSuccess }: EditMembers
       <FormTemplateSelectionDialog
         open={showFormTemplateDialog}
         onOpenChange={setShowFormTemplateDialog}
-        onSelect={(template) => {
-          form.setValue('form_template_id', template.id);
-          setFormTemplates(prev => {
-            const exists = prev.some(t => t.id === template.id);
-            if (!exists) {
-              return [...prev, template];
+        onSelect={async (template) => {
+          try {
+            // Load the full template details if not already loaded
+            if (!formTemplates.some(t => t.id === template.id)) {
+              setIsLoadingTemplate(true);
+              const { data, error } = await getFormTemplateById(template.id);
+              if (error) {
+                toast({
+                  title: 'Form template not found',
+                  description: error,
+                  variant: 'destructive',
+                });
+                return;
+              }
+              if (!data) {
+                toast({
+                  title: 'Form template not found',
+                  description: 'The selected form template could not be loaded.',
+                  variant: 'destructive',
+                });
+                return;
+              }
+              setFormTemplates(prev => [...prev, data]);
             }
-            return prev;
-          });
-          setShowFormTemplateDialog(false);
+            form.setValue('form_template_id', template.id);
+            setShowFormTemplateDialog(false);
+          } catch (error) {
+            console.error('Error loading form template:', error);
+            toast({
+              title: 'Error',
+              description: 'Failed to load form template details',
+              variant: 'destructive',
+            });
+          } finally {
+            setIsLoadingTemplate(false);
+          }
         }}
         orgId={groupId}
         selectedTemplateId={form.watch('form_template_id')}

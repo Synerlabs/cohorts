@@ -370,7 +370,7 @@ export class ProductService {
           .from('membership_tier_roles')
           .update({
             deleted_at: new Date().toISOString(),
-            deleted_by: 'system'
+            deleted_by: await supabase.auth.getUser().then(({ data }) => data.user?.id)
           })
           .eq('tier_id', id)
           .is('deleted_at', null);
@@ -379,19 +379,25 @@ export class ProductService {
           throw deleteRolesError;
         }
 
-        // Then insert new roles if any are provided
+        // Then upsert new roles if any are provided
         if (roles && roles.length > 0) {
-          const { error: insertRolesError } = await supabase
+          const { error: upsertRolesError } = await supabase
             .from('membership_tier_roles')
-            .insert(
+            .upsert(
               roles.map(roleId => ({
                 tier_id: id,
-                group_role_id: roleId
-              }))
+                group_role_id: roleId,
+                deleted_at: null,
+                deleted_by: null
+              })),
+              {
+                onConflict: 'tier_id,group_role_id',
+                ignoreDuplicates: false
+              }
             );
 
-          if (insertRolesError) {
-            throw insertRolesError;
+          if (upsertRolesError) {
+            throw upsertRolesError;
           }
         }
       }

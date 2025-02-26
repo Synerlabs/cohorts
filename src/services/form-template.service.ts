@@ -33,8 +33,7 @@ export class FormTemplateService {
       .from('form_templates')
       .select('*')
       .eq('id', id)
-      .is('is_deleted', null)
-      .or('is_deleted.eq.false')
+      .is('deleted_at', null)
       .single();
 
     if (error) {

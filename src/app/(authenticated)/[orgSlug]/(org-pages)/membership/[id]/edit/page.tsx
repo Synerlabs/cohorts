@@ -3,6 +3,9 @@ import { IMembershipTierProduct } from '@/lib/types/product';
 import { ProductService } from '@/services/product.service';
 import { EditMembershipTierForm } from '../../_components/edit-membership-tier-form';
 import { notFound } from 'next/navigation';
+import { getFormTemplateById } from '../../../forms/_actions/form-template.action';
+import { getRolesAction, type GroupRole } from '../../_actions/roles.action';
+import { Database } from '@/lib/types/database.types';
 
 interface Props {
   params: {
@@ -11,12 +14,31 @@ interface Props {
   };
 }
 
+type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
+
 export default async function EditMembershipTierPage({ params }: Props) {
   try {
+    // Fetch the membership tier
     const tier = await ProductService.getMembershipTier(params.id);
     
     if (!tier) {
       notFound();
+    }
+
+    // Fetch the form template if it exists
+    let formTemplate: FormTemplate | null = null;
+    if (tier.membership_tier.form_template_id) {
+      const { data: template, error } = await getFormTemplateById(tier.membership_tier.form_template_id);
+      if (!error && template) {
+        formTemplate = template;
+      }
+    }
+
+    // Fetch all roles for the group
+    let roles: GroupRole[] = [];
+    const roleData = await getRolesAction(tier.group_id);
+    if (roleData) {
+      roles = roleData;
     }
 
     // Ensure we only pass serializable data to the client component
@@ -55,6 +77,8 @@ export default async function EditMembershipTierPage({ params }: Props) {
         <EditMembershipTierForm 
           tier={serializedTier} 
           groupId={serializedTier.group_id}
+          initialFormTemplate={formTemplate}
+          initialRoles={roles}
         />
       </div>
     );

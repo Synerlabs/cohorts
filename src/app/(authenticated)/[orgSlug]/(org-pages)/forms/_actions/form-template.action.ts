@@ -358,7 +358,7 @@ export async function getFormTemplateById(id: string): Promise<ActionResponse> {
         }
         return { data: template };
       } catch (error) {
-        console.error('Failed to get form template by id:', error);
+        console.error('Failed to get form template by id:', id, error);
         return {
           error: error instanceof Error ? error.message : 'Failed to get form template by id',
         };
