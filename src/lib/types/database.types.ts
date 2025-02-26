@@ -1080,6 +1080,58 @@ export type Database = {
           },
         ]
       }
+      membership_tier_roles: {
+        Row: {
+          id: string;
+          tier_id: string;
+          group_role_id: string;
+          created_at: string;
+          created_by: string | null;
+          deleted_at: string | null;
+          deleted_by: string | null;
+        }
+        Insert: {
+          id?: string;
+          tier_id: string;
+          group_role_id: string;
+          created_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+        }
+        Update: {
+          id?: string;
+          tier_id?: string;
+          group_role_id?: string;
+          created_at?: string;
+          created_by?: string | null;
+          deleted_at?: string | null;
+          deleted_by?: string | null;
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_tier_roles_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["product_id"]
+          },
+          {
+            foreignKeyName: "membership_tier_roles_group_role_id_fkey"
+            columns: ["group_role_id"]
+            isOneToOne: false
+            referencedRelation: "group_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_tier_roles_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       membership_applications_view: {

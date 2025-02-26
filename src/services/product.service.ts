@@ -2,6 +2,15 @@ import { Database } from '@/lib/types/database.types';
 import { IMembershipTierProduct } from '@/lib/types/product';
 import { createClient } from '@/lib/utils/supabase/server';
 
+interface MembershipTierRole {
+  id: string;
+  group_roles: {
+    id: string;
+    role_name: string;
+    permissions: string[];
+  };
+}
+
 export class ProductService {
   static async getMembershipTier(id: string): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
@@ -16,6 +25,14 @@ export class ProductService {
           form_template_id,
           membership_tier_settings (
             member_id_format
+          ),
+          membership_tier_roles (
+            id,
+            group_roles (
+              id,
+              role_name,
+              permissions
+            )
           )
         )
       `)
@@ -37,7 +54,12 @@ export class ProductService {
       ...data,
       membership_tier: {
         ...data.membership_tiers,
-        member_id_format: data.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+        member_id_format: data.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+        roles: (data.membership_tiers?.membership_tier_roles || []).map((tr: MembershipTierRole) => ({
+          id: tr.group_roles.id,
+          role_name: tr.group_roles.role_name,
+          permissions: tr.group_roles.permissions || []
+        }))
       }
     } as IMembershipTierProduct;
   }
@@ -54,6 +76,14 @@ export class ProductService {
           duration_months,
           membership_tier_settings (
             member_id_format
+          ),
+          membership_tier_roles (
+            id,
+            group_roles (
+              id,
+              role_name,
+              permissions
+            )
           )
         )
       `)
@@ -82,7 +112,12 @@ export class ProductService {
       ...tier,
       membership_tier: {
         ...tier.membership_tiers,
-        member_id_format: tier.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+        member_id_format: tier.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+        roles: (tier.membership_tiers?.membership_tier_roles || []).map((tr: MembershipTierRole) => ({
+          id: tr.group_roles.id,
+          role_name: tr.group_roles.role_name,
+          permissions: tr.group_roles.permissions || []
+        }))
       }
     })) as IMembershipTierProduct[];
   }
@@ -96,6 +131,7 @@ export class ProductService {
     activation_type: string;
     member_id_format: string;
     form_template_id?: string | null;
+    roles?: string[];
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
@@ -153,6 +189,22 @@ export class ProductService {
         throw settingsError;
       }
 
+      // Insert role associations if provided
+      if (tier.roles && tier.roles.length > 0) {
+        const { error: rolesError } = await supabase
+          .from('membership_tier_roles')
+          .insert(
+            tier.roles.map(roleId => ({
+              tier_id: membershipTier.product_id,
+              group_role_id: roleId
+            }))
+          );
+
+        if (rolesError) {
+          throw rolesError;
+        }
+      }
+
       // Commit transaction
       await supabase.rpc('commit_transaction');
 
@@ -179,6 +231,7 @@ export class ProductService {
     activation_type?: string;
     member_id_format?: string;
     form_template_id?: string | null;
+    roles?: string[];
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     

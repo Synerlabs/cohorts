@@ -20,15 +20,19 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Database } from "@/lib/types/database.types";
 import { toast } from "@/components/ui/use-toast";
 import { FormTemplateSelectionDialog } from './form-template-selection-dialog';
-import { FileText, PlusCircle } from "lucide-react";
+import { FileText, PlusCircle, Check, Shield } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { getFormTemplateById } from "../../forms/_actions/form-template.action";
 import { createMembershipTierAction, updateMembershipTierAction } from "../_actions/membership.action";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { RoleSelectionDialog } from './role-selection-dialog';
+import { getRolesAction } from '../_actions/roles.action';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
+type GroupRole = Database['public']['Tables']['group_roles']['Row'];
 
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -44,7 +48,8 @@ const formSchema = z.object({
       (val) => val.includes('{SEQ:') || val.includes('{YYYY}') || val.includes('{YY}') || val.includes('{MM}') || val.includes('{DD}'),
       "Format must include at least one token: {SEQ:n}, {YYYY}, {YY}, {MM}, or {DD}"
     ),
-  form_template_id: z.string().optional().nullable()
+  form_template_id: z.string().optional().nullable(),
+  roles: z.array(z.string()).default([])
 });
 
 interface MembershipFormProps {
@@ -147,7 +152,29 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
   const [showFormTemplateDialog, setShowFormTemplateDialog] = useState(false);
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(false);
-  
+  const [roles, setRoles] = useState<Array<{
+    id: string;
+    role_name: string;
+    permissions: string[];
+  }>>([]);
+  const [isLoadingRoles, setIsLoadingRoles] = useState(false);
+  const [showRoleDialog, setShowRoleDialog] = useState(false);
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: tier?.name || '',
+      description: tier?.description || '',
+      price: tier ? tier.price / 100 : 0,
+      currency: tier?.currency || "USD",
+      duration_months: tier?.membership_tier?.duration_months || 1,
+      ...getStepConfiguration(tier?.membership_tier?.activation_type as MembershipActivationType || MembershipActivationType.AUTOMATIC),
+      member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+      form_template_id: tier?.membership_tier?.form_template_id || null,
+      roles: []
+    },
+  });
+
   // Add useEffect to load form template when component mounts
   useEffect(() => {
     const loadFormTemplate = async () => {
@@ -184,19 +211,85 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
     loadFormTemplate();
   }, []);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: tier?.name || '',
-      description: tier?.description || '',
-      price: tier ? tier.price / 100 : 0,
-      currency: tier?.currency || "USD",
-      duration_months: tier?.membership_tier?.duration_months || 1,
-      ...getStepConfiguration(tier?.membership_tier?.activation_type as MembershipActivationType || MembershipActivationType.AUTOMATIC),
-      member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
-      form_template_id: tier?.membership_tier?.form_template_id || null
-    },
-  });
+  // Update useEffect to load roles when component mounts
+  useEffect(() => {
+    const loadRoles = async () => {
+      console.log('Loading roles for group:', groupId);
+      setIsLoadingRoles(true);
+      try {
+        const roleData = await getRolesAction(groupId);
+        console.log('Roles loaded:', roleData);
+        
+        const mappedRoles = roleData.map(role => ({
+          id: role.id,
+          role_name: role.role_name || '',
+          permissions: role.permissions || []
+        }));
+        console.log('Mapped roles:', mappedRoles);
+        setRoles(mappedRoles);
+      } catch (error) {
+        console.error('Error loading roles:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load group roles',
+          variant: 'destructive',
+        });
+      } finally {
+        setIsLoadingRoles(false);
+      }
+    };
+
+    if (groupId) {
+      loadRoles();
+    } else {
+      console.warn('No groupId provided for loading roles');
+    }
+  }, [groupId]);
+
+  // Update tier roles loading as well
+  useEffect(() => {
+    const loadTierRoles = async () => {
+      if (!tier?.id) return;
+
+      try {
+        const supabase = await createClientComponentClient<Database>();
+        const { data: tierRoles, error } = await supabase
+          .from('membership_tier_roles')
+          .select(`
+            id,
+            group_role_id,
+            group_roles (
+              id,
+              role_name,
+              permissions
+            )
+          `)
+          .eq('tier_id', tier.id)
+          .is('deleted_at', null)
+          .is('group_roles.is_super_admin', false);
+
+        console.log('Tier roles query result:', { tierRoles, error });
+
+        if (error) throw error;
+        if (tierRoles) {
+          const roleIds = tierRoles
+            .filter(tr => tr.group_roles) // Filter out any null roles
+            .map(tr => tr.group_role_id);
+          console.log('Setting tier roles:', roleIds);
+          form.setValue('roles', roleIds);
+        }
+      } catch (error) {
+        console.error('Error loading tier roles:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load tier roles',
+          variant: 'destructive',
+        });
+      }
+    };
+
+    loadTierRoles();
+  }, [tier?.id, form]);
 
   // Watch form values
   const price = form.watch("price");
@@ -240,6 +333,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
       }));
       formData.append("member_id_format", values.member_id_format);
       formData.append("form_template_id", values.form_template_id || "");
+      formData.append("roles", JSON.stringify(values.roles));
 
       action(formData);
     });
@@ -520,6 +614,85 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
             )}
           />
         )}
+
+        <FormField
+          control={form.control}
+          name="roles"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Member Roles</FormLabel>
+              <div className="space-y-3">
+                <div className="flex gap-2 items-start">
+                  <Button
+                    type="button"
+                    variant={field.value.length > 0 ? "outline" : "default"}
+                    className="w-full text-left justify-start font-normal"
+                    onClick={() => setShowRoleDialog(true)}
+                  >
+                    {field.value.length > 0 ? (
+                      <span className="flex items-center gap-2">
+                        <Shield className="h-4 w-4" />
+                        Change role selection
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <PlusCircle className="h-4 w-4" />
+                        Select member roles
+                      </span>
+                    )}
+                  </Button>
+                </div>
+                {field.value.length > 0 ? (
+                  <Card className="p-3 border-dashed">
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 bg-muted rounded-md">
+                        <Shield className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">
+                            {isLoadingRoles ? (
+                              "Loading..."
+                            ) : (
+                              `${field.value.length} role${field.value.length === 1 ? '' : 's'} selected`
+                            )}
+                          </p>
+                          <Badge variant="secondary" className="shrink-0">Selected</Badge>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {roles
+                            .filter(role => field.value.includes(role.id))
+                            .map(role => (
+                              <Badge key={role.id} variant="outline">
+                                {role.role_name}
+                              </Badge>
+                            ))}
+                        </div>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <div className="rounded-lg border-2 border-dashed p-4">
+                    <p className="text-sm text-muted-foreground text-center">
+                      Select the roles that will be assigned to members in this tier
+                    </p>
+                  </div>
+                )}
+                <FormMessage />
+              </div>
+            </FormItem>
+          )}
+        />
+
+        <RoleSelectionDialog
+          open={showRoleDialog}
+          onOpenChange={setShowRoleDialog}
+          onSelect={(roleIds) => {
+            form.setValue('roles', roleIds);
+          }}
+          groupId={groupId}
+          selectedRoleIds={form.getValues('roles')}
+        />
 
         <FormTemplateSelectionDialog
           open={showFormTemplateDialog}

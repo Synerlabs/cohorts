@@ -28,7 +28,8 @@ const membershipTierSchema = z.object({
     'form_then_payment_then_review'
   ]).default('automatic'),
   member_id_format: z.string().min(1, "Member ID format is required").default('MEM-{YYYY}-{SEQ:3}'),
-  form_template_id: z.string().optional().nullable()
+  form_template_id: z.string().optional().nullable(),
+  roles: z.array(z.string()).default([])
 });
 
 const membershipTierUpdateSchema = membershipTierSchema
@@ -168,50 +169,63 @@ function validateActivationType(price: number, activationType: string, formTempl
   return null;
 }
 
+interface ActionContext {
+  groupId: string;
+  permission: string;
+  moduleType: string;
+  moduleId?: string;
+  requiredPermissions?: string[];
+}
+
+interface ActionResult<T = unknown> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
 export async function createMembershipTierAction(
   prevState: PrevState,
   formData: FormData,
 ) {
   const handler = await withPermissions(
-    async (context: { userId: string; groupId: string }, params: { formData: FormData }) => {
-      const rawFormData = Object.fromEntries(params.formData.entries());
-      const formDataObj = {
-        ...rawFormData,
-        price: Number(params.formData.get("price")),
-        duration_months: Number(params.formData.get("duration_months")),
-        activation_type: params.formData.get("activation_type") || 'automatic',
-        currency: params.formData.get("currency") || "USD",
-        member_id_format: params.formData.get("member_id_format") || 'MEM-{YYYY}-{SEQ:3}',
-        form_template_id: params.formData.get("form_template_id") || null,
-        group_id: context.groupId
-      };
-
-      // Validate activation type based on price and form template
-      const validationError = validateActivationType(
-        formDataObj.price, 
-        formDataObj.activation_type as string,
-        formDataObj.form_template_id as string | null
-      );
-
-      if (validationError) {
-        return {
-          error: validationError,
-          success: false,
-        };
-      }
-
-      const parsedFormData = membershipTierSchema.safeParse(formDataObj);
-
-      if (!parsedFormData.success) {
-        return {
-          error: parsedFormData.error.errors[0].message,
-          success: false,
-        };
-      }
-
+    async (context: { userId: string; groupId: string }, params: unknown): Promise<ActionResult<unknown>> => {
       try {
+        const formDataObj = Object.fromEntries(formData.entries());
+        const price = parseInt(formDataObj.price as string);
+        const duration_months = parseInt(formDataObj.duration_months as string);
+        const roles = JSON.parse(formDataObj.roles as string);
+
+        const parsedFormData = membershipTierSchema.safeParse({
+          ...formDataObj,
+          price,
+          duration_months,
+          roles
+        });
+
+        if (!parsedFormData.success) {
+          return {
+            success: false,
+            error: "Invalid form data",
+            data: { issues: parsedFormData.error.issues }
+          };
+        }
+
+        // Validate activation type based on price and form template
+        const activationTypeError = validateActivationType(
+          parsedFormData.data.price,
+          parsedFormData.data.activation_type,
+          parsedFormData.data.form_template_id || null
+        );
+
+        if (activationTypeError) {
+          return {
+            success: false,
+            error: activationTypeError
+          };
+        }
+
         const product = await ProductService.createMembershipTier(
-          context.groupId,
+          parsedFormData.data.group_id,
           {
             name: parsedFormData.data.name,
             description: parsedFormData.data.description || null,
@@ -220,29 +234,36 @@ export async function createMembershipTierAction(
             duration_months: parsedFormData.data.duration_months,
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
-            form_template_id: parsedFormData.data.form_template_id
+            form_template_id: parsedFormData.data.form_template_id,
+            roles: parsedFormData.data.roles
           }
         );
 
-        revalidatePath(`/@${parsedFormData.data.group_id}/membership`);
+        revalidatePath(`/[orgSlug]/membership`, "page");
+
         return {
           success: true,
           data: product,
+          error: undefined
         };
       } catch (error: any) {
+        console.error("Error creating membership tier:", error);
+
         return {
-          error: error.message || "Failed to create membership tier",
           success: false,
+          error: error.message || "Failed to create membership tier"
         };
       }
     },
-    (params: { formData: FormData }) => ({
-      groupId: params.formData.get('group_id') as string,
-      requiredPermissions: permissions.memberships.create
+    () => ({
+      groupId: formData.get("group_id") as string,
+      permission: permissions.group.edit,
+      moduleType: 'membership_tier' as const,
+      requiredPermissions: [permissions.group.edit]
     })
   );
 
-  return handler(prevState, { formData });
+  return handler(null, {});
 }
 
 export async function updateMembershipTierAction(
@@ -250,42 +271,42 @@ export async function updateMembershipTierAction(
   formData: FormData,
 ) {
   const handler = await withPermissions(
-    async (context: { userId: string; groupId: string }, params: { formData: FormData }) => {
-      const rawFormData = Object.fromEntries(params.formData.entries());
-      const formDataObj = {
-        ...rawFormData,
-        price: Number(rawFormData.price),
-        duration_months: Number(rawFormData.duration_months),
-        activation_type: rawFormData.activation_type || 'automatic',
-        currency: rawFormData.currency || "USD",
-        member_id_format: rawFormData.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
-        form_template_id: rawFormData.form_template_id || null
-      };
-
-      // Validate activation type based on price and form template
-      const validationError = validateActivationType(
-        formDataObj.price, 
-        formDataObj.activation_type as string,
-        formDataObj.form_template_id as string | null
-      );
-
-      if (validationError) {
-        return {
-          error: validationError,
-          success: false,
-        };
-      }
-
-      const parsedFormData = membershipTierUpdateSchema.safeParse(formDataObj);
-
-      if (!parsedFormData.success) {
-        return {
-          error: parsedFormData.error.errors[0].message,
-          success: false,
-        };
-      }
-
+    async (context: { userId: string; groupId: string }, params: unknown): Promise<ActionResult<unknown>> => {
       try {
+        const formDataObj = Object.fromEntries(formData.entries());
+        const price = parseInt(formDataObj.price as string);
+        const duration_months = parseInt(formDataObj.duration_months as string);
+        const roles = JSON.parse(formDataObj.roles as string);
+
+        const parsedFormData = membershipTierUpdateSchema.safeParse({
+          ...formDataObj,
+          price,
+          duration_months,
+          roles
+        });
+
+        if (!parsedFormData.success) {
+          return {
+            success: false,
+            error: "Invalid form data",
+            data: { issues: parsedFormData.error.issues }
+          };
+        }
+
+        // Validate activation type based on price and form template
+        const activationTypeError = validateActivationType(
+          parsedFormData.data.price,
+          parsedFormData.data.activation_type,
+          parsedFormData.data.form_template_id || null
+        );
+
+        if (activationTypeError) {
+          return {
+            success: false,
+            error: activationTypeError
+          };
+        }
+
         const product = await ProductService.updateMembershipTier(
           parsedFormData.data.id,
           {
@@ -296,31 +317,36 @@ export async function updateMembershipTierAction(
             duration_months: parsedFormData.data.duration_months,
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
-            form_template_id: parsedFormData.data.form_template_id
+            form_template_id: parsedFormData.data.form_template_id,
+            roles: parsedFormData.data.roles
           }
         );
 
-        revalidatePath(`/@${context.groupId}/membership`);
+        revalidatePath(`/[orgSlug]/membership`, "page");
+
         return {
           success: true,
           data: product,
+          error: undefined
         };
       } catch (error: any) {
-        console.error(error);
+        console.error("Error updating membership tier:", error);
+
         return {
-          error: error.message || "An error occurred while updating the membership tier",
           success: false,
+          error: error.message || "An error occurred while updating the membership tier"
         };
       }
     },
-    (params: { formData: FormData }) => ({
-      moduleId: params.formData.get('id') as string,
+    () => ({
+      groupId: formData.get("group_id") as string,
+      permission: permissions.group.edit,
       moduleType: 'membership_tier' as const,
-      requiredPermissions: permissions.memberships.edit
+      requiredPermissions: [permissions.group.edit]
     })
   );
 
-  return handler(prevState, { formData });
+  return handler(null, {});
 }
 
 export async function deleteMembershipTierAction(

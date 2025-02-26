@@ -23,6 +23,11 @@ export interface MembershipTierRow {
   activation_type: MembershipActivationType;
   member_id_format?: string;
   form_template_id?: string | null;
+  roles?: {
+    id: string;
+    role_name: string;
+    permissions: string[];
+  }[];
 }
 
 export interface IMembershipTierProduct extends IProduct {
