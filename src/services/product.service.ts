@@ -235,7 +235,7 @@ export class ProductService {
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
-    const { name, description, price, currency, duration_months, activation_type, member_id_format, form_template_id } = tier;
+    const { name, description, price, currency, duration_months, activation_type, member_id_format, form_template_id, roles } = tier;
 
     // Start a transaction
     await supabase.rpc('begin_transaction');
@@ -276,6 +276,39 @@ export class ProductService {
         throw membershipError;
       }
 
+      // Update roles if provided
+      if (roles !== undefined) {
+        // First, soft delete all existing roles for this tier
+        const { error: deleteRolesError } = await supabase
+          .from('membership_tier_roles')
+          .update({
+            deleted_at: new Date().toISOString(),
+            deleted_by: 'system'
+          })
+          .eq('tier_id', id)
+          .is('deleted_at', null);
+
+        if (deleteRolesError) {
+          throw deleteRolesError;
+        }
+
+        // Then insert new roles if any are provided
+        if (roles && roles.length > 0) {
+          const { error: insertRolesError } = await supabase
+            .from('membership_tier_roles')
+            .insert(
+              roles.map(roleId => ({
+                tier_id: id,
+                group_role_id: roleId
+              }))
+            );
+
+          if (insertRolesError) {
+            throw insertRolesError;
+          }
+        }
+      }
+
       if (member_id_format) {
         const { data: tierSettings, error: settingsError } = await supabase
           .from('membership_tier_settings')
@@ -297,7 +330,8 @@ export class ProductService {
           ...product,
           membership_tier: {
             ...membershipTier,
-            member_id_format: tierSettings.member_id_format
+            member_id_format: tierSettings.member_id_format,
+            roles: roles ? roles.map(roleId => ({ id: roleId })) : undefined
           }
         } as IMembershipTierProduct;
       }
@@ -307,7 +341,10 @@ export class ProductService {
 
       return {
         ...product,
-        membership_tier: membershipTier
+        membership_tier: {
+          ...membershipTier,
+          roles: roles ? roles.map(roleId => ({ id: roleId })) : undefined
+        }
       } as IMembershipTierProduct;
     } catch (error) {
       // Rollback on error
