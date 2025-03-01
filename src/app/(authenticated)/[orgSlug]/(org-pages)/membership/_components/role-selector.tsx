@@ -6,6 +6,7 @@ import { Shield, X, Save, PlusCircle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { RoleSelectionDialog } from './role-selection-dialog';
 import { cn } from "@/lib/utils";
+import { GroupRole } from '../_actions/roles.action';
 
 interface Role {
   id: string;
@@ -37,20 +38,10 @@ export function RoleSelector({
   
   // Track roles in local state
   const [localSelectedRoles, setLocalSelectedRoles] = useState<Role[]>(initialSelectedRoles);
-  // Track all available roles
-  const [availableRoles, setAvailableRoles] = useState<Role[]>(initialSelectedRoles);
 
-  // Update available roles when initialSelectedRoles changes
+  // Update local state when initialSelectedRoles changes
   useEffect(() => {
-    setAvailableRoles(prev => {
-      const newRoles = [...prev];
-      initialSelectedRoles.forEach(role => {
-        if (!prev.some(r => r.id === role.id)) {
-          newRoles.push(role);
-        }
-      });
-      return newRoles;
-    });
+    setLocalSelectedRoles(initialSelectedRoles);
   }, [initialSelectedRoles]);
 
   const handleRemoveRole = (roleId: string) => {
@@ -81,7 +72,6 @@ export function RoleSelector({
       // Only update parent state when saving
       await onRolesSelect(localSelectedRoles.map(role => role.id));
       setRemovingRoleId(null);
-      // Parent component will handle exiting edit mode
     } catch (error) {
       console.error('Error saving roles:', error);
       // Keep edit mode active if save fails
@@ -235,20 +225,29 @@ export function RoleSelector({
             setRemovingRoleId(null);
           }
         }}
-        onSelect={(roleIds) => {
-          // Keep only the roles that are selected
-          const selectedRoles = availableRoles.filter(role => roleIds.includes(role.id));
-          
-          // If we don't have all the roles in our available roles, we need to wait for them
-          // to be loaded by the dialog
-          if (selectedRoles.length < roleIds.length) {
-            // We'll get the roles from the parent component when they're ready
-            setLocalSelectedRoles(initialSelectedRoles.filter(role => roleIds.includes(role.id)));
-          } else {
-            setLocalSelectedRoles(selectedRoles);
+        onSelect={(roleIds, selectedRoles) => {
+          // Transform and filter out any roles with missing required fields
+          if (selectedRoles) {
+            const validRoles = selectedRoles
+              .filter((role): role is (GroupRole & { role_name: string }) => 
+                typeof role.id === 'string' && 
+                typeof role.role_name === 'string' && 
+                role.role_name !== null &&
+                Array.isArray(role.permissions)
+              )
+              .map(role => ({
+                id: role.id,
+                role_name: role.role_name,
+                permissions: role.permissions || []
+              }));
+            setLocalSelectedRoles(validRoles);
           }
           setRemovingRoleId(null);
           setShowRoleDialog(false);
+          // Enter edit mode if not already editing
+          if (!isEditing) {
+            onEdit();
+          }
         }}
         groupId={groupId}
         selectedRoleIds={localSelectedRoles.map(role => role.id)}

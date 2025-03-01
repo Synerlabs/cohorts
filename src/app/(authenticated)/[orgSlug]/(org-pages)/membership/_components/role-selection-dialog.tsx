@@ -21,7 +21,7 @@ import { getRolesAction, GroupRole } from '../_actions/roles.action';
 interface RoleSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelect: (roleIds: string[]) => void;
+  onSelect: (roleIds: string[], selectedRoles?: GroupRole[]) => void;
   groupId: string;
   selectedRoleIds?: string[];
 }
@@ -128,7 +128,9 @@ export function RoleSelectionDialog({
       });
     }
 
-    onSelect(validRoleIds);
+    // Pass both the role IDs and the full role objects
+    const selectedRoleObjects = roles.filter(role => validRoleIds.includes(role.id));
+    onSelect(validRoleIds, selectedRoleObjects);
     onOpenChange(false);
   };
 
