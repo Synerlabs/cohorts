@@ -181,133 +181,139 @@ export function EditMembershipTierForm({
   };
 
   return (
-    <div className="max-w-full overflow-x-hidden space-y-8">
-      <Header 
-        name={formData.name}
-        description={formData.description}
-        isActive={formData.is_active}
-        isEditing={editingSections.basicInfo}
-        isPending={pending}
-        onEdit={() => setEditingSections(prev => ({
-          ...prev,
-          basicInfo: !prev.basicInfo
-        }))}
-        onCancel={() => setEditingSections(prev => ({ ...prev, basicInfo: false }))}
-        onSave={async (values) => {
-          await handleUpdate(values);
-        }}
-        onStatusChange={async (active) => {
-          await handleUpdate({ is_active: active });
-        }}
-      />
+    <div className="max-w-full">
+      <div className="sticky top-0 z-50 bg-background pb-6 border-b">
+        <Header 
+          name={formData.name}
+          description={formData.description}
+          isActive={formData.is_active}
+          isEditing={editingSections.basicInfo}
+          isPending={pending}
+          onEdit={() => setEditingSections(prev => ({
+            ...prev,
+            basicInfo: !prev.basicInfo
+          }))}
+          onCancel={() => setEditingSections(prev => ({ ...prev, basicInfo: false }))}
+          onSave={async (values) => {
+            await handleUpdate(values);
+          }}
+          onStatusChange={async (active) => {
+            await handleUpdate({ is_active: active });
+          }}
+        />
+      </div>
 
-      <div className="grid grid-cols-3 gap-8">
-        {/* Main Content - Col 1-2 */}
-        <div className="col-span-2 space-y-6 relative">
-          <TierSummary
-            stats={stats}
-            requiresForm={formData.requires_form}
-            requiresReview={formData.requires_review}
-            price={formData.price}
-          />
+      <div className="h-[calc(100vh-8rem)] overflow-y-auto">
+        <div className="container py-6">
+          <div className="grid grid-cols-3 gap-8">
+            {/* Main Content - Col 1-2 */}
+            <div className="col-span-2 space-y-6">
+              <TierSummary
+                stats={stats}
+                requiresForm={formData.requires_form}
+                requiresReview={formData.requires_review}
+                price={formData.price}
+              />
 
-          <ActivationProcess
-            requiresForm={formData.requires_form}
-            requiresReview={formData.requires_review}
-            reviewBeforePayment={formData.review_before_payment}
-            price={formData.price}
-            selectedTemplate={selectedTemplate}
-            onSave={async (values) => {
-              if (!formTemplates.some(t => t.id === values.form_template_id)) {
-                // Add template to local state if it's new
-                const template = formTemplates.find(t => t.id === values.form_template_id);
-                if (template) {
-                  setFormTemplates(prev => [...prev, template]);
-                }
-              }
-              await handleUpdate({
-                requires_form: values.requires_form,
-                requires_review: values.requires_review,
-                review_before_payment: values.review_before_payment,
-                form_template_id: values.form_template_id
-              });
-            }}
-            isPending={pending}
-            orgId={groupId}
-          />
+              <ActivationProcess
+                requiresForm={formData.requires_form}
+                requiresReview={formData.requires_review}
+                reviewBeforePayment={formData.review_before_payment}
+                price={formData.price}
+                selectedTemplate={selectedTemplate}
+                onSave={async (values) => {
+                  if (!formTemplates.some(t => t.id === values.form_template_id)) {
+                    // Add template to local state if it's new
+                    const template = formTemplates.find(t => t.id === values.form_template_id);
+                    if (template) {
+                      setFormTemplates(prev => [...prev, template]);
+                    }
+                  }
+                  await handleUpdate({
+                    requires_form: values.requires_form,
+                    requires_review: values.requires_review,
+                    review_before_payment: values.review_before_payment,
+                    form_template_id: values.form_template_id
+                  });
+                }}
+                isPending={pending}
+                orgId={groupId}
+              />
 
-          <MemberIdFormat
-            isEditing={editingSections.memberId}
-            defaultValue={formData.member_id_format}
-            onEdit={() => setEditingSections(prev => {
-              const newState = Object.keys(prev).reduce((acc, key) => ({
-                ...acc,
-                [key]: false
-              }), prev);
-              return { ...newState, memberId: !prev.memberId };
-            })}
-            onCancel={() => setEditingSections(prev => ({ ...prev, memberId: false }))}
-            onSave={async (value) => {
-              await handleUpdate({ member_id_format: value });
-              setEditingSections(prev => ({ ...prev, memberId: false }));
-            }}
-            isPending={pending}
-          />
+              <MemberIdFormat
+                isEditing={editingSections.memberId}
+                defaultValue={formData.member_id_format}
+                onEdit={() => setEditingSections(prev => {
+                  const newState = Object.keys(prev).reduce((acc, key) => ({
+                    ...acc,
+                    [key]: false
+                  }), prev);
+                  return { ...newState, memberId: !prev.memberId };
+                })}
+                onCancel={() => setEditingSections(prev => ({ ...prev, memberId: false }))}
+                onSave={async (value) => {
+                  await handleUpdate({ member_id_format: value });
+                  setEditingSections(prev => ({ ...prev, memberId: false }));
+                }}
+                isPending={pending}
+              />
 
-          <RoleSelector
-            isEditing={editingSections.roles}
-            selectedRoles={roles.filter(role => formData.roles.includes(role.id))}
-            onEdit={() => setEditingSections(prev => {
-              const newState = Object.keys(prev).reduce((acc, key) => ({
-                ...acc,
-                [key]: false
-              }), prev);
-              return { ...newState, roles: !prev.roles };
-            })}
-            onRemoveRole={async (roleId) => {
-              await handleUpdate({
-                roles: formData.roles.filter(id => id !== roleId)
-              });
-            }}
-            onRolesSelect={async (roleIds) => {
-              await handleUpdate({ roles: roleIds });
-              setEditingSections(prev => ({ ...prev, roles: false }));
-            }}
-            isPending={pending}
-            groupId={groupId}
-          />
-        </div>
+              <RoleSelector
+                isEditing={editingSections.roles}
+                selectedRoles={roles.filter(role => formData.roles.includes(role.id))}
+                onEdit={() => setEditingSections(prev => {
+                  const newState = Object.keys(prev).reduce((acc, key) => ({
+                    ...acc,
+                    [key]: false
+                  }), prev);
+                  return { ...newState, roles: !prev.roles };
+                })}
+                onRemoveRole={async (roleId) => {
+                  await handleUpdate({
+                    roles: formData.roles.filter(id => id !== roleId)
+                  });
+                }}
+                onRolesSelect={async (roleIds) => {
+                  await handleUpdate({ roles: roleIds });
+                  setEditingSections(prev => ({ ...prev, roles: false }));
+                }}
+                isPending={pending}
+                groupId={groupId}
+              />
+            </div>
 
-        {/* Sidebar - Col 3 */}
-        <div className="space-y-6">
-          <PricingDuration
-            isEditing={editingSections.pricing}
-            defaultValues={{
-              price: formData.price,
-              currency: formData.currency,
-              duration_months: formData.duration_months
-            }}
-            onEdit={() => setEditingSections(prev => {
-              const newState = Object.keys(prev).reduce((acc, key) => ({
-                ...acc,
-                [key]: false
-              }), prev);
-              return { ...newState, pricing: !prev.pricing };
-            })}
-            onCancel={() => setEditingSections(prev => ({ ...prev, pricing: false }))}
-            onSave={async (values) => {
-              await handleUpdate(values);
-              setEditingSections(prev => ({ ...prev, pricing: false }));
-            }}
-            isPending={pending}
-          />
+            {/* Sidebar - Col 3 */}
+            <div className="space-y-6">
+              <PricingDuration
+                isEditing={editingSections.pricing}
+                defaultValues={{
+                  price: formData.price,
+                  currency: formData.currency,
+                  duration_months: formData.duration_months
+                }}
+                onEdit={() => setEditingSections(prev => {
+                  const newState = Object.keys(prev).reduce((acc, key) => ({
+                    ...acc,
+                    [key]: false
+                  }), prev);
+                  return { ...newState, pricing: !prev.pricing };
+                })}
+                onCancel={() => setEditingSections(prev => ({ ...prev, pricing: false }))}
+                onSave={async (values) => {
+                  await handleUpdate(values);
+                  setEditingSections(prev => ({ ...prev, pricing: false }));
+                }}
+                isPending={pending}
+              />
 
-          <ActivationFlow
-            requiresForm={formData.requires_form}
-            requiresReview={formData.requires_review}
-            reviewBeforePayment={formData.review_before_payment}
-            price={formData.price}
-          />
+              <ActivationFlow
+                requiresForm={formData.requires_form}
+                requiresReview={formData.requires_review}
+                reviewBeforePayment={formData.review_before_payment}
+                price={formData.price}
+              />
+            </div>
+          </div>
         </div>
       </div>
     </div>
