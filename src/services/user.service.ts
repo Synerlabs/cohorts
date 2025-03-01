@@ -27,6 +27,12 @@ export async function getUsers() {
   }
 }
 
+/**
+ * Get user's directly assigned roles for a specific group or all groups.
+ * Note: This function only returns directly assigned roles, not roles from memberships.
+ * For membership roles, use the membership_roles_view or check the user's permissions
+ * through checkUserAccess which combines both direct roles and membership roles.
+ */
 export async function getUserRoles({
   id,
   groupId,

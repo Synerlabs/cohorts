@@ -24,7 +24,9 @@ SELECT DISTINCT
     gr.group_id,
     m.id as membership_id,
     m.status as membership_status,
-    p.name as tier_name
+    p.name as tier_name,
+    m.start_date,
+    m.end_date
 FROM "public"."group_users" gu
 JOIN "public"."memberships" m ON m.group_user_id = gu.id
 JOIN "public"."membership_tiers" mt ON mt.product_id = m.tier_id
@@ -33,4 +35,6 @@ JOIN "public"."membership_tier_roles" mtr ON mtr.tier_id = mt.product_id
 JOIN "public"."group_roles" gr ON gr.id = mtr.group_role_id
 WHERE m.status = 'active'
 AND gu.is_active = true
-AND mtr.deleted_at IS NULL; 
+AND mtr.deleted_at IS NULL
+AND m.start_date <= CURRENT_TIMESTAMP
+AND (m.end_date IS NULL OR m.end_date > CURRENT_TIMESTAMP); 

@@ -1,9 +1,23 @@
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 import { getUserRoles } from "@/services/user.service";
 import { Database } from "@/lib/types/database.types";
+import { createClient } from "@/lib/utils/supabase/server";
 
 type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
 type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
+
+type MembershipRoleView = {
+  user_id: string;
+  role_id: string;
+  role_name: string;
+  permissions: string[];
+  group_id: string;
+  membership_id: string;
+  membership_status: string;
+  tier_name: string;
+  start_date: string;
+  end_date: string | null;
+};
 
 type PermissionRequirement = string | string[] | string[][] | { 
   any?: string[][],     // OR conditions
@@ -38,8 +52,22 @@ export async function checkUserAccess({
   requiredPermissions?: PermissionRequirement;
   allowGuest?: boolean;
 }): Promise<PermissionCheckResult> {
+  const supabase = await createClient();
+
   // Get user roles for this organization
   const userRoles = await getUserRoles({ id: userId, groupId });
+
+  // Get roles from active memberships
+  const { data: membershipRoles, error: membershipError } = await supabase
+    .from('membership_roles_view')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('group_id', groupId)
+    .eq('membership_status', 'active');
+
+  if (membershipError) {
+    console.error('Error fetching membership roles:', membershipError);
+  }
 
   // Filter roles to only include those belonging to the current org
   const orgRoles = userRoles?.filter(role => 
@@ -49,20 +77,26 @@ export async function checkUserAccess({
   // Check if user is a guest (no active roles)
   const isGuest = !orgRoles?.find((role) => role.is_active);
 
-  // Get permissions from roles
-  const userPermissions = orgRoles?.reduce((acc: string[], role) => {
-    // If the role is active and is a super admin for this org, they get all org-scoped permissions
-    if (role.is_active && role.group_roles?.is_super_admin) {
-      // Here we could add all possible org-scoped permissions
-      // For now, we'll handle this in the permission check below
+  // Get permissions from roles and membership roles
+  const userPermissions = [
+    // Get permissions from direct roles
+    ...(orgRoles?.reduce((acc: string[], role) => {
+      if (role.is_active && role.group_roles?.is_super_admin) {
+        return acc;
+      }
+      if (role.is_active && role.group_roles?.permissions) {
+        return [...acc, ...role.group_roles.permissions];
+      }
       return acc;
-    }
-    // Otherwise, add their explicit permissions
-    if (role.is_active && role.group_roles?.permissions) {
-      return [...acc, ...role.group_roles.permissions];
-    }
-    return acc;
-  }, []) || [];
+    }, []) || []),
+    // Get permissions from membership roles
+    ...(membershipRoles?.reduce((acc: string[], role: MembershipRoleView) => {
+      if (role.permissions) {
+        return [...acc, ...role.permissions];
+      }
+      return acc;
+    }, []) || [])
+  ];
 
   // Check if user has an active super admin role for this org
   const hasSuperAdminRole = orgRoles?.some(role => 
