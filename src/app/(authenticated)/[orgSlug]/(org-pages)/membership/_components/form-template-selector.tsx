@@ -8,7 +8,7 @@ import { FormTemplate } from "./types";
 
 interface FormTemplateSelectorProps {
   selectedTemplate: FormTemplate | null;
-  onSelectClick: () => void;
+  onSelectClick?: () => void;
 }
 
 export function FormTemplateSelector({
@@ -29,7 +29,7 @@ export function FormTemplateSelector({
               Configure the form that members need to complete
             </p>
           </div>
-          {!selectedTemplate && (
+          {!selectedTemplate && onSelectClick && (
             <Button 
               variant="default"
               size="sm"
@@ -126,14 +126,16 @@ export function FormTemplateSelector({
                   Edit Template
                 </Button>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onSelectClick}
-                className="h-8"
-              >
-                Change Template
-              </Button>
+              {onSelectClick && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onSelectClick}
+                  className="h-8"
+                >
+                  Change Template
+                </Button>
+              )}
             </div>
           </div>
         ) : (
@@ -146,15 +148,17 @@ export function FormTemplateSelector({
               <p className="text-sm text-muted-foreground max-w-[280px] mx-auto mb-4">
                 Select a form template that members will need to complete during the registration process
               </p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onSelectClick}
-                className="gap-2"
-              >
-                <PlusCircle className="h-4 w-4" />
-                Select Template
-              </Button>
+              {onSelectClick && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onSelectClick}
+                  className="gap-2"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Select Template
+                </Button>
+              )}
             </div>
           </div>
         )}

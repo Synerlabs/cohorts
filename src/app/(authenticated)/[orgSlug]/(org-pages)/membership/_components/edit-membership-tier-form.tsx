@@ -203,7 +203,7 @@ export function EditMembershipTierForm({
 
       <div className="grid grid-cols-3 gap-8">
         {/* Main Content - Col 1-2 */}
-        <div className="col-span-2 space-y-6">
+        <div className="col-span-2 space-y-6 relative">
           <TierSummary
             stats={stats}
             requiresForm={formData.requires_form}
@@ -217,21 +217,22 @@ export function EditMembershipTierForm({
             reviewBeforePayment={formData.review_before_payment}
             price={formData.price}
             selectedTemplate={selectedTemplate}
-            onFormChange={async (value) => {
-              await handleUpdate({ requires_form: value });
-            }}
-            onReviewChange={async (value) => {
-              await handleUpdate({ requires_review: value });
-            }}
-            onReviewBeforePaymentChange={async (value) => {
-              await handleUpdate({ review_before_payment: value });
-            }}
-            onTemplateSelect={async (template) => {
-              if (!formTemplates.some(t => t.id === template.id)) {
-                setFormTemplates(prev => [...prev, template]);
+            onSave={async (values) => {
+              if (!formTemplates.some(t => t.id === values.form_template_id)) {
+                // Add template to local state if it's new
+                const template = formTemplates.find(t => t.id === values.form_template_id);
+                if (template) {
+                  setFormTemplates(prev => [...prev, template]);
+                }
               }
-              await handleUpdate({ form_template_id: template.id });
+              await handleUpdate({
+                requires_form: values.requires_form,
+                requires_review: values.requires_review,
+                review_before_payment: values.review_before_payment,
+                form_template_id: values.form_template_id
+              });
             }}
+            isPending={pending}
             orgId={groupId}
           />
 
