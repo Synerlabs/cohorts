@@ -276,13 +276,14 @@ export async function updateMembershipTierAction(
         const formDataObj = Object.fromEntries(formData.entries());
         const price = parseInt(formDataObj.price as string);
         const duration_months = parseInt(formDataObj.duration_months as string);
-        const roles = JSON.parse(formDataObj.roles as string);
+        const newRoles = JSON.parse(formDataObj.roles as string);
+        const currentRoles = JSON.parse(formDataObj.current_roles as string || '[]');
 
         const parsedFormData = membershipTierUpdateSchema.safeParse({
           ...formDataObj,
           price,
           duration_months,
-          roles
+          roles: newRoles
         });
 
         if (!parsedFormData.success) {
@@ -307,6 +308,10 @@ export async function updateMembershipTierAction(
           };
         }
 
+        // Calculate roles to add and remove
+        const rolesToAdd = newRoles.filter((roleId: string) => !currentRoles.includes(roleId));
+        const rolesToRemove = currentRoles.filter((roleId: string) => !newRoles.includes(roleId));
+
         const product = await ProductService.updateMembershipTier(
           parsedFormData.data.id,
           {
@@ -318,7 +323,8 @@ export async function updateMembershipTierAction(
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
             form_template_id: parsedFormData.data.form_template_id,
-            roles: parsedFormData.data.roles
+            rolesToAdd,
+            rolesToRemove
           }
         );
 

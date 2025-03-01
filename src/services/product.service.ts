@@ -318,11 +318,23 @@ export class ProductService {
     activation_type?: string;
     member_id_format?: string;
     form_template_id?: string | null;
-    roles?: string[];
+    rolesToAdd?: string[];
+    rolesToRemove?: string[];
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
-    const { name, description, price, currency, duration_months, activation_type, member_id_format, form_template_id, roles } = tier;
+    const { 
+      name, 
+      description, 
+      price, 
+      currency, 
+      duration_months, 
+      activation_type, 
+      member_id_format, 
+      form_template_id, 
+      rolesToAdd = [], 
+      rolesToRemove = [] 
+    } = tier;
 
     // Start a transaction
     await supabase.rpc('begin_transaction');
@@ -363,28 +375,35 @@ export class ProductService {
         throw membershipError;
       }
 
-      // Update roles if provided
-      if (roles !== undefined) {
-        // First, soft delete all existing roles for this tier
-        const { error: deleteRolesError } = await supabase
-          .from('membership_tier_roles')
-          .update({
-            deleted_at: new Date().toISOString(),
-            deleted_by: await supabase.auth.getUser().then(({ data }) => data.user?.id)
-          })
-          .eq('tier_id', id)
-          .is('deleted_at', null);
+      // Handle role changes if any are provided
+      if (rolesToRemove.length > 0 || rolesToAdd.length > 0) {
+        console.log('Role changes detected:', { rolesToAdd, rolesToRemove });
+        
+        // First, delete the roles that need to be removed
+        if (rolesToRemove.length > 0) {
+          console.log('Removing roles:', rolesToRemove);
+          
+          const { data: removedRoles, error: deleteRolesError } = await supabase
+            .from('membership_tier_roles')
+            .delete()
+            .eq('tier_id', id)
+            .in('group_role_id', rolesToRemove)
+            .select();
 
-        if (deleteRolesError) {
-          throw deleteRolesError;
+          if (deleteRolesError) {
+            console.error('Error removing roles:', deleteRolesError);
+            throw deleteRolesError;
+          }
+          
+          console.log('Removed roles result:', removedRoles);
         }
 
-        // Then upsert new roles if any are provided
-        if (roles && roles.length > 0) {
+        // Then add new roles
+        if (rolesToAdd.length > 0) {
           const { error: upsertRolesError } = await supabase
             .from('membership_tier_roles')
             .upsert(
-              roles.map(roleId => ({
+              rolesToAdd.map(roleId => ({
                 tier_id: id,
                 group_role_id: roleId,
                 deleted_at: null,
@@ -419,12 +438,19 @@ export class ProductService {
         // Commit transaction
         await supabase.rpc('commit_transaction');
 
+        // Get the current roles after all changes
+        const { data: currentRoles } = await supabase
+          .from('membership_tier_roles')
+          .select('group_role_id')
+          .eq('tier_id', id)
+          .is('deleted_at', null);
+
         return {
           ...product,
           membership_tier: {
             ...membershipTier,
             member_id_format: tierSettings.member_id_format,
-            roles: roles ? roles.map(roleId => ({ id: roleId })) : undefined
+            roles: currentRoles?.map(role => ({ id: role.group_role_id })) || []
           }
         } as IMembershipTierProduct;
       }
@@ -432,15 +458,23 @@ export class ProductService {
       // Commit transaction
       await supabase.rpc('commit_transaction');
 
+      // Get the current roles after all changes
+      const { data: currentRoles } = await supabase
+        .from('membership_tier_roles')
+        .select('group_role_id')
+        .eq('tier_id', id)
+        .is('deleted_at', null);
+
       return {
         ...product,
         membership_tier: {
           ...membershipTier,
-          roles: roles ? roles.map(roleId => ({ id: roleId })) : undefined
+          roles: currentRoles?.map(role => ({ id: role.group_role_id })) || []
         }
       } as IMembershipTierProduct;
+
     } catch (error) {
-      // Rollback on error
+      // Rollback transaction on error
       await supabase.rpc('rollback_transaction');
       throw error;
     }

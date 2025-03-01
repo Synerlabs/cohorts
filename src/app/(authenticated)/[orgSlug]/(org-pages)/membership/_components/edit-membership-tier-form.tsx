@@ -180,6 +180,11 @@ export function EditMembershipTierForm({
     formDataToSubmit.append('member_id_format', newData.member_id_format);
     formDataToSubmit.append('form_template_id', newData.form_template_id || '');
     formDataToSubmit.append('roles', JSON.stringify(newData.roles));
+    
+    // Add current roles when updating
+    if ('roles' in updates) {
+      formDataToSubmit.append('current_roles', JSON.stringify(formData.roles));
+    }
 
     await action(formDataToSubmit);
     setEditingSections({
