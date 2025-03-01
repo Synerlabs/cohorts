@@ -150,6 +150,11 @@ export function EditMembershipTierForm({
     reviewBeforePayment: formData.review_before_payment
   });
 
+  // Add state to track roles local state
+  const [rolesState, setRolesState] = useState({
+    selectedRoles: roles.filter(role => formData.roles.includes(role.id))
+  });
+
   const handleUpdate = async (updates: Partial<typeof formData>) => {
     const newData = { ...formData, ...updates };
     setFormData(newData);
@@ -299,7 +304,7 @@ export function EditMembershipTierForm({
 
             <RoleSelector
               isEditing={editingSections.roles}
-              selectedRoles={roles.filter(role => formData.roles.includes(role.id))}
+              selectedRoles={rolesState.selectedRoles}
               onEdit={() => setEditingSections(prev => {
                 const newState = Object.keys(prev).reduce((acc, key) => ({
                   ...acc,
@@ -308,11 +313,20 @@ export function EditMembershipTierForm({
                 return { ...newState, roles: !prev.roles };
               })}
               onRemoveRole={async (roleId) => {
+                // Update local state immediately
+                setRolesState(prev => ({
+                  selectedRoles: prev.selectedRoles.filter(role => role.id !== roleId)
+                }));
                 await handleUpdate({
-                  roles: formData.roles.filter(id => id !== roleId)
+                  roles: rolesState.selectedRoles.filter(role => role.id !== roleId).map(role => role.id)
                 });
               }}
               onRolesSelect={async (roleIds) => {
+                // Update local state immediately
+                const newSelectedRoles = roles.filter(role => roleIds.includes(role.id));
+                setRolesState({
+                  selectedRoles: newSelectedRoles
+                });
                 await handleUpdate({ roles: roleIds });
                 setEditingSections(prev => ({ ...prev, roles: false }));
               }}

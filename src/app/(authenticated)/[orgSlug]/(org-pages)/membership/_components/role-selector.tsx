@@ -2,9 +2,10 @@ import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Pencil, X, Save, PlusCircle } from "lucide-react";
+import { Shield, X, Save, PlusCircle } from "lucide-react";
 import { useState } from "react";
 import { RoleSelectionDialog } from './role-selection-dialog';
+import { cn } from "@/lib/utils";
 
 interface Role {
   id: string;
@@ -34,7 +35,8 @@ export function RoleSelector({
   const [showRoleDialog, setShowRoleDialog] = useState(false);
 
   return (
-    <Card className="p-6">
+    <Card className={cn("p-6 transition-shadow duration-200",
+      isEditing && "ring-2 ring-primary ring-offset-2")}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -60,35 +62,68 @@ export function RoleSelector({
               onClick={onEdit}
               className="gap-2"
             >
-              <Pencil className="h-4 w-4" />
+              <Shield className="h-4 w-4" />
               <span>Edit Roles</span>
             </Button>
           )}
         </div>
         <Separator />
 
-        <div className="flex flex-wrap gap-2">
-          {selectedRoles.map((role) => (
-            <Badge
-              key={role.id}
-              variant="secondary"
-              className="gap-2"
-            >
-              {role.role_name}
-              {isEditing && (
-                <button
-                  onClick={() => onRemoveRole(role.id)}
-                  className="ml-1 hover:text-destructive"
+        {selectedRoles.length > 0 ? (
+          <Card className="p-3 border-dashed">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-muted rounded-md">
+                <Shield className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">
+                    {`${selectedRoles.length} role${selectedRoles.length === 1 ? '' : 's'} selected`}
+                  </p>
+                  <Badge variant="secondary" className="shrink-0">Selected</Badge>
+                </div>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {selectedRoles.map(role => (
+                    <Badge key={role.id} variant="outline" className="gap-1">
+                      {role.role_name}
+                      {isEditing && (
+                        <button
+                          onClick={() => onRemoveRole(role.id)}
+                          className="ml-1 hover:text-destructive"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <div className="rounded-lg border-2 border-dashed p-8">
+            <div className="text-center">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
+                <Shield className="h-6 w-6 text-primary" />
+              </div>
+              <h4 className="font-medium mb-2">No roles assigned</h4>
+              <p className="text-sm text-muted-foreground max-w-[280px] mx-auto mb-4">
+                Select the roles that will be assigned to members in this tier
+              </p>
+              {!isEditing && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  className="gap-2"
                 >
-                  <X className="h-3 w-3" />
-                </button>
+                  <Shield className="h-4 w-4" />
+                  <span>Assign Roles</span>
+                </Button>
               )}
-            </Badge>
-          ))}
-          {selectedRoles.length === 0 && (
-            <p className="text-sm text-muted-foreground">No roles assigned</p>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
 
         {isEditing && (
           <div className="flex justify-end gap-4">
@@ -104,6 +139,7 @@ export function RoleSelector({
             <Button
               type="submit"
               disabled={isPending}
+              onClick={() => onEdit()}
               className="gap-2"
             >
               <Save className="h-4 w-4" />
@@ -113,15 +149,13 @@ export function RoleSelector({
         )}
       </div>
 
-      {showRoleDialog && (
-        <RoleSelectionDialog
-          open={showRoleDialog}
-          onOpenChange={setShowRoleDialog}
-          onSelect={onRolesSelect}
-          groupId={groupId}
-          selectedRoleIds={selectedRoles.map(role => role.id)}
-        />
-      )}
+      <RoleSelectionDialog
+        open={showRoleDialog}
+        onOpenChange={setShowRoleDialog}
+        onSelect={onRolesSelect}
+        groupId={groupId}
+        selectedRoleIds={selectedRoles.map(role => role.id)}
+      />
     </Card>
   );
 } 

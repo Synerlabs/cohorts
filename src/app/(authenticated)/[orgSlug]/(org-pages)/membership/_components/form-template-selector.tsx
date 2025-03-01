@@ -22,10 +22,9 @@ export function FormTemplateSelector({
         <div className="flex items-center justify-between">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" />
-              <h3 className="font-medium">Application Form Template</h3>
+              <h5 className="font-medium">Application Form Template</h5>
             </div>
-            <p className="text-sm text-muted-foreground pl-6">
+            <p className="text-sm text-muted-foreground">
               Configure the form that members need to complete
             </p>
           </div>
