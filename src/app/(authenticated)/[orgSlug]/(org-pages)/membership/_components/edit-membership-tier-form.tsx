@@ -323,12 +323,15 @@ export function EditMembershipTierForm({
                 return { ...newState, roles: !prev.roles };
               })}
               onRemoveRole={async (roleId) => {
+                // Get the updated roles first
+                const updatedRoles = rolesState.selectedRoles.filter(role => role.id !== roleId);
                 // Update local state immediately
-                setRolesState(prev => ({
-                  selectedRoles: prev.selectedRoles.filter(role => role.id !== roleId)
-                }));
+                setRolesState({
+                  selectedRoles: updatedRoles
+                });
+                // Use the updated roles for the update
                 await handleUpdate({
-                  roles: rolesState.selectedRoles.filter(role => role.id !== roleId).map(role => role.id)
+                  roles: updatedRoles.map(role => role.id)
                 });
               }}
               onRolesSelect={async (roleIds) => {
@@ -338,6 +341,7 @@ export function EditMembershipTierForm({
                   selectedRoles: newSelectedRoles
                 });
                 await handleUpdate({ roles: roleIds });
+                // Explicitly set roles editing to false
                 setEditingSections(prev => ({ ...prev, roles: false }));
               }}
               isPending={pending}

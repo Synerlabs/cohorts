@@ -3,7 +3,7 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Shield, X, Save, PlusCircle } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RoleSelectionDialog } from './role-selection-dialog';
 import { cn } from "@/lib/utils";
 
@@ -25,7 +25,7 @@ interface RoleSelectorProps {
 
 export function RoleSelector({
   isEditing,
-  selectedRoles,
+  selectedRoles: initialSelectedRoles,
   onEdit,
   onRemoveRole,
   onRolesSelect,
@@ -33,6 +33,61 @@ export function RoleSelector({
   groupId
 }: RoleSelectorProps) {
   const [showRoleDialog, setShowRoleDialog] = useState(false);
+  const [removingRoleId, setRemovingRoleId] = useState<string | null>(null);
+  
+  // Track roles in local state
+  const [localSelectedRoles, setLocalSelectedRoles] = useState<Role[]>(initialSelectedRoles);
+  // Track all available roles
+  const [availableRoles, setAvailableRoles] = useState<Role[]>(initialSelectedRoles);
+
+  // Update available roles when initialSelectedRoles changes
+  useEffect(() => {
+    setAvailableRoles(prev => {
+      const newRoles = [...prev];
+      initialSelectedRoles.forEach(role => {
+        if (!prev.some(r => r.id === role.id)) {
+          newRoles.push(role);
+        }
+      });
+      return newRoles;
+    });
+  }, [initialSelectedRoles]);
+
+  const handleRemoveRole = (roleId: string) => {
+    setRemovingRoleId(roleId);
+    if (!isEditing) {
+      onEdit();
+    }
+    // Update local state only
+    setLocalSelectedRoles(prev => prev.filter(role => role.id !== roleId));
+  };
+
+  const handleAddRoles = () => {
+    setShowRoleDialog(true);
+    if (!isEditing) {
+      onEdit();
+    }
+  };
+
+  const handleCancel = () => {
+    // Reset local state to initial roles
+    setLocalSelectedRoles(initialSelectedRoles);
+    setRemovingRoleId(null);
+    onEdit();
+  };
+
+  const handleSave = async () => {
+    try {
+      // Only update parent state when saving
+      await onRolesSelect(localSelectedRoles.map(role => role.id));
+      setRemovingRoleId(null);
+      // Parent component will handle exiting edit mode
+    } catch (error) {
+      console.error('Error saving roles:', error);
+      // Keep edit mode active if save fails
+      return;
+    }
+  };
 
   return (
     <Card className={cn("p-6 transition-shadow duration-200",
@@ -45,62 +100,19 @@ export function RoleSelector({
               Roles assigned to members in this tier
             </p>
           </div>
-          {isEditing ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowRoleDialog(true)}
-              className="gap-2"
-            >
-              <PlusCircle className="h-4 w-4" />
-              <span>Add Roles</span>
-            </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onEdit}
-              className="gap-2"
-            >
-              <Shield className="h-4 w-4" />
-              <span>Edit Roles</span>
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddRoles}
+            className="gap-2"
+          >
+            <PlusCircle className="h-4 w-4" />
+            <span>Add Roles</span>
+          </Button>
         </div>
         <Separator />
 
-        {selectedRoles.length > 0 ? (
-          <Card className="p-3 border-dashed">
-            <div className="flex items-start gap-3">
-              <div className="p-2 bg-muted rounded-md">
-                <Shield className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium">
-                    {`${selectedRoles.length} role${selectedRoles.length === 1 ? '' : 's'} selected`}
-                  </p>
-                  <Badge variant="secondary" className="shrink-0">Selected</Badge>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {selectedRoles.map(role => (
-                    <Badge key={role.id} variant="outline" className="gap-1">
-                      {role.role_name}
-                      {isEditing && (
-                        <button
-                          onClick={() => onRemoveRole(role.id)}
-                          className="ml-1 hover:text-destructive"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-        ) : (
+        {(!isEditing && localSelectedRoles.length === 0) ? (
           <div className="rounded-lg border-2 border-dashed p-8">
             <div className="text-center">
               <div className="inline-flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
@@ -110,51 +122,136 @@ export function RoleSelector({
               <p className="text-sm text-muted-foreground max-w-[280px] mx-auto mb-4">
                 Select the roles that will be assigned to members in this tier
               </p>
-              {!isEditing && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEdit}
-                  className="gap-2"
-                >
-                  <Shield className="h-4 w-4" />
-                  <span>Assign Roles</span>
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleAddRoles}
+                className="gap-2"
+              >
+                <Shield className="h-4 w-4" />
+                <span>Assign Roles</span>
+              </Button>
             </div>
           </div>
-        )}
-
-        {isEditing && (
-          <div className="flex justify-end gap-4">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onEdit}
-              className="gap-2"
-            >
-              <X className="h-4 w-4" />
-              <span>Cancel</span>
-            </Button>
-            <Button
-              type="submit"
-              disabled={isPending}
-              onClick={() => onEdit()}
-              className="gap-2"
-            >
-              <Save className="h-4 w-4" />
-              <span>{isPending ? "Saving..." : "Save Changes"}</span>
-            </Button>
+        ) : (
+          <div className="rounded-lg border">
+            <div className="relative">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left text-xs font-medium text-muted-foreground p-3 pl-6">Role Name</th>
+                    <th className="text-left text-xs font-medium text-muted-foreground p-3">Permissions</th>
+                    <th className="w-16"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {localSelectedRoles.length === 0 && isEditing ? (
+                    <tr>
+                      <td colSpan={3} className="p-6 text-center text-muted-foreground">
+                        No roles selected. Click "Add Roles" to assign roles to members.
+                      </td>
+                    </tr>
+                  ) : (
+                    localSelectedRoles.map(role => (
+                      <tr 
+                        key={role.id} 
+                        className={cn(
+                          "border-t transition-opacity duration-200",
+                          removingRoleId === role.id && "opacity-50"
+                        )}
+                      >
+                        <td className="p-3 pl-6">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-medium">{role.role_name}</span>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex flex-wrap gap-1">
+                            {role.permissions.map(permission => (
+                              <Badge 
+                                key={permission} 
+                                variant="secondary" 
+                                className="text-xs font-normal"
+                              >
+                                {permission}
+                              </Badge>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemoveRole(role.id)}
+                            className="h-8 w-8 p-0 hover:text-destructive"
+                          >
+                            <X className="h-4 w-4" />
+                            <span className="sr-only">Remove role</span>
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            {isEditing && (
+              <div className="bg-muted/50 p-4 flex justify-between items-center border-t">
+                <p className="text-sm text-muted-foreground">
+                  {localSelectedRoles.length} role{localSelectedRoles.length !== 1 && 's'} will be assigned to members
+                </p>
+                <div className="flex gap-4">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={handleCancel}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    <span>Cancel</span>
+                  </Button>
+                  <Button
+                    type="button"
+                    disabled={isPending}
+                    onClick={handleSave}
+                    className="gap-2"
+                  >
+                    <Save className="h-4 w-4" />
+                    <span>{isPending ? "Saving..." : "Save Changes"}</span>
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
 
       <RoleSelectionDialog
         open={showRoleDialog}
-        onOpenChange={setShowRoleDialog}
-        onSelect={onRolesSelect}
+        onOpenChange={(open) => {
+          setShowRoleDialog(open);
+          if (!open) {
+            setRemovingRoleId(null);
+          }
+        }}
+        onSelect={(roleIds) => {
+          // Keep only the roles that are selected
+          const selectedRoles = availableRoles.filter(role => roleIds.includes(role.id));
+          
+          // If we don't have all the roles in our available roles, we need to wait for them
+          // to be loaded by the dialog
+          if (selectedRoles.length < roleIds.length) {
+            // We'll get the roles from the parent component when they're ready
+            setLocalSelectedRoles(initialSelectedRoles.filter(role => roleIds.includes(role.id)));
+          } else {
+            setLocalSelectedRoles(selectedRoles);
+          }
+          setRemovingRoleId(null);
+          setShowRoleDialog(false);
+        }}
         groupId={groupId}
-        selectedRoleIds={selectedRoles.map(role => role.id)}
+        selectedRoleIds={localSelectedRoles.map(role => role.id)}
       />
     </Card>
   );
