@@ -51,11 +51,11 @@ export function Header({
 
   return (
     <div className="">
-      <div className="flex items-center justify-between py-4">
-        <div className="space-y-1">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-4 gap-4">
+        <div className="space-y-1 w-full sm:w-auto">
           {isEditing ? (
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 max-w-2xl">
+              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 w-full max-w-2xl">
                 <FormField
                   control={form.control}
                   name="name"
@@ -65,7 +65,7 @@ export function Header({
                       <FormControl>
                         <Input 
                           placeholder="e.g., Basic Membership" 
-                          className="max-w-md"
+                          className="w-full sm:max-w-md"
                           {...field}
                         />
                       </FormControl>
@@ -83,7 +83,7 @@ export function Header({
                       <FormControl>
                         <Textarea
                           placeholder="Describe what this membership tier offers..."
-                          className="resize-none"
+                          className="resize-none w-full"
                           {...field}
                         />
                       </FormControl>
@@ -135,9 +135,9 @@ export function Header({
             </>
           )}
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 w-full sm:w-auto">
           {!isEditing && (
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
               <Label className="text-sm font-medium">Status</Label>
               <div className="flex items-center gap-2">
                 <Switch

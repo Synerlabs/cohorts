@@ -227,29 +227,28 @@ export function EditMembershipTierForm({
 
   return (
     <div className="max-w-full">
-
-      <div className="container py-6">
-      <Header 
-        name={formData.name}
-        description={formData.description}
-        isActive={formData.is_active}
-        isEditing={editingSections.basicInfo}
-        isPending={pending}
-        onEdit={() => setEditingSections(prev => ({
-          ...prev,
-          basicInfo: !prev.basicInfo
-        }))}
-        onCancel={() => setEditingSections(prev => ({ ...prev, basicInfo: false }))}
-        onSave={async (values) => {
-          await handleUpdate(values);
-        }}
-        onStatusChange={async (active) => {
-          await handleUpdate({ is_active: active });
-        }}
-      />
-        <div className="grid grid-cols-3 gap-8">
+      <div className="container py-6 px-4 sm:px-6">
+        <Header 
+          name={formData.name}
+          description={formData.description}
+          isActive={formData.is_active}
+          isEditing={editingSections.basicInfo}
+          isPending={pending}
+          onEdit={() => setEditingSections(prev => ({
+            ...prev,
+            basicInfo: !prev.basicInfo
+          }))}
+          onCancel={() => setEditingSections(prev => ({ ...prev, basicInfo: false }))}
+          onSave={async (values) => {
+            await handleUpdate(values);
+          }}
+          onStatusChange={async (active) => {
+            await handleUpdate({ is_active: active });
+          }}
+        />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
           {/* Main Content - Col 1-2 */}
-          <div className="col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-4 lg:space-y-6">
             <TierSummary
               stats={stats}
               requiresForm={formData.requires_form}
