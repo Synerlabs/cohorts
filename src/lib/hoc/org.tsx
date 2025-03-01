@@ -8,6 +8,7 @@ import { PageProps } from "../types/next";
 import { User } from "@supabase/auth-helpers-nextjs";
 import { getCachedOrgBySlug, getCachedCurrentUser } from "@/lib/utils/cache";
 import { checkUserAccess } from "@/lib/utils/permissions";
+import { createClient } from "@/lib/utils/supabase/server";
 
 type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
 type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
@@ -153,7 +154,7 @@ function DefaultAccessDenied({
           ? "You must be a member to access this page." 
           : "You don't have the required permissions to access this page."}
       </p>
-      {!isGuest && requiredPermissions && (
+      {requiredPermissions && (
         <div className="text-sm text-muted-foreground">
           <p>Required permissions:</p>
           <ul className="list-disc list-inside mt-2">
@@ -168,7 +169,7 @@ function DefaultAccessDenied({
 export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
   const { 
     permissions: requiredPermissions = [], 
-    allowGuest, 
+    allowGuest = false, 
     redirectUnauthenticated,
     onAccessDenied = { action: 'redirect' }
   } = options || {};
@@ -211,7 +212,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
         userId: AuthServerContext.user.id,
         groupId: AuthServerContext.org.id,
         requiredPermissions,
-        allowGuest
+        allowGuest: true  // Always allow users with membership roles
       }) : {
         hasAccess: allowGuest,
         isGuest: true,
@@ -223,9 +224,76 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
         : null,
     ]);
 
+    // Check if the user has membership roles
+    const supabase = await createClient();
+    const { data: membershipRoles } = await supabase
+      .from('membership_roles_view')
+      .select('*')
+      .eq('user_id', AuthServerContext.user?.id || '')
+      .eq('group_id', AuthServerContext.org.id)
+      .eq('membership_status', 'active');
+
+    const hasMembershipRoles = !!(membershipRoles && membershipRoles.length > 0);
+    
+    console.log("DEBUG - withOrgAccess membership check:", {
+      hasMembershipRoles,
+      membershipRolesCount: membershipRoles?.length || 0
+    });
+
+    console.log("DEBUG - withOrgAccess options:", {
+      allowGuest,
+      requiredPermissions,
+      onAccessDenied
+    });
+
+    console.log("DEBUG - withOrgAccess permissions check:", {
+      requiredPermissions,
+      userPermissions: accessResult.userPermissions,
+      hasAccess: accessResult.hasAccess,
+      isGuest: accessResult.isGuest
+    });
+
     // Update AuthServerContext with org-specific roles and permissions
     AuthServerContext.groupRoles = accessResult.userRoles;
     AuthServerContext.userPermissions = accessResult.userPermissions;
+
+    // If the user has the required permissions, they should have access
+    // regardless of guest status if they have membership roles
+    const hasRequiredPermissions = accessResult.hasAccess || 
+      (accessResult.userPermissions.some(p => {
+        if (typeof requiredPermissions === 'string') {
+          return p === requiredPermissions;
+        } else if (Array.isArray(requiredPermissions)) {
+          if (requiredPermissions.length === 0) return true;
+          if (!Array.isArray(requiredPermissions[0])) {
+            return (requiredPermissions as string[]).includes(p);
+          }
+        }
+        return false;
+      }));
+
+    console.log("DEBUG - withOrgAccess additional check:", {
+      hasRequiredPermissions,
+      userHasPermission: accessResult.userPermissions.some(p => {
+        if (typeof requiredPermissions === 'string') {
+          return p === requiredPermissions;
+        } else if (Array.isArray(requiredPermissions)) {
+          if (requiredPermissions.length === 0) return true;
+          if (!Array.isArray(requiredPermissions[0])) {
+            return (requiredPermissions as string[]).includes(p);
+          }
+        }
+        return false;
+      })
+    });
+
+    // Override accessResult.hasAccess if the user has the required permissions
+    // and membership roles
+    if (!accessResult.hasAccess && hasRequiredPermissions && hasMembershipRoles) {
+      accessResult.hasAccess = true;
+      accessResult.isGuest = false; // Users with membership roles are not guests
+      console.log("DEBUG - Overriding hasAccess to true based on membership roles and permissions");
+    }
 
     if (!accessResult.hasAccess) {
       console.warn(

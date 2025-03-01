@@ -73,4 +73,4 @@ async function ApplicationsPage({ org, searchParams, userPermissions }: OrgAcces
   );
 }
 
-export default withOrgAccess(ApplicationsPage, {permissions: [permissions.applications.view]}); 
+export default withOrgAccess(ApplicationsPage, {permissions: [permissions.applications.view], onAccessDenied: { action: "error" }}); 

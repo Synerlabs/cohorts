@@ -97,6 +97,5 @@ export default withOrgAccess(OrdersPage, {
   permissions: [permissions.orders.view],
   onAccessDenied: {
     action: 'error',
-    
   }
 }); 

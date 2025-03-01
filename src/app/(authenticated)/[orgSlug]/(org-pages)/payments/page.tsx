@@ -116,5 +116,4 @@ export default withOrgAccess(PaymentsPage, {
   onAccessDenied: {
     action: 'error',
   }
-
 }); 

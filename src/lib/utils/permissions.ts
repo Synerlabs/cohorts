@@ -65,6 +65,8 @@ export async function checkUserAccess({
     .eq('group_id', groupId)
     .eq('membership_status', 'active');
 
+  console.log("DEBUG - membershipRoles:", membershipRoles, membershipError);
+
   if (membershipError) {
     console.error('Error fetching membership roles:', membershipError);
   }
@@ -74,8 +76,22 @@ export async function checkUserAccess({
     role.group_roles?.group_id === groupId
   );
 
-  // Check if user is a guest (no active roles)
-  const isGuest = !orgRoles?.find((role) => role.is_active);
+  // Check if user has active direct roles
+  const hasActiveDirectRoles = !!orgRoles?.find((role) => role.is_active);
+  
+  // Check if user has active membership roles
+  const hasActiveMembershipRoles = !!(membershipRoles && membershipRoles.length > 0);
+  
+  // A user is a guest if they have neither active direct roles nor active membership roles
+  // Users with membership roles are NOT considered guests
+  const isGuest = !hasActiveDirectRoles && !hasActiveMembershipRoles;
+  
+  console.log("DEBUG - Guest check:", {
+    hasActiveDirectRoles,
+    hasActiveMembershipRoles,
+    isGuest,
+    allowGuest
+  });
 
   // Get permissions from roles and membership roles
   const userPermissions = [
@@ -91,12 +107,16 @@ export async function checkUserAccess({
     }, []) || []),
     // Get permissions from membership roles
     ...(membershipRoles?.reduce((acc: string[], role: MembershipRoleView) => {
-      if (role.permissions) {
+      console.log("DEBUG - Processing membership role:", role.role_name, "with permissions:", role.permissions);
+      // Make sure permissions is an array before spreading
+      if (role.permissions && Array.isArray(role.permissions)) {
         return [...acc, ...role.permissions];
       }
       return acc;
     }, []) || [])
   ];
+
+  console.log("DEBUG - Final userPermissions:", userPermissions);
 
   // Check if user has an active super admin role for this org
   const hasSuperAdminRole = orgRoles?.some(role => 
@@ -169,12 +189,17 @@ export async function checkUserAccess({
   }
 
   // Determine if user should have access
-  const hasAccess = (
-    // Either guest access is allowed or user is not a guest
-    (allowGuest || !isGuest) &&
-    // And user has required permissions (if any)
-    hasRequiredPermissions
-  );
+  // If the user has membership roles and the required permissions, they should have access
+  // regardless of guest status
+  const hasAccess = hasRequiredPermissions && (allowGuest || !isGuest || hasActiveMembershipRoles);
+
+  console.log("DEBUG - Access determination:", {
+    allowGuest,
+    isGuest,
+    hasActiveMembershipRoles,
+    hasRequiredPermissions,
+    hasAccess
+  });
 
   return {
     hasAccess,

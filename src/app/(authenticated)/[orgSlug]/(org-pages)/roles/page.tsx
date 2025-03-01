@@ -43,4 +43,7 @@ async function RolesPage({ org }: OrgAccessHOCProps) {
 
 export default withOrgAccess(RolesPage, {
   permissions: [permissions.roles.view],
+  onAccessDenied: {
+    action: "error",
+  },
 });

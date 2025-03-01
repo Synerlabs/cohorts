@@ -93,7 +93,7 @@ export async function getGroupUser({
   const supabase = await createClient();
   
   try {
-    console.log('Fetching group user:', { userId, groupId });
+    // console.log('Fetching group user:', { userId, groupId });
     
     const { data, error } = await supabase
       .from("group_users")
