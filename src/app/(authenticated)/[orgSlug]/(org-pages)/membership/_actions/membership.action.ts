@@ -162,7 +162,7 @@ function validateActivationType(price: number, activationType: string, formTempl
   }
 
   // Form-based activation types require a form template
-  if (activationType.includes('form') && !formTemplateId) {
+  if (activationType.includes('form') && (formTemplateId === null || formTemplateId === '')) {
     return "Form-based activation types require a form template";
   }
 
@@ -278,12 +278,19 @@ export async function updateMembershipTierAction(
         const duration_months = parseInt(formDataObj.duration_months as string);
         const newRoles = JSON.parse(formDataObj.roles as string);
         const currentRoles = JSON.parse(formDataObj.current_roles as string || '[]');
+        
+        // Handle form_template_id - convert 'null' string to actual null
+        let formTemplateId: string | null = formDataObj.form_template_id as string;
+        if (!formTemplateId || formTemplateId === 'null' || formTemplateId === '') {
+          formTemplateId = null;
+        }
 
         const parsedFormData = membershipTierUpdateSchema.safeParse({
           ...formDataObj,
           price,
           duration_months,
-          roles: newRoles
+          roles: newRoles,
+          form_template_id: formTemplateId
         });
 
         if (!parsedFormData.success) {
@@ -322,7 +329,7 @@ export async function updateMembershipTierAction(
             duration_months: parsedFormData.data.duration_months,
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
-            form_template_id: parsedFormData.data.form_template_id,
+            form_template_id: parsedFormData.data.form_template_id || null,
             rolesToAdd,
             rolesToRemove
           }

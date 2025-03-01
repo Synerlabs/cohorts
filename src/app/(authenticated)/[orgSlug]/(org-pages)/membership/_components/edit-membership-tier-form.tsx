@@ -189,7 +189,16 @@ export function EditMembershipTierForm({
 
     formDataToSubmit.append('activation_type', activationType);
     formDataToSubmit.append('member_id_format', newData.member_id_format);
-    formDataToSubmit.append('form_template_id', newData.form_template_id || '');
+    
+    // Only append form_template_id if the activation type requires a form
+    // or if we have a valid form template ID
+    if (activationType.includes('form') || newData.form_template_id) {
+      formDataToSubmit.append('form_template_id', newData.form_template_id || '');
+    } else {
+      // Explicitly set to null for non-form activation types
+      formDataToSubmit.append('form_template_id', 'null');
+    }
+    
     formDataToSubmit.append('roles', JSON.stringify(newData.roles));
     
     // Add current roles when updating
