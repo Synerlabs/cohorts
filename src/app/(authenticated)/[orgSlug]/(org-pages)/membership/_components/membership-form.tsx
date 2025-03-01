@@ -395,6 +395,7 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
             )}
           />
 
+
           <FormField
             control={form.control}
             name="currency"
