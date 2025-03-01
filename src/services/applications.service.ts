@@ -232,6 +232,13 @@ export async function createMembershipApplication(
 ): Promise<Application> {
   const supabase = await createClient();
 
+  console.log('Creating membership application:', { groupUserId, productId });
+  
+  if (!groupUserId) {
+    console.error('Missing group_user_id in createMembershipApplication');
+    throw new Error('Missing group_user_id');
+  }
+
   // Get product details to determine initial status
   const product = await ProductService.getMembershipTier(productId);
   if (!product) throw new Error('Product not found');
@@ -243,8 +250,17 @@ export async function createMembershipApplication(
     .eq('id', groupUserId)
     .single();
 
-  if (groupUserError) throw groupUserError;
-  if (!groupUser) throw new Error('Group user not found');
+  if (groupUserError) {
+    console.error('Error fetching group user in createMembershipApplication:', groupUserError);
+    throw groupUserError;
+  }
+  
+  if (!groupUser) {
+    console.error('Group user not found with id:', groupUserId);
+    throw new Error('Group user not found');
+  }
+
+  console.log('Found group user:', groupUser);
 
   let initialStatus: Application['status'];
   switch (product.membership_tier.activation_type) {
@@ -287,19 +303,30 @@ export async function createMembershipApplication(
   }
 
   // Create the application
+  console.log('Creating application with status:', initialStatus);
   const { data: newApplication, error: insertError } = await supabase
     .from('applications')
     .insert({
       group_user_id: groupUserId,
       tier_id: productId,
       status: initialStatus,
-      form_response_id: formResponseId
+      form_response_id: formResponseId,
+      type: 'membership'
     })
     .select()
     .single();
 
-  if (insertError) throw insertError;
-  if (!newApplication) throw new Error('Failed to create application');
+  if (insertError) {
+    console.error('Error creating application:', insertError);
+    throw insertError;
+  }
+  
+  if (!newApplication) {
+    console.error('Failed to create application, no data returned');
+    throw new Error('Failed to create application');
+  }
+
+  console.log('Created application:', newApplication);
 
   // Fetch the full application details from the view
   const { data: application, error: viewError } = await supabase
@@ -308,8 +335,15 @@ export async function createMembershipApplication(
     .eq('id', newApplication.id)
     .single();
 
-  if (viewError) throw viewError;
-  if (!application) throw new Error('Failed to fetch application details');
+  if (viewError) {
+    console.error('Error fetching application details:', viewError);
+    throw viewError;
+  }
+  
+  if (!application) {
+    console.error('Failed to fetch application details, no data returned');
+    throw new Error('Failed to fetch application details');
+  }
 
   return mapViewToApplication(application as ApplicationView);
 }

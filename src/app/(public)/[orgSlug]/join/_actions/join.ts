@@ -47,7 +47,7 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     let groupUser = await getGroupUser({userId, groupId});
 
     if (!groupUser) {
-      const groupUser = await createGroupUser(groupId, userId);
+      groupUser = await createGroupUser(groupId, userId);
       if (!groupUser) {
         return {
           errors: {
@@ -56,6 +56,16 @@ export async function join(prevState: State, formData: FormData): Promise<State>
         };
       }
     } 
+
+    // Ensure we have a valid group_user_id before proceeding
+    if (!groupUser.id) {
+      console.error('Missing group_user_id for user', userId, 'in group', groupId);
+      return {
+        errors: {
+          form: ['Failed to retrieve group user information']
+        }
+      };
+    }
 
     // Create application with form data if provided
     const application = await createMembershipApplication(

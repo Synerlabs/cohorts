@@ -91,18 +91,30 @@ export async function getGroupUser({
   groupId: string;
 }) {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("group_users")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("group_id", groupId);
+  
+  try {
+    console.log('Fetching group user:', { userId, groupId });
+    
+    const { data, error } = await supabase
+      .from("group_users")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("group_id", groupId);
 
-  if (error) {
-    console.log("Error fetching group user:", error);
-    return {
-      error: error.message,
-    };
+    if (error) {
+      console.error("Error fetching group user:", error);
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      console.log('No group user found for', { userId, groupId });
+      return null;
+    }
+
+    console.log('Found group user:', data[0]);
+    return camelcaseKeys(data[0]);
+  } catch (error) {
+    console.error("Exception in getGroupUser:", error);
+    return null;
   }
-
-  return data[0] ? camelcaseKeys(data[0]) : null;
 }
