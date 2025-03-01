@@ -78,4 +78,4 @@ async function JoinPage({ org, user, params }: JoinPageProps) {
   }
 }
 
-export default withOrgAccess(JoinPage, { allowGuest: false }); 
+export default withOrgAccess(JoinPage, { allowGuest: true }); 

@@ -60,11 +60,13 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
       return application?.group_id || null;
 
     case 'payments':
-      const { data: payment } = await supabase
+      console.log("payments", moduleId);
+      const { data: payment, error: paymentError } = await supabase
         .from("payments")
         .select("group_id")
         .eq("id", moduleId)
         .single();
+      console.log("payment", payment, paymentError);
       return payment?.group_id || null;
 
     case 'paymentGateways':
@@ -250,10 +252,11 @@ export async function withPermissions<T, P>(
       // For edit operations, verify module ownership if moduleId is provided
       let verifiedGroupId = groupId;
       if (moduleId && moduleType) {
+        console.log("getting module group id", moduleType, moduleId);
         const moduleGroupId = await getModuleGroupId(moduleType, moduleId);
         
         if (!moduleGroupId) {
-          return { error: `Permission check failed: groupd id for ${moduleType} module not found` };
+          return { error: `Permission check failed: group id for ${moduleType} module not found` };
         }
         
         // If groupId was provided, verify it matches

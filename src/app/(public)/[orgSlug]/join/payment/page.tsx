@@ -88,4 +88,4 @@ async function PaymentPage({ org, user }: OrgAccessHOCProps) {
   );
 } 
 
-export default withOrgAccess(PaymentPage);
+export default withOrgAccess(PaymentPage, { allowGuest: true });
