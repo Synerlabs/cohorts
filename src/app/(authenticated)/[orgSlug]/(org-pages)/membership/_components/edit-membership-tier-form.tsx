@@ -281,7 +281,17 @@ export function EditMembershipTierForm({
               }}
               isPending={pending}
               orgId={groupId}
-              onEditingChange={(editing) => setEditingSections(prev => ({ ...prev, activation: editing }))}
+              onEditingChange={(editing) => {
+                setEditingSections(prev => ({ ...prev, activation: editing }));
+                // Reset activation state when exiting edit mode
+                if (!editing) {
+                  setActivationState({
+                    requiresForm: formData.requires_form,
+                    requiresReview: formData.requires_review,
+                    reviewBeforePayment: formData.review_before_payment
+                  });
+                }
+              }}
             />
 
             <MemberIdFormat

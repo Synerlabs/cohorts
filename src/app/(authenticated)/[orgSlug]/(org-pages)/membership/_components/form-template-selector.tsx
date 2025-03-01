@@ -8,12 +8,12 @@ import { FormTemplate } from "./types";
 
 interface FormTemplateSelectorProps {
   selectedTemplate: FormTemplate | null;
-  onSelectClick?: () => void;
+  setShowFormTemplateDialog: (value: boolean) => void;
 }
 
 export function FormTemplateSelector({
   selectedTemplate,
-  onSelectClick
+  setShowFormTemplateDialog
 }: FormTemplateSelectorProps) {
   return (
     <div className="mt-6">
@@ -28,11 +28,11 @@ export function FormTemplateSelector({
               Configure the form that members need to complete
             </p>
           </div>
-          {!selectedTemplate && onSelectClick && (
+          {!selectedTemplate && (
             <Button 
               variant="default"
               size="sm"
-              onClick={onSelectClick}
+              onClick={() => setShowFormTemplateDialog(true)}
               className="gap-2"
             >
               <PlusCircle className="h-4 w-4" />
@@ -125,16 +125,14 @@ export function FormTemplateSelector({
                   Edit Template
                 </Button>
               </div>
-              {onSelectClick && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onSelectClick}
-                  className="h-8"
-                >
-                  Change Template
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFormTemplateDialog(true)}
+                className="h-8"
+              >
+                Change Template
+              </Button>
             </div>
           </div>
         ) : (
@@ -147,17 +145,15 @@ export function FormTemplateSelector({
               <p className="text-sm text-muted-foreground max-w-[280px] mx-auto mb-4">
                 Select a form template that members will need to complete during the registration process
               </p>
-              {onSelectClick && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onSelectClick}
-                  className="gap-2"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Select Template
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowFormTemplateDialog(true)}
+                className="gap-2"
+              >
+                <PlusCircle className="h-4 w-4" />
+                Select Template
+              </Button>
             </div>
           </div>
         )}

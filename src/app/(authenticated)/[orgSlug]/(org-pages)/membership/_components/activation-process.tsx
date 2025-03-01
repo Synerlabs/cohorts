@@ -70,6 +70,13 @@ export function ActivationProcess({
     });
     updateIsEditing(false);
     setShowFormTemplateDialog(false);
+    
+    // Notify parent about the state reset
+    onStateChange?.({
+      requires_form: initialRequiresForm,
+      requires_review: initialRequiresReview,
+      review_before_payment: initialReviewBeforePayment
+    });
   };
 
   const handleSave = async () => {
@@ -199,13 +206,7 @@ export function ActivationProcess({
           {localState.requiresForm && (
             <FormTemplateSelector
               selectedTemplate={localState.selectedTemplate}
-              onSelectClick={() => {
-                if (!isEditing) {
-                  setIsEditing(true);
-                } else {
-                  setShowFormTemplateDialog(true);
-                }
-              }}
+              setShowFormTemplateDialog={setShowFormTemplateDialog}
             />
           )}
         </div>
@@ -217,6 +218,10 @@ export function ActivationProcess({
         onSelect={(template) => {
           setLocalState(prev => ({ ...prev, selectedTemplate: template }));
           setShowFormTemplateDialog(false);
+          // Enter edit mode when template is selected
+          if (!isEditing) {
+            updateIsEditing(true);
+          }
         }}
         orgId={orgId}
         selectedTemplateId={localState.selectedTemplate?.id}
