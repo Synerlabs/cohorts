@@ -22,8 +22,14 @@ interface ActivationProcessProps {
     review_before_payment: boolean;
     form_template_id: string | null;
   }) => Promise<void>;
+  onStateChange?: (values: {
+    requires_form: boolean;
+    requires_review: boolean;
+    review_before_payment: boolean;
+  }) => void;
   isPending?: boolean;
   orgId: string;
+  onEditingChange?: (isEditing: boolean) => void;
 }
 
 export function ActivationProcess({
@@ -33,8 +39,10 @@ export function ActivationProcess({
   price,
   selectedTemplate: initialSelectedTemplate,
   onSave,
+  onStateChange,
   isPending,
-  orgId
+  orgId,
+  onEditingChange
 }: ActivationProcessProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showFormTemplateDialog, setShowFormTemplateDialog] = useState(false);
@@ -47,6 +55,12 @@ export function ActivationProcess({
     selectedTemplate: initialSelectedTemplate
   });
 
+  // Update parent when editing state changes
+  const updateIsEditing = (editing: boolean) => {
+    setIsEditing(editing);
+    onEditingChange?.(editing);
+  };
+
   const handleCancel = () => {
     setLocalState({
       requiresForm: initialRequiresForm,
@@ -54,7 +68,8 @@ export function ActivationProcess({
       reviewBeforePayment: initialReviewBeforePayment,
       selectedTemplate: initialSelectedTemplate
     });
-    setIsEditing(false);
+    updateIsEditing(false);
+    setShowFormTemplateDialog(false);
   };
 
   const handleSave = async () => {
@@ -64,24 +79,40 @@ export function ActivationProcess({
       review_before_payment: localState.reviewBeforePayment,
       form_template_id: localState.selectedTemplate?.id || null
     });
-    setIsEditing(false);
+    updateIsEditing(false);
   };
 
-  const handleToggleChange = (field: keyof typeof localState) => {
+  const handleToggleChange = (field: 'requiresForm' | 'requiresReview' | 'reviewBeforePayment') => {
     if (!isEditing) {
-      setIsEditing(true);
-      return;
+      updateIsEditing(true);
     }
-    setLocalState(prev => ({
-      ...prev,
-      [field]: !prev[field as keyof typeof prev]
-    }));
+    
+    const newState = {
+      ...localState,
+      [field === 'requiresForm' ? 'requiresForm' : 
+       field === 'requiresReview' ? 'requiresReview' : 
+       'reviewBeforePayment']: !localState[field === 'requiresForm' ? 'requiresForm' : 
+                                    field === 'requiresReview' ? 'requiresReview' : 
+                                    'reviewBeforePayment']
+    };
+    
+    setLocalState(newState);
+    
+    // Emit state change immediately
+    onStateChange?.({
+      requires_form: newState.requiresForm,
+      requires_review: newState.requiresReview,
+      review_before_payment: newState.reviewBeforePayment
+    });
   };
 
   return (
     <Card className={cn("relative transition-shadow duration-200",
       isEditing && "ring-2 ring-primary ring-offset-2")}>
-      <div className="sticky top-[6.5rem] z-40 bg-background border-b">
+      <div className={cn(
+        "bg-background border-b",
+        isEditing && "sticky top-0 z-40"
+      )}>
         <div className="p-6 pb-4">
           <div className="flex items-center justify-between gap-4">
             <div className="space-y-1">

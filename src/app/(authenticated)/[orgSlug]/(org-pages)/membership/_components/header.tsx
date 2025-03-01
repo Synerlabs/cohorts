@@ -50,7 +50,7 @@ export function Header({
   };
 
   return (
-    <div className="sticky top-0 z-10">
+    <div className="">
       <div className="flex items-center justify-between py-4">
         <div className="space-y-1">
           {isEditing ? (
