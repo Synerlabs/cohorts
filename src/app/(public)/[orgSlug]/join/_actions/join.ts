@@ -103,7 +103,8 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     if (orgError) throw orgError;
 
     // For form_then_payment, redirect to application status after form submission
-    if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT) {
+    if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT ||
+        membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) {
       return {
         message: 'Your membership application has been submitted.',
         redirect: `/@${org.slug}/applications/${application.id}`
@@ -113,8 +114,18 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     // For free memberships or those not requiring immediate payment, process immediately
     if (membershipTier.price === 0 || (
       membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.PAYMENT_REQUIRED &&
-      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW &&
+      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     )) {
+      // For automatic activation or form_required, redirect to membership page instead of application page
+      if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.AUTOMATIC ||
+          membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_REQUIRED) {
+        return {
+          message: 'Your membership has been activated.',
+          redirect: `/@${org.slug}/membership`
+        };
+      }
+      
       return {
         message: 'Your membership application has been submitted.',
         redirect: `/@${org.slug}/applications/${application.id}`

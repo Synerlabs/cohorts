@@ -114,7 +114,8 @@ export async function approveApplication(applicationId: string): Promise<Applica
       MembershipActivationType.PAYMENT_REQUIRED,
       MembershipActivationType.REVIEW_THEN_PAYMENT,
       MembershipActivationType.FORM_THEN_PAYMENT,
-      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW,
+      MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     ].includes(application.activation_type as MembershipActivationType);
 
   // Determine the new status
@@ -125,7 +126,8 @@ export async function approveApplication(applicationId: string): Promise<Applica
     [
       MembershipActivationType.REVIEW_THEN_PAYMENT,
       MembershipActivationType.FORM_THEN_REVIEW,
-      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW,
+      MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     ].includes(application.activation_type as MembershipActivationType))
     ? 'pending_payment' 
     : 'approved';
@@ -263,13 +265,18 @@ export async function createMembershipApplication(
   console.log('Found group user:', groupUser);
 
   let initialStatus: Application['status'];
+  const isAutomatic = product.membership_tier.activation_type === 'automatic';
+  const isFormRequired = product.membership_tier.activation_type === 'form_required';
+  const shouldCreateMembership = isAutomatic || isFormRequired;
+  
   switch (product.membership_tier.activation_type) {
     case 'automatic':
+    case 'form_required':
       initialStatus = 'approved';
       break;
     case 'review_required':
-    case 'form_required':
     case 'form_then_review':
+    case 'form_then_review_then_payment':
       initialStatus = 'pending';
       break;
     case 'payment_required':
@@ -311,7 +318,8 @@ export async function createMembershipApplication(
       tier_id: productId,
       status: initialStatus,
       form_response_id: formResponseId,
-      type: 'membership'
+      type: 'membership',
+      approved_at: isAutomatic ? new Date().toISOString() : null
     })
     .select()
     .single();
@@ -327,6 +335,52 @@ export async function createMembershipApplication(
   }
 
   console.log('Created application:', newApplication);
+
+  // For automatic activation or form_required, create a membership record immediately
+  if (shouldCreateMembership) {
+    console.log(`${product.membership_tier.activation_type} activation: Creating membership record`);
+    
+    // Calculate membership dates
+    const startDate = new Date().toISOString();
+    const durationMonths = product.membership_tier.duration_months;
+    const endDate = durationMonths ? 
+      new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString() : 
+      null;
+
+    // Create membership record
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .insert({
+        group_user_id: groupUserId,
+        tier_id: productId,
+        status: 'active',
+        start_date: startDate,
+        end_date: endDate,
+        is_active: true
+      })
+      .select()
+      .single();
+
+    if (membershipError) {
+      console.error(`Error creating membership for ${product.membership_tier.activation_type} activation:`, membershipError);
+      throw membershipError;
+    }
+
+    console.log(`Created membership for ${product.membership_tier.activation_type} activation:`, membership);
+
+    // Ensure group user is active
+    const { error: userError } = await supabase
+      .from('group_users')
+      .update({ is_active: true })
+      .eq('id', groupUserId);
+
+    if (userError) {
+      console.error(`Error activating group user for ${product.membership_tier.activation_type} activation:`, userError);
+      throw userError;
+    }
+
+    console.log(`Activated group user for ${product.membership_tier.activation_type} activation`);
+  }
 
   // Fetch the full application details from the view
   const { data: application, error: viewError } = await supabase

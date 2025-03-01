@@ -6,7 +6,8 @@ export enum MembershipActivationType {
   FORM_REQUIRED = 'form_required',
   FORM_THEN_PAYMENT = 'form_then_payment',
   FORM_THEN_REVIEW = 'form_then_review',
-  FORM_THEN_PAYMENT_THEN_REVIEW = 'form_then_payment_then_review'
+  FORM_THEN_PAYMENT_THEN_REVIEW = 'form_then_payment_then_review',
+  FORM_THEN_REVIEW_THEN_PAYMENT = 'form_then_review_then_payment'
 }
 
 export type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD';

@@ -38,16 +38,6 @@ export function TierSummary({
   return (
     <Card className="p-4 sm:p-6">
       <div className="space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Tier Summary</h2>
-            <p className="text-sm text-muted-foreground">
-              Overview and current activity
-            </p>
-          </div>
-        </div>
-        <Separator />
-
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           {/* Member Stats */}
           <div className="space-y-4 sm:space-y-6">

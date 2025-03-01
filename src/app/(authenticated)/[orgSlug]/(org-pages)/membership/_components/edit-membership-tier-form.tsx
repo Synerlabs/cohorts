@@ -56,7 +56,7 @@ function getActivationType({
     }
     if (requires_form && !requires_review) return MembershipActivationType.FORM_THEN_PAYMENT;
     if (requires_form && requires_review) {
-      return review_before_payment ? MembershipActivationType.FORM_THEN_REVIEW : MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW;
+      return review_before_payment ? MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT : MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW;
     }
   }
   return price === 0 ? MembershipActivationType.AUTOMATIC : MembershipActivationType.PAYMENT_REQUIRED;
@@ -72,7 +72,8 @@ function getStepConfiguration(type: MembershipActivationType): {
     requires_form: type.includes('form'),
     requires_review: type.includes('review'),
     review_before_payment: type === MembershipActivationType.REVIEW_THEN_PAYMENT || 
-                         type === MembershipActivationType.FORM_THEN_REVIEW
+                         type === MembershipActivationType.FORM_THEN_REVIEW ||
+                         type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
   };
 }
 

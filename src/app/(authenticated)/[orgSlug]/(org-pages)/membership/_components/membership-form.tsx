@@ -75,7 +75,8 @@ const ACTIVATION_TYPE_DESCRIPTIONS: Record<MembershipActivationType, string> = {
   [MembershipActivationType.FORM_REQUIRED]: 'Members must complete an application form before membership is granted',
   [MembershipActivationType.FORM_THEN_PAYMENT]: 'Members must complete an application form before proceeding to payment',
   [MembershipActivationType.FORM_THEN_REVIEW]: 'Members submit an application form that must be reviewed and approved by an admin',
-  [MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW]: 'Members submit a form and complete payment, then an admin reviews the application'
+  [MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW]: 'Members submit a form and complete payment, then an admin reviews the application',
+  [MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT]: 'Members submit a form that is reviewed by an admin, then proceed to payment'
 };
 
 // Group activation types by category for better organization
@@ -86,7 +87,8 @@ const ACTIVATION_TYPE_GROUPS = {
     MembershipActivationType.FORM_REQUIRED,
     MembershipActivationType.FORM_THEN_REVIEW,
     MembershipActivationType.FORM_THEN_PAYMENT,
-    MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+    MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW,
+    MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
   ]
 } as const;
 
@@ -114,7 +116,7 @@ function getActivationType({
     }
     if (requires_form && !requires_review) return MembershipActivationType.FORM_THEN_PAYMENT;
     if (requires_form && requires_review) {
-      return review_before_payment ? MembershipActivationType.FORM_THEN_REVIEW : MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW;
+      return review_before_payment ? MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT : MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW;
     }
   }
   return price === 0 ? MembershipActivationType.AUTOMATIC : MembershipActivationType.PAYMENT_REQUIRED;
@@ -130,7 +132,8 @@ function getStepConfiguration(type: MembershipActivationType): {
     requires_form: type.includes('form'),
     requires_review: type.includes('review'),
     review_before_payment: type === MembershipActivationType.REVIEW_THEN_PAYMENT || 
-                         type === MembershipActivationType.FORM_THEN_REVIEW
+                         type === MembershipActivationType.FORM_THEN_REVIEW ||
+                         type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
   };
 }
 
@@ -543,6 +546,9 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
                 {requires_review && !review_before_payment ? "Admin Review → " : ""}
                 Membership Granted
               </span>
+            </div>
+            <div className="mt-2 text-xs text-muted-foreground">
+              Activation Type: {activationType}
             </div>
           </div>
         </div>
