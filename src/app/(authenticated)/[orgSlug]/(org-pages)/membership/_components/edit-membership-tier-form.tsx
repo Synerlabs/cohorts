@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Database } from "@/lib/types/database.types";
 import { toast } from "@/components/ui/use-toast";
 import { FormTemplateSelectionDialog } from './form-template-selection-dialog';
-import { FileText, PlusCircle, Check, Shield } from "lucide-react";
+import { FileText, PlusCircle, Check, Shield, AlertCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -27,6 +27,8 @@ import { RoleSelectionDialog } from './role-selection-dialog';
 import { getRolesAction } from '../_actions/roles.action';
 import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { PostgrestError } from '@supabase/supabase-js';
+import { Separator } from "@/components/ui/separator";
+import React from 'react';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 type GroupRole = Database['public']['Tables']['group_roles']['Row'];
@@ -227,398 +229,421 @@ export function EditMembershipTierForm({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <Card className="p-6">
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">Basic Information</h3>
-              <FormField
-                control={form.control}
-                name="is_active"
-                render={({ field }) => (
-                  <FormItem className="flex items-center space-x-2">
-                    <FormLabel>Active</FormLabel>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g., Basic Membership" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Describe what this membership tier offers..."
-                      className="min-h-[100px]"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="price"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Price</FormLabel>
-                    <FormControl>
-                      <div className="relative">
-                        <span className="absolute left-3 top-2.5 text-muted-foreground">
-                          {currencySymbols[form.watch('currency') as Currency]}
-                        </span>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          className="pl-7"
-                          {...field}
-                          onChange={e => field.onChange(parseFloat(e.target.value))}
-                        />
-                      </div>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="currency"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Currency</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select currency" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="EUR">EUR (€)</SelectItem>
-                        <SelectItem value="GBP">GBP (£)</SelectItem>
-                        <SelectItem value="CAD">CAD (C$)</SelectItem>
-                        <SelectItem value="AUD">AUD (A$)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="duration_months"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Duration (months)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min="1"
-                      {...field}
-                      onChange={e => field.onChange(parseInt(e.target.value))}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        {/* Status Bar */}
+        <div>
+          <div className="flex items-center justify-between py-4">
+            <h1 className="text-xl font-semibold">Edit Membership Tier</h1>
           </div>
-        </Card>
+          <Separator />
+        </div>
 
-        <Card className="p-6">
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium">Activation Settings</h3>
-
-            <div className="space-y-4">
-              <FormField
-                control={form.control}
-                name="requires_form"
-                render={({ field }) => (
-                  <FormItem className="flex items-center space-x-2">
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormLabel className="!mt-0">Require application form</FormLabel>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="requires_review"
-                render={({ field }) => (
-                  <FormItem className="flex items-center space-x-2">
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormLabel className="!mt-0">Require admin review</FormLabel>
-                  </FormItem>
-                )}
-              />
-
-              {form.watch('requires_review') && form.watch('price') > 0 && (
+        {/* Form Content */}
+        <div className="grid grid-cols-3 gap-8">
+          {/* Main Content - Col 1-2 */}
+          <div className="col-span-2 space-y-6">
+            {/* Basic Information */}
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-lg font-semibold">Basic Information</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Configure the core details of your membership tier.
+                  </p>
+                </div>
+                <Separator />
                 <FormField
                   control={form.control}
-                  name="review_before_payment"
+                  name="name"
                   render={({ field }) => (
-                    <FormItem className="flex items-center space-x-2">
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
                       <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
+                        <Input placeholder="e.g., Basic Membership" {...field} />
                       </FormControl>
-                      <FormLabel className="!mt-0">Review before payment</FormLabel>
+                      <FormMessage />
                     </FormItem>
                   )}
                 />
-              )}
-            </div>
 
-            <div className="mt-4">
-              <Label>Current activation flow</Label>
-              <div className="mt-2 p-4 bg-muted rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  {ACTIVATION_TYPE_DESCRIPTIONS[
-                    getActivationType({
-                      price: form.watch('price'),
-                      requires_form: form.watch('requires_form'),
-                      requires_review: form.watch('requires_review'),
-                      review_before_payment: form.watch('review_before_payment')
-                    })
-                  ]}
-                </p>
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6">
-          <div className="space-y-6">
-            <h3 className="text-lg font-medium">Member ID Format</h3>
-            <FormField
-              control={form.control}
-              name="member_id_format"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Format</FormLabel>
-                  <FormControl>
-                    <Input {...field} />
-                  </FormControl>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Available tokens: {'{SEQ:n}'} for sequence number, {'{YYYY}'} for year,{' '}
-                    {'{YY}'} for 2-digit year, {'{MM}'} for month, {'{DD}'} for day
-                  </p>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-        </Card>
-
-        {form.watch('requires_form') && (
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-medium">Application Form</h3>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowFormTemplateDialog(true)}
-                >
-                  {selectedTemplate ? (
-                    <>
-                      <FileText className="w-4 h-4 mr-2" />
-                      Change Form
-                    </>
-                  ) : (
-                    <>
-                      <PlusCircle className="w-4 h-4 mr-2" />
-                      Select Form
-                    </>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Describe what this membership tier offers..."
+                          className="min-h-[100px] resize-none"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </Button>
+                />
               </div>
+            </Card>
 
-              {selectedTemplate ? (
-                <div className="p-4 bg-muted rounded-lg">
-                  <div className="flex items-start gap-4">
-                    <FileText className="w-5 h-5 mt-0.5 text-muted-foreground" />
-                    <div>
-                      <h4 className="font-medium">{selectedTemplate.title}</h4>
-                      {selectedTemplate.description && (
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {selectedTemplate.description}
-                        </p>
+            {/* Pricing & Duration */}
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-lg font-semibold">Pricing & Duration</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Set the price and duration for this membership tier.
+                  </p>
+                </div>
+                <Separator />
+                <div className="grid grid-cols-2 gap-6">
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price</FormLabel>
+                        <FormControl>
+                          <div className="relative">
+                            <span className="absolute left-3 top-2.5 text-muted-foreground">
+                              {currencySymbols[form.watch('currency') as Currency]}
+                            </span>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="pl-7"
+                              {...field}
+                              onChange={e => field.onChange(parseFloat(e.target.value))}
+                            />
+                          </div>
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="USD">USD ($)</SelectItem>
+                            <SelectItem value="EUR">EUR (€)</SelectItem>
+                            <SelectItem value="GBP">GBP (£)</SelectItem>
+                            <SelectItem value="CAD">CAD (C$)</SelectItem>
+                            <SelectItem value="AUD">AUD (A$)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="duration_months"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Duration</FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="1"
+                            className="w-24"
+                            {...field}
+                            onChange={e => field.onChange(parseInt(e.target.value))}
+                          />
+                          <span className="text-muted-foreground">months</span>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </Card>
+
+            {/* Activation Settings */}
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-lg font-semibold">Activation Process</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Configure how members are activated for this tier.
+                  </p>
+                </div>
+                <Separator />
+
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="requires_form"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-4 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1">
+                          <FormLabel>Application Form</FormLabel>
+                          <p className="text-sm text-muted-foreground">
+                            Require members to complete an application form before joining
+                          </p>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="requires_review"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-4 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1">
+                          <FormLabel>Admin Review</FormLabel>
+                          <p className="text-sm text-muted-foreground">
+                            Require admin approval before membership is granted
+                          </p>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+
+                  {form.watch('requires_review') && form.watch('price') > 0 && (
+                    <FormField
+                      control={form.control}
+                      name="review_before_payment"
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-start space-x-4 space-y-0 rounded-md border p-4">
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                          <div className="space-y-1">
+                            <FormLabel>Review Before Payment</FormLabel>
+                            <p className="text-sm text-muted-foreground">
+                              Review applications before allowing members to pay
+                            </p>
+                          </div>
+                        </FormItem>
                       )}
-                    </div>
+                    />
+                  )}
+                </div>
+
+                <div className="rounded-lg bg-muted p-4">
+                  <h3 className="font-medium mb-2">Current Activation Flow</h3>
+                  <div className="flex items-center gap-2">
+                    {[
+                      form.watch('requires_form') ? { step: 1, label: "Complete Form" } : null,
+                      form.watch('requires_review') && form.watch('review_before_payment') ? { step: 2, label: "Admin Review" } : null,
+                      form.watch('price') > 0 ? { step: 3, label: "Payment" } : null,
+                      form.watch('requires_review') && !form.watch('review_before_payment') ? { step: 4, label: "Admin Review" } : null,
+                      { step: 5, label: "Membership Granted" }
+                    ].filter((step): step is { step: number; label: string } => step !== null).map((step, index, array) => (
+                      <React.Fragment key={step.step}>
+                        <Badge variant="secondary" className="h-7">
+                          {step.label}
+                        </Badge>
+                        {index < array.length - 1 && (
+                          <svg className="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24">
+                            <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 18l6-6-6-6"/>
+                          </svg>
+                        )}
+                      </React.Fragment>
+                    ))}
                   </div>
                 </div>
-              ) : (
-                <div className="text-center p-8 border-2 border-dashed rounded-lg">
-                  <FileText className="w-8 h-8 mx-auto text-muted-foreground" />
-                  <h4 className="font-medium mt-3">No form selected</h4>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Click the button above to select an application form
+              </div>
+            </Card>
+          </div>
+
+          {/* Sidebar - Col 3 */}
+          <div className="space-y-6">
+            {/* Member ID Format */}
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <h2 className="text-lg font-semibold">Member ID Format</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Configure how member IDs are generated.
                   </p>
                 </div>
-              )}
-            </div>
-          </Card>
-        )}
-
-        <Card className="p-6">
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium">Member Roles</h3>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowRoleDialog(true)}
-              >
-                {selectedRoles.length > 0 ? (
-                  <>
-                    <Shield className="w-4 h-4 mr-2" />
-                    Change Roles
-                  </>
-                ) : (
-                  <>
-                    <PlusCircle className="w-4 h-4 mr-2" />
-                    Add Roles
-                  </>
-                )}
-              </Button>
-            </div>
-
-            {selectedRoleDetails.length > 0 ? (
-              <ScrollArea className="h-[200px] pr-4">
-                <div className="space-y-2">
-                  {selectedRoleDetails.map(role => (
-                    <div
-                      key={role.id}
-                      className="flex items-center justify-between p-2 border rounded-lg"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Shield className="w-4 h-4 text-muted-foreground" />
-                        <span>{role.role_name}</span>
+                <Separator />
+                <FormField
+                  control={form.control}
+                  name="member_id_format"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Format Pattern</FormLabel>
+                      <FormControl>
+                        <Input {...field} />
+                      </FormControl>
+                      <div className="mt-2 space-y-2">
+                        <p className="text-sm font-medium">Available tokens:</p>
+                        <div className="space-y-1">
+                          {[
+                            { token: '{SEQ:n}', desc: 'Sequential number' },
+                            { token: '{YYYY}', desc: '4-digit year' },
+                            { token: '{YY}', desc: '2-digit year' },
+                            { token: '{MM}', desc: 'Month' },
+                            { token: '{DD}', desc: 'Day' }
+                          ].map(({ token, desc }) => (
+                            <div key={token} className="flex items-center gap-2 text-sm">
+                              <code className="px-1 py-0.5 rounded bg-muted">{token}</code>
+                              <span className="text-muted-foreground">{desc}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeRole(role.id)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <div className="text-center p-8 border-2 border-dashed rounded-lg">
-                <Shield className="w-8 h-8 mx-auto text-muted-foreground" />
-                <h4 className="font-medium mt-3">No roles assigned</h4>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Click the button above to assign roles to this membership tier
-                </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </div>
+            </Card>
+
+            {/* Form Template Selection */}
+            {form.watch('requires_form') && (
+              <Card className="p-6">
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <h2 className="text-lg font-semibold">Application Form</h2>
+                      <p className="text-sm text-muted-foreground">
+                        Select the form template for applications.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowFormTemplateDialog(true)}
+                    >
+                      {selectedTemplate ? (
+                        <>
+                          <FileText className="w-4 h-4 mr-2" />
+                          Change
+                        </>
+                      ) : (
+                        <>
+                          <PlusCircle className="w-4 h-4 mr-2" />
+                          Select
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  <Separator />
+
+                  {selectedTemplate ? (
+                    <div className="rounded-lg border bg-card p-4">
+                      <div className="flex items-start gap-4">
+                        <div className="p-2 rounded-md bg-primary/10">
+                          <FileText className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1 space-y-1">
+                          <p className="font-medium">{selectedTemplate.title}</p>
+                          {selectedTemplate.description && (
+                            <p className="text-sm text-muted-foreground">
+                              {selectedTemplate.description}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border-2 border-dashed p-6 text-center">
+                      <FileText className="h-8 w-8 mx-auto text-muted-foreground" />
+                      <h3 className="mt-2 font-medium">No form selected</h3>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Click the button above to select an application form
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </Card>
             )}
+
+            {/* Role Selection */}
+            <Card className="p-6">
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold">Member Roles</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Assign roles to members in this tier.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRoleDialog(true)}
+                  >
+                    {selectedRoleDetails.length > 0 ? (
+                      <>
+                        <Shield className="w-4 h-4 mr-2" />
+                        Manage
+                      </>
+                    ) : (
+                      <>
+                        <PlusCircle className="w-4 h-4 mr-2" />
+                        Add
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <Separator />
+              </div>
+            </Card>
           </div>
-        </Card>
-
-        <div className="flex justify-end gap-4">
-          <Button type="submit" disabled={pending}>
-            {pending ? 'Saving...' : 'Save Changes'}
-          </Button>
         </div>
-      </form>
 
-      <FormTemplateSelectionDialog
-        open={showFormTemplateDialog}
-        onOpenChange={setShowFormTemplateDialog}
-        onSelect={async (template) => {
-          try {
-            // Load the full template details if not already loaded
-            if (!formTemplates.some(t => t.id === template.id)) {
-              setIsLoadingTemplate(true);
-              const { data, error } = await getFormTemplateById(template.id);
-              if (error) {
-                toast({
-                  title: 'Form template not found',
-                  description: error,
-                  variant: 'destructive',
-                });
-                return;
-              }
-              if (!data) {
-                toast({
-                  title: 'Form template not found',
-                  description: 'The selected form template could not be loaded.',
-                  variant: 'destructive',
-                });
-                return;
-              }
-              setFormTemplates(prev => [...prev, data]);
-            }
+        <RoleSelectionDialog
+          open={showRoleDialog}
+          onOpenChange={setShowRoleDialog}
+          onSelect={handleRoleSelect}
+          groupId={groupId}
+          selectedRoleIds={form.getValues('roles')}
+        />
+
+        {/* <FormTemplateSelectionDialog
+          open={showFormTemplateDialog}
+          onOpenChange={setShowFormTemplateDialog}
+          onSelect={(template) => {
             form.setValue('form_template_id', template.id);
-            setShowFormTemplateDialog(false);
-          } catch (error) {
-            console.error('Error loading form template:', error);
-            toast({
-              title: 'Error',
-              description: 'Failed to load form template details',
-              variant: 'destructive',
+            setFormTemplates(prev => {
+              const exists = prev.some(t => t.id === template.id);
+              if (!exists) {
+                return [...prev, template];
+              }
+              return prev;
             });
-          } finally {
-            setIsLoadingTemplate(false);
-          }
-        }}
-        orgId={groupId}
-        selectedTemplateId={form.watch('form_template_id')}
-      />
-
-      <RoleSelectionDialog
-        open={showRoleDialog}
-        onOpenChange={setShowRoleDialog}
-        onSelect={handleRoleSelect}
-        groupId={groupId}
-        selectedRoleIds={selectedRoles}
-      />
+          }}
+          orgId={groupId}
+          selectedTemplateId={form.getValues('form_template_id')}
+        /> */}
+      </form>
     </Form>
   );
 } 

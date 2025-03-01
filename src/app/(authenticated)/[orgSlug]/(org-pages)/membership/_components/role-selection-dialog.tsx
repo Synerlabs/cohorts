@@ -164,12 +164,19 @@ export function RoleSelectionDialog({
                 </p>
               )}
               {role.permissions && role.permissions.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-2">
-                  {role.permissions.map((permission) => (
-                    <Badge key={permission} variant="secondary" className="text-xs">
-                      {permission}
-                    </Badge>
-                  ))}
+                <div className="mt-2 space-y-1.5">
+                  <div className="text-xs text-muted-foreground">Permissions:</div>
+                  <div className="flex flex-wrap gap-1.5 max-h-[80px] overflow-y-auto">
+                    {role.permissions.map((permission) => (
+                      <Badge 
+                        key={permission} 
+                        variant="secondary" 
+                        className="text-[11px] px-1.5 py-0.5 font-normal"
+                      >
+                        {permission}
+                      </Badge>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -218,19 +225,21 @@ export function RoleSelectionDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="h-[400px] pr-4">
-          <div className="space-y-4">
-            {isLoading ? (
-              renderLoadingState()
-            ) : roles.length === 0 ? (
-              renderEmptyState()
-            ) : (
-              roles.map(renderRoleCard)
-            )}
-          </div>
-        </ScrollArea>
+        <div className="mt-6">
+          <ScrollArea className="h-[400px] pr-4 -mr-4">
+            <div className="space-y-4">
+              {isLoading ? (
+                renderLoadingState()
+              ) : roles.length === 0 ? (
+                renderEmptyState()
+              ) : (
+                roles.map(renderRoleCard)
+              )}
+            </div>
+          </ScrollArea>
+        </div>
 
-        <div className="flex justify-end gap-3 mt-4">
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
