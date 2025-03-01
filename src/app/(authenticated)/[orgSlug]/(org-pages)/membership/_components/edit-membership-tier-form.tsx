@@ -1,366 +1,313 @@
 'use client';
 
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { IMembershipTierProduct } from "@/lib/types/product";
-import { FileText, PlusCircle, Check, Shield } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { useState, useEffect } from "react";
-import { MembershipActivationType } from "@/lib/types/membership";
+import { useState } from "react";
+import { MembershipActivationType, Currency } from "@/lib/types/membership";
+import { Database } from "@/lib/types/database.types";
+import { updateMembershipTierAction } from "../_actions/membership.action";
+import useToastActionState from "@/lib/hooks/toast-action-state.hook";
+import { Header } from "./header";
+import { FormTemplate } from "./types";
+import { TierSummary } from "./tier-summary";
+import { ActivationProcess } from "./activation-process";
+import { MemberIdFormat } from "./member-id-format";
+import { RoleSelector } from "./role-selector";
+import { PricingDuration } from "./pricing-duration";
+import { ActivationFlow } from "./activation-flow";
+type GroupRole = Database['public']['Tables']['group_roles']['Row'];
 
 interface EditMembershipTierFormProps {
   tier: IMembershipTierProduct;
   groupId: string;
   onSuccess?: () => void;
+  initialFormTemplate?: FormTemplate | null;
+  initialRoles?: GroupRole[];
+  stats?: {
+    total_members: number;
+    active_members: number;
+    pending_applications: number;
+    pending_reviews: number;
+    pending_payments: number;
+    expiring_soon: number;
+  };
 }
 
-export function EditMembershipTierForm({ tier, groupId, onSuccess }: EditMembershipTierFormProps) {
-  // Step 1: Initialize name and description from tier prop
-  const [name, setName] = useState(tier.name || "Premium Membership");
-  const [description, setDescription] = useState(tier.description || "This premium tier offers exclusive benefits to members.");
-  
-  // Step 2: Initialize price and duration from tier prop
-  const [price, setPrice] = useState(tier.price ? (tier.price / 100).toString() : "99.99"); // Convert cents to dollars
-  const [duration, setDuration] = useState(tier.membership_tier?.duration_months?.toString() || "12");
-  
-  // Step 3: Initialize activation settings based on activation_type
-  const activationType = tier.membership_tier?.activation_type || MembershipActivationType.AUTOMATIC;
-  const [requiresForm, setRequiresForm] = useState(
-    activationType === MembershipActivationType.FORM_REQUIRED ||
-    activationType === MembershipActivationType.FORM_THEN_PAYMENT ||
-    activationType === MembershipActivationType.FORM_THEN_REVIEW ||
-    activationType === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
-  );
-  const [requiresReview, setRequiresReview] = useState(
-    activationType === MembershipActivationType.REVIEW_REQUIRED ||
-    activationType === MembershipActivationType.REVIEW_THEN_PAYMENT ||
-    activationType === MembershipActivationType.FORM_THEN_REVIEW ||
-    activationType === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
-  );
-  
-  // Step 4: Initialize member ID format from tier data
-  const [memberIdFormat, setMemberIdFormat] = useState(tier.membership_tier?.member_id_format || "MEM-{YYYY}-{SEQ:3}");
+// Helper function to convert step configuration to MembershipActivationType
+function getActivationType({
+  price,
+  requires_form,
+  requires_review,
+  review_before_payment
+}: {
+  price: number,
+  requires_form: boolean,
+  requires_review: boolean,
+  review_before_payment: boolean
+}): MembershipActivationType {
+  if (price === 0) {
+    if (!requires_form && !requires_review) return MembershipActivationType.AUTOMATIC;
+    if (requires_form && !requires_review) return MembershipActivationType.FORM_REQUIRED;
+    if (!requires_form && requires_review) return MembershipActivationType.REVIEW_REQUIRED;
+    if (requires_form && requires_review) return MembershipActivationType.FORM_THEN_REVIEW;
+  } else {
+    if (!requires_form && !requires_review) return MembershipActivationType.PAYMENT_REQUIRED;
+    if (!requires_form && requires_review) {
+      return review_before_payment ? MembershipActivationType.REVIEW_THEN_PAYMENT : MembershipActivationType.PAYMENT_REQUIRED;
+    }
+    if (requires_form && !requires_review) return MembershipActivationType.FORM_THEN_PAYMENT;
+    if (requires_form && requires_review) {
+      return review_before_payment ? MembershipActivationType.FORM_THEN_REVIEW : MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW;
+    }
+  }
+  return price === 0 ? MembershipActivationType.AUTOMATIC : MembershipActivationType.PAYMENT_REQUIRED;
+}
 
-  // Log tier data to help debug
-  useEffect(() => {
-    console.log("Tier data:", tier);
-    console.log("Activation type:", activationType);
-  }, [tier, activationType]);
+// Helper function to convert MembershipActivationType to step configuration
+function getStepConfiguration(type: MembershipActivationType): {
+  requires_form: boolean;
+  requires_review: boolean;
+  review_before_payment: boolean;
+} {
+  return {
+    requires_form: type.includes('form'),
+    requires_review: type.includes('review'),
+    review_before_payment: type === MembershipActivationType.REVIEW_THEN_PAYMENT || 
+                         type === MembershipActivationType.FORM_THEN_REVIEW
+  };
+}
 
-  // Monitor for layout anomalies
-  useEffect(() => {
-    // Function to check for potential layout issues
-    const checkForLayoutIssues = () => {
-      const mainContainer = document.querySelector('.grid.grid-cols-3');
-      if (mainContainer) {
-        const height = mainContainer.clientHeight;
-        console.log("Main container height:", height);
-        
-        // Check for unusually large heights which might indicate layout issues
-        if (height > 2000) {
-          console.warn("Potential layout anomaly detected: Container height is unusually large");
-        }
-        
-        // Check for overflow issues
-        const hasOverflow = Array.from(mainContainer.children).some(child => {
-          const styles = window.getComputedStyle(child);
-          return styles.overflow === 'visible' && child.scrollHeight > child.clientHeight;
-        });
-        
-        if (hasOverflow) {
-          console.warn("Potential layout anomaly detected: Overflow issues found");
-        }
-      }
-    };
-    
-    // Run the check after the component has rendered
-    const timeoutId = setTimeout(checkForLayoutIssues, 500);
-    
-    return () => clearTimeout(timeoutId);
-  }, [name, description, price, duration, requiresForm, requiresReview, memberIdFormat]);
+export function EditMembershipTierForm({ 
+  tier, 
+  groupId, 
+  onSuccess,
+  initialFormTemplate,
+  initialRoles = [],
+  stats = {
+    total_members: 0,
+    active_members: 0,
+    pending_applications: 0,
+    pending_reviews: 0,
+    pending_payments: 0,
+    expiring_soon: 0
+  }
+}: EditMembershipTierFormProps) {
+  const [state, action, pending] = useToastActionState(
+    updateMembershipTierAction,
+    undefined,
+    undefined,
+    {
+      successTitle: "Membership tier updated",
+      successDescription: "Your membership tier has been updated successfully.",
+    }
+  );
+
+  const [editingSections, setEditingSections] = useState<{
+    basicInfo: boolean;
+    pricing: boolean;
+    activation: boolean;
+    memberId: boolean;
+    roles: boolean;
+  }>({
+    basicInfo: false,
+    pricing: false,
+    activation: false,
+    memberId: false,
+    roles: false,
+  });
+
+  const [formData, setFormData] = useState({
+    name: tier.name,
+    description: tier.description || '',
+    price: tier.price / 100,
+    currency: tier.currency as Currency,
+    duration_months: tier.membership_tier?.duration_months || 1,
+    ...getStepConfiguration(tier.membership_tier?.activation_type as MembershipActivationType || MembershipActivationType.AUTOMATIC),
+    member_id_format: tier.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+    form_template_id: tier.membership_tier?.form_template_id || null,
+    roles: tier.membership_tier?.roles?.map(role => role.id) || [],
+    is_active: tier.is_active
+  });
+
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>(
+    initialFormTemplate ? [initialFormTemplate] : []
+  );
+  const selectedTemplate = formTemplates.find(t => t.id === formData.form_template_id) || null;
+
+  const [roles, setRoles] = useState<Array<{
+    id: string;
+    role_name: string;
+    permissions: string[];
+  }>>(initialRoles.map(role => ({
+    id: role.id,
+    role_name: role.role_name || '',
+    permissions: role.permissions || []
+  })));
+
+  const handleUpdate = async (updates: Partial<typeof formData>) => {
+    const newData = { ...formData, ...updates };
+    setFormData(newData);
+
+    const formDataToSubmit = new FormData();
+    formDataToSubmit.append('id', tier.id);
+    formDataToSubmit.append('group_id', groupId);
+    formDataToSubmit.append('name', newData.name);
+    formDataToSubmit.append('description', newData.description || '');
+    formDataToSubmit.append('price', String(Math.round(newData.price * 100)));
+    formDataToSubmit.append('currency', newData.currency);
+    formDataToSubmit.append('duration_months', String(newData.duration_months));
+    formDataToSubmit.append('is_active', String(newData.is_active));
+
+    const activationType = getActivationType({
+      price: newData.price,
+      requires_form: newData.requires_form,
+      requires_review: newData.requires_review,
+      review_before_payment: newData.review_before_payment
+    });
+
+    formDataToSubmit.append('activation_type', activationType);
+    formDataToSubmit.append('member_id_format', newData.member_id_format);
+    formDataToSubmit.append('form_template_id', newData.form_template_id || '');
+    formDataToSubmit.append('roles', JSON.stringify(newData.roles));
+
+    await action(formDataToSubmit);
+    setEditingSections({
+      basicInfo: false,
+      pricing: false,
+      activation: false,
+      memberId: false,
+      roles: false,
+    });
+    onSuccess?.();
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Status Bar */}
-      <div>
-        <div className="flex items-center justify-between py-4">
-          <h1 className="text-xl font-semibold">Edit Membership Tier</h1>
-        </div>
-        <Separator />
-      </div>
+    <div className="max-w-full overflow-x-hidden space-y-8">
+      <Header 
+        name={formData.name}
+        description={formData.description}
+        isActive={formData.is_active}
+        isEditing={editingSections.basicInfo}
+        isPending={pending}
+        onEdit={() => setEditingSections(prev => ({
+          ...prev,
+          basicInfo: !prev.basicInfo
+        }))}
+        onCancel={() => setEditingSections(prev => ({ ...prev, basicInfo: false }))}
+        onSave={async (values) => {
+          await handleUpdate(values);
+        }}
+        onStatusChange={async (active) => {
+          await handleUpdate({ is_active: active });
+        }}
+      />
 
-      {/* Two Column Layout */}
       <div className="grid grid-cols-3 gap-8">
         {/* Main Content - Col 1-2 */}
         <div className="col-span-2 space-y-6">
-          {/* Basic Information */}
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold">Basic Information</h2>
-                <p className="text-sm text-muted-foreground">
-                  Configure the core details of your membership tier.
-                </p>
-              </div>
-              <Separator />
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Name</label>
-                  <Input
-                    placeholder="e.g., Basic Membership"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </div>
+          <TierSummary
+            stats={stats}
+            requiresForm={formData.requires_form}
+            requiresReview={formData.requires_review}
+            price={formData.price}
+          />
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Description</label>
-                  <Textarea
-                    placeholder="Describe what this membership tier offers..."
-                    className="min-h-[100px] resize-none"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-          </Card>
+          <ActivationProcess
+            requiresForm={formData.requires_form}
+            requiresReview={formData.requires_review}
+            reviewBeforePayment={formData.review_before_payment}
+            price={formData.price}
+            selectedTemplate={selectedTemplate}
+            onFormChange={async (value) => {
+              await handleUpdate({ requires_form: value });
+            }}
+            onReviewChange={async (value) => {
+              await handleUpdate({ requires_review: value });
+            }}
+            onReviewBeforePaymentChange={async (value) => {
+              await handleUpdate({ review_before_payment: value });
+            }}
+            onTemplateSelect={async (template) => {
+              if (!formTemplates.some(t => t.id === template.id)) {
+                setFormTemplates(prev => [...prev, template]);
+              }
+              await handleUpdate({ form_template_id: template.id });
+            }}
+            orgId={groupId}
+          />
 
-          {/* Pricing & Duration */}
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold">Pricing & Duration</h2>
-                <p className="text-sm text-muted-foreground">
-                  Set the price and duration for this membership tier.
-                </p>
-              </div>
-              <Separator />
-              
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Price</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-muted-foreground">$</span>
-                    <Input
-                      type="number"
-                      className="pl-7"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                    />
-                  </div>
-                </div>
+          <MemberIdFormat
+            isEditing={editingSections.memberId}
+            defaultValue={formData.member_id_format}
+            onEdit={() => setEditingSections(prev => {
+              const newState = Object.keys(prev).reduce((acc, key) => ({
+                ...acc,
+                [key]: false
+              }), prev);
+              return { ...newState, memberId: !prev.memberId };
+            })}
+            onCancel={() => setEditingSections(prev => ({ ...prev, memberId: false }))}
+            onSave={async (value) => {
+              await handleUpdate({ member_id_format: value });
+              setEditingSections(prev => ({ ...prev, memberId: false }));
+            }}
+            isPending={pending}
+          />
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Currency</label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="USD" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD ($)</SelectItem>
-                      <SelectItem value="EUR">EUR (€)</SelectItem>
-                      <SelectItem value="GBP">GBP (£)</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Duration</label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="number"
-                    className="w-24"
-                    value={duration}
-                    onChange={(e) => setDuration(e.target.value)}
-                  />
-                  <span className="text-muted-foreground">months</span>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Activation Settings */}
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold">Activation Process</h2>
-                <p className="text-sm text-muted-foreground">
-                  Configure how members are activated for this tier.
-                </p>
-              </div>
-              <Separator />
-
-              <div className="space-y-4">
-                <div className="flex flex-row items-start space-x-4 space-y-0 rounded-md border p-4">
-                  <Switch 
-                    checked={requiresForm} 
-                    onCheckedChange={setRequiresForm}
-                  />
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Application Form</label>
-                    <p className="text-sm text-muted-foreground">
-                      Require members to complete an application form before joining
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-row items-start space-x-4 space-y-0 rounded-md border p-4">
-                  <Switch 
-                    checked={requiresReview} 
-                    onCheckedChange={setRequiresReview}
-                  />
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium">Admin Review</label>
-                    <p className="text-sm text-muted-foreground">
-                      Require admin approval before membership is granted
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-lg bg-muted p-4">
-                <h3 className="font-medium mb-2">Current Activation Flow</h3>
-                <div className="flex items-center gap-2">
-                  {requiresForm && (
-                    <>
-                      <Badge variant="secondary" className="h-7">Complete Form</Badge>
-                      <svg className="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24">
-                        <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 18l6-6-6-6"/>
-                      </svg>
-                    </>
-                  )}
-                  {requiresReview && (
-                    <>
-                      <Badge variant="secondary" className="h-7">Admin Review</Badge>
-                      <svg className="h-4 w-4 text-muted-foreground" viewBox="0 0 24 24">
-                        <path fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 18l6-6-6-6"/>
-                      </svg>
-                    </>
-                  )}
-                  <Badge variant="secondary" className="h-7">Membership Granted</Badge>
-                </div>
-              </div>
-            </div>
-          </Card>
+          <RoleSelector
+            isEditing={editingSections.roles}
+            selectedRoles={roles.filter(role => formData.roles.includes(role.id))}
+            onEdit={() => setEditingSections(prev => {
+              const newState = Object.keys(prev).reduce((acc, key) => ({
+                ...acc,
+                [key]: false
+              }), prev);
+              return { ...newState, roles: !prev.roles };
+            })}
+            onRemoveRole={async (roleId) => {
+              await handleUpdate({
+                roles: formData.roles.filter(id => id !== roleId)
+              });
+            }}
+            onRolesSelect={async (roleIds) => {
+              await handleUpdate({ roles: roleIds });
+              setEditingSections(prev => ({ ...prev, roles: false }));
+            }}
+            isPending={pending}
+            groupId={groupId}
+          />
         </div>
 
         {/* Sidebar - Col 3 */}
         <div className="space-y-6">
-          {/* Member ID Format */}
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <h2 className="text-lg font-semibold">Member ID Format</h2>
-                <p className="text-sm text-muted-foreground">
-                  Configure how member IDs are generated.
-                </p>
-              </div>
-              <Separator />
-              
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Format Pattern</label>
-                <Input
-                  value={memberIdFormat}
-                  onChange={(e) => setMemberIdFormat(e.target.value)}
-                />
-                <div className="mt-2 space-y-2">
-                  <p className="text-sm font-medium">Available tokens:</p>
-                  <div className="space-y-1">
-                    {[
-                      { token: '{SEQ:n}', desc: 'Sequential number' },
-                      { token: '{YYYY}', desc: '4-digit year' },
-                      { token: '{YY}', desc: '2-digit year' },
-                      { token: '{MM}', desc: 'Month' },
-                      { token: '{DD}', desc: 'Day' }
-                    ].map(({ token, desc }) => (
-                      <div key={token} className="flex items-center gap-2 text-sm">
-                        <code className="px-1 py-0.5 rounded bg-muted">{token}</code>
-                        <span className="text-muted-foreground">{desc}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
+          <PricingDuration
+            isEditing={editingSections.pricing}
+            defaultValues={{
+              price: formData.price,
+              currency: formData.currency,
+              duration_months: formData.duration_months
+            }}
+            onEdit={() => setEditingSections(prev => {
+              const newState = Object.keys(prev).reduce((acc, key) => ({
+                ...acc,
+                [key]: false
+              }), prev);
+              return { ...newState, pricing: !prev.pricing };
+            })}
+            onCancel={() => setEditingSections(prev => ({ ...prev, pricing: false }))}
+            onSave={async (values) => {
+              await handleUpdate(values);
+              setEditingSections(prev => ({ ...prev, pricing: false }));
+            }}
+            isPending={pending}
+          />
 
-          {/* Form Template Selection */}
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-semibold">Application Form</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Select the form template for applications.
-                  </p>
-                </div>
-                <Button variant="outline" size="sm">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Change
-                </Button>
-              </div>
-              <Separator />
-
-              <div className="rounded-lg border bg-card p-4">
-                <div className="flex items-start gap-4">
-                  <div className="p-2 rounded-md bg-primary/10">
-                    <FileText className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <p className="font-medium">Standard Application</p>
-                    <p className="text-sm text-muted-foreground">
-                      Basic information collection form
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </Card>
-
-          {/* Member Roles */}
-          <Card className="p-6">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <h2 className="text-lg font-semibold">Member Roles</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Assign roles to members in this tier.
-                  </p>
-                </div>
-                <Button variant="outline" size="sm">
-                  <Shield className="w-4 h-4 mr-2" />
-                  Manage
-                </Button>
-              </div>
-              <Separator />
-
-              <div className="flex flex-wrap gap-2">
-                <Badge className="flex items-center gap-1 px-3 py-1">
-                  <span>Member</span>
-                  <button className="ml-1 text-muted-foreground hover:text-foreground">×</button>
-                </Badge>
-                <Badge className="flex items-center gap-1 px-3 py-1">
-                  <span>Contributor</span>
-                  <button className="ml-1 text-muted-foreground hover:text-foreground">×</button>
-                </Badge>
-              </div>
-            </div>
-          </Card>
+          <ActivationFlow
+            requiresForm={formData.requires_form}
+            requiresReview={formData.requires_review}
+            reviewBeforePayment={formData.review_before_payment}
+            price={formData.price}
+          />
         </div>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex justify-end space-x-4">
-        <Button variant="outline">Cancel</Button>
-        <Button>Save Changes</Button>
       </div>
     </div>
   );
