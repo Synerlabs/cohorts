@@ -1,7 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Shield } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { FileText, Shield, Pencil } from "lucide-react";
 
 interface TierSummaryProps {
   stats: {
@@ -14,14 +15,26 @@ interface TierSummaryProps {
   requiresForm: boolean;
   requiresReview: boolean;
   price: number;
+  memberIdFormat: string;
+  onEditMemberId?: () => void;
 }
 
 export function TierSummary({
   stats,
   requiresForm,
   requiresReview,
-  price
+  price,
+  memberIdFormat,
+  onEditMemberId
 }: TierSummaryProps) {
+  // Generate next member ID by replacing tokens with current values
+  const nextMemberId = memberIdFormat
+    .replace('{YYYY}', new Date().getFullYear().toString())
+    .replace('{YY}', new Date().getFullYear().toString().slice(-2))
+    .replace('{MM}', (new Date().getMonth() + 1).toString().padStart(2, '0'))
+    .replace('{DD}', new Date().getDate().toString().padStart(2, '0'))
+    .replace(/\{SEQ:(\d+)\}/, (_, digits) => '1'.padStart(parseInt(digits), '0'));
+
   return (
     <Card className="p-4 sm:p-6">
       <div className="space-y-4 sm:space-y-6">
@@ -54,6 +67,27 @@ export function TierSummary({
                   <p className="text-sm text-muted-foreground">Expiring soon</p>
                 </div>
               </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-muted-foreground">Next Member ID</h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onEditMemberId}
+                  className="h-6 w-6 p-0"
+                >
+                  <Pencil className="h-3 w-3" />
+                  <span className="sr-only">Edit member ID format</span>
+                </Button>
+              </div>
+              <p className="font-mono text-base font-medium bg-muted p-2 rounded">
+                {nextMemberId}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Based on {memberIdFormat}
+              </p>
             </div>
           </div>
 

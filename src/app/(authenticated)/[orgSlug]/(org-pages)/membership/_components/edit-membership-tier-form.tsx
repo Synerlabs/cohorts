@@ -1,7 +1,7 @@
 'use client';
 
 import { IMembershipTierProduct } from "@/lib/types/product";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { MembershipActivationType, Currency } from "@/lib/types/membership";
 import { Database } from "@/lib/types/database.types";
 import { updateMembershipTierAction } from "../_actions/membership.action";
@@ -155,6 +155,17 @@ export function EditMembershipTierForm({
     selectedRoles: roles.filter(role => formData.roles.includes(role.id))
   });
 
+  const memberIdFormatRef = useRef<HTMLDivElement>(null);
+
+  const scrollToMemberIdFormat = useCallback(() => {
+    memberIdFormatRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Also trigger edit mode
+    setEditingSections(prev => ({
+      ...prev,
+      memberId: true
+    }));
+  }, []);
+
   const handleUpdate = async (updates: Partial<typeof formData>) => {
     const newData = { ...formData, ...updates };
     setFormData(newData);
@@ -259,6 +270,8 @@ export function EditMembershipTierForm({
               requiresForm={formData.requires_form}
               requiresReview={formData.requires_review}
               price={formData.price}
+              memberIdFormat={formData.member_id_format}
+              onEditMemberId={scrollToMemberIdFormat}
             />
 
             <ActivationProcess
@@ -298,23 +311,25 @@ export function EditMembershipTierForm({
               }}
             />
 
-            <MemberIdFormat
-              isEditing={editingSections.memberId}
-              defaultValue={formData.member_id_format}
-              onEdit={() => setEditingSections(prev => {
-                const newState = Object.keys(prev).reduce((acc, key) => ({
-                  ...acc,
-                  [key]: false
-                }), prev);
-                return { ...newState, memberId: !prev.memberId };
-              })}
-              onCancel={() => setEditingSections(prev => ({ ...prev, memberId: false }))}
-              onSave={async (value) => {
-                await handleUpdate({ member_id_format: value });
-                setEditingSections(prev => ({ ...prev, memberId: false }));
-              }}
-              isPending={pending}
-            />
+            <div ref={memberIdFormatRef}>
+              <MemberIdFormat
+                isEditing={editingSections.memberId}
+                defaultValue={formData.member_id_format}
+                onEdit={() => setEditingSections(prev => {
+                  const newState = Object.keys(prev).reduce((acc, key) => ({
+                    ...acc,
+                    [key]: false
+                  }), prev);
+                  return { ...newState, memberId: !prev.memberId };
+                })}
+                onCancel={() => setEditingSections(prev => ({ ...prev, memberId: false }))}
+                onSave={async (value) => {
+                  await handleUpdate({ member_id_format: value });
+                  setEditingSections(prev => ({ ...prev, memberId: false }));
+                }}
+                isPending={pending}
+              />
+            </div>
 
             <RoleSelector
               isEditing={editingSections.roles}
