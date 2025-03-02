@@ -143,13 +143,71 @@ export async function approveApplication(applicationId: string): Promise<Applica
 
   if (updateError) throw updateError;
 
+  console.log(`Application ${applicationId} approved with status: ${newStatus}`);
+  console.log(`Activation type: ${application.activation_type}, Should activate: ${shouldActivate}`);
+
   // If we should activate the membership now, use the MembershipActivationService
-  if (shouldActivate) {
+  if (shouldActivate || newStatus === 'approved') {
     try {
+      console.log(`Processing application ${applicationId} for membership creation`);
+      
+      // Always process the application when status is approved
       await MembershipActivationService.processApplication(applicationId);
+      
+      // Verify that membership was created
+      const membershipCreated = await MembershipActivationService.verifyMembershipCreated(applicationId);
+      if (!membershipCreated && newStatus === 'approved') {
+        console.log(`Membership was not created for application ${applicationId} after approval, trying again...`);
+        
+        // Try again with explicit activation type
+        await MembershipActivationService.processApplication(
+          applicationId, 
+          application.activation_type as MembershipActivationType
+        );
+        
+        // Check again
+        const retryMembershipCreated = await MembershipActivationService.verifyMembershipCreated(applicationId);
+        if (!retryMembershipCreated) {
+          console.error(`Failed to create membership for application ${applicationId} after multiple attempts`);
+          
+          // Last resort: try direct membership creation
+          const { data: appData } = await supabase
+            .from('applications')
+            .select('group_user_id, tier_id')
+            .eq('id', applicationId)
+            .single();
+            
+          if (appData) {
+            console.log(`Attempting direct membership creation for application ${applicationId}`);
+            await MembershipActivationService.createMembership({
+              groupUserId: appData.group_user_id,
+              tierId: appData.tier_id,
+              applicationId: applicationId,
+              durationMonths: application.duration_months || 12
+            });
+          }
+        }
+      }
+      
+      // Verify that group user is active
+      const { data: appData } = await supabase
+        .from('applications')
+        .select('group_user_id')
+        .eq('id', applicationId)
+        .single();
+        
+      if (appData) {
+        const isActive = await MembershipActivationService.verifyGroupUserActive(appData.group_user_id);
+        if (!isActive && newStatus === 'approved') {
+          console.log(`Group user ${appData.group_user_id} is not active after application approval, activating...`);
+          // Activate explicitly
+          await MembershipActivationService.activateGroupUser(appData.group_user_id);
+        }
+      }
     } catch (error) {
       console.error('Error processing application:', error);
-      throw error;
+      // Log error but don't throw, as the application status update was successful
+      console.log(`Application ${applicationId} status updated to ${newStatus}, but membership processing failed`);
     }
   }
 

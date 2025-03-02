@@ -8,6 +8,7 @@ import { getCachedCurrentUser, getCachedOrgBySlug } from "@/lib/utils/cache";
 import { MembershipActivationType } from "@/lib/types/membership";
 import { withPermissions } from "@/lib/utils/action-permissions";
 import { permissions } from "@/lib/types/permissions";
+import { MembershipActivationService } from "@/services/membership-activation.service";
 
 type ApplicationWithMembership = {
   approved_at: string | null;
@@ -91,7 +92,53 @@ export async function handleApproveApplication(
           };
         }
 
+        console.log(`Starting approval process for application: ${applicationId}`);
+        
+        // Get the application details before approval
+        const supabase = await createClient();
+        const { data: beforeApp } = await supabase
+          .from('applications_view')
+          .select('status, activation_type')
+          .eq('id', applicationId)
+          .single();
+          
+        console.log(`Application before approval: Status=${beforeApp?.status}, Type=${beforeApp?.activation_type}`);
+        
+        // Approve the application - this will handle membership creation internally
         await approveApplication(applicationId);
+        
+        // Verify the application was approved
+        const { data: afterApp } = await supabase
+          .from('applications_view')
+          .select('status, approved_at, activation_type')
+          .eq('id', applicationId)
+          .single();
+          
+        console.log(`Application after approval: Status=${afterApp?.status}, Approved=${afterApp?.approved_at ? 'Yes' : 'No'}, Type=${afterApp?.activation_type}`);
+        
+        // Verify that membership was created and group user is active
+        try {
+          // Check if membership was created
+          const membershipCreated = await MembershipActivationService.verifyMembershipCreated(applicationId);
+          console.log(`Membership created for application ${applicationId}: ${membershipCreated ? 'Yes' : 'No'}`);
+          
+          // Get the group_user_id from the application
+          const { data: appData } = await supabase
+            .from('applications')
+            .select('group_user_id')
+            .eq('id', applicationId)
+            .single();
+            
+          if (appData) {
+            // Check if group user is active
+            const isActive = await MembershipActivationService.verifyGroupUserActive(appData.group_user_id);
+            console.log(`Group user active for application ${applicationId}: ${isActive ? 'Yes' : 'No'}`);
+          }
+        } catch (verifyError) {
+          console.error(`Error verifying membership/activation for application ${applicationId}:`, verifyError);
+          // Don't throw, just log the error
+        }
+        
         revalidatePath('/[orgSlug]/applications');
 
         return {

@@ -84,6 +84,9 @@ export class MembershipActivationService {
         orderId: existingMembership.order_id
       });
       
+      // Ensure the group user is activated even if membership already exists
+      await this.activateGroupUser(groupUserId);
+      
       // Return the existing membership
       return existingMembership;
     }
@@ -205,8 +208,19 @@ export class MembershipActivationService {
 
     console.log('✅ Created membership record:', membership.id);
 
-    // Activate the group user
-    await this.activateGroupUser(groupUserId);
+    // Always activate the group user when creating an active membership
+    try {
+      await this.activateGroupUser(groupUserId);
+      console.log('✅ Activated group user for new membership:', groupUserId);
+    } catch (activationError) {
+      console.error('❌ Failed to activate group user:', {
+        error: activationError,
+        groupUserId
+      });
+      // Don't throw here, as the membership was created successfully
+      // We'll log the error but return the membership
+      console.log('⚠️ Membership created but group user activation failed');
+    }
 
     return membership;
   }
@@ -294,6 +308,7 @@ export class MembershipActivationService {
     else if ((actualActivationType === MembershipActivationType.REVIEW_REQUIRED || 
               actualActivationType === MembershipActivationType.FORM_THEN_REVIEW) && 
              application.status === 'approved') {
+      console.log('✅ Review-required application is approved, will create membership');
       shouldCreateMembership = true;
     }
     // For payment_required and form_then_payment, create membership if approved
@@ -313,6 +328,21 @@ export class MembershipActivationService {
     }
     else if (actualActivationType === MembershipActivationType.REVIEW_THEN_PAYMENT && 
              application.status === 'approved') {
+      shouldCreateMembership = true;
+    }
+    
+    // Special case: If we're explicitly processing a review_required application,
+    // force membership creation if the application is approved
+    if ((activationType === MembershipActivationType.REVIEW_REQUIRED || 
+         activationType === MembershipActivationType.FORM_THEN_REVIEW) && 
+        application.status === 'approved') {
+      console.log('🔄 Explicitly processing review_required application, forcing membership creation');
+      shouldCreateMembership = true;
+    }
+    
+    // IMPORTANT: Always create membership for approved applications regardless of activation type
+    if (application.status === 'approved') {
+      console.log('✅ Application is approved, ensuring membership is created');
       shouldCreateMembership = true;
     }
 
@@ -354,16 +384,39 @@ export class MembershipActivationService {
       try {
         const durationMonths = application.tier?.membership_tiers?.[0]?.duration_months || 12;
         
-        const membership = await this.createMembership({
-          groupUserId: application.group_user_id,
-          tierId: application.tier_id,
-          applicationId: application.id,
-          durationMonths
-        });
+        // Check if membership already exists
+        const membershipExists = await this.verifyMembershipCreated(applicationId);
+        
+        if (membershipExists) {
+          console.log('⚠️ Membership already exists for application:', applicationId);
+          
+          // Ensure the group user is activated even if membership already exists
+          await this.activateGroupUser(application.group_user_id);
+        } else {
+          // Create new membership
+          const membership = await this.createMembership({
+            groupUserId: application.group_user_id,
+            tierId: application.tier_id,
+            applicationId: application.id,
+            durationMonths
+          });
 
-        console.log('✅ Created membership for application:', {
+          console.log('✅ Created membership for application:', {
+            applicationId,
+            membershipId: membership.id
+          });
+        }
+        
+        // Double-check that the group user is activated
+        const isActive = await this.verifyGroupUserActive(application.group_user_id);
+        if (!isActive) {
+          console.log('⚠️ Group user not active after membership creation, activating explicitly');
+          await this.activateGroupUser(application.group_user_id);
+        }
+        
+        console.log('✅ Processed application successfully:', {
           applicationId,
-          membershipId: membership.id
+          groupUserId: application.group_user_id
         });
       } catch (error) {
         console.error('❌ Failed to create membership for application:', {
@@ -440,6 +493,39 @@ export class MembershipActivationService {
 
     console.log('✅ Updated application status to approved:', applicationId);
 
+    // Check if membership already exists
+    const membershipExists = await this.verifyMembershipCreated(applicationId);
+    
+    if (membershipExists) {
+      console.log('⚠️ Membership already exists for application:', applicationId);
+      
+      // Get the group_user_id from the application
+      const { data: appData } = await supabase
+        .from('applications')
+        .select('group_user_id')
+        .eq('id', applicationId)
+        .single();
+        
+      if (appData) {
+        // Ensure the group user is activated even if membership already exists
+        await this.activateGroupUser(appData.group_user_id);
+        
+        // Get the existing membership to return
+        const { data: existingMembership } = await supabase
+          .from('memberships')
+          .select('*')
+          .eq('group_user_id', appData.group_user_id)
+          .eq('tier_id', application.tier_id)
+          .eq('status', 'active')
+          .single();
+          
+        if (existingMembership) {
+          console.log('✅ Found existing membership:', existingMembership.id);
+          return existingMembership;
+        }
+      }
+    }
+
     // Create membership
     const durationMonths = application.tier?.membership_tiers?.[0]?.duration_months || 12;
     
@@ -456,6 +542,13 @@ export class MembershipActivationService {
       orderId,
       membershipId: membership.id
     });
+    
+    // Double-check that the group user is activated
+    const isActive = await this.verifyGroupUserActive(application.group_user_id);
+    if (!isActive) {
+      console.log('⚠️ Group user not active after membership creation, activating explicitly');
+      await this.activateGroupUser(application.group_user_id);
+    }
 
     return membership;
   }
