@@ -25,6 +25,7 @@ export const applicationsRowSchema = z.object({
   tier_id: z.string(),
   type: z.string(),
   updated_at: z.string(),
+  form_data: z.record(z.any()).nullable(),
 });
 
 export const applicationsInsertSchema = z.object({
@@ -38,6 +39,7 @@ export const applicationsInsertSchema = z.object({
   tier_id: z.string(),
   type: z.string().optional(),
   updated_at: z.string().optional(),
+  form_data: z.record(z.any()).optional().nullable(),
 });
 
 export const applicationsUpdateSchema = z.object({
@@ -51,6 +53,7 @@ export const applicationsUpdateSchema = z.object({
   tier_id: z.string().optional(),
   type: z.string().optional(),
   updated_at: z.string().optional(),
+  form_data: z.record(z.any()).optional().nullable(),
 });
 
 export const applicationsRelationshipsSchema = z.tuple([
@@ -260,6 +263,7 @@ export const groupRolesInsertSchema = z.object({
   permissions: z.array(z.string()).optional().nullable(),
   role_name: z.string().optional().nullable(),
   type: groupRoleTypeSchema.optional().nullable(),
+  is_super_admin: z.boolean().optional(),
 });
 
 export const groupRolesUpdateSchema = z.object({
@@ -271,6 +275,7 @@ export const groupRolesUpdateSchema = z.object({
   permissions: z.array(z.string()).optional().nullable(),
   role_name: z.string().optional().nullable(),
   type: groupRoleTypeSchema.optional().nullable(),
+  is_super_admin: z.boolean().optional(),
 });
 
 export const groupRolesRelationshipsSchema = z.tuple([
@@ -1079,6 +1084,60 @@ export const userRolesRelationshipsSchema = z.tuple([
   }),
 ]);
 
+export const membershipTierRolesRowSchema = z.object({
+  id: z.string(),
+  tier_id: z.string(),
+  group_role_id: z.string(),
+  created_at: z.string(),
+  created_by: z.string().nullable(),
+  deleted_at: z.string().nullable(),
+  deleted_by: z.string().nullable(),
+});
+
+export const membershipTierRolesInsertSchema = z.object({
+  id: z.string().optional(),
+  tier_id: z.string(),
+  group_role_id: z.string(),
+  created_at: z.string().optional(),
+  created_by: z.string().optional().nullable(),
+  deleted_at: z.string().optional().nullable(),
+  deleted_by: z.string().optional().nullable(),
+});
+
+export const membershipTierRolesUpdateSchema = z.object({
+  id: z.string().optional(),
+  tier_id: z.string().optional(),
+  group_role_id: z.string().optional(),
+  created_at: z.string().optional(),
+  created_by: z.string().optional().nullable(),
+  deleted_at: z.string().optional().nullable(),
+  deleted_by: z.string().optional().nullable(),
+});
+
+export const membershipTierRolesRelationshipsSchema = z.tuple([
+  z.object({
+    foreignKeyName: z.literal("membership_tier_roles_tier_id_fkey"),
+    columns: z.tuple([z.literal("tier_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("membership_tiers"),
+    referencedColumns: z.tuple([z.literal("product_id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("membership_tier_roles_group_role_id_fkey"),
+    columns: z.tuple([z.literal("group_role_id")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("group_roles"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+  z.object({
+    foreignKeyName: z.literal("membership_tier_roles_deleted_by_fkey"),
+    columns: z.tuple([z.literal("deleted_by")]),
+    isOneToOne: z.literal(false),
+    referencedRelation: z.literal("users"),
+    referencedColumns: z.tuple([z.literal("id")]),
+  }),
+]);
+
 export const membershipApplicationsViewRowSchema = z.object({
   activation_type: z.string().nullable(),
   approved_at: z.string().nullable(),
@@ -1182,6 +1241,7 @@ export const groupRolesRowSchema = z.object({
   permissions: z.array(z.string()).nullable(),
   role_name: z.string().nullable(),
   type: groupRoleTypeSchema.nullable(),
+  is_super_admin: z.boolean(),
 });
 
 export const orgStorageSettingsRowSchema = z.object({

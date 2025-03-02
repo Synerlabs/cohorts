@@ -38,6 +38,8 @@ export type Database = {
         Row: {
           approved_at: string | null
           created_at: string
+          form_data: Json | null
+          form_response_id: string | null
           group_user_id: string
           id: string
           order_id: string | null
@@ -46,11 +48,12 @@ export type Database = {
           tier_id: string
           type: string
           updated_at: string
-          form_data: Record<string, any> | null
         }
         Insert: {
           approved_at?: string | null
           created_at?: string
+          form_data?: Json | null
+          form_response_id?: string | null
           group_user_id: string
           id?: string
           order_id?: string | null
@@ -59,11 +62,12 @@ export type Database = {
           tier_id: string
           type?: string
           updated_at?: string
-          form_data?: Record<string, any> | null
         }
         Update: {
           approved_at?: string | null
           created_at?: string
+          form_data?: Json | null
+          form_response_id?: string | null
           group_user_id?: string
           id?: string
           order_id?: string | null
@@ -72,9 +76,15 @@ export type Database = {
           tier_id?: string
           type?: string
           updated_at?: string
-          form_data?: Record<string, any> | null
         }
         Relationships: [
+          {
+            foreignKeyName: "applications_form_response_id_fkey"
+            columns: ["form_response_id"]
+            isOneToOne: false
+            referencedRelation: "form_responses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "applications_group_user_id_fkey"
             columns: ["group_user_id"]
@@ -140,8 +150,11 @@ export type Database = {
         Row: {
           created_at: string | null
           created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           id: string
+          is_deleted: boolean | null
           org_id: string
           schema: Json
           settings: Json | null
@@ -153,8 +166,11 @@ export type Database = {
         Insert: {
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
+          is_deleted?: boolean | null
           org_id: string
           schema: Json
           settings?: Json | null
@@ -166,8 +182,11 @@ export type Database = {
         Update: {
           created_at?: string | null
           created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           id?: string
+          is_deleted?: boolean | null
           org_id?: string
           schema?: Json
           settings?: Json | null
@@ -270,10 +289,10 @@ export type Database = {
           description: string | null
           group_id: string | null
           id: string
+          is_super_admin: boolean
           permissions: string[] | null
           role_name: string | null
           type: Database["public"]["Enums"]["group_role_type"] | null
-          is_super_admin: boolean
         }
         Insert: {
           created_at?: string
@@ -281,10 +300,10 @@ export type Database = {
           description?: string | null
           group_id?: string | null
           id?: string
+          is_super_admin?: boolean
           permissions?: string[] | null
           role_name?: string | null
           type?: Database["public"]["Enums"]["group_role_type"] | null
-          is_super_admin?: boolean
         }
         Update: {
           created_at?: string
@@ -292,10 +311,10 @@ export type Database = {
           description?: string | null
           group_id?: string | null
           id?: string
+          is_super_admin?: boolean
           permissions?: string[] | null
           role_name?: string | null
           type?: Database["public"]["Enums"]["group_role_type"] | null
-          is_super_admin?: boolean
         }
         Relationships: [
           {
@@ -441,8 +460,67 @@ export type Database = {
             foreignKeyName: "membership_member_ids_membership_id_fkey"
             columns: ["membership_id"]
             isOneToOne: false
+            referencedRelation: "membership_roles_view"
+            referencedColumns: ["membership_id"]
+          },
+          {
+            foreignKeyName: "membership_member_ids_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
             referencedRelation: "memberships"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_tier_roles: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          deleted_by: string | null
+          group_role_id: string
+          id: string
+          tier_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          group_role_id: string
+          id?: string
+          tier_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          deleted_by?: string | null
+          group_role_id?: string
+          id?: string
+          tier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "membership_tier_roles_group_role_id_fkey"
+            columns: ["group_role_id"]
+            isOneToOne: false
+            referencedRelation: "group_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "membership_tier_roles_group_role_id_fkey"
+            columns: ["group_role_id"]
+            isOneToOne: false
+            referencedRelation: "membership_roles_view"
+            referencedColumns: ["role_id"]
+          },
+          {
+            foreignKeyName: "membership_tier_roles_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["product_id"]
           },
         ]
       }
@@ -482,19 +560,29 @@ export type Database = {
         Row: {
           activation_type: string
           duration_months: number
+          form_template_id: string | null
           product_id: string
         }
         Insert: {
           activation_type: string
           duration_months?: number
+          form_template_id?: string | null
           product_id: string
         }
         Update: {
           activation_type?: string
           duration_months?: number
+          form_template_id?: string | null
           product_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "membership_tiers_form_template_id_fkey"
+            columns: ["form_template_id"]
+            isOneToOne: false
+            referencedRelation: "form_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "membership_tiers_product_id_fkey"
             columns: ["product_id"]
@@ -738,10 +826,13 @@ export type Database = {
         Row: {
           created_at: string
           currency: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           group_id: string | null
           id: string
           is_active: boolean
+          is_deleted: boolean | null
           name: string
           price: number
           type: string
@@ -750,10 +841,13 @@ export type Database = {
         Insert: {
           created_at?: string
           currency?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           group_id?: string | null
           id?: string
           is_active?: boolean
+          is_deleted?: boolean | null
           name: string
           price?: number
           type: string
@@ -762,16 +856,26 @@ export type Database = {
         Update: {
           created_at?: string
           currency?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           group_id?: string | null
           id?: string
           is_active?: boolean
+          is_deleted?: boolean | null
           name?: string
           price?: number
           type?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "products_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "products_group_id_fkey"
             columns: ["group_id"]
@@ -1078,58 +1182,20 @@ export type Database = {
             referencedRelation: "group_roles"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      membership_tier_roles: {
-        Row: {
-          id: string;
-          tier_id: string;
-          group_role_id: string;
-          created_at: string;
-          created_by: string | null;
-          deleted_at: string | null;
-          deleted_by: string | null;
-        }
-        Insert: {
-          id?: string;
-          tier_id: string;
-          group_role_id: string;
-          created_at?: string;
-          created_by?: string | null;
-          deleted_at?: string | null;
-          deleted_by?: string | null;
-        }
-        Update: {
-          id?: string;
-          tier_id?: string;
-          group_role_id?: string;
-          created_at?: string;
-          created_by?: string | null;
-          deleted_at?: string | null;
-          deleted_by?: string | null;
-        }
-        Relationships: [
           {
-            foreignKeyName: "membership_tier_roles_tier_id_fkey"
-            columns: ["tier_id"]
-            isOneToOne: false
-            referencedRelation: "membership_tiers"
-            referencedColumns: ["product_id"]
-          },
-          {
-            foreignKeyName: "membership_tier_roles_group_role_id_fkey"
+            foreignKeyName: "user_roles_group_role_id_fkey"
             columns: ["group_role_id"]
             isOneToOne: false
-            referencedRelation: "group_roles"
-            referencedColumns: ["id"]
+            referencedRelation: "membership_roles_view"
+            referencedColumns: ["role_id"]
           },
           {
-            foreignKeyName: "membership_tier_roles_deleted_by_fkey"
-            columns: ["deleted_by"]
+            foreignKeyName: "user_roles_user_id_fkey1"
+            columns: ["user_id"]
             isOneToOne: false
-            referencedRelation: "users"
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
-          }
+          },
         ]
       }
     }
@@ -1183,6 +1249,36 @@ export type Database = {
           },
           {
             foreignKeyName: "group_users_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      membership_roles_view: {
+        Row: {
+          end_date: string | null
+          group_id: string | null
+          membership_id: string | null
+          membership_status: string | null
+          permissions: string[] | null
+          role_id: string | null
+          role_name: string | null
+          start_date: string | null
+          tier_name: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_roles_group_id_fkey"
             columns: ["group_id"]
             isOneToOne: false
             referencedRelation: "group"
@@ -1256,6 +1352,10 @@ export type Database = {
         | "review_required"
         | "payment_required"
         | "review_then_payment"
+        | "form_required"
+        | "form_then_payment"
+        | "form_then_review"
+        | "form_then_payment_then_review"
       payment_gateway_status:
         | "unconfigured"
         | "configured"

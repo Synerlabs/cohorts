@@ -3,6 +3,7 @@ import { Database } from "@/lib/types/database.types";
 import { OrderService } from "./order.service";
 import { ProductService } from "./product.service";
 import { MembershipActivationType } from "@/lib/types/membership";
+import { MembershipActivationService } from './membership-activation.service';
 
 export type Application = {
   id: string;
@@ -125,22 +126,32 @@ export async function approveApplication(applicationId: string): Promise<Applica
   const newStatus = (application.product_price > 0 && 
     [
       MembershipActivationType.REVIEW_THEN_PAYMENT,
-      MembershipActivationType.FORM_THEN_REVIEW,
-      MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW,
       MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     ].includes(application.activation_type as MembershipActivationType))
     ? 'pending_payment' 
     : 'approved';
 
-  // Start transaction
-  const { error: updateError } = await supabase.rpc('approve_application', { 
-    p_application_id: applicationId,
-    p_new_status: newStatus,
-    p_should_activate: shouldActivate,
-    p_approved_at: now
-  });
+  // Update the application status
+  const { error: updateError } = await supabase
+    .from('applications')
+    .update({
+      status: newStatus,
+      approved_at: now,
+      updated_at: now
+    })
+    .eq('id', applicationId);
 
   if (updateError) throw updateError;
+
+  // If we should activate the membership now, use the MembershipActivationService
+  if (shouldActivate) {
+    try {
+      await MembershipActivationService.processApplication(applicationId);
+    } catch (error) {
+      console.error('Error processing application:', error);
+      throw error;
+    }
+  }
 
   // Fetch the updated record
   const { data: updatedApplication, error: fetchError } = await supabase
@@ -340,46 +351,20 @@ export async function createMembershipApplication(
   if (shouldCreateMembership) {
     console.log(`${product.membership_tier.activation_type} activation: Creating membership record`);
     
-    // Calculate membership dates
-    const startDate = new Date().toISOString();
-    const durationMonths = product.membership_tier.duration_months;
-    const endDate = durationMonths ? 
-      new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000).toISOString() : 
-      null;
+    try {
+      // Use the MembershipActivationService to create the membership
+      const membership = await MembershipActivationService.createMembership({
+        groupUserId,
+        tierId: productId,
+        applicationId: newApplication.id,
+        durationMonths: product.membership_tier.duration_months
+      });
 
-    // Create membership record
-    const { data: membership, error: membershipError } = await supabase
-      .from('memberships')
-      .insert({
-        group_user_id: groupUserId,
-        tier_id: productId,
-        status: 'active',
-        start_date: startDate,
-        end_date: endDate,
-        is_active: true
-      })
-      .select()
-      .single();
-
-    if (membershipError) {
-      console.error(`Error creating membership for ${product.membership_tier.activation_type} activation:`, membershipError);
-      throw membershipError;
+      console.log(`Created membership for ${product.membership_tier.activation_type} activation:`, membership);
+    } catch (error) {
+      console.error(`Error creating membership for ${product.membership_tier.activation_type} activation:`, error);
+      throw error;
     }
-
-    console.log(`Created membership for ${product.membership_tier.activation_type} activation:`, membership);
-
-    // Ensure group user is active
-    const { error: userError } = await supabase
-      .from('group_users')
-      .update({ is_active: true })
-      .eq('id', groupUserId);
-
-    if (userError) {
-      console.error(`Error activating group user for ${product.membership_tier.activation_type} activation:`, userError);
-      throw userError;
-    }
-
-    console.log(`Activated group user for ${product.membership_tier.activation_type} activation`);
   }
 
   // Fetch the full application details from the view

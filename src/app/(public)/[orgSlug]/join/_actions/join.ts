@@ -9,6 +9,7 @@ import { createMembershipApplication } from "@/services/applications.service";
 import { createClient } from "@/lib/utils/supabase/server";
 import { MembershipActivationType } from "@/lib/types/membership";
 import { getGroupUser } from "@/services/user.service";
+import { MembershipActivationService } from "@/services/membership-activation.service";
 
 type State = {
   message?: string;
@@ -73,6 +74,18 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       membershipTierId,
       formSubmissionData ? JSON.parse(formSubmissionData) : undefined
     );
+
+    // For automatic activation types, process the application immediately
+    if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.AUTOMATIC ||
+        membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_REQUIRED) {
+      try {
+        console.log('Processing application with automatic activation:', application.id);
+        await MembershipActivationService.processApplication(application.id);
+      } catch (error) {
+        console.error('Error processing application with automatic activation:', error);
+        // Continue with the flow even if there's an error, as the application was created
+      }
+    }
 
     // For paid memberships that require payment, add to cart
     if (membershipTier.price > 0 && (
