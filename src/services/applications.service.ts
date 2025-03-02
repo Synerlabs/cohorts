@@ -49,6 +49,7 @@ export type Application = {
 
 type ApplicationView = {
   id: string;
+  application_id: string;
   user_id: string;
   product_id: string;
   group_id: string;
@@ -98,7 +99,7 @@ export async function approveApplication(applicationId: string): Promise<Applica
   const { data: application, error: applicationError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('id', applicationId)
+    .eq('application_id', applicationId)
     .single();
 
   if (applicationError) throw applicationError;
@@ -228,7 +229,7 @@ export async function approveApplication(applicationId: string): Promise<Applica
   const { data: updatedApplication, error: fetchError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('id', applicationId)
+    .eq('application_id', applicationId)
     .single();
 
   if (fetchError) throw fetchError;
@@ -252,7 +253,7 @@ export async function rejectApplication(applicationId: string): Promise<Applicat
   const { data: updatedApplication, error: fetchError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('id', applicationId)
+    .eq('application_id', applicationId)
     .single();
 
   if (fetchError) throw fetchError;
@@ -442,7 +443,7 @@ export async function createMembershipApplication(
   const { data: application, error: viewError } = await supabase
     .from('membership_applications_view')
     .select()
-    .eq('id', newApplication.id)
+    .eq('application_id', newApplication.id)
     .single();
 
   if (viewError) {
@@ -476,7 +477,7 @@ export async function getUserMembershipApplications(userId: string, groupId: str
 
 function mapViewToApplication(row: ApplicationView): Application {
   return {
-    id: row.id,
+    id: row.application_id,
     user_id: row.user_id,
     product_id: row.product_id,
     group_id: row.group_id,

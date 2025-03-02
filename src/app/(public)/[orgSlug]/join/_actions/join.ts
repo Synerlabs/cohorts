@@ -91,7 +91,8 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     if (membershipTier.price > 0 && (
       membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.PAYMENT_REQUIRED ||
       membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT ||
-      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW ||
+      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     )) {
       await addItem({
         productId: membershipTierId,

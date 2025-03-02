@@ -26,7 +26,8 @@ const membershipTierSchema = z.object({
     'form_required',
     'form_then_payment',
     'form_then_review',
-    'form_then_payment_then_review'
+    'form_then_payment_then_review',
+    'form_then_review_then_payment'
   ]).default('automatic'),
   member_id_format: z.string().min(1, "Member ID format is required").default('MEM-{YYYY}-{SEQ:3}'),
   form_template_id: z.string().optional().nullable()

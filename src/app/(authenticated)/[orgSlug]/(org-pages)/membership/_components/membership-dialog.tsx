@@ -43,7 +43,17 @@ const formSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, "Price must be 0 or greater"),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
-  activation_type: z.enum(['automatic', 'review_required', 'payment_required', 'review_then_payment'] as const),
+  activation_type: z.enum([
+    'automatic', 
+    'review_required', 
+    'payment_required', 
+    'review_then_payment',
+    'form_required',
+    'form_then_payment',
+    'form_then_review',
+    'form_then_payment_then_review',
+    'form_then_review_then_payment'
+  ] as const),
 });
 
 interface MembershipDialogProps {

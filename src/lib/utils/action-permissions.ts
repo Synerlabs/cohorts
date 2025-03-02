@@ -52,11 +52,26 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
       return membership?.group_id || null;
 
     case 'applications':
-      const { data: application } = await supabase
+      // Try to find the application by either id or application_id
+      let { data: application } = await supabase
         .from("membership_applications_view")
         .select("group_id")
-        .eq("id", moduleId)
+        .eq("application_id", moduleId)
         .single();
+      
+      // If not found by application_id, try with id
+      if (!application) {
+        const { data: appById } = await supabase
+          .from("membership_applications_view")
+          .select("group_id")
+          .eq("id", moduleId)
+          .single();
+        application = appById;
+      }
+      
+      // Log for debugging
+      console.log("Application group_id lookup:", { moduleId, groupId: application?.group_id });
+      
       return application?.group_id || null;
 
     case 'payments':

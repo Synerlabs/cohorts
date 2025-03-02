@@ -5,6 +5,7 @@ DROP VIEW IF EXISTS membership_applications_view;
 CREATE VIEW membership_applications_view AS
 SELECT 
   a.id,
+  a.id as application_id, -- Added application_id as a duplicate of id for backward compatibility
   a.status,
   a.group_user_id,
   a.tier_id as product_id,
@@ -52,3 +53,6 @@ JOIN membership_tiers mt ON p.id = mt.product_id
 JOIN public.group g ON gu.group_id = g.id
 LEFT JOIN orders o ON a.order_id = o.id
 WHERE a.type = 'membership';
+
+-- Add comment explaining the dual id fields
+COMMENT ON VIEW membership_applications_view IS 'View that combines membership applications with related data. Includes both id and application_id fields (which are identical) to maintain compatibility with existing code that may reference either field name.';

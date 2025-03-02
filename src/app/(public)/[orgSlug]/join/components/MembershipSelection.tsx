@@ -56,7 +56,8 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
       tier.membership_tier?.activation_type === MembershipActivationType.FORM_REQUIRED ||
       tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_PAYMENT ||
       tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_REVIEW ||
-      tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
+      tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW ||
+      tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     ) {
       router.push(`${window.location.pathname}/${tier.id}`);
       return;
@@ -133,6 +134,9 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
                   )}
                   {tier.membership_tier?.activation_type === 'form_then_payment_then_review' && (
                     <li>Application form, payment, and admin review required</li>
+                  )}
+                  {tier.membership_tier?.activation_type === 'form_then_review_then_payment' && (
+                    <li>Application form, admin review, and payment required</li>
                   )}
                 </ul>
               </div>

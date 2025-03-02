@@ -51,7 +51,7 @@ export class ApplicationService {
     const { data, error } = await supabase
       .from('membership_applications_view')
       .select('*')
-      .eq('id', applicationId)
+      .eq('application_id', applicationId)
       .single();
 
     if (error) {

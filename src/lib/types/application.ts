@@ -16,7 +16,7 @@ export interface IApplication {
 
 export interface IMembershipApplication {
   application_id: string;
-  application_status: ApplicationStatus;
+  status: ApplicationStatus;
   group_user_id: string;
   product_id: string;
   order_id: string | null;

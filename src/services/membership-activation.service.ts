@@ -518,13 +518,48 @@ export class MembershipActivationService {
         
       return updatedApp;
     }
+    
+    // For form_then_review_then_payment, we've already reviewed the application
+    // and now we're completing the payment, so we should create the membership
+    if (activationType === 'form_then_review_then_payment') {
+      console.log('ℹ️ Payment received for form_then_review_then_payment application, finalizing membership');
+      
+      // Only update if the current status is 'pending_payment'
+      // This prevents changing the status if it's already been set to something else
+      if (application.status === 'pending_payment') {
+        const now = new Date().toISOString();
+        const { error: updateError } = await supabase
+          .from('applications')
+          .update({
+            status: 'approved', // Set to approved since it's already been reviewed
+            approved_at: now,
+            updated_at: now,
+            order_id: orderId // Store the order ID for reference
+          })
+          .eq('id', applicationId);
+
+        if (updateError) {
+          console.error('❌ Failed to update application status:', {
+            error: updateError,
+            applicationId
+          });
+          throw new Error(`Failed to update application status: ${updateError.message}`);
+        }
+
+        console.log('✅ Updated application status to approved after payment:', applicationId);
+      } else {
+        console.log(`⚠️ Application ${applicationId} status is ${application.status}, not updating to approved`);
+      }
+      
+      // Continue with membership creation since this application has been reviewed and paid
+    }
 
     // For all other types, proceed with the normal flow (approve and create membership)
     const now = new Date().toISOString();
     
-    // Only update if the current status is 'pending_payment'
-    // This prevents changing the status if it's already been set to something else
-    if (application.status === 'pending_payment') {
+    // Only update if the current status is 'pending_payment' and it's not form_then_review_then_payment
+    // (which we already handled above)
+    if (application.status === 'pending_payment' && activationType !== 'form_then_review_then_payment') {
       const { error: updateError } = await supabase
         .from('applications')
         .update({
@@ -544,7 +579,7 @@ export class MembershipActivationService {
       }
 
       console.log('✅ Updated application status to approved:', applicationId);
-    } else {
+    } else if (activationType !== 'form_then_review_then_payment') {
       console.log(`⚠️ Application ${applicationId} status is ${application.status}, not updating to approved`);
     }
 

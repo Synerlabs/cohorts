@@ -39,5 +39,10 @@ CREATE TYPE "public"."membership_activation_type" AS ENUM (
     'automatic',
     'review_required',
     'payment_required',
-    'review_then_payment'
+    'review_then_payment',
+    'form_required',
+    'form_then_payment',
+    'form_then_review',
+    'form_then_payment_then_review',
+    'form_then_review_then_payment'
 ); 

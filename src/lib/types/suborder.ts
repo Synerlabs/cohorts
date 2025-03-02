@@ -233,6 +233,30 @@ export class MembershipSuborder extends Suborder {
           
           applicationStatus = appData.status;
           console.log('✅ Application status verified as pending for form_then_payment_then_review');
+        } 
+        // For form_then_review_then_payment, we expect the status to be 'approved' after payment
+        else if (activationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) {
+          console.log('ℹ️ Skipping standard verification for form_then_review_then_payment activation type');
+          
+          // Verify the application exists and has a valid status
+          const { data: appData, error: appError } = await this.supabase
+            .from('applications')
+            .select('status')
+            .eq('id', this.metadata.application_id)
+            .single();
+            
+          if (appError || !appData) {
+            console.error('❌ Application not found or error:', appError);
+            throw new Error(`Application verification failed: ${appError?.message || 'Application not found'}`);
+          }
+          
+          if (appData.status !== 'approved') {
+            console.error('❌ Application status is not approved after payment for form_then_review_then_payment:', appData.status);
+            throw new Error(`Application status should be 'approved' after payment for form_then_review_then_payment, but got '${appData.status}'`);
+          }
+          
+          applicationStatus = appData.status;
+          console.log('✅ Application status verified as approved for form_then_review_then_payment');
         } else {
           // For all other activation types, use the standard verification
           await this.verifyApplicationStatus();
@@ -276,7 +300,7 @@ export class MembershipSuborder extends Suborder {
     const { data: tierData, error: tierError } = await this.supabase
       .from('membership_applications_view')
       .select('activation_type')
-      .eq('id', this.metadata.application_id)
+      .eq('application_id', this.metadata.application_id)
       .single();
 
     if (tierError) {
