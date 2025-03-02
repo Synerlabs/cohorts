@@ -98,11 +98,11 @@ export async function handleApproveApplication(
         const supabase = await createClient();
         const { data: beforeApp } = await supabase
           .from('applications_view')
-          .select('status, activation_type')
+          .select('status, activation_type, order_id')
           .eq('id', applicationId)
           .single();
           
-        console.log(`Application before approval: Status=${beforeApp?.status}, Type=${beforeApp?.activation_type}`);
+        console.log(`Application before approval: Status=${beforeApp?.status}, Type=${beforeApp?.activation_type}, OrderID=${beforeApp?.order_id || 'None'}`);
         
         // Approve the application - this will handle membership creation internally
         await approveApplication(applicationId);
@@ -133,6 +133,12 @@ export async function handleApproveApplication(
             // Check if group user is active
             const isActive = await MembershipActivationService.verifyGroupUserActive(appData.group_user_id);
             console.log(`Group user active for application ${applicationId}: ${isActive ? 'Yes' : 'No'}`);
+            
+            // If the group user is not active, activate it
+            if (!isActive) {
+              console.log(`Activating group user for application ${applicationId}`);
+              await MembershipActivationService.activateGroupUser(appData.group_user_id);
+            }
           }
         } catch (verifyError) {
           console.error(`Error verifying membership/activation for application ${applicationId}:`, verifyError);

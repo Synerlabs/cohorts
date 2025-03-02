@@ -6,6 +6,7 @@ import Stripe from 'stripe';
 import { headers } from 'next/headers';
 import { OrderService } from '@/services/order.service';
 import { StripePaymentProvider } from '@/services/payment/providers/stripe-payment.provider';
+import { PaymentProcessorService } from '@/services/payment/payment-processor.service';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2025-01-27.acacia'
@@ -368,13 +369,9 @@ export async function POST(req: Request) {
 
         console.log('✅ Updated payment status to paid');
 
-        // Process the order and its suborders
+        // Process the order and its suborders using the unified payment processor
         try {
-          // This will:
-          // 1. Check if payment total is sufficient
-          // 2. Process all suborders if payment is sufficient
-          // 3. Update order status based on suborder processing results
-          await OrderService.updateOrderStatusFromPayments(orderId);
+          await PaymentProcessorService.processPayment(orderId);
           console.log('✅ Order processed successfully');
         } catch (error) {
           console.error('❌ Failed to process order:', error);

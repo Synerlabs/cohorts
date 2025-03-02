@@ -111,7 +111,7 @@ export async function getGroupUser({
       return null;
     }
 
-    console.log('Found group user:', data[0]);
+    // console.log('Found group user:', data[0]);
     return camelcaseKeys(data[0]);
   } catch (error) {
     console.error("Exception in getGroupUser:", error);

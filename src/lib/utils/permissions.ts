@@ -65,7 +65,7 @@ export async function checkUserAccess({
     .eq('group_id', groupId)
     .eq('membership_status', 'active');
 
-  console.log("DEBUG - membershipRoles:", membershipRoles, membershipError);
+  // console.log("DEBUG - membershipRoles:", membershipRoles, membershipError);
 
   if (membershipError) {
     console.error('Error fetching membership roles:', membershipError);
@@ -86,12 +86,12 @@ export async function checkUserAccess({
   // Users with membership roles are NOT considered guests
   const isGuest = !hasActiveDirectRoles && !hasActiveMembershipRoles;
   
-  console.log("DEBUG - Guest check:", {
-    hasActiveDirectRoles,
-    hasActiveMembershipRoles,
-    isGuest,
-    allowGuest
-  });
+  // console.log("DEBUG - Guest check:", {
+  //   hasActiveDirectRoles,
+  //   hasActiveMembershipRoles,
+  //   isGuest,
+  //   allowGuest
+  // });
 
   // Get permissions from roles and membership roles
   const userPermissions = [
@@ -107,7 +107,7 @@ export async function checkUserAccess({
     }, []) || []),
     // Get permissions from membership roles
     ...(membershipRoles?.reduce((acc: string[], role: MembershipRoleView) => {
-      console.log("DEBUG - Processing membership role:", role.role_name, "with permissions:", role.permissions);
+      // console.log("DEBUG - Processing membership role:", role.role_name, "with permissions:", role.permissions);
       // Make sure permissions is an array before spreading
       if (role.permissions && Array.isArray(role.permissions)) {
         return [...acc, ...role.permissions];
@@ -116,7 +116,7 @@ export async function checkUserAccess({
     }, []) || [])
   ];
 
-  console.log("DEBUG - Final userPermissions:", userPermissions);
+  // console.log("DEBUG - Final userPermissions:", userPermissions);
 
   // Check if user has an active super admin role for this org
   const hasSuperAdminRole = orgRoles?.some(role => 
@@ -193,13 +193,13 @@ export async function checkUserAccess({
   // regardless of guest status
   const hasAccess = hasRequiredPermissions && (allowGuest || !isGuest || hasActiveMembershipRoles);
 
-  console.log("DEBUG - Access determination:", {
-    allowGuest,
-    isGuest,
-    hasActiveMembershipRoles,
-    hasRequiredPermissions,
-    hasAccess
-  });
+  // console.log("DEBUG - Access determination:", {
+  //   allowGuest,
+  //   isGuest,
+  //   hasActiveMembershipRoles,
+  //   hasRequiredPermissions,
+  //   hasAccess
+  // });
 
   return {
     hasAccess,

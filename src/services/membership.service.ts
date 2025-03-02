@@ -200,8 +200,8 @@ export class MembershipService {
     if (!tier || !tier.membership_tier.form_template_id) {
       throw new Error('No form template id found for this membership tier');
     }
-
-    const supabase = await createClient();
+    console.log('tier', tier);
+    const supabase = await createServiceRoleClient();
     console.log('tier.membership_tier.form_template_id', tier.membership_tier.form_template_id);
     const { data: formTemplate, error } = await supabase
       .from('form_templates')

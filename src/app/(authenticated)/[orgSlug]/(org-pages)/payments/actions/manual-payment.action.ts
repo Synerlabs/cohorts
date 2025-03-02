@@ -2,8 +2,9 @@
 
 import { ManualPayment, ManualPaymentService } from "@/services/manual-payment.service";
 import { createServiceRoleClient } from "@/lib/utils/supabase/server";
-import { StorageSettingsService } from "@/services/storage/storage-settings.service";
+import { createStorageProvider } from "@/services/storage/storage-settings.service";
 import { revalidatePath } from "next/cache";
+import { PaymentProcessorService } from "@/services/payment/payment-processor.service";
 
 export type ManualPaymentFormState = {
   success: boolean;
@@ -57,39 +58,16 @@ export async function uploadProofOfPaymentAction(
 }
 
 async function completeApplicationPayment(orderId: string) {
-  const supabase = await createServiceRoleClient();
-
-  // Get the application associated with this order
-  const { data: order } = await supabase
-    .from('orders')
-    .select('*, applications(*)')
-    .eq('id', orderId)
-    .single();
-
-  if (!order?.applications?.[0]) {
-    throw new Error('No application found for this order');
+  console.log('🔄 Processing payment for order:', orderId);
+  
+  try {
+    // Use the unified payment processor
+    await PaymentProcessorService.processPayment(orderId);
+    console.log('✅ Payment processed successfully for order:', orderId);
+  } catch (error) {
+    console.error('❌ Error processing payment:', error);
+    throw error;
   }
-
-  const application = order.applications[0];
-
-  // Update application status to approved
-  const { error: updateError } = await supabase
-    .from('applications')
-    .update({
-      status: 'approved',
-      approved_at: new Date().toISOString()
-    })
-    .eq('id', application.id);
-
-  if (updateError) throw updateError;
-
-  // Activate the group user
-  const { error: activateError } = await supabase
-    .from('group_users')
-    .update({ is_active: true })
-    .eq('id', application.group_user_id);
-
-  if (activateError) throw activateError;
 }
 
 export async function approvePaymentAction(
@@ -257,7 +235,7 @@ export async function createManualPaymentAction(
     if (payload.proofFile) {
       try {
         // Get storage provider
-        const provider = await StorageSettingsService.createStorageProvider(payload.orgId);
+        const provider = await createStorageProvider(payload.orgId);
         if (!provider) {
           throw new Error('Storage provider not configured');
         }

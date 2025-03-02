@@ -1,5 +1,5 @@
 "use server";
-import { createClient } from "@/lib/utils/supabase/server";
+import { createClient, createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { checkUserAccess } from "@/lib/utils/permissions";
 
 type ModuleType = 'role' | 'group' | 'form_template' | 'membership' | 'user_role' | 'membership_tier' | 'applications' | 'payments' | 'paymentGateways';
@@ -8,7 +8,7 @@ type ActionContext = {
   groupId?: string;
   moduleId?: string;
   moduleType?: ModuleType;
-  requiredPermissions: string | string[] | string[][] | { 
+  requiredPermissions: string | string[] | string[][] | {
     any?: string[][],     // OR conditions
     all?: string[],       // AND conditions
     solo?: string[]       // Override permissions - any of these grants access
@@ -24,8 +24,8 @@ type ActionResult<T> = {
 };
 
 async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promise<string | null> {
-  const supabase = await createClient();
-  
+  const supabase = await createServiceRoleClient();
+
   switch (moduleType) {
     case 'role':
       const { data: role } = await supabase
@@ -34,7 +34,7 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
         .eq("id", moduleId)
         .single();
       return role?.group_id || null;
-      
+
     case 'form_template':
       const { data: form } = await supabase
         .from("form_templates")
@@ -42,7 +42,7 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
         .eq("id", moduleId)
         .single();
       return form?.org_id || null;
-      
+
     case 'membership':
       const { data: membership } = await supabase
         .from("memberships")
@@ -103,7 +103,7 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
         .single();
 
       return groupRole?.group_id || null;
-      
+
     default:
       return null;
   }
@@ -133,7 +133,7 @@ async function checkPermissions(
       requiredPermissions: permissions.solo,
       allowGuest
     });
-    
+
     if (soloCheck.hasAccess) {
       return soloCheck;
     }
@@ -154,7 +154,7 @@ async function checkPermissions(
           requiredPermissions: permissionSet,
           allowGuest
         });
-        
+
         if (accessResult.hasAccess) {
           return accessResult;
         }
@@ -172,7 +172,7 @@ async function checkPermissions(
   } else {
     // New object format
     let accessResult;
-    
+
     // Check 'any' conditions (OR)
     if (permissions.any) {
       for (const permissionSet of permissions.any) {
@@ -182,13 +182,13 @@ async function checkPermissions(
           requiredPermissions: permissionSet,
           allowGuest
         });
-        
+
         if (accessResult.hasAccess) {
           return accessResult;
         }
       }
     }
-    
+
     // Check 'all' conditions (AND)
     if (permissions.all) {
       accessResult = await checkUserAccess({
@@ -197,12 +197,12 @@ async function checkPermissions(
         requiredPermissions: permissions.all,
         allowGuest
       });
-      
+
       if (accessResult.hasAccess) {
         return accessResult;
       }
     }
-    
+
     return accessResult || { hasAccess: false, isGuest: false };
   }
 }
@@ -224,7 +224,7 @@ export async function withPermissions<T, P>(
       }
 
       const { groupId, moduleId, moduleType, requiredPermissions, allowGuest = false, isCreation = false } = getActionContext(params);
-      
+
       // For creation operations, we only need to verify group-level permissions
       if (isCreation) {
         if (!groupId) {
@@ -239,10 +239,10 @@ export async function withPermissions<T, P>(
         );
 
         if (!accessResult.hasAccess) {
-          return { 
-            error: accessResult.isGuest 
+          return {
+            error: accessResult.isGuest
               ? "You must be a member to perform this action"
-              : "You do not have permission to perform this action" 
+              : "You do not have permission to perform this action"
           };
         }
 
@@ -254,19 +254,19 @@ export async function withPermissions<T, P>(
       if (moduleId && moduleType) {
         console.log("getting module group id", moduleType, moduleId);
         const moduleGroupId = await getModuleGroupId(moduleType, moduleId);
-        
+
         if (!moduleGroupId) {
           return { error: `Permission check failed: group id for ${moduleType} module not found` };
         }
-        
+
         // If groupId was provided, verify it matches
         if (groupId && moduleGroupId !== groupId) {
           return { error: `You do not have permission to access this ${moduleType}` };
         }
-        
+
         verifiedGroupId = moduleGroupId;
       }
-      
+
       if (!verifiedGroupId) {
         return { error: "Invalid group ID" };
       }
@@ -280,10 +280,10 @@ export async function withPermissions<T, P>(
       );
 
       if (!accessResult.hasAccess) {
-        return { 
-          error: accessResult.isGuest 
+        return {
+          error: accessResult.isGuest
             ? "You must be a member to perform this action"
-            : "You do not have permission to perform this action" 
+            : "You do not have permission to perform this action"
         };
       }
 

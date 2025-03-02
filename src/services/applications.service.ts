@@ -106,10 +106,20 @@ export async function approveApplication(applicationId: string): Promise<Applica
 
   const now = new Date().toISOString();
 
+  // Special handling for form_then_payment_then_review
+  // If payment has already been made (order_id exists), we should create the membership
+  const isFormThenPaymentThenReview = application.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW;
+  const hasPayment = !!application.order_id;
+  
+  if (isFormThenPaymentThenReview) {
+    console.log(`Processing form_then_payment_then_review application: ${applicationId}, Payment status: ${hasPayment ? 'Paid' : 'Not paid'}`);
+  }
+
   // Determine if we should activate the membership now
   // We should activate if:
   // 1. It's a free membership OR
-  // 2. It's a paid membership but doesn't require payment first
+  // 2. It's a paid membership but doesn't require payment first OR
+  // 3. It's form_then_payment_then_review and payment has been made
   const shouldActivate = application.product_price === 0 || 
     ![
       MembershipActivationType.PAYMENT_REQUIRED,
@@ -117,17 +127,20 @@ export async function approveApplication(applicationId: string): Promise<Applica
       MembershipActivationType.FORM_THEN_PAYMENT,
       MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW,
       MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
-    ].includes(application.activation_type as MembershipActivationType);
+    ].includes(application.activation_type as MembershipActivationType) ||
+    (isFormThenPaymentThenReview && hasPayment);
 
   // Determine the new status
   // We should set to pending_payment if:
   // 1. It's a paid membership AND
-  // 2. The activation type requires payment after approval
+  // 2. The activation type requires payment after approval AND
+  // 3. It's not form_then_payment_then_review with payment already made
   const newStatus = (application.product_price > 0 && 
     [
       MembershipActivationType.REVIEW_THEN_PAYMENT,
       MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
-    ].includes(application.activation_type as MembershipActivationType))
+    ].includes(application.activation_type as MembershipActivationType) &&
+    !(isFormThenPaymentThenReview && hasPayment))
     ? 'pending_payment' 
     : 'approved';
 
@@ -331,7 +344,7 @@ export async function createMembershipApplication(
     throw new Error('Group user not found');
   }
 
-  console.log('Found group user:', groupUser);
+  // console.log('Found group user:', groupUser);
 
   let initialStatus: Application['status'];
   const isAutomatic = product.membership_tier.activation_type === 'automatic';

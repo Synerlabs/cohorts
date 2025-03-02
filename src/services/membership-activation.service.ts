@@ -471,27 +471,82 @@ export class MembershipActivationService {
       throw new Error(`Failed to get application: ${appError?.message || 'Application not found'}`);
     }
 
-    // Update application status to approved
-    const now = new Date().toISOString();
-    
-    const { error: updateError } = await supabase
-      .from('applications')
-      .update({
-        status: 'approved',
-        approved_at: now,
-        updated_at: now
-      })
-      .eq('id', applicationId);
+    console.log('🔍 Application details:', application);
 
-    if (updateError) {
-      console.error('❌ Failed to update application status:', {
-        error: updateError,
-        applicationId
-      });
-      throw new Error(`Failed to update application status: ${updateError.message}`);
+    // Check the activation type to determine the correct flow
+    const activationType = application.tier?.membership_tiers?.activation_type;
+    console.log('🔍 Application activation type:', activationType);
+    console.log('🔍 Current application status:', application.status);
+
+    // For form_then_payment_then_review, set status to pending after payment
+    if (activationType === 'form_then_payment_then_review') {
+      console.log('ℹ️ Payment received for form_then_payment_then_review application, setting to pending for admin review');
+      
+      // Only update if the current status is 'pending_payment'
+      // This prevents changing the status if it's already been set to something else
+      if (application.status === 'pending_payment') {
+        const now = new Date().toISOString();
+        const { error: updateError } = await supabase
+          .from('applications')
+          .update({
+            status: 'pending', // Set to pending instead of approved
+            updated_at: now,
+            order_id: orderId // Store the order ID for reference
+          })
+          .eq('id', applicationId);
+
+        if (updateError) {
+          console.error('❌ Failed to update application status:', {
+            error: updateError,
+            applicationId
+          });
+          throw new Error(`Failed to update application status: ${updateError.message}`);
+        }
+
+        console.log('✅ Updated application status to pending for admin review:', applicationId);
+      } else {
+        console.log(`⚠️ Application ${applicationId} status is ${application.status}, not updating to pending`);
+      }
+      
+      // For this type, we don't create a membership or activate the group user yet
+      // Return early with the updated application
+      const { data: updatedApp } = await supabase
+        .from('applications')
+        .select('*')
+        .eq('id', applicationId)
+        .single();
+        
+      return updatedApp;
     }
 
-    console.log('✅ Updated application status to approved:', applicationId);
+    // For all other types, proceed with the normal flow (approve and create membership)
+    const now = new Date().toISOString();
+    
+    // Only update if the current status is 'pending_payment'
+    // This prevents changing the status if it's already been set to something else
+    if (application.status === 'pending_payment') {
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update({
+          status: 'approved',
+          approved_at: now,
+          updated_at: now,
+          order_id: orderId // Store the order ID for reference
+        })
+        .eq('id', applicationId);
+
+      if (updateError) {
+        console.error('❌ Failed to update application status:', {
+          error: updateError,
+          applicationId
+        });
+        throw new Error(`Failed to update application status: ${updateError.message}`);
+      }
+
+      console.log('✅ Updated application status to approved:', applicationId);
+    } else {
+      console.log(`⚠️ Application ${applicationId} status is ${application.status}, not updating to approved`);
+    }
 
     // Check if membership already exists
     const membershipExists = await this.verifyMembershipCreated(applicationId);
