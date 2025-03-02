@@ -107,7 +107,7 @@ export async function getGroupUser({
     }
 
     if (!data || data.length === 0) {
-      console.log('No group user found for', { userId, groupId });
+      // console.log('No group user found for', { userId, groupId });
       return null;
     }
 

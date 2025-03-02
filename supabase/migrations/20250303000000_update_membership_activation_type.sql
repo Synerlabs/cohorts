@@ -24,6 +24,7 @@ CHECK (activation_type IN (
 DROP VIEW IF EXISTS membership_applications_view;
 CREATE OR REPLACE VIEW "public"."membership_applications_view" AS
 SELECT 
+    a.id as id,
     a.id as application_id,
     a.status,
     a.group_user_id,

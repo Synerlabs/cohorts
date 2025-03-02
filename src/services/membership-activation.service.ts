@@ -322,9 +322,14 @@ export class MembershipActivationService {
              application.status === 'approved') {
       shouldCreateMembership = true;
     }
-    else if (actualActivationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT && 
-             application.status === 'approved') {
-      shouldCreateMembership = true;
+    else if (actualActivationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) {
+      // For form_then_review_then_payment, only create membership if status is approved AND payment has been made
+      // Check if payment has been made by looking for order_id
+      if (application.status === 'approved' && application.order_id) {
+        shouldCreateMembership = true;
+      } else {
+        shouldCreateMembership = false;
+      }
     }
     else if (actualActivationType === MembershipActivationType.REVIEW_THEN_PAYMENT && 
              application.status === 'approved') {
@@ -341,9 +346,21 @@ export class MembershipActivationService {
     }
     
     // IMPORTANT: Always create membership for approved applications regardless of activation type
+    // EXCEPT for form_then_review_then_payment which requires payment first
     if (application.status === 'approved') {
-      console.log('✅ Application is approved, ensuring membership is created');
-      shouldCreateMembership = true;
+      if (actualActivationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) {
+        // For form_then_review_then_payment, only create membership if payment has been made
+        if (application.order_id) {
+          console.log('✅ Application is approved and payment has been made, creating membership');
+          shouldCreateMembership = true;
+        } else {
+          console.log('⚠️ Application is approved but payment has not been made, not creating membership yet');
+          shouldCreateMembership = false;
+        }
+      } else {
+        console.log('✅ Application is approved, ensuring membership is created');
+        shouldCreateMembership = true;
+      }
     }
 
     // Update application status if needed

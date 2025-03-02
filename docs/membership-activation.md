@@ -5,7 +5,7 @@ This document outlines the different membership activation types available in th
 ## Activation Types
 
 The system supports the following activation types for membership tiers:
-
+(todo: notices, explainers, and redirects should be added for each activation type)
 | Activation Type | Description |
 |-----------------|-------------|
 | `automatic` | Membership is automatically activated upon application submission. No review or payment required. |
@@ -13,10 +13,10 @@ The system supports the following activation types for membership tiers:
 | `form_required` | User must complete a form, after which membership is automatically activated. |
 | `form_then_review` | User must complete a form, then an admin must review and approve the application. |
 | `payment_required` | User must complete payment, after which membership is automatically activated. |
-| `form_then_payment` | User must complete a form, then make payment, after which membership is automatically activated. |
-| `form_then_payment_then_review` | User must complete a form, make payment, then an admin must review and approve. |
+| `form_then_payment` | User must complete a form, then make payment, after which membership is automatically activated. (bug 3 applications created) |
+| `form_then_payment_then_review` | User must complete a form, make payment, then an admin must review and approve. | (bug redirected to checkout, bug request payment shown on approve button, multiple pending payment applications created)
 | `review_then_payment` | Admin must review the application first, then user makes payment to activate. |
-| `form_then_review_then_payment` | User must complete a form, admin reviews the application, then user makes payment to activate. |
+| `form_then_review_then_payment` | User must complete a form, admin reviews the application, then user makes payment to activate. (bug 3 applications created, activated immediately even before payment) |
 
 ## Application Status Flow
 

@@ -208,7 +208,7 @@ export async function getUserMembership({ userId, groupId }: { userId: string; g
   }
 
   if (!groupUser) {
-    console.log('No group user found');
+    // console.log('No group user found');
     return null;
   }
 

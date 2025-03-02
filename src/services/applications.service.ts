@@ -165,12 +165,18 @@ export async function approveApplication(applicationId: string): Promise<Applica
     try {
       console.log(`Processing application ${applicationId} for membership creation`);
       
-      // Always process the application when status is approved
-      await MembershipActivationService.processApplication(applicationId);
+      // Only process the application when status is approved AND it's not form_then_review_then_payment
+      // or when shouldActivate is true
+      if ((newStatus === 'approved' && 
+           application.activation_type !== MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) || 
+          shouldActivate) {
+        await MembershipActivationService.processApplication(applicationId);
+      }
       
       // Verify that membership was created
       const membershipCreated = await MembershipActivationService.verifyMembershipCreated(applicationId);
-      if (!membershipCreated && newStatus === 'approved') {
+      if (!membershipCreated && newStatus === 'approved' && 
+          application.activation_type !== MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) {
         console.log(`Membership was not created for application ${applicationId} after approval, trying again...`);
         
         // Try again with explicit activation type

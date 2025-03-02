@@ -66,6 +66,25 @@ npm run db:migrate
 npm run db:types
 ```
 
+## Utility Scripts
+
+### Reset Group Data
+
+A script to reset group users, applications, and memberships for a specific group:
+
+```bash
+# Reset all data for a specific group
+npx ts-node src/scripts/reset-group-data.ts --group-id <group_id>
+
+# Dry run (show what would be deleted without actually deleting)
+npx ts-node src/scripts/reset-group-data.ts --group-id <group_id> --dry-run
+
+# Get help
+npx ts-node src/scripts/reset-group-data.ts --help
+```
+
+For more details, see the [scripts README](src/scripts/README.md).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:

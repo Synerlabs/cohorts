@@ -16,7 +16,8 @@ interface Props {
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
-export default async function EditMembershipTierPage({ params }: Props) {
+export default async function EditMembershipTierPage({ params: _params }: Props) {
+  const params = await _params;
   try {
     // Fetch the membership tier
     const tier = await ProductService.getMembershipTier(params.id);

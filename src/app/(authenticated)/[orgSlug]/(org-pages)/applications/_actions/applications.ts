@@ -51,7 +51,7 @@ async function isApplicationPendingPayment(applicationId: string): Promise<boole
   try {
     const supabase = await createClient();
     const { data: application, error } = await supabase
-      .from('applications_view')
+      .from('membership_applications_view')
       .select('approved_at, membership_data->activation_type')
       .eq('id', applicationId)
       .single() as { data: ApplicationWithMembership | null, error: any };
@@ -97,7 +97,7 @@ export async function handleApproveApplication(
         // Get the application details before approval
         const supabase = await createClient();
         const { data: beforeApp } = await supabase
-          .from('applications_view')
+          .from('membershipapplications_view')
           .select('status, activation_type, order_id')
           .eq('id', applicationId)
           .single();
@@ -109,9 +109,9 @@ export async function handleApproveApplication(
         
         // Verify the application was approved
         const { data: afterApp } = await supabase
-          .from('applications_view')
+          .from('membership_applications_view')
           .select('status, approved_at, activation_type')
-          .eq('id', applicationId)
+          .eq('application_id', applicationId)
           .single();
           
         console.log(`Application after approval: Status=${afterApp?.status}, Approved=${afterApp?.approved_at ? 'Yes' : 'No'}, Type=${afterApp?.activation_type}`);
@@ -123,23 +123,23 @@ export async function handleApproveApplication(
           console.log(`Membership created for application ${applicationId}: ${membershipCreated ? 'Yes' : 'No'}`);
           
           // Get the group_user_id from the application
-          const { data: appData } = await supabase
-            .from('applications')
-            .select('group_user_id')
-            .eq('id', applicationId)
-            .single();
+          // const { data: appData } = await supabase
+          //   .from('applications')
+          //   .select('group_user_id')
+          //   .eq('id', applicationId)
+          //   .single();
             
-          if (appData) {
-            // Check if group user is active
-            const isActive = await MembershipActivationService.verifyGroupUserActive(appData.group_user_id);
-            console.log(`Group user active for application ${applicationId}: ${isActive ? 'Yes' : 'No'}`);
+          // if (appData) {
+          //   // Check if group user is active
+          //   const isActive = await MembershipActivationService.verifyGroupUserActive(appData.group_user_id);
+          //   console.log(`Group user active for application ${applicationId}: ${isActive ? 'Yes' : 'No'}`);
             
-            // If the group user is not active, activate it
-            if (!isActive) {
-              console.log(`Activating group user for application ${applicationId}`);
-              await MembershipActivationService.activateGroupUser(appData.group_user_id);
-            }
-          }
+          //   // If the group user is not active, activate it
+          //   if (!isActive) {
+          //     console.log(`Activating group user for application ${applicationId}`);
+          //     await MembershipActivationService.activateGroupUser(appData.group_user_id);
+          //   }
+          // }
         } catch (verifyError) {
           console.error(`Error verifying membership/activation for application ${applicationId}:`, verifyError);
           // Don't throw, just log the error
