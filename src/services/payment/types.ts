@@ -1,5 +1,5 @@
 export type PaymentStatus = 'pending' | 'paid' | 'rejected';
-export type PaymentType = 'manual' | 'stripe';
+export type PaymentType = 'manual' | 'stripe' | 'xendit';
 
 export interface Upload {
   id: string;
@@ -52,7 +52,14 @@ export interface StripePayment extends BasePayment {
   stripeStatus: string;
 }
 
-export type Payment = ManualPayment | StripePayment;
+export interface XenditPayment extends BasePayment {
+  type: 'xendit';
+  xenditInvoiceId: string;
+  xenditStatus: string;
+  paymentMethod?: string;
+}
+
+export type Payment = ManualPayment | StripePayment | XenditPayment;
 
 export interface CreatePaymentDTO {
   orderId: string;
@@ -76,6 +83,14 @@ export interface CreateManualPaymentDTO extends CreatePaymentDTO {
 export interface CreateStripePaymentDTO extends CreatePaymentDTO {
   type: 'stripe';
   paymentMethodId: string;
+}
+
+export interface CreateXenditPaymentDTO extends CreatePaymentDTO {
+  type: 'xendit';
+  successUrl?: string;
+  failureUrl?: string;
+  customerName?: string;
+  customerEmail?: string;
 }
 
 export interface UpdatePaymentDTO {

@@ -11,23 +11,40 @@ import { permissions } from '@/lib/types/permissions';
 import { GatewayToggle } from './gateway-toggle';
 import { ClientComponentPermission } from '@/components/ClientComponentPermission';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { isFeatureEnabled } from '@/lib/features';
 
-const initialPaymentGateways: PaymentGateway[] = [
-  {
-    id: 'stripe',
-    name: 'Stripe',
-    description: 'Accept payments via Stripe Connect',
-    icon: 'stripe',
-    enabled: false,
-  },
-  {
-    id: 'manual',
-    name: 'Manual',
-    description: 'Manually mark payments as completed',
-    icon: 'wallet',
-    enabled: false,
+const getAvailablePaymentGateways = (): PaymentGateway[] => {
+  // Base gateways that are always available
+  const baseGateways: PaymentGateway[] = [
+    {
+      id: 'stripe',
+      name: 'Stripe',
+      description: 'Accept payments via Stripe Connect',
+      icon: 'stripe',
+      enabled: false,
+    },
+    {
+      id: 'manual',
+      name: 'Manual',
+      description: 'Manually mark payments as completed',
+      icon: 'wallet',
+      enabled: false,
+    }
+  ];
+
+  // Add Xendit only if the feature flag is enabled
+  if (isFeatureEnabled('XENDIT_ENABLED')) {
+    baseGateways.push({
+      id: 'xendit',
+      name: 'Xendit',
+      description: 'Accept payments via Xendit with automatic splits',
+      icon: 'wallet',
+      enabled: false,
+    });
   }
-];
+
+  return baseGateways;
+};
 
 interface PaymentGatewayRecord {
   id: string;
@@ -48,13 +65,17 @@ export function PaymentGatewaysList({
   groupId,
   gatewayRecords 
 }: PaymentGatewaysListProps) {
-  const { hasPermission } = usePermissions(userPermissions);
-  const canEdit = hasPermission(permissions.paymentGateways.edit);
-  const canConfigure = hasPermission(permissions.paymentGateways.configure);
+  const { hasPermission } = usePermissions();
+  const [availableGateways, setAvailableGateways] = useState<PaymentGateway[]>([]);
+  
+  // Use useEffect to initialize the available gateways on the client side
+  useEffect(() => {
+    setAvailableGateways(getAvailablePaymentGateways());
+  }, []);
 
   return (
     <div className="grid gap-4">
-      {initialPaymentGateways.map((gateway) => {
+      {availableGateways.map((gateway) => {
         // Find existing record for this gateway
         const record = gatewayRecords.find(r => r.gateway_id === gateway.id);
         
