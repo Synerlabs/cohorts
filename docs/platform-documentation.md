@@ -15,12 +15,44 @@ Organizations (also referred to as "groups" in the system) represent the primary
 - Configurable membership tiers and roles
 - Custom permission systems
 
-Organizations can have various types:
+#### Flexible Organization Types
+Organizations can have various types, with each type having its own specific metadata requirements and behavior:
 - Main/Parent organizations
 - Chapters (geographic/location-based sub-organizations)
 - Special interest groups
 - Student chapters
 - Institutional members
+- Custom organization types (user-configurable)
+
+The platform allows administrators to define new organization types without code changes, each with specific metadata fields and validation rules.
+
+### Organization Requirements
+
+Organizations can set various requirements for membership, affiliation, or interaction:
+
+#### Application Forms
+- Organizations can create custom application forms with various field types:
+  - Text inputs, textareas, dropdowns
+  - Checkboxes, radio buttons, file uploads
+  - Custom field types with validation
+- Forms can be designed using a drag-and-drop builder
+- Fields can be required or optional, with help text and validation
+
+#### Membership Prerequisites
+- Organizations can require members to have specific membership tiers in other related organizations
+- Prerequisite memberships can be configured as "any tier" or "specific tiers"
+- Membership verification is automated during application process
+
+#### Inter-Organizational Dependencies
+- Organizations can require connections to other organizations of specific types
+- Minimum number of connections can be specified
+- Relationships can have designated types (parent-child, affiliate, institutional)
+- Dependencies can be enforced during organization creation or membership
+
+#### Subscription Requirements
+- Organizations can require active subscriptions to specific products
+- Minimum number of active subscriptions can be specified
+- Subscription verification is automated during organizational actions
 
 ### Hierarchical Relationships
 
@@ -29,6 +61,7 @@ The platform supports complex nested organizational structures:
 1. **Parent-Child Relationships**: Organizations can have parent organizations and multiple child organizations
 2. **Multiple Affiliations**: An organization (e.g., a student chapter) can be affiliated with multiple parent organizations (e.g., both a provincial chapter and a national student division)
 3. **Institutional Memberships**: Schools or companies can have organizational memberships, and their members can receive derived benefits
+4. **Flexible Relationship Types**: Relationships between organizations can be categorized with various types (parent-child, affiliate, division, institutional)
 
 ### Membership Management
 
@@ -46,6 +79,8 @@ Memberships are the core feature of the platform, with the following capabilitie
 - **Review Required**: An admin must approve the membership application
 - **Payment Required**: Membership is activated after payment is received
 - **Review then Payment**: Admin review followed by payment required
+- **Form then Payment**: Custom form completion followed by payment
+- **Form then Payment then Review**: Multi-step activation process
 
 #### Membership Lifecycle
 - Application/Registration
@@ -109,6 +144,12 @@ Users can:
 The platform uses Supabase with a PostgreSQL database with the following core tables:
 
 - `group`: Stores organization data including hierarchical relationships
+- `organization_types`: Stores configurable organization types with metadata schemas
+- `relationship_types`: Defines types of relationships between organizations
+- `organization_relationships`: Maps relationships between organizations with metadata
+- `organization_requirements`: Defines prerequisites for organization affiliation
+- `forms`: Stores application forms with configurable fields
+- `form_submissions`: Tracks submissions to application forms
 - `group_users`: Maps users to organizations they belong to
 - `membership_tier`: Defines the different membership options for each organization
 - `memberships`: Tracks active and historical memberships
@@ -154,15 +195,22 @@ The platform provides a comprehensive API for:
 
 1. **Creating a New Organization**
    - User provides organization details (name, description, etc.)
+   - Selects an organization type with specific metadata fields
    - Optionally selects a parent organization
    - Configures initial roles and permissions
    - Sets up membership tiers
 
 2. **Managing Organization Hierarchy**
    - Adding child organizations/chapters
-   - Establishing cross-organizational relationships
+   - Establishing cross-organizational relationships with specific relationship types
    - Managing institutional memberships
    - Configuring revenue sharing rules
+
+3. **Setting Organization Requirements**
+   - Creating custom application forms
+   - Defining membership prerequisites
+   - Establishing inter-organizational dependency rules
+   - Configuring subscription requirements
 
 ### Membership Registration
 
@@ -207,20 +255,21 @@ The platform provides a comprehensive API for:
 
 To fully support the complex organizational hierarchies described:
 
-1. Extend the `group` table to include:
-   - Organization type classification
-   - Additional metadata for specific organization types
-   - Relationship types between organizations
+1. Implement flexible organization types with:
+   - Configurable organization type definitions
+   - Type-specific metadata fields and validation
+   - Custom behavior per organization type
 
-2. Enhance membership management to support:
+2. Create a robust requirements system for:
+   - Custom application forms with drag-and-drop builder
+   - Membership prerequisites across organizations
+   - Inter-organizational dependencies with relationship verification
+   - Subscription verification
+
+3. Enhance membership management to support:
    - Derived/inherited memberships
    - Multi-organization memberships with single payment
    - Membership transfer between related organizations
-
-3. Implement revenue sharing capabilities:
-   - Revenue sharing rule configuration
-   - Payment distribution tracking
-   - Financial reconciliation systems
 
 ### Integration Points
 

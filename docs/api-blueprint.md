@@ -36,7 +36,7 @@ This document outlines the core API endpoints that need to be implemented for th
 - **Method**: GET
 - **Description**: List all groups the authenticated user has access to
 - **Query Parameters**:
-  - `type`: Filter by organization type
+  - `type_code`: Filter by organization type
   - `parent_id`: Filter by parent organization
   - `limit`: Number of results per page
   - `offset`: Pagination offset
@@ -51,8 +51,8 @@ This document outlines the core API endpoints that need to be implemented for th
     "name": "string",
     "slug": "string",
     "description": "string",
-    "parent_id": "uuid (optional)",
-    "type": "string (optional)"
+    "type_code": "string",
+    "metadata": "object (optional, specific to type)"
   }
   ```
 - **Response**: Created group object
@@ -78,6 +78,234 @@ This document outlines the core API endpoints that need to be implemented for th
 - **Description**: Get all child organizations of a group
 - **Response**: Array of group objects
 
+## Organization Types Endpoints
+
+### `/organization-types`
+- **Method**: GET
+- **Description**: List all organization types
+- **Response**: Array of organization type objects
+
+### `/organization-types`
+- **Method**: POST
+- **Description**: Create a new organization type (admin only)
+- **Request Body**:
+  ```json
+  {
+    "code": "string",
+    "name": "string",
+    "description": "string",
+    "metadata_schema": "object (JSON Schema for validation)"
+  }
+  ```
+- **Response**: Created organization type object
+
+### `/organization-types/{code}`
+- **Method**: GET
+- **Description**: Get a specific organization type
+- **Response**: Organization type object with full details
+
+### `/organization-types/{code}`
+- **Method**: PUT
+- **Description**: Update an organization type (admin only)
+- **Request Body**: Organization type object with fields to update
+- **Response**: Updated organization type object
+
+### `/organization-types/{code}`
+- **Method**: DELETE
+- **Description**: Delete an organization type (admin only)
+- **Response**: Success message
+
+## Organization Relationships Endpoints
+
+### `/relationship-types`
+- **Method**: GET
+- **Description**: List all relationship types
+- **Response**: Array of relationship type objects
+
+### `/relationship-types`
+- **Method**: POST
+- **Description**: Create a new relationship type (admin only)
+- **Request Body**:
+  ```json
+  {
+    "code": "string",
+    "name": "string",
+    "description": "string"
+  }
+  ```
+- **Response**: Created relationship type object
+
+### `/groups/{id}/relationships`
+- **Method**: GET
+- **Description**: Get all relationships for a group
+- **Query Parameters**:
+  - `direction`: Filter by direction (outgoing, incoming, both)
+  - `relationship_type`: Filter by relationship type
+  - `status`: Filter by status
+- **Response**: Array of relationship objects
+
+### `/groups/{id}/relationships`
+- **Method**: POST
+- **Description**: Create a new relationship
+- **Request Body**:
+  ```json
+  {
+    "target_group_id": "uuid",
+    "relationship_type_code": "string",
+    "is_primary": "boolean (optional)",
+    "metadata": "object (optional)",
+    "valid_from": "date (optional)",
+    "valid_until": "date (optional)"
+  }
+  ```
+- **Response**: Created relationship object
+
+### `/relationships/{id}`
+- **Method**: GET
+- **Description**: Get details of a specific relationship
+- **Response**: Relationship object with full details
+
+### `/relationships/{id}`
+- **Method**: PUT
+- **Description**: Update a relationship
+- **Request Body**: Relationship object with fields to update
+- **Response**: Updated relationship object
+
+### `/relationships/{id}`
+- **Method**: DELETE
+- **Description**: Delete a relationship
+- **Response**: Success message
+
+### `/relationships/{id}/approve`
+- **Method**: POST
+- **Description**: Approve a relationship (if approval workflow is enabled)
+- **Response**: Updated relationship object
+
+## Organization Requirements Endpoints
+
+### `/groups/{id}/requirements`
+- **Method**: GET
+- **Description**: Get all requirements for a group
+- **Query Parameters**:
+  - `type`: Filter by requirement type
+  - `is_active`: Filter by active status
+- **Response**: Array of requirement objects
+
+### `/groups/{id}/requirements`
+- **Method**: POST
+- **Description**: Create a new requirement
+- **Request Body**:
+  ```json
+  {
+    "requirement_type": "string (APPLICATION_FORM|MEMBERSHIP_TIER|CONNECTED_ORGANIZATION|SUBSCRIPTION)",
+    "config": "object (specific to requirement type)",
+    "is_active": "boolean (optional)"
+  }
+  ```
+- **Response**: Created requirement object
+
+### `/requirements/{id}`
+- **Method**: GET
+- **Description**: Get details of a specific requirement
+- **Response**: Requirement object with full details
+
+### `/requirements/{id}`
+- **Method**: PUT
+- **Description**: Update a requirement
+- **Request Body**: Requirement object with fields to update
+- **Response**: Updated requirement object
+
+### `/requirements/{id}`
+- **Method**: DELETE
+- **Description**: Delete a requirement
+- **Response**: Success message
+
+### `/requirements/{id}/verify`
+- **Method**: POST
+- **Description**: Verify if a user meets the requirement
+- **Request Body**:
+  ```json
+  {
+    "user_id": "uuid"
+  }
+  ```
+- **Response**: Verification result object
+
+## Forms Endpoints
+
+### `/groups/{id}/forms`
+- **Method**: GET
+- **Description**: Get all forms for a group
+- **Response**: Array of form objects
+
+### `/groups/{id}/forms`
+- **Method**: POST
+- **Description**: Create a new form
+- **Request Body**:
+  ```json
+  {
+    "title": "string",
+    "description": "string",
+    "fields": "array of field objects",
+    "is_active": "boolean (optional)"
+  }
+  ```
+- **Response**: Created form object
+
+### `/forms/{id}`
+- **Method**: GET
+- **Description**: Get details of a specific form
+- **Response**: Form object with full details
+
+### `/forms/{id}`
+- **Method**: PUT
+- **Description**: Update a form
+- **Request Body**: Form object with fields to update
+- **Response**: Updated form object
+
+### `/forms/{id}`
+- **Method**: DELETE
+- **Description**: Delete a form
+- **Response**: Success message
+
+### `/forms/{id}/submit`
+- **Method**: POST
+- **Description**: Submit a form
+- **Request Body**:
+  ```json
+  {
+    "user_id": "uuid (optional, defaults to authenticated user)",
+    "submission_data": "object (form field values)"
+  }
+  ```
+- **Response**: Created form submission object
+
+### `/form-submissions/{id}`
+- **Method**: GET
+- **Description**: Get details of a specific form submission
+- **Response**: Form submission object with full details
+
+### `/form-submissions/{id}/review`
+- **Method**: POST
+- **Description**: Review a form submission
+- **Request Body**:
+  ```json
+  {
+    "status": "string (APPROVED|REJECTED)",
+    "notes": "string (optional)"
+  }
+  ```
+- **Response**: Updated form submission object
+
+### `/forms/{id}/submissions`
+- **Method**: GET
+- **Description**: Get all submissions for a form
+- **Query Parameters**:
+  - `status`: Filter by status
+  - `limit`: Number of results per page
+  - `offset`: Pagination offset
+- **Response**: Array of form submission objects
+
 ## Membership Tier Endpoints
 
 ### `/groups/{id}/tiers`
@@ -95,7 +323,8 @@ This document outlines the core API endpoints that need to be implemented for th
     "description": "string",
     "price": "number",
     "duration_months": "integer",
-    "activation_type": "string (automatic|review_required|payment_required|review_then_payment)",
+    "activation_type": "string (automatic|review_required|payment_required|review_then_payment|form_then_payment|form_then_payment_then_review)",
+    "form_id": "uuid (optional, required for form-based activation)",
     "has_parent_membership": "boolean (optional)",
     "parent_tier_id": "uuid (optional, if bundled with parent membership)"
   }
@@ -277,6 +506,7 @@ This document outlines the core API endpoints that need to be implemented for th
     "group_id": "uuid",
     "tier_id": "uuid",
     "user_id": "uuid (optional, defaults to authenticated user)",
+    "form_submission_id": "uuid (optional, if associated with a form submission)",
     "application_data": "object (custom fields)"
   }
   ```
@@ -445,17 +675,18 @@ This document outlines the core API endpoints that need to be implemented for th
 
 5. **Validation**: Input validation should be implemented for all endpoints to ensure data integrity.
 
-6. **Cross-Organization Operations**: Some operations may need to span multiple organizations in the hierarchy, especially for payment distributions.
+6. **Type-specific Validation**: For organization creation and updates, validation should be performed based on the organization type's metadata schema.
 
-7. **Payment Processing Workflow**:
-   - When processing payments for bundled memberships or memberships subject to revenue sharing:
-     1. Create the payment record
-     2. Apply revenue sharing rules
-     3. Create distribution records
-     4. Activate memberships
-     5. Notify relevant organizations
-   
-8. **Financial Reconciliation**:
-   - The system should provide tools for reconciling distributed payments
-   - Reporting should make it clear how payments were split
-   - Audit trails should be maintained for all financial transactions 
+7. **Requirement Verification**: When processing applications or organization changes, requirements should be verified automatically where possible.
+
+8. **Relationship Management**:
+   - Some relationships may require approval from the target organization
+   - Bidirectional relationships can be established with a single API call
+   - Relationship metadata should be validated based on relationship type
+
+9. **Form Processing**:
+   - Form submissions may trigger automatic actions based on configuration
+   - File uploads in forms should be properly validated and stored
+   - Form data should be validated against the form's field definitions
+
+10. **Cross-Organization Operations**: Some operations may need to span multiple organizations in the hierarchy, especially for payment distributions. 
