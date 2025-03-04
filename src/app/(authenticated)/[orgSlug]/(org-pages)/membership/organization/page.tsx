@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { OrgAccessHOCProps, withOrgAccess } from '@/lib/hoc/org';
 import { permissions } from '@/lib/types/permissions';
 import Link from 'next/link';
-import { ArrowLeft, Building2, Users } from 'lucide-react';
+import { ArrowLeft, Building2, Users, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { OrganizationTiers } from '../../membership/_components/organization-tiers';
@@ -34,6 +34,12 @@ async function OrganizationTiersPage({ org }: OrganizationTiersPageProps) {
         </div>
         
         <div className="flex items-center gap-3">
+          <Link href={`/@${org.slug}/membership/organization/new`}>
+            <Button className="gap-2">
+              <Plus className="h-4 w-4" />
+              Create New Tier
+            </Button>
+          </Link>
           <Link href={`/@${org.slug}/membership`}>
             <Button variant="outline" className="gap-2">
               <Users className="h-4 w-4" />

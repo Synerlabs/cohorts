@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatPrice } from "@/lib/utils/format";
 import { OrganizationTierDialog } from "./organization-tier-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import Link from "next/link";
 
 interface OrganizationTiersProps {
   orgId: string;
@@ -102,10 +103,18 @@ export function OrganizationTiers({ orgId, orgSlug }: OrganizationTiersProps) {
             Create and manage membership tiers for organizations that want to affiliate with you
           </p>
         </div>
-        <Button onClick={handleCreateTier}>
-          <Plus className="mr-2 h-4 w-4" />
-          Create Organization Tier
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleCreateTier}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Tier
+          </Button>
+          <Link href={`/@${orgSlug}/membership/organization/new`}>
+            <Button variant="outline">
+              <ArrowRight className="mr-2 h-4 w-4" />
+              Advanced Editor
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Separator />
