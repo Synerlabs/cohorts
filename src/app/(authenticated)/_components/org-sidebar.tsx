@@ -10,11 +10,15 @@ import {
   InboxIcon,
   CreditCard,
   FormInput,
+  Network,
+  Building2,
 } from "lucide-react";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 import { permissions } from "@/lib/types/permissions";
+import snakecaseKeys from "snakecase-keys";
+import camelcaseKeys from "camelcase-keys";
 
 type SidebarProps = {
   org: Camelized<Tables<"group">>;
@@ -29,9 +33,9 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
   const { userPermissions = [], groupRoles = [] } = getAuthenticatedServerContext();
 
   // Check if user is a super admin
-  const isSuperAdmin = groupRoles.some((role: UserRole) => 
+  const isSuperAdmin = groupRoles.map(role => camelcaseKeys(role)).some((role: UserRole) => 
     {
-      return role.is_active && role.group_roles?.is_super_admin
+      return role.isActive && role.groupRoles?.isSuperAdmin
     }
   );
 
@@ -54,6 +58,12 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       href: `/@${org.slug}/orders`,
       icon: <ShoppingCart className="h-4 w-4" />,
       permission: permissions.memberships.view,
+    },
+    {
+      name: "Organization Affiliations",
+      href: `/@${org.slug}/affiliations`,
+      icon: <Building2 className="h-4 w-4" />,
+      permission: null, // No permission required for now, will be handled at the page level
     },
     {
       name: "Memberships",
