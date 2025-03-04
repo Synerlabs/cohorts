@@ -81,6 +81,31 @@ export interface OrganizationHierarchyView {
   child_type: string | null;
 }
 
+export interface OrganizationMembership {
+  id: string;
+  host_organization_id: string;
+  member_organization_id: string;
+  membership_tier_id: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  is_active: boolean;
+  starts_at: string;
+  expires_at: string | null;
+  approved_at: string | null;
+  approved_by: string | null;
+  metadata: Record<string, any>;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+}
+
+export interface OrganizationMembershipView extends OrganizationMembership {
+  host_organization_name: string;
+  host_organization_slug: string;
+  member_organization_name: string;
+  member_organization_slug: string;
+  membership_tier_name: string;
+}
+
 // Organization Requirements types
 export interface OrganizationRequirement {
   id: number;

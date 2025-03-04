@@ -10,11 +10,17 @@ import {
   InboxIcon,
   CreditCard,
   FormInput,
+  ClipboardCheck,
+  Network,
+  UserPlus,
+  Building2,
 } from "lucide-react";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
 import { getAuthenticatedServerContext } from "@/app/(authenticated)/getAuthenticatedServerContext";
 import { permissions } from "@/lib/types/permissions";
+import { Button } from "@/components/ui/button";
+import snakecaseKeys from "snakecase-keys";
 
 type SidebarProps = {
   org: Camelized<Tables<"group">>;
@@ -29,7 +35,7 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
   const { userPermissions = [], groupRoles = [] } = getAuthenticatedServerContext();
 
   // Check if user is a super admin
-  const isSuperAdmin = groupRoles.some((role: UserRole) => 
+  const isSuperAdmin = groupRoles.map(role => snakecaseKeys(role)).some((role) => 
     {
       return role.is_active && role.group_roles?.is_super_admin
     }
@@ -66,6 +72,26 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       href: `/@${org.slug}/applications`,
       icon: <InboxIcon className="h-4 w-4" />,
       permission: permissions.applications?.view,
+    },
+    {
+      name: "Connection Requirements",
+      href: `/@${org.slug}/requirements`,
+      icon: <ClipboardCheck className="h-4 w-4" />,
+      permission: permissions.requirements?.view,
+    },
+    {
+      name: "Affiliations",
+      href: `/@${org.slug}/affiliations`,
+      icon: <Network className="h-4 w-4" />,
+      permission: permissions.group.edit,
+      childLinks: [
+        {
+          name: "Organization Tiers",
+          href: `/@${org.slug}/membership/organization`,
+          icon: <Building2 className="h-4 w-4" />,
+          permission: permissions.group.edit,
+        }
+      ]
     },
     {
       name: "Payments",
@@ -106,19 +132,45 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       <div className="hidden border-r bg-muted/40 lg:block">
         <div className="flex h-full max-h-screen flex-col gap-2">
           <div className="flex-1">
-            <div className="pt-6 pl-6 pb-4">
+            <div className="flex justify-between items-center pt-6 px-6 pb-4">
               <h4>{org.alternateName || org.name || "cohorts."}</h4>
+              <Link href={`/@${org.slug}/affiliations/join`}>
+                <Button variant="outline" size="sm">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Join
+                </Button>
+              </Link>
             </div>
             <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
               {visibleLinks.map((link) => (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                >
-                  {link.icon}
-                  {link.name}
-                </Link>
+                <div key={link.name}>
+                  <Link
+                    href={link.href}
+                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
+                  >
+                    {link.icon}
+                    {link.name}
+                  </Link>
+                  
+                  {/* Render child links if they exist */}
+                  {link.childLinks && link.childLinks.length > 0 && (
+                    <div className="pl-6 mt-1 space-y-1">
+                      {link.childLinks
+                        .filter(childLink => !childLink.permission || isSuperAdmin || userPermissions.includes(childLink.permission))
+                        .map(childLink => (
+                          <Link
+                            key={childLink.name}
+                            href={childLink.href}
+                            className="flex items-center gap-3 rounded-lg px-3 py-1 text-xs text-muted-foreground transition-all hover:text-primary"
+                          >
+                            {childLink.icon}
+                            {childLink.name}
+                          </Link>
+                        ))
+                      }
+                    </div>
+                  )}
+                </div>
               ))}
             </nav>
           </div>

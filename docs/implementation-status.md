@@ -11,16 +11,16 @@ This document outlines the current implementation status of the platform compare
 - 🔄 **Organization Types**: Need to implement flexible organization types system rather than hardcoded types
 
 ### Organizational Relationships
-- 🔄 **Basic Relationships**: Need to expand from simple parent-child to flexible relationship types
-- ❌ **Relationship Types**: New system for defining and managing different types of relationships
-- ❌ **Relationship Metadata**: Support for relationship-specific metadata and validation
-- ❌ **Approval Workflows**: Process for relationship approval between organizations
+- 🔄 **Basic Relationships**: Need to implement as organization-level memberships rather than separate relationship system
+- ❌ ~~**Relationship Types**~~: Will be implemented as membership tiers for organizations
+- ❌ ~~**Relationship Metadata**~~: Will be handled through membership metadata
+- ❌ **Approval Workflows**: Will leverage existing membership approval workflows
 
 ### Organization Requirements
-- ❌ **Application Forms**: New system for creating and managing custom application forms
-- ❌ **Prerequisite Requirements**: Capability to define membership prerequisites
+- ❌ **Application Forms**: Will use the same form system as membership applications
+- ❌ **Prerequisite Requirements**: Will be implemented as membership prerequisites
 - ❌ **Inter-Organizational Dependencies**: Support for requiring connections to other organizations
-- ❌ **Subscription Requirements**: Ability to require active subscriptions
+- ❌ **Subscription Requirements**: Will use membership subscription model
 
 ### Membership Management
 - ✅ **Membership Tiers**: Implementation exists for multiple membership tiers with pricing, duration, and activation requirements
@@ -70,36 +70,29 @@ This document outlines the current implementation status of the platform compare
      ADD COLUMN type_code text REFERENCES public.organization_types(code);
    ```
 
-2. **Relationship Types System**
+2. ~~**Relationship Types System**~~ **Organization Membership System**
    ```sql
-   -- Create relationship types table
-   CREATE TABLE IF NOT EXISTS public.relationship_types (
-     id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL PRIMARY KEY,
-     code text NOT NULL UNIQUE,
-     name text NOT NULL,
-     description text,
-     metadata_schema jsonb DEFAULT '{}'::jsonb,
-     created_at timestamp with time zone DEFAULT now() NOT NULL,
-     updated_at timestamp with time zone DEFAULT now() NOT NULL
-   );
+   -- Extend membership tiers to support organization memberships
+   ALTER TABLE public.membership_tier
+   ADD COLUMN target_type text NOT NULL DEFAULT 'USER' 
+   CHECK (target_type IN ('USER', 'ORGANIZATION'));
    
-   -- Create organization relationships table
-   CREATE TABLE IF NOT EXISTS public.organization_relationships (
+   -- Create organization memberships table
+   CREATE TABLE IF NOT EXISTS public.organization_membership (
      id uuid DEFAULT extensions.uuid_generate_v4() NOT NULL PRIMARY KEY,
-     source_group_id uuid NOT NULL REFERENCES public.group(id) ON DELETE CASCADE,
-     target_group_id uuid NOT NULL REFERENCES public.group(id) ON DELETE CASCADE,
-     relationship_type_code text NOT NULL REFERENCES public.relationship_types(code),
-     is_primary boolean DEFAULT false,
-     status text NOT NULL DEFAULT 'ACTIVE',
-     approval_status text NOT NULL DEFAULT 'APPROVED',
-     approved_by uuid REFERENCES auth.users(id),
+     host_organization_id uuid NOT NULL REFERENCES public.group(id),
+     member_organization_id uuid NOT NULL REFERENCES public.group(id),
+     membership_tier_id uuid NOT NULL REFERENCES public.membership_tier(id),
+     is_active boolean NOT NULL DEFAULT false,
+     status text NOT NULL DEFAULT 'PENDING',
+     starts_at timestamp with time zone DEFAULT now() NOT NULL,
+     expires_at timestamp with time zone,
      approved_at timestamp with time zone,
+     approved_by uuid REFERENCES auth.users(id),
      metadata jsonb DEFAULT '{}'::jsonb,
-     valid_from timestamp with time zone DEFAULT now(),
-     valid_until timestamp with time zone,
      created_at timestamp with time zone DEFAULT now() NOT NULL,
-     updated_at timestamp with time zone DEFAULT now() NOT NULL,
-     UNIQUE(source_group_id, target_group_id, relationship_type_code)
+     created_by uuid REFERENCES auth.users(id),
+     UNIQUE(host_organization_id, member_organization_id, membership_tier_id)
    );
    ```
 

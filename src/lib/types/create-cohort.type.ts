@@ -6,6 +6,8 @@ export const createCohortSchema = z.object({
   description: z.string().optional(),
   type: z.string().min(1, "Type is required"),
   alternateName: z.string().optional(),
+  typeCode: z.string().optional(),
+  metadata: z.record(z.any()).optional(),
 });
 
 export type CreateCohort = z.infer<typeof createCohortSchema>;

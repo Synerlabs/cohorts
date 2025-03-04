@@ -1,246 +1,304 @@
 import { createClient } from "@/lib/utils/supabase/server";
+import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 import camelcaseKeys from "camelcase-keys";
 import { OrganizationForm, FormSubmission } from "@/types/database.types";
 
 /**
  * Get all forms for an organization
+ * @param organizationId The organization ID
+ * @returns A list of organization forms
  */
-export async function getOrganizationForms(organizationId: number) {
-  const supabase = await createClient();
+export async function getOrganizationForms(organizationId: string) {
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("organization_forms")
-    .select()
+    .select(`
+      id,
+      organization_id,
+      title,
+      description,
+      is_active,
+      created_at,
+      updated_at
+    `)
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false });
-
+  
   if (error) {
+    console.error(`Error fetching forms for organization ${organizationId}:`, error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as OrganizationForm[] };
   }
+  
+  return { data };
 }
 
 /**
- * Get a specific form by ID
+ * Get a form by ID
+ * @param formId The form ID
+ * @returns The organization form
  */
-export async function getOrganizationForm(formId: number) {
-  const supabase = await createClient();
+export async function getFormById(formId: string) {
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("organization_forms")
-    .select()
+    .select(`
+      id,
+      organization_id,
+      title,
+      description,
+      form_schema,
+      form_ui_schema,
+      is_active,
+      created_at,
+      updated_at
+    `)
     .eq("id", formId)
     .single();
-
+  
   if (error) {
+    console.error(`Error fetching form ${formId}:`, error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as OrganizationForm };
   }
+  
+  return { data };
 }
 
 /**
  * Create a new organization form
+ * @param form The form to create
+ * @returns The created form
  */
 export async function createOrganizationForm(form: {
-  organizationId: number;
+  organization_id: string;
   title: string;
   description?: string;
-  formSchema: Record<string, any>;
-  formUiSchema?: Record<string, any>;
-  isActive: boolean;
+  form_schema?: Record<string, any>;
+  form_ui_schema?: Record<string, any>;
+  is_active?: boolean;
 }) {
-  const supabase = await createClient();
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("organization_forms")
     .insert({
-      organization_id: form.organizationId,
-      title: form.title,
-      description: form.description,
-      form_schema: form.formSchema,
-      form_ui_schema: form.formUiSchema || {},
-      is_active: form.isActive
+      ...form,
+      form_schema: form.form_schema || { type: "object", properties: {} },
+      form_ui_schema: form.form_ui_schema || {},
+      is_active: form.is_active !== undefined ? form.is_active : true
     })
     .select()
     .single();
-
+  
   if (error) {
+    console.error("Error creating organization form:", error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as OrganizationForm };
   }
+  
+  return { data };
 }
 
 /**
  * Update an organization form
+ * @param formId The form ID
+ * @param updates The updates to apply
+ * @returns The updated form
  */
 export async function updateOrganizationForm(
-  formId: number,
-  updates: {
-    title?: string;
-    description?: string;
-    formSchema?: Record<string, any>;
-    formUiSchema?: Record<string, any>;
-    isActive?: boolean;
-  }
+  formId: string, 
+  updates: Partial<{
+    title: string;
+    description: string | null;
+    form_schema: Record<string, any>;
+    form_ui_schema: Record<string, any>;
+    is_active: boolean;
+  }>
 ) {
-  const supabase = await createClient();
-  
-  const updateData: any = {};
-  if (updates.title) updateData.title = updates.title;
-  if (updates.description !== undefined) updateData.description = updates.description;
-  if (updates.formSchema) updateData.form_schema = updates.formSchema;
-  if (updates.formUiSchema) updateData.form_ui_schema = updates.formUiSchema;
-  if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("organization_forms")
-    .update(updateData)
+    .update(updates)
     .eq("id", formId)
     .select()
     .single();
-
+  
   if (error) {
+    console.error(`Error updating form ${formId}:`, error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as OrganizationForm };
   }
+  
+  return { data };
 }
 
 /**
  * Delete an organization form
- * Note: This will fail if there are any submissions to this form
+ * @param formId The form ID
+ * @returns Success status
  */
-export async function deleteOrganizationForm(formId: number) {
-  const supabase = await createClient();
+export async function deleteOrganizationForm(formId: string) {
+  const supabase = await createServiceRoleClient();
   
-  // Check if there are any submissions
-  const { count } = await supabase
-    .from("form_submissions")
-    .select("*", { count: "exact", head: true })
-    .eq("form_id", formId);
-    
-  if (count && count > 0) {
-    return { error: "Cannot delete a form that has submissions. Deactivate it instead." };
+  // Check if the form is used in any requirements
+  const { data: requirements, error: requirementsError } = await supabase
+    .from("organization_requirements")
+    .select("id")
+    .eq("required_form_id", formId);
+  
+  if (!requirementsError && requirements.length > 0) {
+    return { error: "Cannot delete this form as it is used in one or more requirements" };
   }
   
   const { error } = await supabase
     .from("organization_forms")
     .delete()
     .eq("id", formId);
-
-  if (error) {
-    return { error: error.message };
-  } else {
-    return { success: true };
-  }
-}
-
-/**
- * Get form submissions for a specific form
- */
-export async function getFormSubmissions(formId: number) {
-  const supabase = await createClient();
   
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select(`
-      *,
-      submitter:submitter_id(id, name, email, avatar_url),
-      reviewer:reviewer_id(id, name, email, avatar_url)
-    `)
-    .eq("form_id", formId)
-    .order("created_at", { ascending: false });
-
   if (error) {
+    console.error(`Error deleting form ${formId}:`, error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data, { deep: true }) as any[] };
   }
-}
-
-/**
- * Get a specific form submission
- */
-export async function getFormSubmission(submissionId: number) {
-  const supabase = await createClient();
   
-  const { data, error } = await supabase
-    .from("form_submissions")
-    .select(`
-      *,
-      submitter:submitter_id(id, name, email, avatar_url),
-      reviewer:reviewer_id(id, name, email, avatar_url),
-      form:form_id(id, title, description, organization_id)
-    `)
-    .eq("id", submissionId)
-    .single();
-
-  if (error) {
-    return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data, { deep: true }) as any };
-  }
+  return { success: true };
 }
 
 /**
- * Create a new form submission
+ * Submit a form
+ * @param submission The form submission
+ * @returns The created submission
  */
-export async function createFormSubmission(submission: {
-  formId: number;
-  submitterId: string;
-  formData: Record<string, any>;
+export async function submitForm(submission: {
+  form_id: string;
+  submitter_id: string;
+  form_data: Record<string, any>;
 }) {
-  const supabase = await createClient();
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("form_submissions")
     .insert({
-      form_id: submission.formId,
-      submitter_id: submission.submitterId,
-      form_data: submission.formData,
-      status: "PENDING"
+      form_id: submission.form_id,
+      submitter_id: submission.submitter_id,
+      form_data: submission.form_data,
+      status: "SUBMITTED",
+      submitted_at: new Date().toISOString()
     })
     .select()
     .single();
-
+  
   if (error) {
+    console.error("Error submitting form:", error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as FormSubmission };
   }
+  
+  return { data };
 }
 
 /**
- * Update a form submission (for administrators to review)
+ * Get form submissions
+ * @param formId The form ID
+ * @returns List of form submissions
+ */
+export async function getFormSubmissions(formId: string) {
+  const supabase = await createServiceRoleClient();
+  
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(`
+      id,
+      form_id,
+      submitter_id,
+      reviewer_id,
+      status,
+      review_notes,
+      submitted_at,
+      reviewed_at,
+      created_at,
+      updated_at,
+      submitter:submitter_id(id, email, first_name, last_name),
+      reviewer:reviewer_id(id, email, first_name, last_name)
+    `)
+    .eq("form_id", formId)
+    .order("submitted_at", { ascending: false });
+  
+  if (error) {
+    console.error(`Error fetching submissions for form ${formId}:`, error);
+    return { error: error.message };
+  }
+  
+  return { data };
+}
+
+/**
+ * Get a specific form submission
+ * @param submissionId The submission ID
+ * @returns The form submission
+ */
+export async function getFormSubmission(submissionId: string) {
+  const supabase = await createServiceRoleClient();
+  
+  const { data, error } = await supabase
+    .from("form_submissions")
+    .select(`
+      id,
+      form_id,
+      submitter_id,
+      reviewer_id,
+      form_data,
+      status,
+      review_notes,
+      submitted_at,
+      reviewed_at,
+      created_at,
+      updated_at,
+      submitter:submitter_id(id, email, first_name, last_name),
+      reviewer:reviewer_id(id, email, first_name, last_name),
+      form:form_id(id, title, form_schema, form_ui_schema)
+    `)
+    .eq("id", submissionId)
+    .single();
+  
+  if (error) {
+    console.error(`Error fetching submission ${submissionId}:`, error);
+    return { error: error.message };
+  }
+  
+  return { data };
+}
+
+/**
+ * Review a form submission
+ * @param submissionId The submission ID
+ * @param review The review details
+ * @returns The updated submission
  */
 export async function reviewFormSubmission(
-  submissionId: number,
+  submissionId: string,
   review: {
-    reviewerId: string;
+    reviewer_id: string;
     status: "APPROVED" | "REJECTED";
-    reviewNotes?: string;
+    review_notes?: string;
   }
 ) {
-  const supabase = await createClient();
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("form_submissions")
     .update({
-      reviewer_id: review.reviewerId,
+      reviewer_id: review.reviewer_id,
       status: review.status,
-      review_notes: review.reviewNotes,
+      review_notes: review.review_notes || null,
       reviewed_at: new Date().toISOString()
     })
     .eq("id", submissionId)
     .select()
     .single();
-
+  
   if (error) {
+    console.error(`Error reviewing submission ${submissionId}:`, error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as FormSubmission };
   }
+  
+  return { data };
 } 

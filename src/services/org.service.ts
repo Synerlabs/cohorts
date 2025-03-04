@@ -457,6 +457,13 @@ export async function createOrg(
         ...(formData as CreateCohort).type && {
           type: (formData as CreateCohort).type,
         },
+        // Support for new organization type fields
+        ...(formData as any).typeCode && {
+          type_code: (formData as any).typeCode,
+        },
+        ...(formData as any).metadata && {
+          metadata: (formData as any).metadata,
+        },
         created_by: userId,
       })
       .select()

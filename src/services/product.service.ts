@@ -219,6 +219,7 @@ export class ProductService {
     member_id_format: string;
     form_template_id?: string | null;
     roles?: string[];
+    target_type?: 'USER' | 'ORGANIZATION';
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
@@ -240,28 +241,29 @@ export class ProductService {
         .select()
         .single();
 
-      if (productError) {
-        throw productError;
-      }
+      if (productError) throw productError;
 
-      if (!product) {
-        throw new Error('Failed to create product');
-      }
-
-      const { data: membershipTier, error: membershipError } = await supabase
+      // Create membership tier
+      const { error: tierError } = await supabase
         .from('membership_tiers')
         .insert({
           product_id: product.id,
           duration_months: tier.duration_months,
           activation_type: tier.activation_type,
-          form_template_id: tier.form_template_id
-        })
+          member_id_format: tier.member_id_format,
+          form_template_id: tier.form_template_id || null,
+          target_type: tier.target_type || 'USER',
+        });
+
+      if (tierError) throw tierError;
+
+      const { data: membershipTier, error: membershipError } = await supabase
+        .from('membership_tiers')
         .select()
+        .eq('product_id', product.id)
         .single();
 
-      if (membershipError) {
-        throw membershipError;
-      }
+      if (membershipError) throw membershipError;
 
       const { data: tierSettings, error: settingsError } = await supabase
         .from('membership_tier_settings')
@@ -272,9 +274,7 @@ export class ProductService {
         .select()
         .single();
 
-      if (settingsError) {
-        throw settingsError;
-      }
+      if (settingsError) throw settingsError;
 
       // Insert role associations if provided
       if (tier.roles && tier.roles.length > 0) {
@@ -299,7 +299,14 @@ export class ProductService {
         ...product,
         membership_tier: {
           ...membershipTier,
-          member_id_format: tierSettings.member_id_format
+          member_id_format: tierSettings.member_id_format,
+          roles: (membershipTier.membership_tier_roles || [])
+            .filter((tr: MembershipTierRoleWithDeleted) => tr.group_roles && !tr.deleted_at)
+            .map((tr: MembershipTierRole) => ({
+              id: tr.group_roles.id,
+              role_name: tr.group_roles.role_name,
+              permissions: tr.group_roles.permissions || []
+            }))
         }
       } as IMembershipTierProduct;
     } catch (error) {
@@ -318,6 +325,7 @@ export class ProductService {
     activation_type?: string;
     member_id_format?: string;
     form_template_id?: string | null;
+    target_type?: 'USER' | 'ORGANIZATION';
     rolesToAdd?: string[];
     rolesToRemove?: string[];
   }): Promise<IMembershipTierProduct> {
@@ -332,6 +340,7 @@ export class ProductService {
       activation_type, 
       member_id_format, 
       form_template_id, 
+      target_type,
       rolesToAdd = [], 
       rolesToRemove = [] 
     } = tier;
@@ -365,7 +374,8 @@ export class ProductService {
         .update({
           duration_months,
           activation_type,
-          form_template_id
+          form_template_id,
+          target_type
         })
         .eq('product_id', id)
         .select()

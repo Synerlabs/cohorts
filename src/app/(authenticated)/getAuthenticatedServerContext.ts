@@ -9,7 +9,7 @@ export const getAuthenticatedServerContext: () => {
   org: any;
   calledByPage: boolean;
   user: any;
-  groupRoles: any;
+  groupRoles: UserRole[];
   userPermissions: string[];
 } = cache(() => ({
   createdAt: Date.now().toString(),

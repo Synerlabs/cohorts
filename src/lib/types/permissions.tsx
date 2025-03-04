@@ -9,6 +9,7 @@ import {
   PackageIcon,
   FolderIcon,
   Settings2Icon,
+  ClipboardCheckIcon,
 } from "lucide-react";
 
 /**
@@ -150,6 +151,12 @@ export const permissions = {
     delete: "group.forms.delete",
     publish: "group.forms.publish"
   },
+  requirements: {
+    view: "group.requirements.view",
+    create: "group.requirements.create", 
+    edit: "group.requirements.edit",
+    delete: "group.requirements.delete"
+  },
   payments: {
     view: "group.payments.view",
     // create: "group.payments.create",
@@ -217,6 +224,12 @@ export const permissionModules = {
     icon: <FormInputIcon className="h-5 w-5" />,
     permissions: permissions.forms,
   },
+  requirements: {
+    name: "Requirements",
+    description: "Manage organization requirements",
+    icon: <ClipboardCheckIcon className="h-5 w-5" />,
+    permissions: permissions.requirements,
+  },
   payments: {
     name: "Payments",
     description: "Manage group payments",
@@ -227,7 +240,7 @@ export const permissionModules = {
     name: "Payment Gateways",
     description: "Manage group payment gateways",
     icon: <CreditCardIcon className="h-5 w-5" />,
-    permissions: permissions.payments.gateways,
+    permissions: permissions.paymentGateways,
   },
   orders: {
     name: "Orders",

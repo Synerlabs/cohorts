@@ -1,188 +1,256 @@
 import { createClient } from "@/lib/utils/supabase/server";
+import { createServiceRoleClient } from "@/lib/utils/supabase/server";
 import camelcaseKeys from "camelcase-keys";
 import { OrganizationRequirement } from "@/types/database.types";
 
 /**
  * Get all requirements for an organization
+ * @param organizationId The organization ID
+ * @returns A list of organization requirements
  */
-export async function getOrganizationRequirements(organizationId: number) {
-  const supabase = await createClient();
+export async function getOrganizationRequirements(organizationId: string) {
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("organization_requirements")
     .select(`
-      *,
-      required_form:required_form_id(id, title, description)
+      id,
+      organization_id,
+      type,
+      title,
+      description,
+      required_form_id,
+      required_membership_tier_id,
+      required_children_count,
+      required_parent_relationship_type,
+      requirement_order,
+      is_active,
+      created_at,
+      updated_at,
+      form:required_form_id(id, title)
     `)
     .eq("organization_id", organizationId)
     .order("requirement_order");
-
+  
   if (error) {
+    console.error(`Error fetching requirements for organization ${organizationId}:`, error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data, { deep: true }) as any[] };
   }
+  
+  return { data };
 }
 
 /**
  * Get a specific requirement
+ * @param requirementId The requirement ID
+ * @returns The organization requirement
  */
-export async function getOrganizationRequirement(requirementId: number) {
-  const supabase = await createClient();
+export async function getRequirementById(requirementId: string) {
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("organization_requirements")
     .select(`
-      *,
-      required_form:required_form_id(id, title, description)
+      id,
+      organization_id,
+      type,
+      title,
+      description,
+      required_form_id,
+      required_membership_tier_id,
+      required_children_count,
+      required_parent_relationship_type,
+      requirement_order,
+      is_active,
+      created_at,
+      updated_at,
+      form:required_form_id(id, title, form_schema, form_ui_schema)
     `)
     .eq("id", requirementId)
     .single();
-
+  
   if (error) {
+    console.error(`Error fetching requirement ${requirementId}:`, error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data, { deep: true }) as any };
   }
+  
+  return { data };
 }
 
 /**
  * Create a new organization requirement
+ * @param requirement The requirement to create
+ * @returns The created requirement
  */
 export async function createOrganizationRequirement(requirement: {
-  organizationId: number;
+  organization_id: string;
   type: string;
   title: string;
   description?: string;
-  requiredFormId?: number;
-  requiredMembershipTierId?: number;
-  requiredChildrenCount?: number;
-  requiredParentRelationshipType?: string;
-  requirementOrder?: number;
-  isActive: boolean;
+  required_form_id?: string;
+  required_membership_tier_id?: string;
+  required_children_count?: number;
+  required_parent_relationship_type?: string;
+  is_active?: boolean;
 }) {
-  const supabase = await createClient();
+  const supabase = await createServiceRoleClient();
   
-  // Get the highest current order for the organization
-  let { data: maxOrderResult } = await supabase
+  // Get current max order
+  const { data: maxOrder } = await supabase
     .from("organization_requirements")
     .select("requirement_order")
-    .eq("organization_id", requirement.organizationId)
+    .eq("organization_id", requirement.organization_id)
     .order("requirement_order", { ascending: false })
     .limit(1)
     .single();
-    
-  const nextOrder = maxOrderResult ? (maxOrderResult.requirement_order + 10) : 10;
+  
+  const newOrder = maxOrder ? maxOrder.requirement_order + 1 : 1;
   
   const { data, error } = await supabase
     .from("organization_requirements")
     .insert({
-      organization_id: requirement.organizationId,
-      type: requirement.type,
-      title: requirement.title,
-      description: requirement.description,
-      required_form_id: requirement.requiredFormId,
-      required_membership_tier_id: requirement.requiredMembershipTierId,
-      required_children_count: requirement.requiredChildrenCount,
-      required_parent_relationship_type: requirement.requiredParentRelationshipType,
-      requirement_order: requirement.requirementOrder || nextOrder,
-      is_active: requirement.isActive
+      ...requirement,
+      requirement_order: newOrder,
+      is_active: requirement.is_active !== undefined ? requirement.is_active : true
     })
     .select()
     .single();
-
+  
   if (error) {
+    console.error("Error creating organization requirement:", error);
     return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as OrganizationRequirement };
   }
+  
+  return { data };
 }
 
 /**
  * Update an organization requirement
+ * @param requirementId The requirement ID
+ * @param updates The updates to apply
+ * @returns The updated requirement
  */
 export async function updateOrganizationRequirement(
-  requirementId: number,
-  updates: {
-    title?: string;
-    description?: string;
-    requiredFormId?: number | null;
-    requiredMembershipTierId?: number | null;
-    requiredChildrenCount?: number | null;
-    requiredParentRelationshipType?: string | null;
-    requirementOrder?: number;
-    isActive?: boolean;
-  }
+  requirementId: string, 
+  updates: Partial<{
+    type: string;
+    title: string;
+    description: string | null;
+    required_form_id: string | null;
+    required_membership_tier_id: string | null;
+    required_children_count: number | null;
+    required_parent_relationship_type: string | null;
+    is_active: boolean;
+  }>
 ) {
-  const supabase = await createClient();
-  
-  const updateData: any = {};
-  if (updates.title) updateData.title = updates.title;
-  if (updates.description !== undefined) updateData.description = updates.description;
-  if (updates.requiredFormId !== undefined) updateData.required_form_id = updates.requiredFormId;
-  if (updates.requiredMembershipTierId !== undefined) updateData.required_membership_tier_id = updates.requiredMembershipTierId;
-  if (updates.requiredChildrenCount !== undefined) updateData.required_children_count = updates.requiredChildrenCount;
-  if (updates.requiredParentRelationshipType !== undefined) updateData.required_parent_relationship_type = updates.requiredParentRelationshipType;
-  if (updates.requirementOrder !== undefined) updateData.requirement_order = updates.requirementOrder;
-  if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+  const supabase = await createServiceRoleClient();
   
   const { data, error } = await supabase
     .from("organization_requirements")
-    .update(updateData)
+    .update(updates)
     .eq("id", requirementId)
     .select()
     .single();
-
-  if (error) {
-    return { error: error.message };
-  } else {
-    return { data: camelcaseKeys(data) as OrganizationRequirement };
-  }
-}
-
-/**
- * Reorder organization requirements
- */
-export async function reorderOrganizationRequirements(
-  organizationId: number,
-  requirementIds: number[]
-) {
-  const supabase = await createClient();
   
-  // Start a transaction
-  const updates = requirementIds.map((id, index) => ({
-    id,
-    requirement_order: (index + 1) * 10
-  }));
-  
-  const { error } = await supabase.rpc('update_requirement_orders', {
-    updates_json: updates
-  });
-
   if (error) {
+    console.error(`Error updating requirement ${requirementId}:`, error);
     return { error: error.message };
-  } else {
-    // Return the updated list
-    return await getOrganizationRequirements(organizationId);
   }
+  
+  return { data };
 }
 
 /**
  * Delete an organization requirement
+ * @param requirementId The requirement ID
+ * @returns Success status
  */
-export async function deleteOrganizationRequirement(requirementId: number) {
-  const supabase = await createClient();
+export async function deleteOrganizationRequirement(requirementId: string) {
+  const supabase = await createServiceRoleClient();
   
+  // Get the requirement to check organization_id
+  const { data: requirement, error: getError } = await supabase
+    .from("organization_requirements")
+    .select("organization_id, requirement_order")
+    .eq("id", requirementId)
+    .single();
+  
+  if (getError) {
+    console.error(`Error fetching requirement ${requirementId}:`, getError);
+    return { error: getError.message };
+  }
+  
+  // Delete the requirement
   const { error } = await supabase
     .from("organization_requirements")
     .delete()
     .eq("id", requirementId);
-
+  
   if (error) {
+    console.error(`Error deleting requirement ${requirementId}:`, error);
     return { error: error.message };
-  } else {
-    return { success: true };
   }
+  
+  // Update order of remaining requirements
+  await supabase.rpc("update_requirement_orders", {
+    org_id: requirement.organization_id
+  });
+  
+  return { success: true };
+}
+
+/**
+ * Check if a child organization meets all requirements of a parent
+ * @param parentId The parent organization ID
+ * @param childId The child organization ID
+ * @returns Whether the child meets all requirements
+ */
+export async function checkOrganizationMeetsRequirements(parentId: string, childId: string) {
+  const supabase = await createServiceRoleClient();
+  
+  const { data, error } = await supabase
+    .rpc("check_organization_meets_requirements", {
+      parent_org_id: parentId,
+      child_org_id: childId
+    });
+  
+  if (error) {
+    console.error(`Error checking if organization ${childId} meets requirements of ${parentId}:`, error);
+    return { error: error.message };
+  }
+  
+  return { data };
+}
+
+/**
+ * Reorder organization requirements
+ * @param organizationId The organization ID
+ * @param requirementIds The requirement IDs in the new order
+ * @returns Success status
+ */
+export async function reorderOrganizationRequirements(
+  organizationId: string, 
+  requirementIds: string[]
+) {
+  const supabase = await createServiceRoleClient();
+  
+  // Create an array of updates
+  const updates = requirementIds.map((id, index) => ({
+    id,
+    organization_id: organizationId,
+    requirement_order: index + 1
+  }));
+  
+  const { error } = await supabase
+    .from("organization_requirements")
+    .upsert(updates, { onConflict: 'id' });
+  
+  if (error) {
+    console.error(`Error reordering requirements for organization ${organizationId}:`, error);
+    return { error: error.message };
+  }
+  
+  return { success: true };
 }
 
 /**

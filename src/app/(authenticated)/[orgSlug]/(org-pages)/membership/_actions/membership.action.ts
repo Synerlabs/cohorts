@@ -28,6 +28,7 @@ const membershipTierSchema = z.object({
     'form_then_payment_then_review',
     'form_then_review_then_payment'
   ]).default('automatic'),
+  target_type: z.enum(['USER', 'ORGANIZATION']).default('USER'),
   member_id_format: z.string().min(1, "Member ID format is required").default('MEM-{YYYY}-{SEQ:3}'),
   form_template_id: z.string().optional().nullable(),
   roles: z.array(z.string()).default([])
@@ -236,7 +237,8 @@ export async function createMembershipTierAction(
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
             form_template_id: parsedFormData.data.form_template_id,
-            roles: parsedFormData.data.roles
+            roles: parsedFormData.data.roles,
+            target_type: parsedFormData.data.target_type
           }
         );
 
@@ -331,6 +333,7 @@ export async function updateMembershipTierAction(
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
             form_template_id: parsedFormData.data.form_template_id || null,
+            target_type: parsedFormData.data.target_type,
             rolesToAdd,
             rolesToRemove
           }
