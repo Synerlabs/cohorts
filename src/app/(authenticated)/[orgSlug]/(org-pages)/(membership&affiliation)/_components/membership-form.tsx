@@ -390,37 +390,6 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
           </p>
         </div>
         
-        {/* Type selection */}
-        <div className="mb-6">
-          <Label className="font-medium">Tier Type</Label>
-          <RadioGroup 
-            className="flex gap-4 mt-2" 
-            value={membershipType}
-            onValueChange={(value) => setMembershipType(value as MembershipFormType)}
-            disabled={!!tier}
-          >
-            <div className="flex items-start space-x-2">
-              <RadioGroupItem value={MembershipFormType.MEMBER} id="member" disabled={!!tier} />
-              <Label htmlFor="member" className={`cursor-pointer font-normal ${tier ? 'opacity-70' : ''}`}>
-                <div>Membership</div>
-                <p className="text-sm text-muted-foreground">For individuals joining your organization</p>
-              </Label>
-            </div>
-            <div className="flex items-start space-x-2">
-              <RadioGroupItem value={MembershipFormType.AFFILIATION} id="affiliation" disabled={!!tier} />
-              <Label htmlFor="affiliation" className={`cursor-pointer font-normal ${tier ? 'opacity-70' : ''}`}>
-                <div>Affiliation</div>
-                <p className="text-sm text-muted-foreground">For organizations partnering with your organization</p>
-              </Label>
-            </div>
-          </RadioGroup>
-          {tier && (
-            <p className="text-xs text-muted-foreground mt-2">
-              The tier type cannot be changed after creation.
-            </p>
-          )}
-        </div>
-        
         <FormField
           control={form.control}
           name="name"
