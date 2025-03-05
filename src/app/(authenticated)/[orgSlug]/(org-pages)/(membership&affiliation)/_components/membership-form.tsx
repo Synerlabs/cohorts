@@ -34,6 +34,12 @@ import { getRolesAction } from '../_actions/roles.action';
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 type GroupRole = Database['public']['Tables']['group_roles']['Row'];
 
+// Enum for membership form types
+export enum MembershipFormType {
+  MEMBER = 'membership',
+  AFFILIATION = 'organization'
+}
+
 const formSchema = z.object({
   name: z.string().min(1, "Name is required"),
   description: z.string().optional(),
@@ -56,6 +62,7 @@ interface MembershipFormProps {
   groupId: string;
   tier?: IMembershipTierProduct;
   onSuccess?: () => void;
+  type?: MembershipFormType;
 }
 
 const currencySymbols: Record<Currency, string> = {
@@ -137,18 +144,36 @@ function getStepConfiguration(type: MembershipActivationType): {
   };
 }
 
-export default function MembershipForm({ groupId, tier, onSuccess }: MembershipFormProps) {
-  console.log('MembershipForm props:', { groupId, tier });
+export default function MembershipForm({ groupId, tier, onSuccess, type = MembershipFormType.MEMBER }: MembershipFormProps) {
+  console.log('MembershipForm props:', { groupId, tier, type });
+
+  // If we have a tier with a type, use that type (this ensures editing works correctly)
+  const [membershipType, setMembershipType] = useState<MembershipFormType>(
+    tier?.membership_tier?.type === 'organization' 
+      ? MembershipFormType.AFFILIATION 
+      : type
+  );
+
+  useEffect(() => {
+    // Update membership type if tier changes
+    if (tier?.membership_tier?.type === 'organization') {
+      setMembershipType(MembershipFormType.AFFILIATION);
+    } else if (tier?.membership_tier?.type === 'membership') {
+      setMembershipType(MembershipFormType.MEMBER);
+    }
+  }, [tier]);
 
   const [state, action, pending] = useToastActionState(
     tier ? updateMembershipTierAction : createMembershipTierAction,
     undefined,
     undefined,
     {
-      successTitle: tier ? "Membership tier updated" : "Membership tier created",
+      successTitle: tier 
+        ? (membershipType === MembershipFormType.MEMBER ? "Membership tier updated" : "Affiliation tier updated")
+        : (membershipType === MembershipFormType.MEMBER ? "Membership tier created" : "Affiliation tier created"),
       successDescription: tier
-        ? "Your membership tier has been updated successfully."
-        : "Your membership tier has been created successfully.",
+        ? (membershipType === MembershipFormType.MEMBER ? "Your membership tier has been updated successfully." : "Your affiliation tier has been updated successfully.")
+        : (membershipType === MembershipFormType.MEMBER ? "Your membership tier has been created successfully." : "Your affiliation tier has been created successfully."),
     }
   );
 
@@ -318,6 +343,8 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
     startTransition(() => {
       const formData = new FormData();
       formData.append("group_id", groupId);
+      formData.append("type", membershipType);
+      
       if (tier) {
         formData.append("id", tier.id);
       }
@@ -352,6 +379,48 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
   return (
     <Form {...form}>
       <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold">
+            {tier ? 'Edit' : 'Create'} {membershipType === MembershipFormType.MEMBER ? 'Membership' : 'Affiliation'} Tier
+          </h2>
+          <p className="text-muted-foreground">
+            {membershipType === MembershipFormType.MEMBER 
+              ? 'Configure how individuals can become members of your organization.' 
+              : 'Configure how organizations can affiliate with your organization.'}
+          </p>
+        </div>
+        
+        {/* Type selection */}
+        <div className="mb-6">
+          <Label className="font-medium">Tier Type</Label>
+          <RadioGroup 
+            className="flex gap-4 mt-2" 
+            value={membershipType}
+            onValueChange={(value) => setMembershipType(value as MembershipFormType)}
+            disabled={!!tier}
+          >
+            <div className="flex items-start space-x-2">
+              <RadioGroupItem value={MembershipFormType.MEMBER} id="member" disabled={!!tier} />
+              <Label htmlFor="member" className={`cursor-pointer font-normal ${tier ? 'opacity-70' : ''}`}>
+                <div>Membership</div>
+                <p className="text-sm text-muted-foreground">For individuals joining your organization</p>
+              </Label>
+            </div>
+            <div className="flex items-start space-x-2">
+              <RadioGroupItem value={MembershipFormType.AFFILIATION} id="affiliation" disabled={!!tier} />
+              <Label htmlFor="affiliation" className={`cursor-pointer font-normal ${tier ? 'opacity-70' : ''}`}>
+                <div>Affiliation</div>
+                <p className="text-sm text-muted-foreground">For organizations partnering with your organization</p>
+              </Label>
+            </div>
+          </RadioGroup>
+          {tier && (
+            <p className="text-xs text-muted-foreground mt-2">
+              The tier type cannot be changed after creation.
+            </p>
+          )}
+        </div>
+        
         <FormField
           control={form.control}
           name="name"
@@ -359,7 +428,12 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
             <FormItem>
               <FormLabel>Name</FormLabel>
               <FormControl>
-                <Input placeholder="e.g. Basic Membership" {...field} />
+                <Input 
+                  placeholder={membershipType === MembershipFormType.MEMBER 
+                    ? "e.g. Basic Membership" 
+                    : "e.g. Partner Organization"} 
+                  {...field} 
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -374,7 +448,9 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
               <FormLabel>Description</FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Describe what this membership tier offers..."
+                  placeholder={membershipType === MembershipFormType.MEMBER 
+                    ? "Describe what this membership tier offers..." 
+                    : "Describe what this affiliation tier offers..."}
                   {...field}
                 />
               </FormControl>
