@@ -335,7 +335,14 @@ export default function MembershipForm({ groupId, tier, onSuccess }: MembershipF
         review_before_payment: values.review_before_payment
       }));
       formData.append("member_id_format", values.member_id_format);
-      formData.append("form_template_id", values.form_template_id || "");
+      
+      // Only add form_template_id if form is required and a valid template ID exists
+      if (values.requires_form && values.form_template_id) {
+        formData.append("form_template_id", values.form_template_id);
+      } else {
+        formData.append("form_template_id", "null");
+      }
+      
       formData.append("roles", JSON.stringify(values.roles));
 
       action(formData);

@@ -164,8 +164,10 @@ function validateActivationType(price: number, activationType: string, formTempl
   }
 
   // Form-based activation types require a form template
-  if (activationType.includes('form') && (formTemplateId === null || formTemplateId === '')) {
-    return "Form-based activation types require a form template";
+  if (activationType.includes('form')) {
+    if (!formTemplateId) {
+      return "Form-based activation types require a form template";
+    }
   }
 
   return null;
@@ -196,12 +198,19 @@ export async function createMembershipTierAction(
         const price = parseInt(formDataObj.price as string);
         const duration_months = parseInt(formDataObj.duration_months as string);
         const roles = JSON.parse(formDataObj.roles as string);
+        
+        // Handle form_template_id properly - convert 'null' string to actual null
+        let formTemplateId: string | null = formDataObj.form_template_id as string;
+        if (!formTemplateId || formTemplateId === 'null' || formTemplateId === '') {
+          formTemplateId = null;
+        }
 
         const parsedFormData = membershipTierSchema.safeParse({
           ...formDataObj,
           price,
           duration_months,
-          roles
+          roles,
+          form_template_id: formTemplateId
         });
 
         if (!parsedFormData.success) {
@@ -282,7 +291,7 @@ export async function updateMembershipTierAction(
         const newRoles = JSON.parse(formDataObj.roles as string);
         const currentRoles = JSON.parse(formDataObj.current_roles as string || '[]');
         
-        // Handle form_template_id - convert 'null' string to actual null
+        // Handle form_template_id properly - convert 'null' string to actual null
         let formTemplateId: string | null = formDataObj.form_template_id as string;
         if (!formTemplateId || formTemplateId === 'null' || formTemplateId === '') {
           formTemplateId = null;

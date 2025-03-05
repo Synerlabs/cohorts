@@ -1,6 +1,6 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { permissions } from "@/lib/types/permissions";
-import MembershipPageClient from "./_components/membership-page-client";
+import MembershipPageClient from "./../_components/membership-page-client";
 import { ProductService } from "@/services/product.service";
 import { MembershipService } from "@/services/membership.service";
 
