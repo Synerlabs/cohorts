@@ -163,7 +163,7 @@ function validateActivationType(price: number, activationType: string, formTempl
   }
 
   // Form-based activation types require a form template
-  if (activationType.includes('form') && (formTemplateId === null || formTemplateId === '')) {
+  if (activationType.includes('form') && formTemplateId === null) {
     return "Form-based activation types require a form template";
   }
 
@@ -196,11 +196,18 @@ export async function createMembershipTierAction(
         const duration_months = parseInt(formDataObj.duration_months as string);
         const roles = JSON.parse(formDataObj.roles as string);
 
+        // Handle form_template_id - convert 'null' string to actual null
+        let formTemplateId: string | null = formDataObj.form_template_id as string;
+        if (!formTemplateId || formTemplateId === 'null' || formTemplateId === '') {
+          formTemplateId = null;
+        }
+
         const parsedFormData = membershipTierSchema.safeParse({
           ...formDataObj,
           price,
           duration_months,
-          roles
+          roles,
+          form_template_id: formTemplateId
         });
 
         if (!parsedFormData.success) {
@@ -215,7 +222,7 @@ export async function createMembershipTierAction(
         const activationTypeError = validateActivationType(
           parsedFormData.data.price,
           parsedFormData.data.activation_type,
-          parsedFormData.data.form_template_id || null
+          formTemplateId
         );
 
         if (activationTypeError) {
@@ -235,7 +242,7 @@ export async function createMembershipTierAction(
             duration_months: parsedFormData.data.duration_months,
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
-            form_template_id: parsedFormData.data.form_template_id,
+            form_template_id: formTemplateId,
             roles: parsedFormData.data.roles
           }
         );
@@ -306,7 +313,7 @@ export async function updateMembershipTierAction(
         const activationTypeError = validateActivationType(
           parsedFormData.data.price,
           parsedFormData.data.activation_type,
-          parsedFormData.data.form_template_id || null
+          formTemplateId
         );
 
         if (activationTypeError) {
@@ -516,3 +523,6 @@ export async function updateMembershipDatesAction(
 
   return handler(prevState, { formData });
 }
+
+// Alias for createMembershipTierAction to maintain compatibility
+export const createTier = createMembershipTierAction;

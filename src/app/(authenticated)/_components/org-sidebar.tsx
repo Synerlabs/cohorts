@@ -33,9 +33,9 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
   const { userPermissions = [], groupRoles = [] } = getAuthenticatedServerContext();
 
   // Check if user is a super admin
-  const isSuperAdmin = groupRoles.map(role => camelcaseKeys(role)).some((role: UserRole) => 
+  const isSuperAdmin = groupRoles.some((role) => 
     {
-      return role.isActive && role.groupRoles?.isSuperAdmin
+      return role.is_active && role.group_roles?.is_super_admin
     }
   );
 

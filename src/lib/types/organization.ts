@@ -23,7 +23,17 @@ export type OrganizationTierConfig = {
   created_at: string;
 };
 
-export type OrganizationTier = IProduct & {
+// Update OrganizationTier to satisfy BaseTier constraint
+export type OrganizationTier = {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  currency: string;
+  duration_months: number;
+  activation_type: string;
+  created_at: string;
+  form_template_id?: string | null;
   config: OrganizationTierConfig;
   organization_count?: number;
 };

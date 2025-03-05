@@ -42,9 +42,11 @@ export function FormTemplateSelectionDialog({
 
   // Load templates when dialog opens
   const loadTemplates = async () => {
+    console.log('FormTemplateSelectionDialog: Loading templates for org:', orgId);
     setIsLoading(true);
     try {
       const result = await getPublishedFormTemplates(orgId);
+      console.log('FormTemplateSelectionDialog: Templates loaded:', result);
       if (result.error) {
         throw new Error(result.error);
       }
@@ -52,7 +54,7 @@ export function FormTemplateSelectionDialog({
       
       // If there's a selected template ID, find and set it
       if (selectedTemplateId) {
-        const selected = result.data?.find(t => t.id === selectedTemplateId);
+        const selected = result.data?.find((t: FormTemplate) => t.id === selectedTemplateId);
         if (selected) {
           setSelectedTemplate(selected);
         }

@@ -45,20 +45,28 @@ export class FormTemplateService {
   }
 
   static async getPublishedFormTemplates(orgId: string): Promise<FormTemplate[]> {
-    const supabase = await createClient();
-    
-    const { data, error } = await supabase
-      .from('form_templates')
-      .select('*')
-      .eq('org_id', orgId)
-      .eq('status', 'published')
-      .neq('is_deleted', true)
-      .order('created_at', { ascending: false });
+    const supabase = await createServiceRoleClient();
 
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from("form_templates")
+        .select()
+        .eq("org_id", orgId)
+        .eq("status", "published")
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching published form templates:", error);
+        throw error;
+      }
+
+      console.log("Published form templates for org:", orgId, data);
+
+      return data || [];
+    } catch (error) {
+      console.error("Error in getPublishedFormTemplates:", error);
       throw error;
     }
-
-    return data || [];
   }
 } 

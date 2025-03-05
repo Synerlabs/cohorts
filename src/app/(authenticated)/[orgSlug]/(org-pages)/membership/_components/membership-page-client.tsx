@@ -2,19 +2,27 @@
 
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import MembershipForm from "./membership-form";
 import MembershipTable from "./membership-table";
 import MembershipsTable from "./memberships-table";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { IMembership } from "@/lib/types/membership";
 import { permissions } from "@/lib/types/permissions";
 import { ClientComponentPermission } from "@/components/ClientComponentPermission";
 import { usePermissions } from "@/lib/hooks/use-permissions";
+import { 
+  TierDialog, 
+  BasicInfoFields, 
+  PriceFields, 
+  MemberIdFormatField, 
+  RolesField, 
+  FormTemplateField, 
+  ActivationProcessFields, 
+  FormDivider 
+} from "./tier-form";
 
 interface MembershipPageClientProps {
   tiers: IMembershipTierProduct[];
@@ -27,31 +35,41 @@ interface MembershipPageClientProps {
 export default function MembershipPageClient({ tiers, memberships, groupId, orgSlug }: MembershipPageClientProps) {
   const [open, setOpen] = useState(false);
   const { hasPermission } = usePermissions();
-  console.log("CLIENT MEMBERSHIPS", memberships);
+  
+  // Log groupId for debugging
+  useEffect(() => {
+    console.log("MembershipPageClient - groupId:", groupId);
+    console.log("MembershipPageClient - groupId type:", typeof groupId);
+    console.log("MembershipPageClient - groupId length:", groupId?.length);
+  }, [groupId]);
+  
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-semibold">Memberships</h2>
         {hasPermission(permissions.memberships.create) && (
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger asChild>
+          <TierDialog
+            triggerButton={
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
                 Create Tier
               </Button>
-            </SheetTrigger>
-            <SheetContent className="overflow-y-auto">
-              <SheetHeader>
-                <SheetTitle>Create Membership Tier</SheetTitle>
-              </SheetHeader>
-              <div className="mt-4 pb-6">
-                <MembershipForm 
-                  groupId={groupId} 
-                  onSuccess={() => setOpen(false)}
-                />
-              </div>
-            </SheetContent>
-          </Sheet>
+            }
+            groupId={groupId}
+            tierType="membership"
+          >
+            <BasicInfoFields />
+            <FormDivider />
+            <PriceFields />
+            <FormDivider />
+            <MemberIdFormatField />
+            <FormDivider />
+            <RolesField />
+            <FormDivider />
+            <ActivationProcessFields />
+            <FormDivider />
+            <FormTemplateField />
+          </TierDialog>
         )}
       </div>
 

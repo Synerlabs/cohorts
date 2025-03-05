@@ -14,6 +14,7 @@ import {
 import { OrganizationTierCard } from "./OrganizationTierCard";
 import { OrganizationTierEnrollDialog } from "./OrganizationTierEnrollDialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { OrganizationTier } from "@/lib/types/organization";
 
 export interface AffiliateOrganizationsProps {
   hostGroupId: string;
@@ -24,58 +25,67 @@ export async function AffiliateOrganizations({
   hostGroupId,
   affiliateGroupId,
 }: AffiliateOrganizationsProps) {
-  const tiers = await OrganizationAffiliationServiceStatic.getTiers({
-    hostGroupId,
-  });
+  // Replace with actual service call when implemented
+  try {
+    const host = await GroupService.getGroupById(hostGroupId);
+    const tiers = await OrganizationAffiliationServiceStatic.getTiers({
+      hostGroupId,
+    });
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Available Affiliation Tiers</h2>
-      <p className="text-muted-foreground">
-        Select a tier to apply for affiliation with this organization.
-      </p>
-
-      {tiers.length === 0 ? (
+    if (!tiers || tiers.length === 0) {
+      return (
         <Card>
           <CardHeader>
-            <CardTitle>No Tiers Available</CardTitle>
+            <CardTitle>No Organization Tiers Available</CardTitle>
             <CardDescription>
-              This organization has not created any affiliation tiers yet.
+              {host?.name} has not created any organization tiers yet.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              Check back later for affiliation opportunities.
+            </p>
+          </CardContent>
         </Card>
-      ) : (
+      );
+    }
+
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold">Available Tiers from {host?.name}</h2>
+        </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {tiers.map((tier) => (
+          {tiers.map((tier: OrganizationTier) => (
             <Card key={tier.id} className="flex flex-col">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>{tier.config.name}</CardTitle>
+                  <CardTitle>{tier.name}</CardTitle>
                   <Badge variant="outline">
-                    {tier.config.relationship_type}
+                    {tier.config?.relationship_type || "N/A"}
                   </Badge>
                 </div>
-                <CardDescription>{tier.config.description}</CardDescription>
+                <CardDescription>{tier.description}</CardDescription>
               </CardHeader>
               <CardContent className="flex-grow">
                 <div className="space-y-4">
                   <div>
                     <p className="text-2xl font-bold">
-                      ${tier.config.price.toFixed(2)}
+                      ${(tier.price / 100).toFixed(2)}
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      {tier.config.duration_months} months
+                      {tier.duration_months} months
                     </p>
                   </div>
                   <p className="text-sm">
-                    Activation: {tier.config.activation_type}
+                    Activation: {tier.activation_type}
                   </p>
                 </div>
               </CardContent>
               <CardFooter>
                 <OrganizationTierEnrollDialog
                   tierId={tier.id}
-                  tierName={tier.config.name}
+                  tierName={tier.name}
                   groupId={affiliateGroupId}
                   trigger={<Button className="w-full">Apply for Tier</Button>}
                 />
@@ -83,9 +93,26 @@ export async function AffiliateOrganizations({
             </Card>
           ))}
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  } catch (error) {
+    console.error("Error fetching affiliate organizations:", error);
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Error</CardTitle>
+          <CardDescription>
+            Failed to load organization tiers.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            There was an error loading the organization tiers. Please try again later.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 }
 
 export function AffiliateOrganizationsSkeleton() {

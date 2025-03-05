@@ -35,5 +35,5 @@ export function formatNumber(number: number): string {
  */
 export function truncateString(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
-  return `${str.slice(0, maxLength)}...`;
+  return str.substring(0, maxLength) + '...';
 } 
