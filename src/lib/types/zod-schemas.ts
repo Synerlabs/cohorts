@@ -473,18 +473,21 @@ export const membershipTiersRowSchema = z.object({
   activation_type: z.string(),
   duration_months: z.number(),
   product_id: z.string(),
+  type: z.enum(['membership', 'organization']),
 });
 
 export const membershipTiersInsertSchema = z.object({
   activation_type: z.string(),
   duration_months: z.number().optional(),
   product_id: z.string(),
+  type: z.enum(['membership', 'organization']).optional(),
 });
 
 export const membershipTiersUpdateSchema = z.object({
   activation_type: z.string().optional(),
   duration_months: z.number().optional(),
   product_id: z.string().optional(),
+  type: z.enum(['membership', 'organization']).optional(),
 });
 
 export const membershipTiersRelationshipsSchema = z.tuple([

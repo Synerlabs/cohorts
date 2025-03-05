@@ -23,6 +23,7 @@ export interface MembershipTierRow {
   activation_type: MembershipActivationType;
   member_id_format?: string;
   form_template_id?: string | null;
+  type: 'membership' | 'organization';
   roles?: {
     id: string;
     role_name: string;

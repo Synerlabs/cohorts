@@ -562,18 +562,21 @@ export type Database = {
           duration_months: number
           form_template_id: string | null
           product_id: string
+          type: string
         }
         Insert: {
           activation_type: string
           duration_months?: number
           form_template_id?: string | null
           product_id: string
+          type?: string
         }
         Update: {
           activation_type?: string
           duration_months?: number
           form_template_id?: string | null
           product_id?: string
+          type?: string
         }
         Relationships: [
           {

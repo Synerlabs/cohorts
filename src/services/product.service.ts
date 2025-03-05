@@ -219,6 +219,7 @@ export class ProductService {
     member_id_format: string;
     form_template_id?: string | null;
     roles?: string[];
+    type?: 'membership' | 'organization';
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
@@ -254,7 +255,8 @@ export class ProductService {
           product_id: product.id,
           duration_months: tier.duration_months,
           activation_type: tier.activation_type,
-          form_template_id: tier.form_template_id
+          form_template_id: tier.form_template_id,
+          type: tier.type || 'membership'
         })
         .select()
         .single();
@@ -320,6 +322,7 @@ export class ProductService {
     form_template_id?: string | null;
     rolesToAdd?: string[];
     rolesToRemove?: string[];
+    type?: 'membership' | 'organization';
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
@@ -331,7 +334,8 @@ export class ProductService {
       duration_months, 
       activation_type, 
       member_id_format, 
-      form_template_id, 
+      form_template_id,
+      type,
       rolesToAdd = [], 
       rolesToRemove = [] 
     } = tier;
@@ -365,7 +369,8 @@ export class ProductService {
         .update({
           duration_months,
           activation_type,
-          form_template_id
+          form_template_id,
+          type
         })
         .eq('product_id', id)
         .select()

@@ -25,6 +25,7 @@ export type MembershipTier = {
   group_id: string;
   member_count?: number;
   form_template_id?: string | null;
+  type: 'membership' | 'organization';
 };
 
 export type MembershipTierRow = {
@@ -38,6 +39,7 @@ export type MembershipTierRow = {
   created_at: string;
   group_id: string;
   form_template_id?: string | null;
+  type: 'membership' | 'organization';
 };
 
 export enum MembershipStatus {
