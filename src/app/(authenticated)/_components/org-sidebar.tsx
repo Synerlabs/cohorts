@@ -56,7 +56,7 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       permission: permissions.memberships.view,
     },
     {
-      name: "Memberships",
+      name: "Memberships & Affiliations",
       href: `/@${org.slug}/membership`,
       icon: <Package className="h-4 w-4" />,
       permission: permissions.memberships.view,

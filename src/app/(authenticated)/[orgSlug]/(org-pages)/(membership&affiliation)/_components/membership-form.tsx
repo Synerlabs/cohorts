@@ -802,7 +802,16 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
         />
 
         <Button type="submit" className="w-full" disabled={pending}>
-          {pending ? "Saving..." : tier ? "Update Tier" : "Create Tier"}
+          {pending 
+            ? "Saving..." 
+            : tier 
+              ? membershipType === MembershipFormType.MEMBER 
+                ? "Update Membership Plan" 
+                : "Update Affiliation Plan"
+              : membershipType === MembershipFormType.MEMBER 
+                ? "Create Membership Plan" 
+                : "Create Affiliation Plan"
+          }
         </Button>
       </form>
     </Form>
