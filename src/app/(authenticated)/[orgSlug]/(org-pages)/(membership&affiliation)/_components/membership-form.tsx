@@ -378,7 +378,7 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
 
   return (
     <Form {...form}>
-      <form onSubmit={onSubmit} className="space-y-6 max-w-3xl">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="mb-6">
           <h2 className="text-2xl font-bold">
             {tier ? 'Edit' : 'Create'} {membershipType === MembershipFormType.MEMBER ? 'Membership' : 'Affiliation'} Tier

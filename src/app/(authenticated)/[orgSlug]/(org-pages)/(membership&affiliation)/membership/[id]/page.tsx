@@ -3,9 +3,9 @@ import { IMembershipTierProduct } from '@/lib/types/product';
 import { ProductService } from '@/services/product.service';
 import { notFound } from 'next/navigation';
 import { Database } from '@/lib/types/database.types';
-import { getFormTemplateById } from '../../../../forms/_actions/form-template.action';
-import { getRolesAction, GroupRole } from '../../../_actions/roles.action';
-import { EditMembershipTierForm } from '../../../_components/edit-membership-tier-form';
+import { getRolesAction, GroupRole } from '../../_actions/roles.action';
+import { getFormTemplateById } from '../../../forms/_actions/form-template.action';
+import { EditMembershipTierForm } from '../../_components/edit-membership-tier-form';
 
 interface Props {
   params: {

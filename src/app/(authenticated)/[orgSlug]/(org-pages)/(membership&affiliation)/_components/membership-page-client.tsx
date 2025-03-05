@@ -1,13 +1,13 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import MembershipForm, { MembershipFormType } from "./membership-form";
-import SubscriptionPlansTable from "./subscription-plans-table";
+import SubscriptionPlansCards from "./subscription-plans-cards";
 import MembershipsTable from "./memberships-table";
 import { useState } from "react";
 import { IMembershipTierProduct } from "@/lib/types/product";
@@ -100,14 +100,25 @@ export default function MembershipPageClient({ tiers, memberships, groupId, orgS
 
         <TabsContent value="tiers">
           {tiers.length === 0 ? (
-            <Alert className="bg-yellow-50">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                No subscription plans found. Create your first subscription plan to start accepting members.
-              </AlertDescription>
-            </Alert>
+            <div className="flex flex-col items-center justify-center py-12 px-4 border rounded-lg bg-muted/20">
+              <div className="text-center max-w-md">
+                <div className="bg-primary/10 p-3 rounded-full w-12 h-12 flex items-center justify-center mx-auto mb-4">
+                  <Users className="h-6 w-6 text-primary" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">No subscription plans yet</h3>
+                <p className="text-muted-foreground mb-6">
+                  Create your first subscription plan to start accepting members or affiliated organizations.
+                </p>
+                {hasPermission(permissions.memberships.create) && (
+                  <Button onClick={() => setOpen(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Create Subscription Plan
+                  </Button>
+                )}
+              </div>
+            </div>
           ) : (
-            <SubscriptionPlansTable tiers={tiers} groupId={groupId} slug={orgSlug} />
+            <SubscriptionPlansCards tiers={tiers} groupId={groupId} slug={orgSlug} />
           )}
         </TabsContent>
       </Tabs>
