@@ -97,7 +97,9 @@ export default function SubscriptionPlansCards({ tiers, groupId, slug }: Subscri
                 <div className="flex justify-between items-center">
                   <h3 className="text-xl font-bold">{tier.name}</h3>
                   <Badge variant={isAffiliation ? "outline" : "default"} className="z-20 relative text-xs">
-                    {isAffiliation ? 'Affiliate' : 'Member'}
+                    {tier.membership_tier?.type
+                      ? tier.membership_tier.type.charAt(0).toUpperCase() + tier.membership_tier.type.slice(1)
+                      : 'Member'}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground text-sm line-clamp-1">
@@ -115,7 +117,11 @@ export default function SubscriptionPlansCards({ tiers, groupId, slug }: Subscri
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Relationship Type:</span>
-                    <span className="font-medium">{isAffiliation ? 'Affiliate' : 'Member'}</span>
+                    <span className="font-medium">
+                      {tier.membership_tier?.type
+                        ? tier.membership_tier.type.charAt(0).toUpperCase() + tier.membership_tier.type.slice(1)
+                        : 'Member'}
+                    </span>
                   </div>
                   
                   <div className="flex justify-between items-center">
@@ -141,7 +147,9 @@ export default function SubscriptionPlansCards({ tiers, groupId, slug }: Subscri
                 <Button variant="outline" size="sm" asChild className="w-full">
                   <Link href={`/@${slug}/membership/${tier.id}`} className="flex items-center justify-center">
                     <Users className="h-3 w-3 mr-1" />
-                    {isAffiliation ? 'Affiliates' : 'Members'}
+                    {tier.membership_tier?.type === 'organization' ? 'Affiliates' : 
+                     tier.membership_tier?.type === 'membership' ? 'Members' : 
+                     'Members'}
                   </Link>
                 </Button>
               </CardFooter>
@@ -150,46 +158,50 @@ export default function SubscriptionPlansCards({ tiers, groupId, slug }: Subscri
               <Sheet open={editingTier === tier.id} onOpenChange={(open) => {
                 if (!open) setEditingTier(null);
               }}>
-                <SheetContent className="overflow-y-auto">
-                  <SheetHeader>
+                <SheetContent className="h-screen overflow-y-auto">
+                  <SheetHeader className="mb-4">
                     <SheetTitle>
-                      {isAffiliation ? "Edit Affiliation Plan" : "Edit Membership Plan"}
+                      Edit {tier.membership_tier?.type
+                        ? tier.membership_tier.type.charAt(0).toUpperCase() + tier.membership_tier.type.slice(1)
+                        : 'Membership'} Plan
                     </SheetTitle>
                   </SheetHeader>
-                  <div className="mt-4">
-                    <MembershipForm
-                      groupId={groupId}
-                      tier={tier}
-                      type={isAffiliation ? MembershipFormType.AFFILIATION : MembershipFormType.MEMBER}
-                      onSuccess={() => setEditingTier(null)}
-                    />
-                  </div>
+                  <MembershipForm
+                    groupId={groupId}
+                    tier={tier}
+                    type={isAffiliation ? MembershipFormType.AFFILIATION : MembershipFormType.MEMBER}
+                    onSuccess={() => setEditingTier(null)}
+                  />
                 </SheetContent>
               </Sheet>
               
-              {/* Delete functionality moved to a separate dialog */}
+              {/* Delete functionality */}
               {hasDeletePermission && (
                 <div className="absolute top-2 right-2 z-30 card-actions">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6"
+                        variant="destructive"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setDeletingTier(tier)}
                       >
-                        <Trash2 className="h-3 w-3 text-destructive" />
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Delete
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Delete {isAffiliation ? "Affiliation" : "Membership"} Plan?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete {tier.membership_tier?.type
+                          ? tier.membership_tier.type.charAt(0).toUpperCase() + tier.membership_tier.type.slice(1)
+                          : 'Membership'} Plan?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the {isAffiliation ? "affiliation" : "membership"} plan
+                          This action cannot be undone. This will permanently delete the {tier.membership_tier?.type || 'membership'} plan
                           and all associated memberships.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel onClick={() => setDeletingTier(null)}>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={handleDelete} disabled={isPending}>
                           {isPending ? "Deleting..." : "Delete"}
                         </AlertDialogAction>

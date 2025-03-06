@@ -339,46 +339,44 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
     onSuccess();
   }
 
-  const onSubmit = form.handleSubmit((values) => {
-    startTransition(() => {
-      const formData = new FormData();
-      formData.append("group_id", groupId);
-      formData.append("type", membershipType);
-      
-      if (tier) {
-        formData.append("id", tier.id);
-      }
-      
-      // Handle each field type appropriately
-      formData.append("name", values.name);
-      formData.append("description", values.description || "");
-      formData.append("price", Math.round(values.price * 100).toString()); // Convert dollars to cents
-      formData.append("currency", values.currency);
-      formData.append("duration_months", values.duration_months.toString());
-      formData.append("activation_type", getActivationType({
-        price: values.price,
-        requires_form: values.requires_form,
-        requires_review: values.requires_review,
-        review_before_payment: values.review_before_payment
-      }));
-      formData.append("member_id_format", values.member_id_format);
-      
-      // Only add form_template_id if form is required and a valid template ID exists
-      if (values.requires_form && values.form_template_id) {
-        formData.append("form_template_id", values.form_template_id);
-      } else {
-        formData.append("form_template_id", "null");
-      }
-      
-      formData.append("roles", JSON.stringify(values.roles));
-
-      action(formData);
-    });
-  });
-
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(values => {
+        startTransition(() => {
+          const formData = new FormData();
+          formData.append("group_id", groupId);
+          formData.append("type", membershipType);
+          
+          if (tier) {
+            formData.append("id", tier.id);
+          }
+          
+          // Handle each field type appropriately
+          formData.append("name", values.name);
+          formData.append("description", values.description || "");
+          formData.append("price", Math.round(values.price * 100).toString()); // Convert dollars to cents
+          formData.append("currency", values.currency);
+          formData.append("duration_months", values.duration_months.toString());
+          formData.append("activation_type", getActivationType({
+            price: values.price,
+            requires_form: values.requires_form,
+            requires_review: values.requires_review,
+            review_before_payment: values.review_before_payment
+          }));
+          formData.append("member_id_format", values.member_id_format);
+          
+          // Only add form_template_id if form is required and a valid template ID exists
+          if (values.requires_form && values.form_template_id) {
+            formData.append("form_template_id", values.form_template_id);
+          } else {
+            formData.append("form_template_id", "null");
+          }
+          
+          formData.append("roles", JSON.stringify(values.roles));
+
+          action(formData);
+        });
+      })} className="space-y-6">
         <div className="mb-6">
           <h2 className="text-2xl font-bold">
             {tier ? 'Edit' : 'Create'} {membershipType === MembershipFormType.MEMBER ? 'Membership' : 'Affiliation'} Tier
