@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
-import { Pencil, X, Save, Calendar, Clock, Building2, CalendarRange } from "lucide-react";
+import { Pencil, X, Save, Calendar, Clock, Building2, CalendarRange, AlertCircle, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +15,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useState, useRef, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 
 const currencySymbols: Record<Currency, string> = {
   USD: '$',
@@ -359,11 +360,14 @@ export function PricingDuration({
                         // Case 1: Fixed dates
                         if (hasFixedDates && fixedStartDate && fixedEndDate) {
                           try {
-                            const start = new Date(fixedStartDate);
-                            const end = new Date(fixedEndDate);
+                            const fixedStartDateObj = new Date(fixedStartDate);
+                            const fixedEndDateObj = new Date(fixedEndDate);
                             
                             // Check if join date is before end date
-                            const isJoinDateValid = joinDate <= end;
+                            const isJoinDateValid = joinDate <= fixedEndDateObj;
+                            
+                            // Calculate duration in days
+                            const daysUntilEnd = Math.round((fixedEndDateObj.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
                             
                             return (
                               <div className="p-4">
@@ -375,11 +379,11 @@ export function PricingDuration({
                                 <div className="ml-5 space-y-2 text-sm">
                                   <div className="flex items-baseline">
                                     <div className="w-14 text-xs text-muted-foreground">Start:</div>
-                                    <div className="font-medium">{format(start, 'MMM d, yyyy')}</div>
+                                    <div className="font-medium">{format(fixedStartDateObj, 'MMM d, yyyy')}</div>
                                   </div>
                                   <div className="flex items-baseline">
                                     <div className="w-14 text-xs text-muted-foreground">End:</div>
-                                    <div className="font-medium">{format(end, 'MMM d, yyyy')}</div>
+                                    <div className="font-medium">{format(fixedEndDateObj, 'MMM d, yyyy')}</div>
                                   </div>
                                 </div>
                                 
@@ -387,12 +391,33 @@ export function PricingDuration({
                                   <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
                                   
                                   {isJoinDateValid ? (
-                                    <div className="text-xs text-muted-foreground">
-                                      All members get the same fixed period regardless of join date
+                                    <div className="bg-muted/50 rounded-md p-2 mt-1.5 text-xs">
+                                      <div className="font-medium flex items-center gap-1.5 mb-1">
+                                        <Calendar size={12} />
+                                        <span>Fixed period</span>
+                                      </div>
+                                      <div className="flex justify-between mt-0.5">
+                                        <span>Start:</span>
+                                        <span className="font-medium">{format(fixedStartDateObj, 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="flex justify-between mt-0.5">
+                                        <span>End:</span>
+                                        <span className="font-medium text-primary">{format(fixedEndDateObj, 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="flex justify-between mt-1 pt-1 border-t border-border/40 text-muted-foreground">
+                                        <span>Duration:</span>
+                                        <span>{daysUntilEnd} days</span>
+                                      </div>
                                     </div>
                                   ) : (
-                                    <div className="text-xs text-amber-500 font-medium">
-                                      Note: The simulated join date is after the membership end date. Members wouldn't be able to join this membership on this date.
+                                    <div className="bg-destructive/10 border border-destructive/20 text-destructive rounded-md p-2 mt-1.5 text-xs">
+                                      <div className="font-medium flex items-center gap-1">
+                                        <AlertCircle size={12} />
+                                        <span>Invalid Join Date</span>
+                                      </div>
+                                      <p className="mt-1">
+                                        The selected join date is after the fixed end date. Membership would end immediately.
+                                      </p>
                                     </div>
                                   )}
                                 </div>
@@ -458,8 +483,12 @@ export function PricingDuration({
                                 
                                 <div className="mt-3 border-t border-dashed pt-2">
                                   <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
-                                  <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
-                                    <div className="flex justify-between">
+                                  <div className="bg-muted/50 rounded-md p-2 mt-1.5 text-xs">
+                                    <div className="font-medium flex items-center gap-1.5 mb-1">
+                                      <Building2 size={12} />
+                                      <span>Fiscal period</span>
+                                    </div>
+                                    <div className="flex justify-between mt-0.5">
                                       <span>Join:</span>
                                       <span className="font-medium">{format(joinDate, 'MMM d, yyyy')}</span>
                                     </div>
@@ -467,7 +496,7 @@ export function PricingDuration({
                                       <span>Until:</span>
                                       <span className="font-medium text-primary">{format(fiscalEnd, 'MMM d, yyyy')}</span>
                                     </div>
-                                    <div className="flex justify-between mt-0.5 text-muted-foreground">
+                                    <div className="flex justify-between mt-1 pt-1 border-t border-border/40 text-muted-foreground">
                                       <span>Duration:</span>
                                       <span>{Math.round((fiscalEnd.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24))} days</span>
                                     </div>
@@ -514,6 +543,11 @@ export function PricingDuration({
                                 <div className="flex items-center gap-1.5 text-primary mb-2">
                                   <Clock size={14} className="flex-shrink-0" />
                                   <div className="font-medium text-sm">Standard Duration</div>
+                                  {hasMonthlyCycle && (
+                                    <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded ml-2 font-normal">
+                                      Monthly Cycle
+                                    </span>
+                                  )}
                                 </div>
                                 
                                 <div className="ml-5 space-y-2 text-sm">
@@ -523,37 +557,55 @@ export function PricingDuration({
                                       {durationMonths} {durationUnit}{durationMonths > 1 ? 's' : ''}
                                     </div>
                                   </div>
-                                  <div className="flex items-baseline flex-wrap">
-                                    <div className="w-14 text-xs text-muted-foreground">Cycle:</div>
-                                    <div className="font-medium">
-                                      Day {monthlyStartDay} to {
-                                        monthlyEndDayType === 'last_day' 
-                                          ? 'end of month' 
-                                          : `day ${monthlyEndDay}`
-                                      }
+                                  
+                                  {hasMonthlyCycle && monthlyStartDay && (
+                                    <div className="flex items-baseline flex-wrap">
+                                      <div className="w-14 text-xs text-muted-foreground">Cycle:</div>
+                                      <div className="font-medium">
+                                        Day {monthlyStartDay} to {
+                                          monthlyEndDayType === 'last_day' 
+                                            ? 'end of month' 
+                                            : `day ${monthlyEndDay}`
+                                        }
+                                      </div>
                                     </div>
-                                  </div>
+                                  )}
                                 </div>
                                 
                                 <div className="mt-3 border-t border-dashed pt-2">
                                   <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
                                   
                                   {initialPartialCycleEnd && (
-                                    <div className="bg-amber-50 border border-amber-200 rounded p-1.5 mt-1 mb-2 text-xs">
-                                      <div className="font-medium text-amber-800">Initial partial cycle:</div>
-                                      <div className="flex justify-between mt-0.5">
+                                    <div className="bg-amber-50 border border-amber-200 rounded-md p-2 mt-1.5 mb-2 text-xs">
+                                      <div className="font-medium text-amber-800 flex items-center gap-1 mb-1">
+                                        <AlertCircle size={12} />
+                                        Initial partial cycle
+                                      </div>
+                                      <div className="flex justify-between mt-0.5 text-amber-900">
                                         <span>Join:</span>
                                         <span className="font-medium">{format(joinDate, 'MMM d, yyyy')}</span>
                                       </div>
-                                      <div className="flex justify-between mt-0.5">
+                                      <div className="flex justify-between mt-0.5 text-amber-900">
                                         <span>Until:</span>
                                         <span className="font-medium">{format(initialPartialCycleEnd, 'MMM d, yyyy')}</span>
                                       </div>
                                     </div>
                                   )}
                                   
-                                  <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
-                                    <div className="font-medium">{initialPartialCycleEnd ? 'Full cycles:' : 'Full duration:'}</div>
+                                  <div className="bg-muted/50 rounded-md p-2 mt-1.5 text-xs">
+                                    <div className="font-medium flex items-center gap-1.5 mb-1">
+                                      {initialPartialCycleEnd ? (
+                                        <>
+                                          <CalendarRange size={12} />
+                                          <span>Full cycles</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <CalendarRange size={12} />
+                                          <span>Full duration</span>
+                                        </>
+                                      )}
+                                    </div>
                                     <div className="flex justify-between mt-0.5">
                                       <span>Start:</span>
                                       <span className="font-medium">{format(firstFullCycleStart, 'MMM d, yyyy')}</span>
@@ -562,7 +614,7 @@ export function PricingDuration({
                                       <span>End:</span>
                                       <span className="font-medium text-primary">{format(finalCycleEnd, 'MMM d, yyyy')}</span>
                                     </div>
-                                    <div className="flex justify-between mt-0.5 text-muted-foreground">
+                                    <div className="flex justify-between mt-1 pt-1 border-t border-border/40 text-muted-foreground">
                                       <span>Total:</span>
                                       <span>{totalDays} days</span>
                                     </div>
@@ -603,8 +655,12 @@ export function PricingDuration({
                             
                             <div className="mt-3 border-t border-dashed pt-2">
                               <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
-                              <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
-                                <div className="flex justify-between">
+                              <div className="bg-muted/50 rounded-md p-2 mt-1.5 text-xs">
+                                <div className="font-medium flex items-center gap-1.5 mb-1">
+                                  <CalendarRange size={12} />
+                                  <span>Membership period</span>
+                                </div>
+                                <div className="flex justify-between mt-0.5">
                                   <span>Join:</span>
                                   <span className="font-medium">{format(joinDate, 'MMM d, yyyy')}</span>
                                 </div>
@@ -612,7 +668,7 @@ export function PricingDuration({
                                   <span>Until:</span>
                                   <span className="font-medium text-primary">{format(endDate, 'MMM d, yyyy')}</span>
                                 </div>
-                                <div className="flex justify-between mt-0.5 text-muted-foreground">
+                                <div className="flex justify-between mt-1 pt-1 border-t border-border/40 text-muted-foreground">
                                   <span>Duration:</span>
                                   <span>{durationInDays} days</span>
                                 </div>
@@ -658,7 +714,7 @@ export function PricingDuration({
                       </TabsList>
 
                       <TabsContent value="standard" className="mt-4">
-                        <div className="grid grid-cols-1 gap-4">
+                        <div className="grid grid-cols-1 gap-2">
                           <div className="flex items-center gap-2 max-w-[300px]">
                             <FormField
                               control={form.control}
@@ -700,136 +756,132 @@ export function PricingDuration({
                           </div>
                           
                           {form.watch('duration_unit') === 'month' && (
-                            <div className="mt-3 border-t pt-3">
-                              <FormField
-                                control={form.control}
-                                name="has_monthly_cycle"
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                                    <FormControl>
-                                      <Checkbox
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                      />
-                                    </FormControl>
-                                    <div className="space-y-1 leading-none">
-                                      <FormLabel className="text-sm font-medium">
-                                        Use monthly billing cycle
-                                      </FormLabel>
-                                      <FormDescription className="text-xs">
-                                        Align memberships to specific days of the month
-                                      </FormDescription>
-                                    </div>
-                                  </FormItem>
-                                )}
-                              />
-                              
-                              {form.watch('has_monthly_cycle') && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-                                  <FormField
-                                    control={form.control}
-                                    name="monthly_start_day"
-                                    render={({ field }) => (
-                                      <FormItem>
-                                        <div className="flex items-center justify-between">
-                                          <TooltipProvider>
-                                            <Tooltip>
-                                              <TooltipTrigger asChild>
-                                                <FormLabel className="cursor-help">Cycle Start Day</FormLabel>
-                                              </TooltipTrigger>
-                                              <TooltipContent className="w-80">
-                                                <p>The day of month when each billing cycle starts</p>
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          </TooltipProvider>
-                                        </div>
-                                        <FormControl>
-                                          <Input
-                                            type="number"
-                                            min={1}
-                                            max={28}
-                                            {...field}
-                                            value={field.value || ''}
-                                            onChange={(e) => field.onChange(parseInt(e.target.value) || '')}
-                                          />
-                                        </FormControl>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                          Example: 1 for first day of month
-                                        </p>
-                                        <FormMessage />
-                                      </FormItem>
-                                    )}
-                                  />
-                                  
-                                  <div>
-                                    <FormField
-                                      control={form.control}
-                                      name="monthly_end_day_type"
-                                      render={({ field }) => (
-                                        <FormItem>
-                                          <div className="flex items-center justify-between">
-                                            <TooltipProvider>
-                                              <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                  <FormLabel className="cursor-help">Cycle End Type</FormLabel>
-                                                </TooltipTrigger>
-                                                <TooltipContent className="w-80">
-                                                  <p>How to determine the end of each billing cycle</p>
-                                                </TooltipContent>
-                                              </Tooltip>
-                                            </TooltipProvider>
-                                          </div>
-                                          <Select 
-                                            onValueChange={field.onChange} 
-                                            value={field.value}
-                                          >
-                                            <FormControl>
-                                              <SelectTrigger>
-                                                <SelectValue placeholder="Select end type" />
-                                              </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                              <SelectItem value="specific">Specific Day</SelectItem>
-                                              <SelectItem value="last_day">Last Day of Month</SelectItem>
-                                            </SelectContent>
-                                          </Select>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-                                    
-                                    {form.watch('monthly_end_day_type') === 'specific' && (
-                                      <FormField
-                                        control={form.control}
-                                        name="monthly_end_day"
-                                        render={({ field }) => (
-                                          <FormItem className="mt-2">
-                                            <FormControl>
-                                              <Input
-                                                type="number"
-                                                min={1}
-                                                max={31}
-                                                placeholder="End day"
-                                                {...field}
-                                                value={field.value || ''}
-                                                onChange={(e) => field.onChange(parseInt(e.target.value) || '')}
-                                              />
-                                            </FormControl>
-                                            <p className="text-xs text-muted-foreground mt-1">
-                                              Day before next cycle starts
-                                            </p>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    )}
-                                  </div>
+                            <div className="mt-3 border-t border-dashed pt-3">
+                              <div className="flex items-center justify-between mb-3">
+                                <div className="flex items-center gap-2">
+                                  <CalendarRange size={18} className="text-primary" />
+                                  <h3 className="text-sm font-medium">Monthly Billing Cycle</h3>
                                 </div>
+                                <FormField
+                                  control={form.control}
+                                  name="has_monthly_cycle"
+                                  render={({ field }) => (
+                                    <FormItem className="flex items-center space-x-2 space-y-0">
+                                      <FormLabel className="text-sm text-muted-foreground mb-0">Enable</FormLabel>
+                                      <FormControl>
+                                        <Switch
+                                          checked={field.value}
+                                          onCheckedChange={field.onChange}
+                                        />
+                                      </FormControl>
+                                    </FormItem>
+                                  )}
+                                />
+                              </div>
+                              
+                              {form.watch('has_monthly_cycle') ? (
+                                <>
+                                  <div className="rounded-md border bg-card p-3 mb-2">
+                                    <p className="text-xs text-muted-foreground mb-3">
+                                      Align memberships with specific days of the month for more predictable billing cycles.
+                                    </p>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                      <div>
+                                        <FormField
+                                          control={form.control}
+                                          name="monthly_start_day"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel className="text-sm font-medium block mb-1.5">Cycle Start Day</FormLabel>
+                                              <FormControl>
+                                                <Input
+                                                  type="number"
+                                                  min={1}
+                                                  max={28}
+                                                  {...field}
+                                                  value={field.value || ''}
+                                                  onChange={(e) => field.onChange(parseInt(e.target.value) || '')}
+                                                  className="h-9"
+                                                  placeholder="e.g., 1"
+                                                />
+                                              </FormControl>
+                                              <FormDescription className="text-xs mt-1.5">
+                                                Day of month when cycles begin
+                                              </FormDescription>
+                                            </FormItem>
+                                          )}
+                                        />
+                                      </div>
+                                      
+                                      <div>
+                                        <FormField
+                                          control={form.control}
+                                          name="monthly_end_day_type"
+                                          render={({ field }) => (
+                                            <FormItem>
+                                              <FormLabel className="text-sm font-medium block mb-1.5">Cycle End Type</FormLabel>
+                                              <Select 
+                                                onValueChange={field.onChange} 
+                                                value={field.value}
+                                              >
+                                                <FormControl>
+                                                  <SelectTrigger className="h-9">
+                                                    <SelectValue placeholder="Select end type" />
+                                                  </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                  <SelectItem value="specific">Specific Day</SelectItem>
+                                                  <SelectItem value="last_day">Last Day of Month</SelectItem>
+                                                </SelectContent>
+                                              </Select>
+                                              <FormDescription className="text-xs mt-1.5">
+                                                How to determine cycle end
+                                              </FormDescription>
+                                            </FormItem>
+                                          )}
+                                        />
+                                        
+                                        {form.watch('monthly_end_day_type') === 'specific' && (
+                                          <FormField
+                                            control={form.control}
+                                            name="monthly_end_day"
+                                            render={({ field }) => (
+                                              <FormItem className="mt-3">
+                                                <FormLabel className="text-sm font-medium block mb-1.5">End Day</FormLabel>
+                                                <FormControl>
+                                                  <Input
+                                                    type="number"
+                                                    min={1}
+                                                    max={31}
+                                                    {...field}
+                                                    value={field.value || ''}
+                                                    onChange={(e) => field.onChange(parseInt(e.target.value) || '')}
+                                                    className="h-9"
+                                                    placeholder="e.g., 31"
+                                                  />
+                                                </FormControl>
+                                                <FormDescription className="text-xs mt-1.5">
+                                                  Day before next cycle starts
+                                                </FormDescription>
+                                              </FormItem>
+                                            )}
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </>
+                              ) : (
+                                <p className="text-xs text-muted-foreground p-3 border border-dashed rounded-md bg-muted/30 flex items-center gap-2">
+                                  <Info size={14} className="text-muted-foreground" />
+                                  Enable this option to align memberships with specific days of the month for more predictable billing cycles.
+                                </p>
                               )}
                             </div>
                           )}
                           
-                          <p className="text-sm text-muted-foreground mt-3 border-t pt-3">
+                          <p className="text-sm text-muted-foreground mt-3">
                             With this setting, memberships will last exactly {form.watch('duration_months') || 1} {form.watch('duration_unit') === 'year' ? (form.watch('duration_months') === 1 ? 'year' : 'years') : (form.watch('duration_months') === 1 ? 'month' : 'months')} from when the member joins.
                             {form.watch('has_monthly_cycle') && form.watch('duration_unit') === 'month' && 
                               ` Members who join mid-cycle will get a partial first month.`
