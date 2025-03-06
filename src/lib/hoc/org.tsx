@@ -180,7 +180,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
 
     // Check org exists first
     if (!AuthServerContext.org) {
-      const { orgSlug } = params;
+      const { orgSlug } = params || {};
       const slug = decodeURIComponent(orgSlug).replace(/^@/, "");
       const response = await getCachedOrgBySlug(slug);
       if (response.error || !response.data) {

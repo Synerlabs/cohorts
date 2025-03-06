@@ -1,27 +1,21 @@
-"use client";
-
-import { Button } from "@/components/ui/button";
-import { Plus, Users, Building2, Filter } from "lucide-react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
-import MembershipForm, { MembershipFormType } from "./membership-form";
-import SubscriptionPlansCards from "./subscription-plans-cards";
-import MembershipsTable from "./memberships-table";
-import { useState, useEffect, useTransition } from "react";
-import { IMembershipTierProduct } from "@/lib/types/product";
-import { IMembership } from "@/lib/types/membership";
-import { permissions } from "@/lib/types/permissions";
-import { ClientComponentPermission } from "@/components/ClientComponentPermission";
-import { usePermissions } from "@/lib/hooks/use-permissions";
-import SubscriptionPlanSelection from "./subscription-plan-selection";
-import { ProductService } from "@/services/product.service";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+import { useState, useTransition } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Users, Building2, Plus } from "lucide-react";
+import { usePermissions } from "@/lib/hooks/use-permissions";
+import { IMembershipTierProduct } from "@/lib/types/product";
+import { IMembership } from "@/lib/types/membership";
+import SubscriptionPlansCards from "./subscription-plans-cards";
+import MembershipsTable from "./memberships-table";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import SubscriptionPlanSelection from "./subscription-plan-selection";
+import MembershipForm, { MembershipFormType } from "./membership-form";
+import { permissions } from "@/lib/types/permissions";
 
-interface MembershipPageClientProps {
+interface AffiliationPageClientProps {
   tiers: IMembershipTierProduct[];
   memberships: IMembership[];
   groupId: string;
@@ -30,14 +24,14 @@ interface MembershipPageClientProps {
   currentFilter?: 'all' | 'membership' | 'organization';
 }
 
-export default function MembershipPageClient({ 
+export default function AffiliationPageClient({ 
   tiers, 
   memberships, 
   groupId, 
   orgSlug, 
   userPermissions,
-  currentFilter = 'all'
-}: MembershipPageClientProps) {
+  currentFilter = 'organization'
+}: AffiliationPageClientProps) {
   const [open, setOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<MembershipFormType | null>(null);
   const { hasPermission } = usePermissions();
@@ -48,7 +42,7 @@ export default function MembershipPageClient({
   
   // Get current tab and filter from URL params
   const activeTab = searchParams.get('tab') || 'tiers';
-  const filter = searchParams.get('filter') || 'all';
+  const filter = searchParams.get('filter') || 'organization';
   
   // Instead of local state & fetching, now we just navigate
   const handleFilterChange = (filter: string) => {
@@ -77,15 +71,8 @@ export default function MembershipPageClient({
     });
   };
 
-  // Remove previous client-side filtering logic
-  // const [planFilter, setPlanFilter] = useState<'all' | 'membership' | 'organization'>('all');
-  // const [filteredTiers, setFilteredTiers] = useState<IMembershipTierProduct[]>(initialTiers);
-  // const [isLoading, setIsLoading] = useState(false);
-  
-  // No need for a fetchFilteredTiers function
-  // No need for useEffect
-
   const handleSelectType = (type: MembershipFormType) => {
+    setOpen(true);
     setSelectedType(type);
   };
 
@@ -99,7 +86,6 @@ export default function MembershipPageClient({
     }
   };
 
-  console.log("CLIENT MEMBERSHIPS", memberships);
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -146,13 +132,11 @@ export default function MembershipPageClient({
           <TabsTrigger value="tiers">Subscription Plans</TabsTrigger>
           <TabsTrigger value="memberships">Memberships</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="memberships" className="space-y-4">
-          <div className="rounded-md border">
-            <MembershipsTable memberships={memberships} />
-          </div>
+        
+        <TabsContent value="memberships">
+          <MembershipsTable memberships={memberships} />
         </TabsContent>
-
+        
         <TabsContent value="tiers">
           <div className="mb-4 border-b pb-2">
             <div className="flex flex-wrap items-center gap-2">
