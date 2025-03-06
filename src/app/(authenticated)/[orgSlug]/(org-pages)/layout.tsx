@@ -26,9 +26,9 @@ async function OrgLayout({ children, params }: Readonly<OrgLayoutProps>) {
       <MainSidebar>
         <OrgSidebar org={org} user={user} />
       </MainSidebar>
-      <div className="flex flex-col flex-1">
+      <div className="flex flex-col overflow-y-auto w-full py-4 gap-8">
         <Header user={AuthServerContext.user} baseUrl={`${org.slug}`} />
-        <main className="flex-1 overflow-y-auto px-6">{children}</main>
+        <main className="px-6">{children}</main>
       </div>
     </>
   );
