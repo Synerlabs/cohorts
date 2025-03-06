@@ -18,16 +18,13 @@ async function AffiliationPage({ org, userPermissions, searchParams }: OrgAccess
     ? filterParam as 'all' | 'membership' | 'organization' 
     : 'organization';
 
-  // Get all tiers by default
-  let tiers = await ProductService.getMembershipTiers(org.id);
-  
-  // If filter is not 'all', filter the tiers by type
-  if (filter !== 'all') {
-    const tierType = filter === 'membership' ? MembershipFormType.MEMBER : MembershipFormType.AFFILIATION;
-    tiers = tiers.filter(tier => 
-      tier.membership_tier && tier.membership_tier.type === tierType
-    );
-  }
+  // Get tiers with server-side filtering
+  const tierType = filter === 'all' ? undefined : 
+                  filter === 'membership' ? 'membership' : 'organization';
+  const tiers = await ProductService.getMembershipTiers(org.id, false, { 
+    cardsOnly: true, 
+    tierType: tierType 
+  });
 
   const memberships = await MembershipService.getMembershipsByGroup(org.id);
 

@@ -93,8 +93,13 @@ export class MembershipActivationService {
         orderId: existingMembership.order_id
       });
       
-      // Ensure the group user is activated even if membership already exists
-      await this.activateGroupUser(groupUserId);
+      // Ensure the group user is activated only for membership-type tiers
+      if (tierType === 'membership') {
+        await this.activateGroupUser(groupUserId);
+        console.log('✅ Activated group user for existing membership:', groupUserId);
+      } else {
+        console.log('ℹ️ Skipping user activation for organization-type tier with existing membership');
+      }
       
       // Return the existing membership
       return existingMembership;
@@ -424,7 +429,7 @@ export class MembershipActivationService {
           const membershipTier = await ProductService.getMembershipTier(application.tier_id);
           const tierType = membershipTier.membership_tier.type || 'membership';
           
-          // Ensure the group user is activated even if membership already exists, but only for membership tiers
+          // Ensure the group user is activated only for membership-type tiers
           if (tierType === 'membership') {
             await this.activateGroupUser(application.group_user_id);
           } else {

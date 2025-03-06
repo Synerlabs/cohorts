@@ -122,6 +122,7 @@ export class ProductService {
     isDeleted: boolean, 
     options: { 
       cardsOnly?: boolean;
+      tierType?: 'membership' | 'organization';
     }
   ): Promise<IMembershipTierProduct[]>;
   
@@ -131,6 +132,7 @@ export class ProductService {
     isDeleted = false, 
     options?: { 
       cardsOnly?: boolean;
+      tierType?: 'membership' | 'organization';
     }
   ): Promise<IMembershipTierProduct[]> {
     const supabase = await createClient();
@@ -164,6 +166,11 @@ export class ProductService {
       query = query.eq('is_deleted', true);
     } else {
       query = query.or('is_deleted.eq.false,is_deleted.is.null');
+    }
+    
+    // Filter by tier type if specified
+    if (options?.tierType) {
+      query = query.eq('membership_tiers.type', options.tierType);
     }
 
     const { data, error } = await query;
@@ -592,84 +599,20 @@ export class ProductService {
   }
 
   /**
-   * Get membership tiers for cards display - optimized to fetch only necessary data
-   * @param groupId - Group ID 
-   * @param isDeleted - Whether to include deleted items
-   * @param type - Optional filter by tier type ('membership' or 'organization')
-   * @returns Array of membership tier products with minimal data for card display
+   * Get membership tiers optimized for card display
+   * @param groupId Group ID
+   * @param isDeleted Whether to include deleted items
+   * @param type Optional tier type filter
    */
   static async getMembershipTiersForCards(
     groupId: string, 
     isDeleted = false, 
     type?: 'membership' | 'organization'
   ): Promise<IMembershipTierProduct[]> {
-    const supabase = await createClient();
-    
-    // Select only fields needed for cards
-    const selectQuery = `
-      id, name, description, price, currency, group_id, is_active, created_at, updated_at,
-      membership_tiers!inner(activation_type, duration_months, type)
-    `;
-    
-    let query = supabase
-      .from('products')
-      .select(selectQuery)
-      .eq('group_id', groupId)
-      .eq('type', 'membership_tier');
-
-    // Handle deleted items filtering
-    if (isDeleted) {
-      query = query.eq('is_deleted', true);
-    } else {
-      query = query.or('is_deleted.eq.false,is_deleted.is.null');
-    }
-    
-    // Filter by tier type if specified
-    if (type) {
-      query = query.eq('membership_tiers.type', type);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      console.error('Error fetching membership tiers for cards:', error);
-      return [];
-    }
-
-    if (!data || data.length === 0) {
-      return [];
-    }
-    
-    // Format data for card display
-    return data.map((item: any) => {
-      const membershipTier = item.membership_tiers || {};
-      
-      // Create a product object with only the data needed for cards
-      const product: IMembershipTierProduct = {
-        id: item.id || '',
-        type: 'membership_tier',
-        name: item.name || '',
-        description: item.description || '',
-        price: typeof item.price === 'number' ? item.price : 0,
-        currency: item.currency || 'USD',
-        group_id: item.group_id || '',
-        is_active: !!item.is_active,
-        created_at: item.created_at || new Date().toISOString(),
-        updated_at: item.updated_at || new Date().toISOString(),
-        form_template_id: '',
-        membership_tier: {
-          product_id: item.id || '',
-          duration_months: typeof membershipTier.duration_months === 'number' ? membershipTier.duration_months : 1,
-          activation_type: membershipTier.activation_type || 'automatic',
-          type: membershipTier.type || 'membership',
-          member_id_format: '',
-          roles: [],
-          form_template_id: '',
-          form_template: null
-        }
-      };
-      
-      return product;
+    // Get membership tiers with the cardsOnly option and type filter
+    return await this.getMembershipTiers(groupId, isDeleted, { 
+      cardsOnly: true,
+      tierType: type
     });
   }
 } 
