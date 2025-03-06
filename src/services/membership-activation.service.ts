@@ -53,28 +53,21 @@ export class MembershipActivationService {
       orderId,
       applicationId,
       durationMonths,
-      startDate,
-      tierType
+      startDate
     });
 
     const supabase = await createServiceRoleClient();
 
-    // Calculate membership dates
-    const endDate = durationMonths ? 
-      new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000) : 
-      null;
+    // Calculate end date
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + durationMonths);
 
-    console.log('📅 Calculated membership dates:', {
-      startDate: startDate.toISOString(),
-      endDate: endDate?.toISOString() || null,
-      durationMonths
-    });
-
-    // Check if membership already exists
+    // Check for existing active membership with the same tier
     const { data: existingMembership, error: existingError } = await supabase
       .from('memberships')
-      .select('id, group_user_id, order_id, status')
+      .select('*')
       .eq('group_user_id', groupUserId)
+      .eq('tier_id', tierId)
       .eq('status', 'active')
       .single();
 
@@ -87,9 +80,10 @@ export class MembershipActivationService {
     }
 
     if (existingMembership) {
-      console.log('⚠️ Active membership already exists:', {
+      console.log('⚠️ Active membership already exists for this tier:', {
         id: existingMembership.id,
         groupUserId: existingMembership.group_user_id,
+        tierId: existingMembership.tier_id,
         orderId: existingMembership.order_id
       });
       
@@ -104,13 +98,13 @@ export class MembershipActivationService {
       // Return the existing membership
       return existingMembership;
     }
-
-    // If no order ID is provided, we need to create a dummy order for automatic activations
+    
+    // If no order ID is provided, create a dummy order
     if (!orderId) {
-      console.log('⚠️ No order ID provided, creating a dummy order for automatic activation');
+      console.log('⚠️ No order ID provided, creating a dummy order');
       
       try {
-        // First, get the group_id and user_id from the group_user
+        // Get the group_user details to get user_id and group_id
         const { data: groupUser, error: groupUserError } = await supabase
           .from('group_users')
           .select('user_id, group_id')
@@ -125,7 +119,7 @@ export class MembershipActivationService {
           throw new Error(`Failed to get group user: ${groupUserError.message}`);
         }
         
-        // Get the product details to set the correct price (usually 0 for automatic)
+        // Get product details for the tier
         const { data: product, error: productError } = await supabase
           .from('products')
           .select('price, currency')
@@ -140,7 +134,7 @@ export class MembershipActivationService {
           throw new Error(`Failed to get product: ${productError.message}`);
         }
         
-        // Create a dummy order
+        // Create dummy order
         const { data: order, error: orderError } = await supabase
           .from('orders')
           .insert({
@@ -162,50 +156,53 @@ export class MembershipActivationService {
           throw new Error(`Failed to create dummy order: ${orderError.message}`);
         }
         
-        console.log('✅ Created dummy order for automatic activation:', order.id);
-        orderId = order.id;
+        console.log('✅ Created dummy order:', order.id);
         
-        // Create a suborder to link with the product
+        // Create suborder with metadata
         const { error: suborderError } = await supabase
           .from('suborders')
           .insert({
-            order_id: orderId,
-            product_id: tierId,
+            order_id: order.id,
             status: 'completed',
+            product_id: tierId,
             amount: product.price || 0,
             currency: product.currency || 'USD',
+            type: 'membership',
             completed_at: new Date().toISOString(),
             metadata: {
-              group_user_id: groupUserId,
+              is_dummy: true,
               application_id: applicationId,
-              automatic: true
+              automatic: true,
+              group_user_id: groupUserId
             }
           });
           
         if (suborderError) {
           console.error('❌ Failed to create suborder:', {
             error: suborderError,
-            orderId
+            orderId: order.id
           });
-          // Continue anyway since we have the order_id
+          throw new Error(`Failed to create suborder: ${suborderError.message}`);
         }
         
+        orderId = order.id;
       } catch (error) {
         console.error('❌ Failed to create dummy order:', error);
         throw new Error(`Failed to create dummy order: ${(error as Error).message}`);
       }
     }
-
-    // Create membership record
+    
+    // Create new membership
     const { data: membership, error: membershipError } = await supabase
       .from('memberships')
       .insert({
         group_user_id: groupUserId,
         tier_id: tierId,
-        order_id: orderId,
-        status: MembershipStatus.ACTIVE,
+        status: 'active',
         start_date: startDate.toISOString(),
-        end_date: endDate?.toISOString() || null
+        end_date: endDate.toISOString(),
+        order_id: orderId,
+        metadata: applicationId ? { application_id: applicationId } : null
       })
       .select()
       .single();
@@ -214,13 +211,26 @@ export class MembershipActivationService {
       console.error('❌ Failed to create membership:', {
         error: membershipError,
         groupUserId,
-        tierId,
-        orderId
+        tierId
       });
       throw new Error(`Failed to create membership: ${membershipError.message}`);
     }
 
-    console.log('✅ Created membership record:', membership.id);
+    if (!membership) {
+      console.error('❌ Failed to create membership, no data returned:', {
+        groupUserId,
+        tierId
+      });
+      throw new Error('Failed to create membership, no data returned');
+    }
+
+    console.log('✅ Created membership:', {
+      id: membership.id,
+      groupUserId: membership.group_user_id,
+      tierId: membership.tier_id,
+      startDate: membership.start_date,
+      endDate: membership.end_date
+    });
 
     // Only activate the group user for membership-type tiers
     if (tierType === 'membership') {

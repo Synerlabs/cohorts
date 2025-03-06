@@ -25,7 +25,8 @@ interface MemberIdRecord {
 export class MemberIdService {
   static async generateMemberId(
     groupId: string,
-    format: string
+    format: string,
+    groupUserId?: string
   ): Promise<string> {
     const supabase = await createClient();
 
@@ -33,16 +34,18 @@ export class MemberIdService {
     await supabase.rpc('begin_transaction');
 
     try {
-      // Get the latest member ID for this group to determine the next increment
-      const { data: latestMemberId, error: queryError } = await supabase
+      // Extract format base (format without the sequence number)
+      const formatBase = this.getFormatBase(format);
+      
+      // Get the latest member ID for this group and format to determine the next increment
+      const { data: latestMemberIds, error: queryError } = await supabase
         .from('member_ids')
         .select('member_id')
         .eq('group_id', groupId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .like('member_id', this.getFormatBasePattern(formatBase) + '%')
+        .order('created_at', { ascending: false });
 
-      if (queryError && queryError.code !== 'PGRST116') {
+      if (queryError) {
         throw queryError;
       }
 
@@ -62,13 +65,23 @@ export class MemberIdService {
         .replace(PLACEHOLDERS.DD, now.getDate().toString().padStart(2, '0'))
         .replace(PLACEHOLDERS.D, now.getDate().toString());
 
-      // Determine the next increment
+      // Calculate the format base with date substitutions
+      const actualFormatBase = this.getFormatBase(memberId);
+
+      // Determine the next increment for this specific format
       let increment = 1;
-      if (latestMemberId) {
-        // Extract the increment from the last member ID
-        const match = latestMemberId.member_id.match(/\d+$/);
-        if (match) {
-          increment = parseInt(match[0]) + 1;
+      if (latestMemberIds && latestMemberIds.length > 0) {
+        // Find the highest sequence number for this format base
+        const sequenceNumbers = latestMemberIds
+          .filter(record => record.member_id.startsWith(actualFormatBase))
+          .map(record => {
+            const suffix = record.member_id.substring(actualFormatBase.length);
+            const numberMatch = suffix.match(/^\d+$/);
+            return numberMatch ? parseInt(numberMatch[0]) : 0;
+          });
+        
+        if (sequenceNumbers.length > 0) {
+          increment = Math.max(...sequenceNumbers) + 1;
         }
       }
 
@@ -86,12 +99,33 @@ export class MemberIdService {
         memberId = memberId.replace('{SEQ}', increment.toString());
       }
 
+      // Check if this member ID already exists for this group
+      // This is a safety check to prevent duplicates
+      const { data: existingId, error: existingIdError } = await supabase
+        .from('member_ids')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('member_id', memberId)
+        .maybeSingle();
+
+      if (existingIdError) {
+        throw existingIdError;
+      }
+
+      // If a member ID already exists with this exact value, we need to increment again
+      if (existingId) {
+        // Recursively try again with incremented value
+        await supabase.rpc('rollback_transaction');
+        return this.generateMemberId(groupId, format, groupUserId);
+      }
+
       // Insert the new member ID
       const { data: newMemberId, error: insertError } = await supabase
         .from('member_ids')
         .insert({
           group_id: groupId,
-          member_id: memberId
+          member_id: memberId,
+          group_user_id: groupUserId
         })
         .select()
         .single();
@@ -109,6 +143,40 @@ export class MemberIdService {
       await supabase.rpc('rollback_transaction');
       throw error;
     }
+  }
+
+  /**
+   * Get the format base (format without the sequence part)
+   * For example, "MEM-{YYYY}-{SEQ:3}" -> "MEM-{YYYY}-"
+   */
+  private static getFormatBase(format: string): string {
+    // Replace SEQ pattern with empty string to get the base
+    const seqMatch = format.match(SEQ_PATTERN);
+    if (seqMatch) {
+      return format.replace(seqMatch[0], '');
+    }
+    
+    // Handle simple {SEQ} pattern
+    return format.replace('{SEQ}', '');
+  }
+
+  /**
+   * Get a SQL LIKE pattern for the format base
+   * Escapes special characters and replaces date tokens with wildcards
+   */
+  private static getFormatBasePattern(formatBase: string): string {
+    // Escape special characters for SQL LIKE pattern
+    let pattern = formatBase
+      .replace(/%/g, '\\%')  // Escape % for LIKE
+      .replace(/_/g, '\\_'); // Escape _ for LIKE
+    
+    // Replace date placeholders with wildcards
+    Object.values(PLACEHOLDERS).forEach(placeholder => {
+      const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+      pattern = pattern.replace(regex, '%');
+    });
+    
+    return pattern;
   }
 
   static async getMemberId(membershipId: string): Promise<string | null> {
@@ -138,27 +206,57 @@ export class MemberIdService {
   ): Promise<void> {
     const supabase = await createClient();
 
-    // Get the member_id record
-    const { data: memberIdRecord, error: memberIdError } = await supabase
-      .from('member_ids')
-      .select('id')
-      .eq('member_id', memberId)
-      .single();
+    // Start a transaction
+    await supabase.rpc('begin_transaction');
 
-    if (memberIdError) {
-      throw memberIdError;
-    }
+    try {
+      // Check if this membership already has a member ID
+      const { data: existingAssignment, error: checkError } = await supabase
+        .from('membership_member_ids')
+        .select('id')
+        .eq('membership_id', membershipId)
+        .maybeSingle();
 
-    // Assign the member ID to the membership
-    const { error: assignError } = await supabase
-      .from('membership_member_ids')
-      .insert({
-        membership_id: membershipId,
-        member_id_id: memberIdRecord.id
-      });
+      if (checkError) {
+        throw checkError;
+      }
 
-    if (assignError) {
-      throw assignError;
+      // If an assignment already exists, update it instead of creating a new one
+      if (existingAssignment) {
+        await this.updateMembershipMemberId(membershipId, memberId);
+        await supabase.rpc('commit_transaction');
+        return;
+      }
+
+      // Get the member_id record
+      const { data: memberIdRecord, error: memberIdError } = await supabase
+        .from('member_ids')
+        .select('id')
+        .eq('member_id', memberId)
+        .single();
+
+      if (memberIdError) {
+        throw memberIdError;
+      }
+
+      // Assign the member ID to the membership
+      const { error: assignError } = await supabase
+        .from('membership_member_ids')
+        .insert({
+          membership_id: membershipId,
+          member_id_id: memberIdRecord.id
+        });
+
+      if (assignError) {
+        throw assignError;
+      }
+
+      // Commit the transaction
+      await supabase.rpc('commit_transaction');
+    } catch (error) {
+      // Rollback on error
+      await supabase.rpc('rollback_transaction');
+      throw error;
     }
   }
 
@@ -168,25 +266,37 @@ export class MemberIdService {
   ): Promise<void> {
     const supabase = await createClient();
 
-    // Get the member_id record
-    const { data: memberIdRecord, error: memberIdError } = await supabase
-      .from('member_ids')
-      .select('id')
-      .eq('member_id', memberId)
-      .single();
+    // Start a transaction
+    await supabase.rpc('begin_transaction');
 
-    if (memberIdError) {
-      throw memberIdError;
-    }
+    try {
+      // Get the member_id record
+      const { data: memberIdRecord, error: memberIdError } = await supabase
+        .from('member_ids')
+        .select('id')
+        .eq('member_id', memberId)
+        .single();
 
-    // Update the membership's member ID
-    const { error: updateError } = await supabase
-      .from('membership_member_ids')
-      .update({ member_id_id: memberIdRecord.id })
-      .eq('membership_id', membershipId);
+      if (memberIdError) {
+        throw memberIdError;
+      }
 
-    if (updateError) {
-      throw updateError;
+      // Update the membership's member ID
+      const { error: updateError } = await supabase
+        .from('membership_member_ids')
+        .update({ member_id_id: memberIdRecord.id })
+        .eq('membership_id', membershipId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      // Commit the transaction
+      await supabase.rpc('commit_transaction');
+    } catch (error) {
+      // Rollback on error
+      await supabase.rpc('rollback_transaction');
+      throw error;
     }
   }
 
