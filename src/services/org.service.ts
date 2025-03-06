@@ -120,31 +120,86 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
   }
 }
 
-export async function getOrgMembers({ id, isActive = true }: { id: string; isActive?: boolean }) {
+export async function getOrgMembers({ id, isActive }: { id: string; isActive?: boolean }) {
   const supabase = await createServiceRoleClient();
-  const { data, error } = await supabase
-    .from("group_users")
-    .select(
-      `
-        id, 
-        created_at, 
-        user_id,
-        is_active,
-        profile:user_id (
-          first_name,
-          last_name,
-          avatar_url
-        )
-      `,
-      { count: "exact" }
-    )
-    .eq("group_id", id)
-    .eq("is_active", isActive);
+  
+  try {
+    // First query the group_users table
+    let baseQuery = supabase
+      .from("group_users")
+      .select(
+        `
+          id, 
+          created_at, 
+          user_id,
+          is_active,
+          profile:user_id (
+            first_name,
+            last_name,
+            avatar_url
+          )
+        `
+      )
+      .eq("group_id", id);
+    
+    // Only filter by is_active if it's explicitly set
+    if (isActive !== undefined) {
+      baseQuery = baseQuery.eq("is_active", isActive);
+    }
 
-  if (error) {
+    const { data: groupUsers, error: usersError } = await baseQuery;
+
+    if (usersError) {
+      throw usersError;
+    }
+
+    // Get all group_user IDs from the result
+    const groupUserIds = groupUsers.map(user => user.id).filter(Boolean);
+    
+    // Specifically target member_id field (not external_id)
+    const { data: memberIds, error: memberIdsError } = await supabase
+      .from("member_ids")
+      .select("id, group_user_id, member_id")
+      .in("group_user_id", groupUserIds);
+      
+    if (memberIdsError) {
+      throw memberIdsError;
+    }
+
+    // Create a map of group_user_id to member IDs for easier lookup
+    const memberIdsMap: Record<string, any> = {};
+    if (memberIds) {
+      memberIds.forEach(item => {
+        if (item.group_user_id) {
+          memberIdsMap[item.group_user_id] = item;
+        }
+      });
+    }
+
+    // Transform the data to match the expected User type structure
+    const transformedData = camelcaseKeys(groupUsers).map((user: any) => {
+      // Check if profile is an array and extract the first item if it is
+      const profileData = Array.isArray(user.profile) && user.profile.length > 0 
+        ? user.profile[0]
+        : user.profile || { first_name: null, last_name: null, avatar_url: null };
+      
+      // Get the member_ids entry for this user
+      const memberIdEntry = memberIdsMap[user.id] || null;
+      
+      return {
+        ...user,
+        // Include the database ID of the member_ids record
+        memberIdsRecordId: memberIdEntry ? memberIdEntry.id : null,
+        // Include the actual member ID that we want to display
+        memberId: memberIdEntry ? memberIdEntry.member_id : null,
+        profile: profileData
+      };
+    });
+    
+    return transformedData;
+  } catch (error) {
+    console.error("Error fetching org members:", error);
     throw error;
-  } else {
-    return camelcaseKeys(data);
   }
 }
 
