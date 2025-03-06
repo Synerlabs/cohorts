@@ -110,34 +110,26 @@ export default function SubscriptionPlansCards({ tiers, groupId, slug }: Subscri
               <CardContent className="flex-grow py-2 px-4 space-y-3">
                 <div>
                   <div className="text-2xl font-bold">
-                    {tier.price === 0 
-                      ? "Free" 
-                      : (
-                        <>
-                          ${(tier.price / 100).toFixed(2)}
-                          <span className="text-muted-foreground text-sm font-normal">
-                            /{tier.membership_tier?.duration_months === 1 
-                              ? 'month' 
-                              : tier.membership_tier?.duration_months === 12 
-                                ? 'year' 
-                                : `${tier.membership_tier?.duration_months} months`}
-                          </span>
-                        </>
-                      )
-                    }
+                    {tier.price === 0 ? (
+                      "Free"
+                    ) : (
+                      <>
+                        ${(tier.price / 100).toFixed(2)}
+                        <span className="text-muted-foreground text-sm font-normal">
+                          {tier.membership_tier?.duration_months
+                            ? tier.membership_tier.duration_months === 1
+                              ? " /month"
+                              : tier.membership_tier.duration_months === 12
+                                ? " /year"
+                                : ` /${tier.membership_tier.duration_months} months`
+                            : ""}
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
                 
                 <div className="space-y-1 text-sm">
-                  <div className="flex justify-between items-center">
-                    <span className="text-muted-foreground">Relationship Type:</span>
-                    <span className="font-medium">
-                      {tier.membership_tier?.type
-                        ? tier.membership_tier.type.charAt(0).toUpperCase() + tier.membership_tier.type.slice(1)
-                        : 'Member'}
-                    </span>
-                  </div>
-                  
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">Activation:</span>
                     <span className="font-medium">
