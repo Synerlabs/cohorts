@@ -93,8 +93,6 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
     },
   ];
 
-  console.log("SUPERADMIN", isSuperAdmin);
-
   // Filter links based on permissions
   const visibleLinks = allLinks.filter(link => 
     // Show if no permission required, or user is super admin, or user has the required permission

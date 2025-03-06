@@ -13,7 +13,8 @@ interface SearchParams {
 
 async function MembershipPage({ org, userPermissions, searchParams }: OrgAccessHOCProps & { searchParams: SearchParams }) {
   // Get filter from URL params, default to 'all'
-  const filterParam = searchParams?.filter || 'all';
+  const _searchParams = await searchParams;
+  const filterParam = _searchParams?.filter || 'all';
   const filter = ['all', 'membership', 'organization'].includes(filterParam) 
     ? filterParam as 'all' | 'membership' | 'organization' 
     : 'all';
