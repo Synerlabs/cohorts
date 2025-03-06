@@ -12,7 +12,7 @@ import useToastActionState from "@/lib/hooks/toast-action-state.hook";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { startTransition } from "react";
 import React, { useState, useEffect } from "react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -20,7 +20,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Database } from "@/lib/types/database.types";
 import { toast } from "@/components/ui/use-toast";
 import { FormTemplateSelectionDialog } from './form-template-selection-dialog';
-import { FileText, PlusCircle, Check, Shield } from "lucide-react";
+import { FileText, PlusCircle, Check, Shield, Clock, DollarSign, ArrowRight, ActivityIcon, CheckCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -142,6 +142,63 @@ function getStepConfiguration(type: MembershipActivationType): {
                          type === MembershipActivationType.FORM_THEN_REVIEW ||
                          type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
   };
+}
+
+// Add helper function to get visualization steps for the activation flow
+function getActivationSteps(type: MembershipActivationType) {
+  const steps: Array<{ label: string; color: string; bg: string }> = [];
+  
+  // Form step
+  if (type.includes("form")) {
+    steps.push({ 
+      label: "Form", 
+      color: "text-blue-700", 
+      bg: "bg-blue-100" 
+    });
+  }
+  
+  // Payment step
+  if (type.includes("payment")) {
+    if (type === MembershipActivationType.PAYMENT_REQUIRED || 
+        type === MembershipActivationType.FORM_THEN_PAYMENT ||
+        type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW) {
+      steps.push({ 
+        label: "Payment", 
+        color: "text-green-700", 
+        bg: "bg-green-100" 
+      });
+    }
+  }
+  
+  // Review step
+  if (type.includes("review")) {
+    steps.push({ 
+      label: "Review", 
+      color: "text-amber-700", 
+      bg: "bg-amber-100" 
+    });
+  }
+  
+  // Payment step (if after review)
+  if (type === MembershipActivationType.REVIEW_THEN_PAYMENT ||
+      type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) {
+    steps.push({ 
+      label: "Payment", 
+      color: "text-green-700", 
+      bg: "bg-green-100" 
+    });
+  }
+  
+  // Empty flow (automatic)
+  if (steps.length === 0) {
+    steps.push({ 
+      label: "Automatic", 
+      color: "text-purple-700", 
+      bg: "bg-purple-100" 
+    });
+  }
+  
+  return steps;
 }
 
 export default function MembershipForm({ groupId, tier, onSuccess, type = MembershipFormType.MEMBER }: MembershipFormProps) {
@@ -388,59 +445,20 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
           </p>
         </div>
         
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Name</FormLabel>
-              <FormControl>
-                <Input 
-                  placeholder={membershipType === MembershipFormType.MEMBER 
-                    ? "e.g. Basic Membership" 
-                    : "e.g. Partner Organization"} 
-                  {...field} 
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="description"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Description</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder={membershipType === MembershipFormType.MEMBER 
-                    ? "Describe what this membership tier offers..." 
-                    : "Describe what this affiliation tier offers..."}
-                  {...field}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <div className="grid grid-cols-2 gap-4">
+        {/* 1. Basic Information */}
+        <div className="space-y-6">
           <FormField
             control={form.control}
-            name="price"
+            name="name"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Price</FormLabel>
+                <FormLabel>Name</FormLabel>
                 <FormControl>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    {...field}
-                    onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                  <Input 
+                    placeholder={membershipType === MembershipFormType.MEMBER 
+                      ? "e.g. Basic Membership" 
+                      : "e.g. Partner Organization"} 
+                    {...field} 
                   />
                 </FormControl>
                 <FormMessage />
@@ -448,33 +466,309 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
             )}
           />
 
-
           <FormField
             control={form.control}
-            name="currency"
+            name="description"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Currency</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select currency" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="USD">USD ($)</SelectItem>
-                    <SelectItem value="EUR">EUR (€)</SelectItem>
-                    <SelectItem value="GBP">GBP (£)</SelectItem>
-                    <SelectItem value="CAD">CAD (C$)</SelectItem>
-                    <SelectItem value="AUD">AUD (A$)</SelectItem>
-                  </SelectContent>
-                </Select>
+                <FormLabel>Description</FormLabel>
+                <FormControl>
+                  <Textarea
+                    placeholder={membershipType === MembershipFormType.MEMBER 
+                      ? "Describe what this membership tier offers..." 
+                      : "Describe what this affiliation tier offers..."}
+                    {...field}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
           />
         </div>
 
+        {/* 2. Application Process */}
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-medium">
+                {membershipType === MembershipFormType.MEMBER ? "Membership" : "Affiliation"} Activation Process
+              </h3>
+              <p className="text-muted-foreground text-sm">
+                Configure how new {membershipType === MembershipFormType.MEMBER ? "member" : "organization"} applications are processed
+              </p>
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-5 space-y-6 bg-card shadow-sm">
+            {/* Application Form Toggle */}
+            <div className="flex items-start justify-between">
+              <div className="space-y-1 leading-none">
+                <div className="text-sm font-medium flex items-center gap-2">
+                  <FileText size={16} className="text-primary" />
+                  Application form
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  Require a form submission before {membershipType === MembershipFormType.MEMBER ? "membership" : "affiliation"}
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="requires_form"
+                render={({ field }) => (
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={(checked) => {
+                        field.onChange(checked);
+                        if (!checked) {
+                          form.setValue('form_template_id', null);
+                        }
+                      }}
+                    />
+                  </FormControl>
+                )}
+              />
+            </div>
+            
+            {/* Form Template Selection (only when form is required) */}
+            {requires_form && (
+              <div className="mt-3 pl-6">
+                <FormField
+                  control={form.control}
+                  name="form_template_id"
+                  render={({ field }) => (
+                    <FormItem>
+                      <Button
+                        type="button"
+                        variant={field.value ? "outline" : "secondary"}
+                        className="w-full justify-between"
+                        onClick={() => setShowFormTemplateDialog(true)}
+                      >
+                        <span className="flex items-center gap-2">
+                          <FileText className="h-4 w-4" />
+                          {field.value ? (
+                            <span>
+                              {formTemplates.find(t => t.id === field.value)?.title || 'Selected Template'}
+                            </span>
+                          ) : (
+                            <span>Select a form template</span>
+                          )}
+                        </span>
+                        <PlusCircle className="h-4 w-4 opacity-70" />
+                      </Button>
+                      <FormDescription className="text-xs">
+                        {field.value 
+                          ? "Selected template: " + (formTemplates.find(t => t.id === field.value)?.title || 'Form Template') 
+                          : "Choose a form template for applicants to complete"}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormTemplateSelectionDialog
+                  open={showFormTemplateDialog}
+                  onOpenChange={setShowFormTemplateDialog}
+                  orgId={groupId}
+                  selectedTemplateId={form.watch('form_template_id')}
+                  onSelect={(template) => {
+                    form.setValue('form_template_id', template.id);
+                    setFormTemplates(prev => {
+                      const exists = prev.some(t => t.id === template.id);
+                      if (!exists) {
+                        return [...prev, template];
+                      }
+                      return prev;
+                    });
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Admin Review Toggle */}
+            <div className="flex items-start justify-between">
+              <div className="space-y-1 leading-none">
+                <div className="text-sm font-medium flex items-center gap-2">
+                  <CheckCircle size={16} className="text-primary" />
+                  Admin review
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  Require manual approval before {membershipType === MembershipFormType.MEMBER ? "member" : "organization"} is accepted
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="requires_review"
+                render={({ field }) => (
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                )}
+              />
+            </div>
+
+            {/* Review Timing (only shows when price > 0 and requires review) */}
+            {!isFree && requires_review && (
+              <div className="border-t pt-4 mt-2">
+                <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Clock size={16} className="text-primary" />
+                  Review timing
+                </h4>
+                <RadioGroup
+                  defaultValue={review_before_payment ? "before" : "after"}
+                  value={review_before_payment ? "before" : "after"}
+                  onValueChange={(value) => form.setValue("review_before_payment", value === "before")}
+                  className="gap-3 grid"
+                >
+                  <div className="flex items-center space-x-2 border p-3 rounded-md bg-background">
+                    <RadioGroupItem value="after" id="after-payment" />
+                    <div className="grid gap-1">
+                      <Label htmlFor="after-payment" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        After payment
+                      </Label>
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        {membershipType === MembershipFormType.MEMBER ? "Member" : "Organization"} pays first, then admin reviews the application
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 border p-3 rounded-md bg-background">
+                    <RadioGroupItem value="before" id="before-payment" />
+                    <div className="grid gap-1">
+                      <Label htmlFor="before-payment" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Before payment
+                      </Label>
+                      <p className="text-xs text-muted-foreground leading-snug">
+                        Admin reviews the application first, then {membershipType === MembershipFormType.MEMBER ? "member" : "organization"} pays
+                      </p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
+
+            {/* Payment Toggle */}
+            <div className="flex items-start justify-between border-t pt-4">
+              <div className="space-y-1 leading-none">
+                <div className="text-sm font-medium flex items-center gap-2">
+                  <DollarSign size={16} className="text-primary" />
+                  Payment required
+                </div>
+                <p className="text-muted-foreground text-xs">
+                  This {membershipType === MembershipFormType.MEMBER ? "membership" : "affiliation"} requires payment
+                </p>
+              </div>
+              <Switch
+                checked={!isFree}
+                onCheckedChange={(checked) => {
+                  // Only modify the price if we're toggling from free to paid
+                  if (checked && form.getValues("price") === 0) {
+                    form.setValue("price", 1);
+                  } else if (!checked) {
+                    form.setValue("price", 0);
+                  }
+                }}
+              />
+            </div>
+            
+            {/* Payment Details (only shows when payment is required) */}
+            {!isFree && (
+              <div className="mt-3 pl-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price</FormLabel>
+                        <div className="relative">
+                          <DollarSign className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <FormControl>
+                            <Input
+                              type="number"
+                              min="0"
+                              className="pl-8"
+                              {...field}
+                              onChange={(e) => {
+                                const value = e.target.value;
+                                const numValue = value === "" ? 0 : parseFloat(value);
+                                field.onChange(numValue);
+                                
+                                // If price becomes 0, make sure to handle the UI state
+                                if (numValue === 0) {
+                                  // We might need to update other form values if the price is 0
+                                  form.setValue("price", 0);
+                                }
+                              }}
+                            />
+                          </FormControl>
+                        </div>
+                        <FormDescription>
+                          Amount to charge for this {membershipType === MembershipFormType.MEMBER ? "membership" : "affiliation"}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="currency"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Currency</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select currency" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="USD">USD - US Dollar</SelectItem>
+                            <SelectItem value="EUR">EUR - Euro</SelectItem>
+                            <SelectItem value="GBP">GBP - British Pound</SelectItem>
+                            <SelectItem value="CAD">CAD - Canadian Dollar</SelectItem>
+                            <SelectItem value="AUD">AUD - Australian Dollar</SelectItem>
+                            <SelectItem value="JPY">JPY - Japanese Yen</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Currency for the payment
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Activation Flow Visualization */}
+          <div className="pt-2">
+            <div className="text-sm border p-4 bg-muted/30 rounded-md">
+              <h5 className="font-medium mb-2 flex items-center gap-2">
+                <ActivityIcon size={16} className="text-primary" />
+                Activation Flow
+              </h5>
+              <div className="flex items-center gap-2 text-sm">
+                {getActivationSteps(activationType).map((step, index) => (
+                  <React.Fragment key={index}>
+                    {index > 0 && (
+                      <ArrowRight size={14} className="text-muted-foreground" />
+                    )}
+                    <div className={`px-2 py-1 rounded ${step.color} ${step.bg}`}>
+                      {step.label}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        {/* 3. Duration */}
         <FormField
           control={form.control}
           name="duration_months"
@@ -487,14 +781,22 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                   min="1"
                   placeholder="12"
                   {...field}
-                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const numValue = value === "" ? 1 : parseInt(value);
+                    field.onChange(numValue);
+                  }}
                 />
               </FormControl>
+              <FormDescription>
+                How long the {membershipType === MembershipFormType.MEMBER ? "membership" : "affiliation"} lasts
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
 
+        {/* 4. Membership ID Format */}
         <FormField
           control={form.control}
           name="member_id_format"
@@ -507,171 +809,15 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                   {...field}
                 />
               </FormControl>
-              <p className="text-sm text-muted-foreground mt-1">
+              <FormDescription>
                 Available tokens: {"{YYYY}"} (year), {"{YY}"} (2-digit year), {"{MM}"} (month), {"{DD}"} (day), {"{SEQ:n}"} (sequence with n digits)
-              </p>
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
         />
 
-        <div className="space-y-6 rounded-lg border p-4">
-          <div className="space-y-2">
-            <h3 className="font-medium">Activation Steps</h3>
-            <p className="text-sm text-muted-foreground">Configure how members are activated for this tier</p>
-          </div>
-
-          <FormField
-            control={form.control}
-            name="requires_form"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <FormLabel>Application Form</FormLabel>
-                  <p className="text-sm text-muted-foreground">
-                    Require members to complete an application form
-                  </p>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="requires_review"
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                <div className="space-y-0.5">
-                  <FormLabel>Admin Review</FormLabel>
-                  <p className="text-sm text-muted-foreground">
-                    Require admin approval before membership is granted
-                  </p>
-                </div>
-                <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          {!isFree && requires_review && (
-            <FormField
-              control={form.control}
-              name="review_before_payment"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                  <div className="space-y-0.5">
-                    <FormLabel>Review Before Payment</FormLabel>
-                    <p className="text-sm text-muted-foreground">
-                      Review applications before allowing members to pay
-                    </p>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-          )}
-
-          <div className="rounded-lg bg-muted p-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-medium">Current Flow:</span>
-              <span className="text-muted-foreground">
-                {requires_form && "Complete Form → "}
-                {requires_review && review_before_payment ? "Admin Review → " : ""}
-                {!isFree && "Payment → "}
-                {requires_review && !review_before_payment ? "Admin Review → " : ""}
-                Membership Granted
-              </span>
-            </div>
-            <div className="mt-2 text-xs text-muted-foreground">
-              Activation Type: {activationType}
-            </div>
-          </div>
-        </div>
-
-        {requires_form && (
-          <FormField
-            control={form.control}
-            name="form_template_id"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Application Form Template</FormLabel>
-                <div className="space-y-3">
-                  <div className="flex gap-2 items-start">
-                    <Button
-                      type="button"
-                      variant={field.value ? "outline" : "default"}
-                      className="w-full text-left justify-start font-normal"
-                      onClick={() => setShowFormTemplateDialog(true)}
-                    >
-                      {field.value ? (
-                        <span className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          Change form template
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <PlusCircle className="h-4 w-4" />
-                          Select a form template
-                        </span>
-                      )}
-                    </Button>
-                  </div>
-                  {field.value ? (
-                    <Card className="p-3 border-dashed">
-                      <div className="flex items-start gap-3">
-                        <div className="p-2 bg-muted rounded-md">
-                          <FileText className="h-4 w-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium truncate">
-                              {isLoadingTemplate ? (
-                                "Loading..."
-                              ) : (
-                                formTemplates.find(t => t.id === field.value)?.title || 'Form Template'
-                              )}
-                            </p>
-                            <Badge variant="secondary" className="shrink-0">Selected</Badge>
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                            {isLoadingTemplate ? (
-                              "Loading form details..."
-                            ) : (
-                              formTemplates.find(t => t.id === field.value)?.description || 'No description available'
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                    </Card>
-                  ) : (
-                    <div className="rounded-lg border-2 border-dashed p-4">
-                      <p className="text-sm text-muted-foreground text-center">
-                        Select a form template that members will need to complete when applying for this membership tier
-                      </p>
-                    </div>
-                  )}
-                  <FormMessage />
-                </div>
-              </FormItem>
-            )}
-          />
-        )}
-
+        {/* 5. Roles */}
         <FormField
           control={form.control}
           name="roles"
@@ -682,7 +828,7 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                 <div className="flex gap-2 items-start">
                   <Button
                     type="button"
-                    variant={field.value.length > 0 ? "outline" : "default"}
+                    variant={field.value.length > 0 ? "secondary" : "outline"}
                     className="w-full text-left justify-start font-normal"
                     onClick={() => setShowRoleDialog(true)}
                   >
@@ -749,23 +895,6 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
           }}
           groupId={groupId}
           selectedRoleIds={form.getValues('roles')}
-        />
-
-        <FormTemplateSelectionDialog
-          open={showFormTemplateDialog}
-          onOpenChange={setShowFormTemplateDialog}
-          onSelect={(template) => {
-            form.setValue('form_template_id', template.id);
-            setFormTemplates(prev => {
-              const exists = prev.some(t => t.id === template.id);
-              if (!exists) {
-                return [...prev, template];
-              }
-              return prev;
-            });
-          }}
-          orgId={groupId}
-          selectedTemplateId={form.getValues('form_template_id')}
         />
 
         <Button type="submit" className="w-full" disabled={pending}>
