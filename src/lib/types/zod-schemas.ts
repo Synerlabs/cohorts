@@ -472,22 +472,43 @@ export const membershipTierSettingsRelationshipsSchema = z.tuple([
 export const membershipTiersRowSchema = z.object({
   activation_type: z.string(),
   duration_months: z.number(),
+  duration_unit: z.enum(['month', 'year']).default('month'),
   product_id: z.string(),
   type: z.enum(['membership', 'organization']),
+  has_fixed_dates: z.boolean().default(false),
+  fixed_start_date: z.string().nullable().optional(),
+  fixed_end_date: z.string().nullable().optional(),
+  is_fiscal_period: z.boolean().default(false),
+  fiscal_start_month: z.number().nullable().optional(),
+  fiscal_start_day: z.number().nullable().optional(),
 });
 
 export const membershipTiersInsertSchema = z.object({
   activation_type: z.string(),
   duration_months: z.number().optional(),
+  duration_unit: z.enum(['month', 'year']).default('month'),
   product_id: z.string(),
   type: z.enum(['membership', 'organization']).optional(),
+  has_fixed_dates: z.boolean().default(false).optional(),
+  fixed_start_date: z.string().nullable().optional(),
+  fixed_end_date: z.string().nullable().optional(),
+  is_fiscal_period: z.boolean().default(false).optional(),
+  fiscal_start_month: z.number().nullable().optional(),
+  fiscal_start_day: z.number().nullable().optional(),
 });
 
 export const membershipTiersUpdateSchema = z.object({
   activation_type: z.string().optional(),
   duration_months: z.number().optional(),
+  duration_unit: z.enum(['month', 'year']).default('month'),
   product_id: z.string().optional(),
   type: z.enum(['membership', 'organization']).optional(),
+  has_fixed_dates: z.boolean().optional().default(false),
+  fixed_start_date: z.string().nullable().optional(),
+  fixed_end_date: z.string().nullable().optional(),
+  is_fiscal_period: z.boolean().optional().default(false),
+  fiscal_start_month: z.number().nullable().optional(),
+  fiscal_start_day: z.number().nullable().optional(),
 });
 
 export const membershipTiersRelationshipsSchema = z.tuple([

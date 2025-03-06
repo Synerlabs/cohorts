@@ -58,9 +58,72 @@ export class MembershipActivationService {
 
     const supabase = await createServiceRoleClient();
 
-    // Calculate end date
-    const endDate = new Date(startDate);
-    endDate.setMonth(endDate.getMonth() + durationMonths);
+    // Get tier settings to determine how to calculate end date
+    const { data: tierSettings, error: tierError } = await supabase
+      .from('membership_tiers')
+      .select(`
+        duration_months,
+        duration_unit,
+        has_fixed_dates,
+        fixed_start_date,
+        fixed_end_date,
+        is_fiscal_period,
+        fiscal_start_month,
+        fiscal_start_day
+      `)
+      .eq('product_id', tierId)
+      .single();
+
+    if (tierError) {
+      console.error('❌ Failed to fetch tier settings:', {
+        error: tierError,
+        tierId
+      });
+      throw new Error(`Failed to fetch tier settings: ${tierError.message}`);
+    }
+
+    // Determine actual start date (use fixed start date if applicable)
+    let actualStartDate = startDate;
+    if (tierSettings.has_fixed_dates && tierSettings.fixed_start_date) {
+      actualStartDate = new Date(tierSettings.fixed_start_date);
+      console.log('🔄 Using fixed start date:', actualStartDate);
+    }
+
+    // Calculate end date based on tier settings
+    let endDate;
+    
+    if (tierSettings.has_fixed_dates && tierSettings.fixed_end_date) {
+      // Case 1: Fixed dates - use the fixed end date
+      endDate = new Date(tierSettings.fixed_end_date);
+      console.log('🔄 Using fixed end date:', endDate);
+    } else {
+      // For other cases, use database function to consistently calculate end date
+      const { data: calculatedEndDate, error: calcError } = await supabase
+        .rpc('calculate_membership_end_date', {
+          p_tier_id: tierId,
+          p_start_date: actualStartDate.toISOString().split('T')[0] // Format as YYYY-MM-DD
+        });
+      
+      if (calcError) {
+        console.error('❌ Failed to calculate end date:', {
+          error: calcError,
+          tierId,
+          startDate: actualStartDate
+        });
+        
+        // Fallback to simple calculation if the function call fails
+        endDate = new Date(actualStartDate);
+        if (tierSettings.duration_unit === 'year') {
+          endDate.setFullYear(endDate.getFullYear() + tierSettings.duration_months);
+        } else {
+          endDate.setMonth(endDate.getMonth() + tierSettings.duration_months);
+        }
+        console.log('⚠️ Falling back to simple end date calculation:', endDate);
+      } else {
+        endDate = new Date(calculatedEndDate);
+        console.log('✅ Calculated end date using DB function:', endDate);
+      }
+    }
 
     // Check for existing active membership with the same tier
     const { data: existingMembership, error: existingError } = await supabase
@@ -199,7 +262,7 @@ export class MembershipActivationService {
         group_user_id: groupUserId,
         tier_id: tierId,
         status: 'active',
-        start_date: startDate.toISOString(),
+        start_date: actualStartDate.toISOString(),
         end_date: endDate.toISOString(),
         order_id: orderId,
         metadata: applicationId ? { application_id: applicationId } : null

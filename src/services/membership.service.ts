@@ -320,159 +320,153 @@ export class MembershipService {
     return data as IMembership[];
   }
 
-  static async createMembershipTier(
-    prevState: PrevState,
-    formData: FormData,
-  ) {
-    const handler = await withPermissions(
-      async (context: { userId: string; groupId: string }, params: { formData: FormData }) => {
-        const rawFormData = Object.fromEntries(params.formData.entries());
-        const formDataObj = {
-          ...rawFormData,
-          price: Number(params.formData.get("price")),
-          duration_months: Number(params.formData.get("duration_months")),
-          activation_type: params.formData.get("activation_type") || 'automatic',
-          currency: params.formData.get("currency") || "USD",
-          member_id_format: params.formData.get("member_id_format") || 'MEM-{YYYY}-{SEQ:3}',
-          form_template_id: params.formData.get("form_template_id") || null,
-          group_id: context.groupId
-        };
+  static async createMembershipTier(data: any): Promise<any> {
+    const supabase = await createClient();
+    
+    const tierData = {
+      name: data.name,
+      description: data.description || '',
+      price: parseInt(data.price) || 0,
+      currency: data.currency,
+      group_id: data.group_id,
+      type: data.type || 'membership'
+    };
+    
+    // Create the product first
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .insert(tierData)
+      .select()
+      .single();
+    
+    if (productError) throw productError;
+    
+    // Then create the membership tier with the new product ID
+    const membershipTierData = {
+      product_id: product.id,
+      duration_months: parseInt(data.duration_months) || 1,
+      duration_unit: data.duration_unit || 'month',
+      activation_type: data.activation_type,
+      has_fixed_dates: data.has_fixed_dates === 'true' || data.has_fixed_dates === true,
+      is_fiscal_period: data.is_fiscal_period === 'true' || data.is_fiscal_period === true,
+      type: data.type || 'membership'
+    };
 
-        // Validate activation type based on price and form template
-        const validationError = this.validateActivationType(
-          formDataObj.price, 
-          formDataObj.activation_type as string,
-          formDataObj.form_template_id as string | null
-        );
+    // Add optional fields only if they have values
+    if (data.fixed_start_date) membershipTierData.fixed_start_date = data.fixed_start_date;
+    if (data.fixed_end_date) membershipTierData.fixed_end_date = data.fixed_end_date;
+    
+    if (data.fiscal_start_month) {
+      membershipTierData.fiscal_start_month = parseInt(data.fiscal_start_month);
+    }
+    
+    if (data.fiscal_start_day) {
+      membershipTierData.fiscal_start_day = parseInt(data.fiscal_start_day);
+    }
+    
+    // Add form template ID if provided
+    if (data.form_template_id) {
+      membershipTierData.form_template_id = data.form_template_id;
+    }
 
-        if (validationError) {
-          return {
-            error: validationError,
-            success: false,
-          };
-        }
-
-        const parsedFormData = membershipTierSchema.safeParse(formDataObj);
-
-        if (!parsedFormData.success) {
-          return {
-            error: parsedFormData.error.errors[0].message,
-            success: false,
-          };
-        }
-
-        try {
-          const product = await ProductService.createMembershipTier(
-            context.groupId,
-            {
-              name: parsedFormData.data.name,
-              description: parsedFormData.data.description || null,
-              price: parsedFormData.data.price,
-              currency: parsedFormData.data.currency,
-              duration_months: parsedFormData.data.duration_months,
-              activation_type: parsedFormData.data.activation_type,
-              member_id_format: parsedFormData.data.member_id_format,
-              form_template_id: parsedFormData.data.form_template_id
-            }
-          );
-
-          revalidatePath(`/@${parsedFormData.data.group_id}/membership`);
-          return {
-            success: true,
-            data: product,
-          };
-        } catch (error: any) {
-          return {
-            error: error.message || "Failed to create membership tier",
-            success: false,
-          };
-        }
-      },
-      (params: { formData: FormData }) => ({
-        groupId: params.formData.get('group_id') as string,
-        requiredPermissions: permissions.memberships.create
-      })
-    );
-
-    return handler(prevState, { formData });
+    const { error: tierError } = await supabase
+      .from('membership_tiers')
+      .insert(membershipTierData);
+    
+    if (tierError) throw tierError;
+    
+    // Create membership tier settings for member ID format
+    const settingsData = {
+      tier_id: product.id,
+      member_id_format: data.member_id_format || 'MEM-{YYYY}-{SEQ:3}'
+    };
+    
+    const { error: settingsError } = await supabase
+      .from('membership_tier_settings')
+      .insert(settingsData);
+    
+    if (settingsError) throw settingsError;
+    
+    // Handle role assignments if included
+    if (data.roles && data.roles.length > 0) {
+      const roles = typeof data.roles === 'string' ? JSON.parse(data.roles) : data.roles;
+      
+      if (Array.isArray(roles) && roles.length > 0) {
+        const roleData = roles.map(roleId => ({
+          tier_id: product.id,
+          group_role_id: roleId
+        }));
+        
+        const { error: rolesError } = await supabase
+          .from('membership_tier_roles')
+          .insert(roleData);
+        
+        if (rolesError) throw rolesError;
+      }
+    }
+    
+    return product;
   }
 
-  static async updateMembershipTier(
-    prevState: PrevState,
-    formData: FormData,
-  ) {
-    const handler = await withPermissions(
-      async (context: { userId: string; groupId: string }, params: { formData: FormData }) => {
-        const rawFormData = Object.fromEntries(params.formData.entries());
-        const formDataObj = {
-          ...rawFormData,
-          price: Number(rawFormData.price),
-          duration_months: Number(rawFormData.duration_months),
-          activation_type: rawFormData.activation_type || 'automatic',
-          currency: rawFormData.currency || "USD",
-          member_id_format: rawFormData.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
-          form_template_id: rawFormData.form_template_id || null
-        };
+  static async updateMembershipTier(id: string, data: any): Promise<any> {
+    const supabase = await createClient();
+    
+    // Update the product
+    const productData = {
+      name: data.name,
+      description: data.description,
+      price: parseInt(data.price) || 0,
+      currency: data.currency
+    };
+    
+    const { error: productError } = await supabase
+      .from('products')
+      .update(productData)
+      .eq('id', id);
+    
+    if (productError) throw productError;
+    
+    // Update the membership tier
+    const tierData = {
+      duration_months: parseInt(data.duration_months) || 1,
+      duration_unit: data.duration_unit || 'month',
+      activation_type: data.activation_type,
+      has_fixed_dates: data.has_fixed_dates === 'true' || data.has_fixed_dates === true,
+      is_fiscal_period: data.is_fiscal_period === 'true' || data.is_fiscal_period === true
+    };
 
-        // Validate activation type based on price and form template
-        const validationError = this.validateActivationType(
-          formDataObj.price, 
-          formDataObj.activation_type as string,
-          formDataObj.form_template_id as string | null
-        );
+    // Add optional fields only if they have values
+    if (data.fixed_start_date) tierData.fixed_start_date = data.fixed_start_date;
+    else if (data.fixed_start_date === '') tierData.fixed_start_date = null;
+    
+    if (data.fixed_end_date) tierData.fixed_end_date = data.fixed_end_date;
+    else if (data.fixed_end_date === '') tierData.fixed_end_date = null;
+    
+    if (data.fiscal_start_month) {
+      tierData.fiscal_start_month = parseInt(data.fiscal_start_month);
+    } else if (data.fiscal_start_month === '') {
+      tierData.fiscal_start_month = null;
+    }
+    
+    if (data.fiscal_start_day) {
+      tierData.fiscal_start_day = parseInt(data.fiscal_start_day);
+    } else if (data.fiscal_start_day === '') {
+      tierData.fiscal_start_day = null;
+    }
 
-        if (validationError) {
-          return {
-            error: validationError,
-            success: false,
-          };
-        }
-
-        const parsedFormData = membershipTierUpdateSchema.safeParse(formDataObj);
-
-        if (!parsedFormData.success) {
-          return {
-            error: parsedFormData.error.errors[0].message,
-            success: false,
-          };
-        }
-
-        try {
-          const product = await ProductService.updateMembershipTier(
-            parsedFormData.data.id,
-            {
-              name: parsedFormData.data.name,
-              description: parsedFormData.data.description || null,
-              price: parsedFormData.data.price,
-              currency: parsedFormData.data.currency,
-              duration_months: parsedFormData.data.duration_months,
-              activation_type: parsedFormData.data.activation_type,
-              member_id_format: parsedFormData.data.member_id_format,
-              form_template_id: parsedFormData.data.form_template_id
-            }
-          );
-
-          revalidatePath(`/@${context.groupId}/membership`);
-          return {
-            success: true,
-            data: product,
-          };
-        } catch (error: any) {
-          console.error(error);
-          return {
-            error: error.message || "An error occurred while updating the membership tier",
-            success: false,
-          };
-        }
-      },
-      (params: { formData: FormData }) => ({
-        moduleId: params.formData.get('id') as string,
-        moduleType: 'membership_tier' as const,
-        requiredPermissions: permissions.memberships.edit
-      })
-    );
-
-    return handler(prevState, { formData });
+    // Add form template ID if provided
+    if (data.form_template_id) {
+      tierData.form_template_id = data.form_template_id;
+    } else if (data.form_template_id === null) {
+      tierData.form_template_id = null;
+    }
+    
+    const { error: tierError } = await supabase
+      .from('membership_tiers')
+      .update(tierData)
+      .eq('product_id', id);
+    
+    if (tierError) throw tierError;
   }
 
   static async deleteMembershipTier(

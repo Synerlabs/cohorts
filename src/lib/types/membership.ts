@@ -19,6 +19,7 @@ export type MembershipTier = {
   price: number; // stored in cents
   currency: Currency;
   duration_months: number;
+  duration_unit: 'month' | 'year';
   activation_type: MembershipActivationType;
   member_id_format: string;
   created_at: string;
@@ -26,6 +27,12 @@ export type MembershipTier = {
   member_count?: number;
   form_template_id?: string | null;
   type: 'membership' | 'organization';
+  has_fixed_dates: boolean;
+  fixed_start_date?: string | null;
+  fixed_end_date?: string | null;
+  is_fiscal_period: boolean;
+  fiscal_start_month?: number | null;
+  fiscal_start_day?: number | null;
 };
 
 export type MembershipTierRow = {
@@ -35,11 +42,18 @@ export type MembershipTierRow = {
   price: number; // stored in cents
   currency: Currency;
   duration_months: number;
+  duration_unit: 'month' | 'year';
   activation_type: MembershipActivationType;
   created_at: string;
   group_id: string;
   form_template_id?: string | null;
   type: 'membership' | 'organization';
+  has_fixed_dates: boolean;
+  fixed_start_date?: string | null;
+  fixed_end_date?: string | null;
+  is_fiscal_period: boolean;
+  fiscal_start_month?: number | null;
+  fiscal_start_day?: number | null;
 };
 
 export enum MembershipStatus {
@@ -113,5 +127,27 @@ export interface IMembership {
         }[];
       };
     }[];
+  };
+}
+
+export interface IMembershipTierProduct {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  currency: Currency;
+  type: string;
+  membership_tier: {
+    activation_type: string;
+    duration_months: number;
+    duration_unit?: 'month' | 'year';
+    member_id_format?: string;
+    form_template_id?: string | null;
+    has_fixed_dates?: boolean;
+    fixed_start_date?: string | null;
+    fixed_end_date?: string | null;
+    is_fiscal_period?: boolean;
+    fiscal_start_month?: number | null;
+    fiscal_start_day?: number | null;
   };
 } 
