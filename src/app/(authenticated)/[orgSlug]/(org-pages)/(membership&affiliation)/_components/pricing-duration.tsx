@@ -3,17 +3,18 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Pencil, X, Save, Calendar, Clock, Building2 } from "lucide-react";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
+import { Pencil, X, Save, Calendar, Clock, Building2, CalendarRange } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Currency } from "@/lib/types/membership";
-import { format, addMonths, addYears } from "date-fns";
+import { format, addMonths, addYears, lastDayOfMonth, setDate, isSameMonth } from "date-fns";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useState, useRef, useEffect } from "react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const currencySymbols: Record<Currency, string> = {
   USD: '$',
@@ -38,6 +39,12 @@ const formSchema = z.object({
   is_fiscal_period: z.boolean().default(false),
   fiscal_start_month: z.number().min(1).max(12).optional().nullable(),
   fiscal_start_day: z.number().min(1).max(31).optional().nullable(),
+  
+  // Monthly cycle settings
+  has_monthly_cycle: z.boolean().default(false),
+  monthly_start_day: z.number().min(1).max(31).optional().nullable(),
+  monthly_end_day_type: z.enum(['specific', 'last_day']).default('specific'),
+  monthly_end_day: z.number().min(1).max(31).optional().nullable(),
 });
 
 interface PricingDurationProps {
@@ -53,6 +60,10 @@ interface PricingDurationProps {
     is_fiscal_period?: boolean;
     fiscal_start_month?: number | null;
     fiscal_start_day?: number | null;
+    has_monthly_cycle?: boolean;
+    monthly_start_day?: number | null;
+    monthly_end_day_type?: 'specific' | 'last_day';
+    monthly_end_day?: number | null;
   };
   onEdit: () => void;
   onCancel: () => void;
@@ -69,13 +80,29 @@ export function PricingDuration({
   isPending
 }: PricingDurationProps) {
   const [activeTab, setActiveTab] = useState<string>(() => {
-    if (defaultValues.is_fiscal_period) return "fiscal-period";
-    if (defaultValues.has_fixed_dates) return "fixed-dates";
-    return "standard";
+    if (defaultValues.has_fixed_dates) {
+      return 'fixed-dates';
+    } else if (defaultValues.is_fiscal_period) {
+      return 'fiscal-period';
+    } else if (defaultValues.has_monthly_cycle) {
+      // Monthly cycle is now part of standard duration
+      return 'standard';
+    } else {
+      return 'standard';
+    }
   });
   
   const durationHeaderRef = useRef<HTMLHeadingElement>(null);
   const [durationHeaderTop, setDurationHeaderTop] = useState<number | null>(null);
+  const [simulatedJoinDate, setSimulatedJoinDate] = useState<Date>(new Date());
+  
+  // Format date to YYYY-MM-DD for the input field
+  const formatDateForInput = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
   
   useEffect(() => {
     if (isEditing && durationHeaderRef.current) {
@@ -93,11 +120,70 @@ export function PricingDuration({
       ...defaultValues,
       has_fixed_dates: defaultValues.has_fixed_dates || false,
       is_fiscal_period: defaultValues.is_fiscal_period || false,
+      has_monthly_cycle: defaultValues.has_monthly_cycle || false,
+      monthly_end_day_type: defaultValues.monthly_end_day_type || 'specific',
     }
   });
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     await onSave(values);
+  };
+
+  // Function to calculate monthly cycle dates
+  const calculateMonthlyCycleDates = (
+    joinDate: Date,
+    startDay: number,
+    endDayType: 'specific' | 'last_day',
+    endDay: number | null,
+    durationMonths: number
+  ) => {
+    // Find the first full billing cycle
+    let cycleStart = new Date(joinDate);
+    
+    // Set to the specified start day
+    cycleStart.setDate(startDay);
+    
+    // If the join date is after the start day in the current month,
+    // move to the next month's start day
+    if (joinDate.getDate() > startDay) {
+      cycleStart = addMonths(cycleStart, 1);
+    }
+    
+    // Calculate the end date of the membership based on duration
+    const membershipEnd = addMonths(cycleStart, durationMonths);
+    
+    // Calculate the last day of the final cycle
+    let cycleEnd = new Date(membershipEnd);
+    
+    if (endDayType === 'last_day') {
+      // Set to the last day of the month
+      cycleEnd = lastDayOfMonth(cycleEnd);
+    } else if (endDay) {
+      // Check if end day is greater than the number of days in the month
+      const lastDay = lastDayOfMonth(cycleEnd).getDate();
+      const actualEndDay = Math.min(endDay, lastDay);
+      cycleEnd.setDate(actualEndDay);
+      
+      // If this would make the cycle end before the membership end,
+      // move to the previous day
+      if (cycleEnd < membershipEnd) {
+        cycleEnd.setDate(cycleEnd.getDate() - 1);
+      }
+    }
+    
+    // Calculate the initial partial cycle if applicable
+    let initialCycleEnd: Date | null = null;
+    if (joinDate < cycleStart) {
+      // There's a partial initial cycle
+      initialCycleEnd = new Date(cycleStart);
+      initialCycleEnd.setDate(initialCycleEnd.getDate() - 1);
+    }
+    
+    return {
+      firstFullCycleStart: cycleStart,
+      finalCycleEnd: cycleEnd,
+      initialPartialCycleEnd: initialCycleEnd
+    };
   };
 
   return (
@@ -197,7 +283,7 @@ export function PricingDuration({
                     <div className={cn(
                       "absolute left-0 -translate-x-[calc(100%-1px)] z-10",
                       "bg-card border rounded-l-lg shadow-md",
-                      "w-[250px] overflow-hidden transition-all duration-200",
+                      "w-[280px] overflow-hidden transition-all duration-200",
                       isEditing ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none translate-y-2"
                     )}
                     style={{ 
@@ -223,8 +309,40 @@ export function PricingDuration({
                         </TooltipProvider>
                       </div>
                       
+                      <div className="p-3 border-b bg-muted/30">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs text-muted-foreground whitespace-nowrap">
+                            Join date: <span className="font-medium">{format(simulatedJoinDate, 'MMM d, yyyy')}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const dateInput = document.getElementById('simulated-join-date') as HTMLInputElement;
+                              if (dateInput) {
+                                dateInput.showPicker();
+                              }
+                            }}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Change
+                          </button>
+                          <input
+                            id="simulated-join-date"
+                            type="date"
+                            className="absolute opacity-0 pointer-events-none"
+                            value={formatDateForInput(simulatedJoinDate)}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                setSimulatedJoinDate(new Date(e.target.value));
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                      
                       {(() => {
-                        const today = new Date();
+                        // Use simulatedJoinDate for all calculations
+                        const joinDate = simulatedJoinDate;
                         const durationMonths = form.watch('duration_months') || 1;
                         const durationUnit = form.watch('duration_unit') || 'month';
                         const hasFixedDates = form.watch('has_fixed_dates') || false;
@@ -233,12 +351,19 @@ export function PricingDuration({
                         const isFiscalPeriod = form.watch('is_fiscal_period') || false;
                         const fiscalStartMonth = form.watch('fiscal_start_month');
                         const fiscalStartDay = form.watch('fiscal_start_day');
+                        const hasMonthlyCycle = form.watch('has_monthly_cycle') || false;
+                        const monthlyStartDay = form.watch('monthly_start_day');
+                        const monthlyEndDayType = form.watch('monthly_end_day_type') || 'specific';
+                        const monthlyEndDay = form.watch('monthly_end_day');
                         
-                        // Case 1: Has fixed dates
+                        // Case 1: Fixed dates
                         if (hasFixedDates && fixedStartDate && fixedEndDate) {
                           try {
                             const start = new Date(fixedStartDate);
                             const end = new Date(fixedEndDate);
+                            
+                            // Check if join date is before end date
+                            const isJoinDateValid = joinDate <= end;
                             
                             return (
                               <div className="p-4">
@@ -258,8 +383,18 @@ export function PricingDuration({
                                   </div>
                                 </div>
                                 
-                                <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
-                                  All members get the same fixed period regardless of join date
+                                <div className="mt-3 border-t border-dashed pt-2">
+                                  <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
+                                  
+                                  {isJoinDateValid ? (
+                                    <div className="text-xs text-muted-foreground">
+                                      All members get the same fixed period regardless of join date
+                                    </div>
+                                  ) : (
+                                    <div className="text-xs text-amber-500 font-medium">
+                                      Note: The simulated join date is after the membership end date. Members wouldn't be able to join this membership on this date.
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             );
@@ -275,15 +410,15 @@ export function PricingDuration({
                           }
                         }
                         
-                        // Case 2: Is fiscal period
+                        // Case 2: Fiscal period
                         if (isFiscalPeriod && fiscalStartMonth && fiscalStartDay) {
                           try {
-                            const currentYear = today.getFullYear();
+                            const currentYear = joinDate.getFullYear();
                             const fiscalStartDate = new Date(currentYear, fiscalStartMonth - 1, fiscalStartDay);
                             
-                            // Determine which fiscal year we're in
+                            // Determine which fiscal year we're in based on the join date
                             let fiscalYear = currentYear;
-                            if (today < fiscalStartDate) {
+                            if (joinDate < fiscalStartDate) {
                               fiscalYear = currentYear - 1;
                             }
                             
@@ -322,15 +457,19 @@ export function PricingDuration({
                                 </div>
                                 
                                 <div className="mt-3 border-t border-dashed pt-2">
-                                  <div className="text-xs text-muted-foreground">Member joining today would have:</div>
+                                  <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
                                   <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
                                     <div className="flex justify-between">
                                       <span>Join:</span>
-                                      <span className="font-medium">{format(today, 'MMM d, yyyy')}</span>
+                                      <span className="font-medium">{format(joinDate, 'MMM d, yyyy')}</span>
                                     </div>
                                     <div className="flex justify-between mt-0.5">
                                       <span>Until:</span>
                                       <span className="font-medium text-primary">{format(fiscalEnd, 'MMM d, yyyy')}</span>
+                                    </div>
+                                    <div className="flex justify-between mt-0.5 text-muted-foreground">
+                                      <span>Duration:</span>
+                                      <span>{Math.round((fiscalEnd.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24))} days</span>
                                     </div>
                                   </div>
                                 </div>
@@ -348,13 +487,103 @@ export function PricingDuration({
                           }
                         }
                         
-                        // Case 3: Standard duration
+                        // Case 3: Standard duration (with or without monthly cycle)
                         let endDate;
-                        if (durationUnit === 'year') {
-                          endDate = addYears(today, durationMonths);
-                        } else {
-                          endDate = addMonths(today, durationMonths);
+                        
+                        // If monthly cycle is enabled and we have valid settings, use that calculation
+                        if (hasMonthlyCycle && monthlyStartDay && durationUnit === 'month') {
+                          try {
+                            // Calculate using our helper function
+                            const {
+                              firstFullCycleStart,
+                              finalCycleEnd,
+                              initialPartialCycleEnd
+                            } = calculateMonthlyCycleDates(
+                              joinDate,
+                              monthlyStartDay,
+                              monthlyEndDayType,
+                              monthlyEndDay || null,
+                              durationMonths
+                            );
+                            
+                            // Calculate total duration in days
+                            const totalDays = Math.round((finalCycleEnd.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
+                            
+                            return (
+                              <div className="p-4">
+                                <div className="flex items-center gap-1.5 text-primary mb-2">
+                                  <Clock size={14} className="flex-shrink-0" />
+                                  <div className="font-medium text-sm">Standard Duration</div>
+                                </div>
+                                
+                                <div className="ml-5 space-y-2 text-sm">
+                                  <div className="flex items-baseline">
+                                    <div className="w-14 text-xs text-muted-foreground">Duration:</div>
+                                    <div className="font-medium">
+                                      {durationMonths} {durationUnit}{durationMonths > 1 ? 's' : ''}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-baseline flex-wrap">
+                                    <div className="w-14 text-xs text-muted-foreground">Cycle:</div>
+                                    <div className="font-medium">
+                                      Day {monthlyStartDay} to {
+                                        monthlyEndDayType === 'last_day' 
+                                          ? 'end of month' 
+                                          : `day ${monthlyEndDay}`
+                                      }
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="mt-3 border-t border-dashed pt-2">
+                                  <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
+                                  
+                                  {initialPartialCycleEnd && (
+                                    <div className="bg-amber-50 border border-amber-200 rounded p-1.5 mt-1 mb-2 text-xs">
+                                      <div className="font-medium text-amber-800">Initial partial cycle:</div>
+                                      <div className="flex justify-between mt-0.5">
+                                        <span>Join:</span>
+                                        <span className="font-medium">{format(joinDate, 'MMM d, yyyy')}</span>
+                                      </div>
+                                      <div className="flex justify-between mt-0.5">
+                                        <span>Until:</span>
+                                        <span className="font-medium">{format(initialPartialCycleEnd, 'MMM d, yyyy')}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
+                                    <div className="font-medium">{initialPartialCycleEnd ? 'Full cycles:' : 'Full duration:'}</div>
+                                    <div className="flex justify-between mt-0.5">
+                                      <span>Start:</span>
+                                      <span className="font-medium">{format(firstFullCycleStart, 'MMM d, yyyy')}</span>
+                                    </div>
+                                    <div className="flex justify-between mt-0.5">
+                                      <span>End:</span>
+                                      <span className="font-medium text-primary">{format(finalCycleEnd, 'MMM d, yyyy')}</span>
+                                    </div>
+                                    <div className="flex justify-between mt-0.5 text-muted-foreground">
+                                      <span>Total:</span>
+                                      <span>{totalDays} days</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          } catch (error) {
+                            // Fall back to standard calculation if there's an error
+                          }
                         }
+                        
+                        // Standard calculation (no monthly cycle or fallback)
+                        if (durationUnit === 'year') {
+                          endDate = addYears(joinDate, durationMonths);
+                        } else {
+                          endDate = addMonths(joinDate, durationMonths);
+                        }
+                        
+                        // Calculate duration in days
+                        const durationInDays = Math.round((endDate.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
                         
                         return (
                           <div className="p-4">
@@ -373,15 +602,19 @@ export function PricingDuration({
                             </div>
                             
                             <div className="mt-3 border-t border-dashed pt-2">
-                              <div className="text-xs text-muted-foreground">Member joining today would have:</div>
+                              <div className="text-xs text-muted-foreground">Member joining on selected date would have:</div>
                               <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
                                 <div className="flex justify-between">
                                   <span>Join:</span>
-                                  <span className="font-medium">{format(today, 'MMM d, yyyy')}</span>
+                                  <span className="font-medium">{format(joinDate, 'MMM d, yyyy')}</span>
                                 </div>
                                 <div className="flex justify-between mt-0.5">
                                   <span>Until:</span>
                                   <span className="font-medium text-primary">{format(endDate, 'MMM d, yyyy')}</span>
+                                </div>
+                                <div className="flex justify-between mt-0.5 text-muted-foreground">
+                                  <span>Duration:</span>
+                                  <span>{durationInDays} days</span>
                                 </div>
                               </div>
                             </div>
@@ -397,6 +630,7 @@ export function PricingDuration({
                           onClick={() => {
                             form.setValue('has_fixed_dates', false);
                             form.setValue('is_fiscal_period', false);
+                            // Note: We no longer reset has_monthly_cycle since it can be part of standard
                           }}
                         >
                           Standard
@@ -406,6 +640,7 @@ export function PricingDuration({
                           onClick={() => {
                             form.setValue('has_fixed_dates', true);
                             form.setValue('is_fiscal_period', false);
+                            form.setValue('has_monthly_cycle', false);
                           }}
                         >
                           Fixed Dates
@@ -415,6 +650,7 @@ export function PricingDuration({
                           onClick={() => {
                             form.setValue('has_fixed_dates', false);
                             form.setValue('is_fiscal_period', true);
+                            form.setValue('has_monthly_cycle', false);
                           }}
                         >
                           Fiscal Period
@@ -462,8 +698,142 @@ export function PricingDuration({
                               )}
                             />
                           </div>
-                          <p className="text-sm text-muted-foreground">
+                          
+                          {form.watch('duration_unit') === 'month' && (
+                            <div className="mt-3 border-t pt-3">
+                              <FormField
+                                control={form.control}
+                                name="has_monthly_cycle"
+                                render={({ field }) => (
+                                  <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value}
+                                        onCheckedChange={field.onChange}
+                                      />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                      <FormLabel className="text-sm font-medium">
+                                        Use monthly billing cycle
+                                      </FormLabel>
+                                      <FormDescription className="text-xs">
+                                        Align memberships to specific days of the month
+                                      </FormDescription>
+                                    </div>
+                                  </FormItem>
+                                )}
+                              />
+                              
+                              {form.watch('has_monthly_cycle') && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                                  <FormField
+                                    control={form.control}
+                                    name="monthly_start_day"
+                                    render={({ field }) => (
+                                      <FormItem>
+                                        <div className="flex items-center justify-between">
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <FormLabel className="cursor-help">Cycle Start Day</FormLabel>
+                                              </TooltipTrigger>
+                                              <TooltipContent className="w-80">
+                                                <p>The day of month when each billing cycle starts</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        </div>
+                                        <FormControl>
+                                          <Input
+                                            type="number"
+                                            min={1}
+                                            max={28}
+                                            {...field}
+                                            value={field.value || ''}
+                                            onChange={(e) => field.onChange(parseInt(e.target.value) || '')}
+                                          />
+                                        </FormControl>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          Example: 1 for first day of month
+                                        </p>
+                                        <FormMessage />
+                                      </FormItem>
+                                    )}
+                                  />
+                                  
+                                  <div>
+                                    <FormField
+                                      control={form.control}
+                                      name="monthly_end_day_type"
+                                      render={({ field }) => (
+                                        <FormItem>
+                                          <div className="flex items-center justify-between">
+                                            <TooltipProvider>
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <FormLabel className="cursor-help">Cycle End Type</FormLabel>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="w-80">
+                                                  <p>How to determine the end of each billing cycle</p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            </TooltipProvider>
+                                          </div>
+                                          <Select 
+                                            onValueChange={field.onChange} 
+                                            value={field.value}
+                                          >
+                                            <FormControl>
+                                              <SelectTrigger>
+                                                <SelectValue placeholder="Select end type" />
+                                              </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                              <SelectItem value="specific">Specific Day</SelectItem>
+                                              <SelectItem value="last_day">Last Day of Month</SelectItem>
+                                            </SelectContent>
+                                          </Select>
+                                          <FormMessage />
+                                        </FormItem>
+                                      )}
+                                    />
+                                    
+                                    {form.watch('monthly_end_day_type') === 'specific' && (
+                                      <FormField
+                                        control={form.control}
+                                        name="monthly_end_day"
+                                        render={({ field }) => (
+                                          <FormItem className="mt-2">
+                                            <FormControl>
+                                              <Input
+                                                type="number"
+                                                min={1}
+                                                max={31}
+                                                placeholder="End day"
+                                                {...field}
+                                                value={field.value || ''}
+                                                onChange={(e) => field.onChange(parseInt(e.target.value) || '')}
+                                              />
+                                            </FormControl>
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                              Day before next cycle starts
+                                            </p>
+                                            <FormMessage />
+                                          </FormItem>
+                                        )}
+                                      />
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          
+                          <p className="text-sm text-muted-foreground mt-3 border-t pt-3">
                             With this setting, memberships will last exactly {form.watch('duration_months') || 1} {form.watch('duration_unit') === 'year' ? (form.watch('duration_months') === 1 ? 'year' : 'years') : (form.watch('duration_months') === 1 ? 'month' : 'months')} from when the member joins.
+                            {form.watch('has_monthly_cycle') && form.watch('duration_unit') === 'month' && 
+                              ` Members who join mid-cycle will get a partial first month.`
+                            }
                           </p>
                         </div>
                       </TabsContent>
@@ -658,8 +1028,8 @@ export function PricingDuration({
                           </div>
                         </div>
                       </TabsContent>
-                    </Tabs>
 
+                    </Tabs>
                   </div>
 
                 </div>
@@ -710,61 +1080,78 @@ export function PricingDuration({
             </div>
             <div>
               <h3 className="font-medium text-sm text-muted-foreground">Duration</h3>
-              {defaultValues.has_fixed_dates && defaultValues.fixed_start_date && defaultValues.fixed_end_date ? (
-                <>
-                  <div className="flex gap-1 items-baseline">
-                    <p className="text-lg font-semibold">Fixed Dates:</p>
-                    <p>
-                      <span className="font-medium">{format(new Date(defaultValues.fixed_start_date), 'MMM d, yyyy')}</span>
-                      <span className="mx-2">to</span>
-                      <span className="font-medium">{format(new Date(defaultValues.fixed_end_date), 'MMM d, yyyy')}</span>
+              <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
+                <h3 className="text-lg font-semibold">Duration</h3>
+                
+                {/* Fixed Dates Display */}
+                {defaultValues.has_fixed_dates && defaultValues.fixed_start_date && defaultValues.fixed_end_date ? (
+                  <>
+                    <div className="flex gap-1 items-baseline">
+                      <p className="text-lg font-semibold">Fixed Dates:</p>
+                      <p className="font-medium">
+                        {format(new Date(defaultValues.fixed_start_date), 'MMM d, yyyy')} to {format(new Date(defaultValues.fixed_end_date), 'MMM d, yyyy')}
+                      </p>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      All memberships will have the same fixed start and end dates.
                     </p>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    All memberships will use these fixed dates regardless of when members join.
-                  </p>
-                </>
-              ) : defaultValues.is_fiscal_period && defaultValues.fiscal_start_month && defaultValues.fiscal_start_day ? (
-                <>
-                  <div className="flex gap-1 items-baseline">
-                    <p className="text-lg font-semibold">Fiscal Period:</p>
-                    <p>
-                      <span className="font-medium">
-                        Starts on {new Date(0, defaultValues.fiscal_start_month - 1).toLocaleString('default', { month: 'long' })} {defaultValues.fiscal_start_day}
+                  </>
+                ) : defaultValues.is_fiscal_period && defaultValues.fiscal_start_month !== undefined && defaultValues.fiscal_start_month !== null && defaultValues.fiscal_start_day !== undefined && defaultValues.fiscal_start_day !== null ? (
+                  <>
+                    <div className="flex gap-1 items-baseline">
+                      <p className="text-lg font-semibold">Fiscal Period:</p>
+                      <p className="font-medium">
+                        {format(new Date(2000, defaultValues.fiscal_start_month - 1, defaultValues.fiscal_start_day), 'MMM d')} yearly
+                      </p>
+                    </div>
+                    <p className="text-2xl font-semibold">
+                      {defaultValues.duration_months}
+                      <span className="text-base font-normal text-muted-foreground ml-2">
+                        {defaultValues.duration_unit === 'month' ?
+                          (defaultValues.duration_months === 1 ? 'month' : 'months') :
+                          (defaultValues.duration_months === 1 ? 'year' : 'years')}
                       </span>
                     </p>
-                  </div>
-                  <p className="text-2xl font-semibold">
-                    {defaultValues.duration_months}
-                    <span className="text-base font-normal text-muted-foreground ml-2">
-                      {defaultValues.duration_unit === 'month' ? 
-                        (defaultValues.duration_months === 1 ? 'fiscal month' : 'fiscal months') : 
-                        (defaultValues.duration_months === 1 ? 'fiscal year' : 'fiscal years')}
-                    </span>
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Memberships will align with your fiscal periods.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-2xl font-semibold">
-                    {defaultValues.duration_months}
-                    <span className="text-base font-normal text-muted-foreground ml-2">
-                      {defaultValues.duration_unit === 'month' ?
-                        (defaultValues.duration_months === 1 ? 'month' : 'months') :
-                        (defaultValues.duration_months === 1 ? 'year' : 'years')}
-                    </span>
-                  </p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    {defaultValues.duration_months === 1 && defaultValues.duration_unit === 'month' ? 'Monthly membership' : 
-                     defaultValues.duration_months === 12 && defaultValues.duration_unit === 'month' ? 'Annual membership' : 
-                     defaultValues.duration_months === 1 && defaultValues.duration_unit === 'year' ? 'Annual membership' :
-                     defaultValues.duration_unit === 'month' ? `${defaultValues.duration_months}-month membership` :
-                     `${defaultValues.duration_months}-year membership`}
-                  </p>
-                </>
-              )}
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Memberships align with your fiscal year.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-lg font-semibold">Standard Duration:</p>
+                    <p className="text-2xl font-semibold">
+                      {defaultValues.duration_months}
+                      <span className="text-base font-normal text-muted-foreground ml-2">
+                        {defaultValues.duration_unit === 'month' ?
+                          (defaultValues.duration_months === 1 ? 'month' : 'months') :
+                          (defaultValues.duration_months === 1 ? 'year' : 'years')}
+                      </span>
+                    </p>
+                    
+                    {/* Show monthly cycle if enabled */}
+                    {defaultValues.has_monthly_cycle && defaultValues.monthly_start_day && (
+                      <div className="bg-muted/50 rounded-md p-2 mt-2">
+                        <p className="font-medium flex gap-2 items-center">
+                          <CalendarRange size={16} />
+                          Monthly Billing Cycle:
+                        </p>
+                        <p className="text-sm ml-6 text-muted-foreground">
+                          From day {defaultValues.monthly_start_day} to 
+                          {defaultValues.monthly_end_day_type === 'last_day' 
+                            ? ' the last day of month' 
+                            : defaultValues.monthly_end_day ? ` day ${defaultValues.monthly_end_day}` : ''}
+                        </p>
+                      </div>
+                    )}
+                    
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {defaultValues.has_monthly_cycle ? 
+                        "Memberships follow monthly billing cycles." : 
+                        "Memberships last from the join date."}
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
