@@ -1,6 +1,7 @@
 import { createClient, createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { MembershipActivationType, MembershipStatus } from '@/lib/types/membership';
 import { Database } from '@/lib/types/database.types';
+import { ProductService } from './product.service';
 
 type GroupUser = Database['public']['Tables']['group_users']['Row'];
 type Application = Database['public']['Tables']['applications']['Row'] & {
@@ -24,6 +25,9 @@ export class MembershipActivationService {
    * @param tierId The ID of the membership tier
    * @param orderId Optional order ID for paid memberships
    * @param applicationId Optional application ID
+   * @param durationMonths The duration of the membership in months
+   * @param startDate The start date of the membership
+   * @param tierType The type of tier (default: 'membership')
    * @returns The created membership record
    */
   static async createMembership({
@@ -31,26 +35,31 @@ export class MembershipActivationService {
     tierId,
     orderId = null,
     applicationId = null,
-    durationMonths = 12
+    durationMonths = 12,
+    startDate = new Date(),
+    tierType = 'membership'
   }: {
     groupUserId: string;
     tierId: string;
     orderId?: string | null;
     applicationId?: string | null;
     durationMonths?: number;
+    startDate?: Date;
+    tierType?: 'membership' | 'organization';
   }) {
     console.log('🔄 Creating membership record:', {
       groupUserId,
       tierId,
       orderId,
       applicationId,
-      durationMonths
+      durationMonths,
+      startDate,
+      tierType
     });
 
     const supabase = await createServiceRoleClient();
 
     // Calculate membership dates
-    const startDate = new Date();
     const endDate = durationMonths ? 
       new Date(Date.now() + durationMonths * 30 * 24 * 60 * 60 * 1000) : 
       null;
@@ -208,18 +217,22 @@ export class MembershipActivationService {
 
     console.log('✅ Created membership record:', membership.id);
 
-    // Always activate the group user when creating an active membership
-    try {
-      await this.activateGroupUser(groupUserId);
-      console.log('✅ Activated group user for new membership:', groupUserId);
-    } catch (activationError) {
-      console.error('❌ Failed to activate group user:', {
-        error: activationError,
-        groupUserId
-      });
-      // Don't throw here, as the membership was created successfully
-      // We'll log the error but return the membership
-      console.log('⚠️ Membership created but group user activation failed');
+    // Only activate the group user for membership-type tiers
+    if (tierType === 'membership') {
+      try {
+        await this.activateGroupUser(groupUserId);
+        console.log('✅ Activated group user for new membership:', groupUserId);
+      } catch (activationError) {
+        console.error('❌ Failed to activate group user:', {
+          error: activationError,
+          groupUserId
+        });
+        // Don't throw here, as the membership was created successfully
+        // We'll log the error but return the membership
+        console.log('⚠️ Membership created but group user activation failed');
+      }
+    } else {
+      console.log('ℹ️ Skipping user activation for organization-type tier');
     }
 
     return membership;
@@ -407,15 +420,28 @@ export class MembershipActivationService {
         if (membershipExists) {
           console.log('⚠️ Membership already exists for application:', applicationId);
           
-          // Ensure the group user is activated even if membership already exists
-          await this.activateGroupUser(application.group_user_id);
+          // Check tier type
+          const membershipTier = await ProductService.getMembershipTier(application.tier_id);
+          const tierType = membershipTier.membership_tier.type || 'membership';
+          
+          // Ensure the group user is activated even if membership already exists, but only for membership tiers
+          if (tierType === 'membership') {
+            await this.activateGroupUser(application.group_user_id);
+          } else {
+            console.log('ℹ️ Skipping user activation for organization-type tier');
+          }
         } else {
           // Create new membership
+          const membershipTier = await ProductService.getMembershipTier(application.tier_id);
+          const tierType = membershipTier.membership_tier.type || 'membership';
+          
           const membership = await this.createMembership({
             groupUserId: application.group_user_id,
             tierId: application.tier_id,
             applicationId: application.id,
-            durationMonths
+            durationMonths,
+            startDate: new Date(),
+            tierType
           });
 
           console.log('✅ Created membership for application:', {
@@ -428,7 +454,15 @@ export class MembershipActivationService {
         const isActive = await this.verifyGroupUserActive(application.group_user_id);
         if (!isActive) {
           console.log('⚠️ Group user not active after membership creation, activating explicitly');
-          await this.activateGroupUser(application.group_user_id);
+          // Check tier type before activating
+          const tier = await ProductService.getMembershipTier(application.tier_id);
+          const tierType = tier.membership_tier.type || 'membership';
+          
+          if (tierType === 'membership') {
+            await this.activateGroupUser(application.group_user_id);
+          } else {
+            console.log('ℹ️ Skipping user activation for organization-type tier');
+          }
         }
         
         console.log('✅ Processed application successfully:', {
@@ -485,8 +519,12 @@ export class MembershipActivationService {
         error: appError,
         applicationId
       });
-      throw new Error(`Failed to get application: ${appError?.message || 'Application not found'}`);
+      throw new Error(`Failed to get application: ${appError?.message || 'Not found'}`);
     }
+    
+    // Get tier type
+    const tier = await ProductService.getMembershipTier(application.tier_id);
+    const tierType = tier.membership_tier.type || 'membership';
 
     console.log('🔍 Application details:', application);
 
@@ -614,8 +652,16 @@ export class MembershipActivationService {
         .single();
         
       if (appData) {
-        // Ensure the group user is activated even if membership already exists
-        await this.activateGroupUser(appData.group_user_id);
+        // Ensure the group user is activated only for membership-type tiers
+        if (tierType === 'membership') {
+          const isActive = await this.verifyGroupUserActive(appData.group_user_id);
+          if (!isActive) {
+            console.log('⚠️ Group user not active after membership creation, activating explicitly');
+            await this.activateGroupUser(appData.group_user_id);
+          }
+        } else {
+          console.log('ℹ️ Skipping user activation for organization-type tier');
+        }
         
         // Get the existing membership to return
         const { data: existingMembership } = await supabase
@@ -634,14 +680,16 @@ export class MembershipActivationService {
     }
 
     // Create membership
-    const durationMonths = application.tier?.membership_tiers?.[0]?.duration_months || 12;
+    const membershipDurationMonths = application.tier?.membership_tiers?.[0]?.duration_months || 12;
     
     const membership = await this.createMembership({
       groupUserId: application.group_user_id,
       tierId: application.tier_id,
       orderId,
       applicationId,
-      durationMonths
+      durationMonths: membershipDurationMonths,
+      startDate: new Date(),
+      tierType
     });
 
     console.log('✅ Created membership from suborder:', {
@@ -650,11 +698,15 @@ export class MembershipActivationService {
       membershipId: membership.id
     });
     
-    // Double-check that the group user is activated
-    const isActive = await this.verifyGroupUserActive(application.group_user_id);
-    if (!isActive) {
-      console.log('⚠️ Group user not active after membership creation, activating explicitly');
-      await this.activateGroupUser(application.group_user_id);
+    // Double-check that the group user is activated only for membership-type tiers
+    if (tierType === 'membership') {
+      const isActive = await this.verifyGroupUserActive(application.group_user_id);
+      if (!isActive) {
+        console.log('⚠️ Group user not active after membership creation, activating explicitly');
+        await this.activateGroupUser(application.group_user_id);
+      }
+    } else {
+      console.log('ℹ️ Skipping user activation for organization-type tier');
     }
 
     return membership;

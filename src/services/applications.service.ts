@@ -197,15 +197,21 @@ export async function approveApplication(applicationId: string): Promise<Applica
             .eq('id', applicationId)
             .single();
             
-          if (appData) {
-            console.log(`Attempting direct membership creation for application ${applicationId}`);
-            await MembershipActivationService.createMembership({
-              groupUserId: appData.group_user_id,
-              tierId: appData.tier_id,
-              applicationId: applicationId,
-              durationMonths: application.duration_months || 12
-            });
-          }
+            if (appData) {
+              console.log(`Attempting direct membership creation for application ${applicationId}`);
+              
+              // Get the tier information to determine its type
+              const tier = await ProductService.getMembershipTier(appData.tier_id);
+              const tierType = tier.membership_tier.type || 'membership';
+              
+              await MembershipActivationService.createMembership({
+                groupUserId: appData.group_user_id,
+                tierId: appData.tier_id,
+                applicationId: applicationId,
+                durationMonths: application.duration_months || 12,
+                tierType: tierType
+              });
+            }
         }
       }
       
@@ -220,8 +226,18 @@ export async function approveApplication(applicationId: string): Promise<Applica
         const isActive = await MembershipActivationService.verifyGroupUserActive(appData.group_user_id);
         if (!isActive && newStatus === 'approved') {
           console.log(`Group user ${appData.group_user_id} is not active after application approval, activating...`);
-          // Activate explicitly
-          await MembershipActivationService.activateGroupUser(appData.group_user_id);
+          
+          // Get the tier information to determine its type
+          const tier = await ProductService.getMembershipTier(application.tier_id);
+          const tierType = tier.membership_tier.type || 'membership';
+          
+          // Only activate for membership-type tiers
+          if (tierType === 'membership') {
+            // Activate explicitly
+            await MembershipActivationService.activateGroupUser(appData.group_user_id);
+          } else {
+            console.log(`ℹ️ Skipping user activation for organization-type tier for group user ${appData.group_user_id}`);
+          }
         }
       }
     } catch (error) {
@@ -435,7 +451,8 @@ export async function createMembershipApplication(
         groupUserId,
         tierId: productId,
         applicationId: newApplication.id,
-        durationMonths: product.membership_tier.duration_months
+        durationMonths: product.membership_tier.duration_months,
+        tierType: product.membership_tier.type || 'membership'
       });
 
       console.log(`Created membership for ${product.membership_tier.activation_type} activation:`, membership);
