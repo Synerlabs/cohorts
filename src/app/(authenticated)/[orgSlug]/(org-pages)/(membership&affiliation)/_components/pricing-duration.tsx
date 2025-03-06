@@ -4,16 +4,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Pencil, X, Save } from "lucide-react";
+import { Pencil, X, Save, Calendar, Clock, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Currency } from "@/lib/types/membership";
-import { format } from "date-fns";
+import { format, addMonths, addYears } from "date-fns";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const currencySymbols: Record<Currency, string> = {
   USD: '$',
@@ -73,6 +73,19 @@ export function PricingDuration({
     if (defaultValues.has_fixed_dates) return "fixed-dates";
     return "standard";
   });
+  
+  const durationHeaderRef = useRef<HTMLHeadingElement>(null);
+  const [durationHeaderTop, setDurationHeaderTop] = useState<number | null>(null);
+  
+  useEffect(() => {
+    if (isEditing && durationHeaderRef.current) {
+      const rect = durationHeaderRef.current.getBoundingClientRect();
+      const cardRect = durationHeaderRef.current.closest('.card')?.getBoundingClientRect();
+      if (cardRect) {
+        setDurationHeaderTop(rect.top - cardRect.top);
+      }
+    }
+  }, [isEditing]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -88,7 +101,7 @@ export function PricingDuration({
   };
 
   return (
-    <Card className={cn("p-6 transition-shadow duration-200",
+    <Card className={cn("p-6 transition-shadow duration-200 relative card",
       isEditing && "ring-2 ring-primary ring-offset-2")}>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -178,26 +191,232 @@ export function PricingDuration({
                   />
 
                   <div className="space-y-4">
-                    <h3 className="text-sm font-medium">Membership Duration</h3>
+                    <h3 ref={durationHeaderRef} className="text-sm font-medium">Membership Duration</h3>
                     
+                    {/* Duration preview floating on the left */}
+                    <div className={cn(
+                      "absolute left-0 -translate-x-[calc(100%-1px)] z-10",
+                      "bg-card border rounded-l-lg shadow-md",
+                      "w-[250px] overflow-hidden transition-all duration-200",
+                      isEditing ? "opacity-100 translate-y-0" : "opacity-0 pointer-events-none translate-y-2"
+                    )}
+                    style={{ 
+                      top: durationHeaderTop ? `${durationHeaderTop}px` : '202px'
+                    }}>
+                      <div className="bg-muted px-4 py-2 border-b flex items-center justify-between">
+                        <div className="text-xs font-semibold uppercase">
+                          Duration Preview
+                        </div>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="text-xs text-muted-foreground">
+                                ℹ️
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              <p className="w-[200px] text-xs">
+                                This preview shows how the membership duration will work in practice.
+                              </p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      </div>
+                      
+                      {(() => {
+                        const today = new Date();
+                        const durationMonths = form.watch('duration_months') || 1;
+                        const durationUnit = form.watch('duration_unit') || 'month';
+                        const hasFixedDates = form.watch('has_fixed_dates') || false;
+                        const fixedStartDate = form.watch('fixed_start_date');
+                        const fixedEndDate = form.watch('fixed_end_date');
+                        const isFiscalPeriod = form.watch('is_fiscal_period') || false;
+                        const fiscalStartMonth = form.watch('fiscal_start_month');
+                        const fiscalStartDay = form.watch('fiscal_start_day');
+                        
+                        // Case 1: Has fixed dates
+                        if (hasFixedDates && fixedStartDate && fixedEndDate) {
+                          try {
+                            const start = new Date(fixedStartDate);
+                            const end = new Date(fixedEndDate);
+                            
+                            return (
+                              <div className="p-4">
+                                <div className="flex items-center gap-1.5 text-primary mb-2">
+                                  <Calendar size={14} className="flex-shrink-0" />
+                                  <div className="font-medium text-sm">Fixed Date Period</div>
+                                </div>
+                                
+                                <div className="ml-5 space-y-2 text-sm">
+                                  <div className="flex items-baseline">
+                                    <div className="w-14 text-xs text-muted-foreground">Start:</div>
+                                    <div className="font-medium">{format(start, 'MMM d, yyyy')}</div>
+                                  </div>
+                                  <div className="flex items-baseline">
+                                    <div className="w-14 text-xs text-muted-foreground">End:</div>
+                                    <div className="font-medium">{format(end, 'MMM d, yyyy')}</div>
+                                  </div>
+                                </div>
+                                
+                                <div className="mt-3 border-t pt-2 text-xs text-muted-foreground">
+                                  All members get the same fixed period regardless of join date
+                                </div>
+                              </div>
+                            );
+                          } catch (error) {
+                            return (
+                              <div className="p-4">
+                                <div className="text-destructive text-sm">
+                                  <div className="font-medium">Invalid Dates</div>
+                                  <p className="text-xs mt-1">Please select valid start and end dates.</p>
+                                </div>
+                              </div>
+                            );
+                          }
+                        }
+                        
+                        // Case 2: Is fiscal period
+                        if (isFiscalPeriod && fiscalStartMonth && fiscalStartDay) {
+                          try {
+                            const currentYear = today.getFullYear();
+                            const fiscalStartDate = new Date(currentYear, fiscalStartMonth - 1, fiscalStartDay);
+                            
+                            // Determine which fiscal year we're in
+                            let fiscalYear = currentYear;
+                            if (today < fiscalStartDate) {
+                              fiscalYear = currentYear - 1;
+                            }
+                            
+                            const fiscalStart = new Date(fiscalYear, fiscalStartMonth - 1, fiscalStartDay);
+                            let fiscalEnd;
+                            
+                            if (durationUnit === 'year') {
+                              fiscalEnd = new Date(fiscalYear + durationMonths, fiscalStartMonth - 1, fiscalStartDay - 1);
+                            } else {
+                              // Add months to the fiscal start date and subtract 1 day
+                              fiscalEnd = new Date(fiscalStart);
+                              fiscalEnd.setMonth(fiscalEnd.getMonth() + durationMonths);
+                              fiscalEnd.setDate(fiscalEnd.getDate() - 1);
+                            }
+                            
+                            return (
+                              <div className="p-4">
+                                <div className="flex items-center gap-1.5 text-primary mb-2">
+                                  <Building2 size={14} className="flex-shrink-0" />
+                                  <div className="font-medium text-sm">Fiscal Period</div>
+                                </div>
+                                
+                                <div className="ml-5 space-y-2 text-sm">
+                                  <div className="flex items-baseline flex-wrap">
+                                    <div className="w-14 text-xs text-muted-foreground">Fiscal:</div>
+                                    <div className="font-medium">
+                                      Starts {format(fiscalStart, 'MMM d')} yearly
+                                    </div>
+                                  </div>
+                                  <div className="flex items-baseline">
+                                    <div className="w-14 text-xs text-muted-foreground">Duration:</div>
+                                    <div className="font-medium">
+                                      {durationMonths} {durationUnit}{durationMonths > 1 ? 's' : ''}
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                <div className="mt-3 border-t border-dashed pt-2">
+                                  <div className="text-xs text-muted-foreground">Member joining today would have:</div>
+                                  <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
+                                    <div className="flex justify-between">
+                                      <span>Join:</span>
+                                      <span className="font-medium">{format(today, 'MMM d, yyyy')}</span>
+                                    </div>
+                                    <div className="flex justify-between mt-0.5">
+                                      <span>Until:</span>
+                                      <span className="font-medium text-primary">{format(fiscalEnd, 'MMM d, yyyy')}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          } catch (error) {
+                            return (
+                              <div className="p-4">
+                                <div className="text-destructive text-sm">
+                                  <div className="font-medium">Invalid Fiscal Settings</div>
+                                  <p className="text-xs mt-1">Please enter valid fiscal year start date.</p>
+                                </div>
+                              </div>
+                            );
+                          }
+                        }
+                        
+                        // Case 3: Standard duration
+                        let endDate;
+                        if (durationUnit === 'year') {
+                          endDate = addYears(today, durationMonths);
+                        } else {
+                          endDate = addMonths(today, durationMonths);
+                        }
+                        
+                        return (
+                          <div className="p-4">
+                            <div className="flex items-center gap-1.5 text-primary mb-2">
+                              <Clock size={14} className="flex-shrink-0" />
+                              <div className="font-medium text-sm">Standard Duration</div>
+                            </div>
+                            
+                            <div className="ml-5 space-y-2 text-sm">
+                              <div className="flex items-baseline">
+                                <div className="w-14 text-xs text-muted-foreground">Duration:</div>
+                                <div className="font-medium">
+                                  {durationMonths} {durationUnit}{durationMonths > 1 ? 's' : ''}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="mt-3 border-t border-dashed pt-2">
+                              <div className="text-xs text-muted-foreground">Member joining today would have:</div>
+                              <div className="bg-muted/50 rounded p-1.5 mt-1 text-xs">
+                                <div className="flex justify-between">
+                                  <span>Join:</span>
+                                  <span className="font-medium">{format(today, 'MMM d, yyyy')}</span>
+                                </div>
+                                <div className="flex justify-between mt-0.5">
+                                  <span>Until:</span>
+                                  <span className="font-medium text-primary">{format(endDate, 'MMM d, yyyy')}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                       <TabsList className="grid w-full grid-cols-3">
-                        <TabsTrigger value="standard" onClick={() => {
-                          form.setValue('has_fixed_dates', false);
-                          form.setValue('is_fiscal_period', false);
-                        }}>
+                        <TabsTrigger 
+                          value="standard"
+                          onClick={() => {
+                            form.setValue('has_fixed_dates', false);
+                            form.setValue('is_fiscal_period', false);
+                          }}
+                        >
                           Standard
                         </TabsTrigger>
-                        <TabsTrigger value="fixed-dates" onClick={() => {
-                          form.setValue('has_fixed_dates', true);
-                          form.setValue('is_fiscal_period', false);
-                        }}>
+                        <TabsTrigger 
+                          value="fixed-dates"
+                          onClick={() => {
+                            form.setValue('has_fixed_dates', true);
+                            form.setValue('is_fiscal_period', false);
+                          }}
+                        >
                           Fixed Dates
                         </TabsTrigger>
-                        <TabsTrigger value="fiscal-period" onClick={() => {
-                          form.setValue('has_fixed_dates', false);
-                          form.setValue('is_fiscal_period', true);
-                        }}>
+                        <TabsTrigger 
+                          value="fiscal-period"
+                          onClick={() => {
+                            form.setValue('has_fixed_dates', false);
+                            form.setValue('is_fiscal_period', true);
+                          }}
+                        >
                           Fiscal Period
                         </TabsTrigger>
                       </TabsList>
@@ -440,6 +659,7 @@ export function PricingDuration({
                         </div>
                       </TabsContent>
                     </Tabs>
+
                   </div>
 
                 </div>
