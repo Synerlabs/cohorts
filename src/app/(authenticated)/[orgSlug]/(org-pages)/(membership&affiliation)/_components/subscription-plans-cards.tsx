@@ -27,6 +27,7 @@ import { usePermissions } from "@/lib/hooks/use-permissions";
 import { deleteMembershipTierAction } from "../_actions/membership.action";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface SubscriptionPlansCardsProps {
   tiers: IMembershipTierProduct[];
@@ -96,10 +97,26 @@ export default function SubscriptionPlansCards({ tiers, groupId, slug }: Subscri
               <CardHeader className="pb-1 pt-4 px-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-xl font-bold">{tier.name}</h3>
-                  <Badge variant={isAffiliation ? "outline" : "default"} className="z-20 relative text-xs">
-                    {tier.membership_tier?.type
-                      ? tier.membership_tier.type.charAt(0).toUpperCase() + tier.membership_tier.type.slice(1)
-                      : 'Member'}
+                  <Badge 
+                    variant={tier.membership_tier?.type === 'organization' ? "outline" : "default"}
+                    className={cn(
+                      "z-20 relative text-xs flex items-center gap-1",
+                      tier.membership_tier?.type === 'organization' 
+                        ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" 
+                        : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    )}
+                  >
+                    {tier.membership_tier?.type === 'organization' ? (
+                      <>
+                        <Building2 className="h-3 w-3" />
+                        Organization
+                      </>
+                    ) : (
+                      <>
+                        <Users className="h-3 w-3" />
+                        Membership
+                      </>
+                    )}
                   </Badge>
                 </div>
                 <p className="text-muted-foreground text-sm line-clamp-1">

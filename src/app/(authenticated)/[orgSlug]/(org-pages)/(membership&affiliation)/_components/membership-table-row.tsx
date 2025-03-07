@@ -15,17 +15,23 @@ import DeleteMembershipDialog from "./delete-membership-dialog";
 import { useState } from "react";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { Currency } from "@/lib/types/membership";
+import { cn } from "@/lib/utils";
 
 interface MembershipTableRowProps {
   membership: IMembershipTierProduct;
 }
 
-const activationTypeLabels = {
+const activationTypeLabels: Record<string, string> = {
   'automatic': 'Automatic',
   'review_required': 'Review Required',
   'payment_required': 'Payment Required',
   'review_then_payment': 'Review then Payment',
-} as const;
+  'form_required': 'Form Required',
+  'form_then_review': 'Form then Review',
+  'form_then_payment': 'Form then Payment',
+  'form_then_payment_then_review': 'Form, Payment, Review',
+  'form_then_review_then_payment': 'Form, Review, Payment'
+};
 
 const currencySymbols: Record<Currency, string> = {
   USD: '$',
@@ -75,13 +81,32 @@ export default function MembershipTableRow({ membership }: MembershipTableRowPro
       <TableCell className="hidden md:table-cell">
         <Badge
           variant={membership.is_active ? "outline" : "secondary"}
-          className="capitalize"
+          className={cn(
+            "capitalize",
+            membership.is_active 
+              ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100" 
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          )}
         >
           {membership.is_active ? "Active" : "Inactive"}
         </Badge>
       </TableCell>
       <TableCell className="hidden md:table-cell">
-        <Badge variant="secondary" className="capitalize">
+        <Badge 
+          variant="secondary" 
+          className={cn(
+            "capitalize",
+            membership.membership_tier.activation_type === 'automatic' && "bg-green-50 text-green-700 hover:bg-green-100",
+            membership.membership_tier.activation_type === 'review_required' && "bg-amber-50 text-amber-700 hover:bg-amber-100",
+            membership.membership_tier.activation_type === 'payment_required' && "bg-orange-50 text-orange-700 hover:bg-orange-100", 
+            membership.membership_tier.activation_type === 'review_then_payment' && "bg-teal-50 text-teal-700 hover:bg-teal-100",
+            membership.membership_tier.activation_type === 'form_required' && "bg-blue-50 text-blue-700 hover:bg-blue-100",
+            membership.membership_tier.activation_type === 'form_then_review' && "bg-cyan-50 text-cyan-700 hover:bg-cyan-100",
+            membership.membership_tier.activation_type === 'form_then_payment' && "bg-amber-50 text-amber-700 hover:bg-amber-100",
+            membership.membership_tier.activation_type === 'form_then_payment_then_review' && "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+            membership.membership_tier.activation_type === 'form_then_review_then_payment' && "bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+          )}
+        >
           {activationTypeLabels[membership.membership_tier.activation_type]}
         </Badge>
       </TableCell>

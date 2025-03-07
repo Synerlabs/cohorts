@@ -9,6 +9,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { IMembership } from "@/lib/types/membership";
+import { cn } from "@/lib/utils";
+import { CheckCircle2, XCircle, Clock } from "lucide-react";
 
 interface MembershipsTableProps {
   memberships: IMembership[];
@@ -110,8 +112,29 @@ export default function MembershipsTable({ memberships }: MembershipsTableProps)
                         ? "destructive"
                         : "secondary"
                     }
+                    className={cn(
+                      "flex items-center gap-1",
+                      membership.status === "active" && "bg-green-50 text-green-700 hover:bg-green-100",
+                      membership.status === "expired" && "bg-red-50 text-red-700 hover:bg-red-100",
+                      membership.status !== "active" && membership.status !== "expired" && "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    )}
                   >
-                    {membership.status}
+                    {membership.status === "active" ? (
+                      <>
+                        <CheckCircle2 className="h-3 w-3" />
+                        {membership.status}
+                      </>
+                    ) : membership.status === "expired" ? (
+                      <>
+                        <XCircle className="h-3 w-3" />
+                        {membership.status}
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-3 w-3" />
+                        {membership.status}
+                      </>
+                    )}
                   </Badge>
                 </TableCell>
                 <TableCell>

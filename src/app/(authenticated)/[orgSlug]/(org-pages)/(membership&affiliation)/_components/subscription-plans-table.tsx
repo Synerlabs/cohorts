@@ -28,6 +28,7 @@ import { usePermissions } from "@/lib/hooks/use-permissions";
 import { deleteMembershipTierAction } from "../_actions/membership.action";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface SubscriptionPlansTableProps {
   tiers: IMembershipTierProduct[];
@@ -95,7 +96,15 @@ export default function SubscriptionPlansTable({ tiers, groupId, slug }: Subscri
             return (
               <TableRow key={tier.id}>
                 <TableCell>
-                  <Badge variant={isAffiliation ? "outline" : "default"} className="flex items-center gap-1">
+                  <Badge 
+                    variant={isAffiliation ? "outline" : "default"} 
+                    className={cn(
+                      "flex items-center gap-1",
+                      isAffiliation 
+                        ? "border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100" 
+                        : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    )}
+                  >
                     {isAffiliation ? (
                       <>
                         <Building2 className="h-3 w-3" />
