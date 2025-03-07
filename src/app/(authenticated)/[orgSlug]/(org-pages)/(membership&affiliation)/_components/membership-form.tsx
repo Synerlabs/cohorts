@@ -1091,7 +1091,7 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                                       </FormItem>
                                     )}
                                   />
-                                </div>
+                    </div>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -1100,7 +1100,10 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
               </div>
                       <div className="text-sm text-muted-foreground">
                         <p>With this setting, memberships will last exactly {form.watch('duration_months') || 1} {form.watch('duration_unit') === 'year' ? (form.watch('duration_months') === 1 ? 'year' : 'years') : (form.watch('duration_months') === 1 ? 'month' : 'months')} from when the member joins.</p>
-            </div>
+                        {form.watch('has_monthly_cycle') && form.watch('duration_unit') === 'month' && 
+                          <p className="mt-1">Members who join mid-cycle will get a partial first month.</p>
+                        }
+                      </div>
                       
                       {form.watch('duration_unit') === 'month' && (
                         <div className="mt-3 border-t border-dashed pt-3">
@@ -1203,7 +1206,7 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                                                 max={31}
                                                 {...field}
                                                 value={field.value || ''}
-                                                onChange={(e) => {
+                  onChange={(e) => {
                                                   // Also update the tab-specific flags
                                                   form.setValue('has_fixed_dates', true);
                                                   form.setValue('is_fiscal_period', false);
@@ -1216,18 +1219,23 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                                                 }}
                                                 className="h-9"
                                                 placeholder="e.g., 31"
-                                              />
-                                            </FormControl>
+                />
+              </FormControl>
                                             <FormDescription className="text-xs mt-1.5">
                                               Day before next cycle starts
-                                            </FormDescription>
-                                          </FormItem>
-                                        )}
-                                      />
+              </FormDescription>
+            </FormItem>
+          )}
+        />
                                     )}
                                   </div>
                                 </div>
                               </div>
+                              
+                              <p className="text-sm text-muted-foreground mt-3">
+                                With this setting, memberships will align with monthly billing cycles. Members who join mid-cycle will get a partial first month.
+                                Total duration: {form.watch('duration_months') || 1} {form.watch('duration_unit')}{form.watch('duration_months') > 1 ? 's' : ''}.
+                              </p>
                             </>
                           ) : (
                             <p className="text-xs text-muted-foreground p-3 border border-dashed rounded-md bg-muted/30 flex items-center gap-2">
@@ -1242,13 +1250,6 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                     
                   <TabsContent value="fixed-dates" className="mt-4">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 mb-2 text-muted-foreground text-sm">
-                        <Info size={15} />
-                        <span>
-                          Memberships will start and end on specific calendar dates, regardless of when members join.
-                        </span>
-                      </div>
-                      
                       <div className="grid grid-cols-2 gap-6">
                         <FormField
                           control={form.control}
@@ -1306,18 +1307,17 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                           )}
                         />
                       </div>
+                      
+                      <div className="mt-4">
+                        <p className="text-sm text-muted-foreground">
+                          With this setting, all memberships will use these fixed dates regardless of when members join.
+                        </p>
+                      </div>
                     </div>
                   </TabsContent>
                     
                   <TabsContent value="fiscal-period" className="mt-4">
                     <div className="space-y-4">
-                      <div className="flex items-center gap-2 mb-2 text-muted-foreground text-sm">
-                        <Info size={15} />
-                        <span>
-                          Memberships will align with fiscal periods, with all memberships renewing on the same annual date.
-                        </span>
-                      </div>
-                      
                       <div className="grid grid-cols-2 gap-6">
                         <FormField
                           control={form.control}
@@ -1387,6 +1387,65 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                             </FormItem>
                           )}
                         />
+
+                        <div className="col-span-2 mt-3">
+                          <FormLabel className="block mb-2">Duration</FormLabel>
+                          <div className="flex items-center gap-2 max-w-[300px] mb-3">
+                            <FormField
+                              control={form.control}
+                              name="duration_months"
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <FormControl>
+                                    <Input
+                                      type="number"
+                                      min="1"
+                                      {...field}
+                                      onChange={e => {
+                                        // Set tab-specific flags
+                                        form.setValue('has_fixed_dates', false);
+                                        form.setValue('is_fiscal_period', true);
+                                        field.onChange(parseInt(e.target.value) || 1);
+                                      }}
+                                    />
+                                  </FormControl>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                            <FormField
+                              control={form.control}
+                              name="duration_unit"
+                              render={({ field }) => (
+                                <FormItem className="flex-1">
+                                  <Select 
+                                    onValueChange={(value) => {
+                                      // Set tab-specific flags
+                                      form.setValue('has_fixed_dates', false);
+                                      form.setValue('is_fiscal_period', true);
+                                      field.onChange(value);
+                                    }} 
+                                    value={field.value}
+                                  >
+                                    <FormControl>
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                      <SelectItem value="month">Month(s)</SelectItem>
+                                      <SelectItem value="year">Year(s)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                  <FormMessage />
+                                </FormItem>
+                              )}
+                            />
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            With this setting, memberships will align with your fiscal periods. If a member joins mid-fiscal period, their membership will end at the completion of {form.watch('duration_months') || 1} {form.watch('duration_unit') === 'year' ? (form.watch('duration_months') === 1 ? 'fiscal year' : 'fiscal years') : (form.watch('duration_months') === 1 ? 'fiscal month' : 'fiscal months')}.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </TabsContent>

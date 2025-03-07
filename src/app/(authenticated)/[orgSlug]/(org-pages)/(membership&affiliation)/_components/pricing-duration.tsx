@@ -1092,6 +1092,18 @@ export function PricingDuration({
                             )}
                           />
                           <div className="md:col-span-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <FormLabel className="cursor-help">Duration</FormLabel>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="w-80">
+                                    <p>The length of the membership in fiscal periods</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            </div>
                             <div className="flex items-center gap-2 max-w-[300px] mb-3">
                               <FormField
                                 control={form.control}

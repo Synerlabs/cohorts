@@ -323,32 +323,32 @@ export class MembershipService {
   static async createMembershipTier(data: any): Promise<any> {
     const supabase = await createClient();
     
-    const tierData = {
-      name: data.name,
-      description: data.description || '',
-      price: parseInt(data.price) || 0,
-      currency: data.currency,
-      group_id: data.group_id,
-      type: data.type || 'membership'
-    };
-    
-    // Create the product first
+    // Create a new product
     const { data: product, error: productError } = await supabase
       .from('products')
-      .insert(tierData)
+      .insert({
+        type: 'membership_tier',
+        name: data.name,
+        description: data.description,
+        price: parseInt(data.price) || 0,
+        currency: data.currency,
+        group_id: data.group_id,
+        is_active: true
+      })
       .select()
       .single();
     
     if (productError) throw productError;
     
     // Then create the membership tier with the new product ID
-    const membershipTierData = {
+    const membershipTierData: any = {
       product_id: product.id,
       duration_months: parseInt(data.duration_months) || 1,
       duration_unit: data.duration_unit || 'month',
       activation_type: data.activation_type,
       has_fixed_dates: data.has_fixed_dates === 'true' || data.has_fixed_dates === true,
       is_fiscal_period: data.is_fiscal_period === 'true' || data.is_fiscal_period === true,
+      has_monthly_cycle: data.has_monthly_cycle === 'true' || data.has_monthly_cycle === true,
       type: data.type || 'membership'
     };
 
@@ -362,6 +362,19 @@ export class MembershipService {
     
     if (data.fiscal_start_day) {
       membershipTierData.fiscal_start_day = parseInt(data.fiscal_start_day);
+    }
+    
+    // Add monthly cycle fields if they have values
+    if (data.monthly_start_day) {
+      membershipTierData.monthly_start_day = parseInt(data.monthly_start_day);
+    }
+    
+    if (data.monthly_end_day_type) {
+      membershipTierData.monthly_end_day_type = data.monthly_end_day_type;
+    }
+    
+    if (data.monthly_end_day) {
+      membershipTierData.monthly_end_day = parseInt(data.monthly_end_day);
     }
     
     // Add form template ID if provided
@@ -427,12 +440,13 @@ export class MembershipService {
     if (productError) throw productError;
     
     // Update the membership tier
-    const tierData = {
+    const tierData: any = {
       duration_months: parseInt(data.duration_months) || 1,
       duration_unit: data.duration_unit || 'month',
       activation_type: data.activation_type,
       has_fixed_dates: data.has_fixed_dates === 'true' || data.has_fixed_dates === true,
-      is_fiscal_period: data.is_fiscal_period === 'true' || data.is_fiscal_period === true
+      is_fiscal_period: data.is_fiscal_period === 'true' || data.is_fiscal_period === true,
+      has_monthly_cycle: data.has_monthly_cycle === 'true' || data.has_monthly_cycle === true
     };
 
     // Add optional fields only if they have values
@@ -453,7 +467,24 @@ export class MembershipService {
     } else if (data.fiscal_start_day === '') {
       tierData.fiscal_start_day = null;
     }
-
+    
+    // Handle monthly cycle fields
+    if (data.monthly_start_day) {
+      tierData.monthly_start_day = parseInt(data.monthly_start_day);
+    } else if (data.monthly_start_day === '') {
+      tierData.monthly_start_day = null;
+    }
+    
+    if (data.monthly_end_day_type) {
+      tierData.monthly_end_day_type = data.monthly_end_day_type;
+    }
+    
+    if (data.monthly_end_day) {
+      tierData.monthly_end_day = parseInt(data.monthly_end_day);
+    } else if (data.monthly_end_day === '') {
+      tierData.monthly_end_day = null;
+    }
+    
     // Add form template ID if provided
     if (data.form_template_id) {
       tierData.form_template_id = data.form_template_id;

@@ -20,10 +20,27 @@ export interface IProduct {
 export interface MembershipTierRow {
   product_id: string;
   duration_months: number;
+  duration_unit?: 'month' | 'year';
   activation_type: MembershipActivationType;
   member_id_format?: string;
   form_template_id?: string | null;
   type: 'membership' | 'organization';
+  form_template?: any | null;
+  
+  // Enhanced duration fields
+  has_fixed_dates?: boolean;
+  fixed_start_date?: string | null;
+  fixed_end_date?: string | null;
+  
+  is_fiscal_period?: boolean;
+  fiscal_start_month?: number | null;
+  fiscal_start_day?: number | null;
+  
+  has_monthly_cycle?: boolean;
+  monthly_start_day?: number | null;
+  monthly_end_day_type?: 'specific' | 'last_day';
+  monthly_end_day?: number | null;
+  
   roles?: {
     id: string;
     role_name: string;

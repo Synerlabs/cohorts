@@ -23,21 +23,13 @@ export class ProductService {
       .from('products')
       .select(`
         *,
-        membership_tiers!inner (
-          activation_type,
-          duration_months,
-          form_template_id,
-          membership_tier_settings (
-            member_id_format
-          ),
-          membership_tier_roles!left (
-            id,
-            group_roles (
-              id,
-              role_name,
-              permissions
-            )
-          )
+        membership_tiers!inner(
+          activation_type, duration_months, duration_unit, form_template_id, 
+          has_fixed_dates, fixed_start_date, fixed_end_date,
+          is_fiscal_period, fiscal_start_month, fiscal_start_day,
+          has_monthly_cycle, monthly_start_day, monthly_end_day_type, monthly_end_day,
+          membership_tier_settings(member_id_format), 
+          membership_tier_roles!left(id, deleted_at, group_roles(id, role_name, permissions))
         )
       `)
       .eq('id', id)
@@ -92,14 +84,27 @@ export class ProductService {
       membership_tier: {
         ...data.membership_tiers,
         form_template_id: data.membership_tiers?.form_template_id,
-        form_template: formTemplate,
+        form_template: data.membership_tiers?.form_template_id 
+          ? formTemplate
+          : undefined,
         member_id_format: data.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+        duration_unit: data.membership_tiers?.duration_unit || 'month',
+        has_fixed_dates: data.membership_tiers?.has_fixed_dates || false,
+        fixed_start_date: data.membership_tiers?.fixed_start_date || null,
+        fixed_end_date: data.membership_tiers?.fixed_end_date || null,
+        is_fiscal_period: data.membership_tiers?.is_fiscal_period || false,
+        fiscal_start_month: data.membership_tiers?.fiscal_start_month || null,
+        fiscal_start_day: data.membership_tiers?.fiscal_start_day || null,
+        has_monthly_cycle: data.membership_tiers?.has_monthly_cycle || false,
+        monthly_start_day: data.membership_tiers?.monthly_start_day || null,
+        monthly_end_day_type: data.membership_tiers?.monthly_end_day_type || 'specific',
+        monthly_end_day: data.membership_tiers?.monthly_end_day || null,
         roles: (data.membership_tiers?.membership_tier_roles || [])
           .filter((tr: MembershipTierRoleWithDeleted) => tr.group_roles && !tr.deleted_at)
           .map((tr: MembershipTierRole) => ({
             id: tr.group_roles.id,
             role_name: tr.group_roles.role_name,
-            permissions: tr.group_roles.permissions || []
+            permissions: tr.group_roles.permissions
           }))
       }
     } as IMembershipTierProduct;
@@ -144,12 +149,21 @@ export class ProductService {
       // For cards, we only need basic info
       selectQuery = `
         id, name, description, price, currency, group_id, is_active, created_at, updated_at,
-        membership_tiers!inner(activation_type, duration_months, type)
+        membership_tiers!inner(
+          activation_type, duration_months, duration_unit, type,
+          has_fixed_dates, fixed_start_date, fixed_end_date,
+          is_fiscal_period, fiscal_start_month, fiscal_start_day,
+          has_monthly_cycle, monthly_start_day, monthly_end_day_type, monthly_end_day
+        )
       `;
     } else {
       // Full data fetch
       selectQuery = `*,
-        membership_tiers!inner(activation_type, duration_months, form_template_id, 
+        membership_tiers!inner(
+          activation_type, duration_months, duration_unit, form_template_id, 
+          has_fixed_dates, fixed_start_date, fixed_end_date,
+          is_fiscal_period, fiscal_start_month, fiscal_start_day,
+          has_monthly_cycle, monthly_start_day, monthly_end_day_type, monthly_end_day,
           membership_tier_settings(member_id_format), 
           membership_tier_roles!left(id, deleted_at, group_roles(id, role_name, permissions))
         )`;
@@ -186,7 +200,7 @@ export class ProductService {
     
     // For card-only display, return simplified objects
     if (options?.cardsOnly) {
-      return data.map((item: any) => {
+      return (data as any[]).map((item) => {
         const tierData = item.membership_tiers || {};
         
         return {
@@ -204,9 +218,25 @@ export class ProductService {
           membership_tier: {
             product_id: item.id || '',
             duration_months: typeof tierData.duration_months === 'number' ? tierData.duration_months : 1,
+            duration_unit: 'month',
             activation_type: tierData.activation_type || 'automatic',
             type: tierData.type || 'membership',
-            member_id_format: null,
+            
+            // Add enhanced duration fields
+            has_fixed_dates: Boolean(tierData.has_fixed_dates),
+            fixed_start_date: tierData.fixed_start_date || null,
+            fixed_end_date: tierData.fixed_end_date || null,
+            
+            is_fiscal_period: Boolean(tierData.is_fiscal_period),
+            fiscal_start_month: tierData.fiscal_start_month || null,
+            fiscal_start_day: tierData.fiscal_start_day || null,
+            
+            has_monthly_cycle: Boolean(tierData.has_monthly_cycle),
+            monthly_start_day: tierData.monthly_start_day || null,
+            monthly_end_day_type: tierData.monthly_end_day_type as 'specific' || 'specific',
+            monthly_end_day: tierData.monthly_end_day || null,
+            
+            member_id_format: 'MEM-{YYYY}-{SEQ:3}',
             roles: [],
             form_template_id: null,
             form_template: null
@@ -220,9 +250,9 @@ export class ProductService {
       // Get form templates for all tiers that have form_template_id
       const formTemplateIds = Array.isArray(data) ? 
         data
-          .filter(tier => tier && typeof tier === 'object')
-          .map(tier => tier.membership_tiers?.form_template_id)
-          .filter(id => id) as string[] : [];
+          .filter((tier: any) => tier && typeof tier === 'object')
+          .map((tier: any) => tier.membership_tiers?.form_template_id)
+          .filter((id: any) => id) as string[] : [];
 
       let formTemplates: Record<string, any> = {};
       if (formTemplateIds.length > 0) {
@@ -257,7 +287,7 @@ export class ProductService {
         }
       }
 
-      return data.map(tier => ({
+      return (data as any[]).map((tier) => ({
         ...tier,
         membership_tier: {
           ...tier.membership_tiers,
@@ -266,12 +296,23 @@ export class ProductService {
             ? formTemplates[tier.membership_tiers.form_template_id]
             : undefined,
           member_id_format: tier.membership_tiers?.membership_tier_settings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
+          duration_unit: 'month',
+          has_fixed_dates: Boolean(tier.membership_tiers?.has_fixed_dates),
+          fixed_start_date: tier.membership_tiers?.fixed_start_date || null,
+          fixed_end_date: tier.membership_tiers?.fixed_end_date || null,
+          is_fiscal_period: Boolean(tier.membership_tiers?.is_fiscal_period),
+          fiscal_start_month: tier.membership_tiers?.fiscal_start_month || null,
+          fiscal_start_day: tier.membership_tiers?.fiscal_start_day || null,
+          has_monthly_cycle: Boolean(tier.membership_tiers?.has_monthly_cycle),
+          monthly_start_day: tier.membership_tiers?.monthly_start_day || null,
+          monthly_end_day_type: tier.membership_tiers?.monthly_end_day_type as 'specific' || 'specific',
+          monthly_end_day: tier.membership_tiers?.monthly_end_day || null,
           roles: (tier.membership_tiers?.membership_tier_roles || [])
             .filter((tr: MembershipTierRoleWithDeleted) => tr.group_roles && !tr.deleted_at)
             .map((tr: MembershipTierRole) => ({
               id: tr.group_roles.id,
               role_name: tr.group_roles.role_name,
-              permissions: tr.group_roles.permissions || []
+              permissions: tr.group_roles.permissions
             }))
         }
       })) as IMembershipTierProduct[];
@@ -287,97 +328,138 @@ export class ProductService {
     price: number;
     currency: string;
     duration_months: number;
+    duration_unit?: 'month' | 'year';
     activation_type: string;
     member_id_format: string;
     form_template_id?: string | null;
     roles?: string[];
     type?: 'membership' | 'organization';
+    has_fixed_dates?: boolean;
+    fixed_start_date?: string | null;
+    fixed_end_date?: string | null;
+    is_fiscal_period?: boolean;
+    fiscal_start_month?: number | null;
+    fiscal_start_day?: number | null;
+    has_monthly_cycle?: boolean;
+    monthly_start_day?: number | null;
+    monthly_end_day_type?: 'specific' | 'last_day';
+    monthly_end_day?: number | null;
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
-    // Start a transaction
+    // Start transaction
     await supabase.rpc('begin_transaction');
-
+    
     try {
+      // Create product
       const { data: product, error: productError } = await supabase
         .from('products')
         .insert({
-          type: 'membership_tier',
           name: tier.name,
           description: tier.description,
           price: tier.price,
           currency: tier.currency,
-          group_id: groupId,
-          is_active: true
+          type: 'membership_tier',
+          group_id: groupId
         })
         .select()
         .single();
-
+      
       if (productError) {
         throw productError;
       }
-
-      if (!product) {
-        throw new Error('Failed to create product');
-      }
-
-      const { data: membershipTier, error: membershipError } = await supabase
+      
+      // Create membership tier
+      const { error: tierError } = await supabase
         .from('membership_tiers')
         .insert({
           product_id: product.id,
           duration_months: tier.duration_months,
+          duration_unit: tier.duration_unit || 'month',
           activation_type: tier.activation_type,
-          form_template_id: tier.form_template_id,
-          type: tier.type || 'membership'
-        })
-        .select()
-        .single();
-
-      if (membershipError) {
-        throw membershipError;
+          form_template_id: tier.form_template_id || null,
+          type: tier.type || 'membership',
+          
+          // Add enhanced duration fields
+          has_fixed_dates: tier.has_fixed_dates || false,
+          fixed_start_date: tier.fixed_start_date || null,
+          fixed_end_date: tier.fixed_end_date || null,
+          
+          is_fiscal_period: tier.is_fiscal_period || false,
+          fiscal_start_month: tier.fiscal_start_month || null,
+          fiscal_start_day: tier.fiscal_start_day || null,
+          
+          has_monthly_cycle: tier.has_monthly_cycle || false,
+          monthly_start_day: tier.monthly_start_day || null,
+          monthly_end_day_type: tier.monthly_end_day_type || 'specific',
+          monthly_end_day: tier.monthly_end_day || null
+        });
+      
+      if (tierError) {
+        throw tierError;
       }
-
-      const { data: tierSettings, error: settingsError } = await supabase
+      
+      // Create membership tier settings
+      const { error: settingsError } = await supabase
         .from('membership_tier_settings')
         .insert({
-          tier_id: membershipTier.product_id,
+          tier_id: product.id,
           member_id_format: tier.member_id_format
-        })
-        .select()
-        .single();
-
+        });
+      
       if (settingsError) {
         throw settingsError;
       }
-
-      // Insert role associations if provided
+      
+      // Add roles if provided
       if (tier.roles && tier.roles.length > 0) {
+        const rolesToInsert = tier.roles.map(roleId => ({
+          tier_id: product.id,
+          group_role_id: roleId
+        }));
+        
         const { error: rolesError } = await supabase
           .from('membership_tier_roles')
-          .insert(
-            tier.roles.map(roleId => ({
-              tier_id: membershipTier.product_id,
-              group_role_id: roleId
-            }))
-          );
-
+          .insert(rolesToInsert);
+        
         if (rolesError) {
           throw rolesError;
         }
       }
-
+      
       // Commit transaction
       await supabase.rpc('commit_transaction');
-
+      
       return {
         ...product,
         membership_tier: {
-          ...membershipTier,
-          member_id_format: tierSettings.member_id_format
+          product_id: product.id,
+          duration_months: tier.duration_months,
+          duration_unit: 'month',
+          activation_type: tier.activation_type,
+          form_template_id: tier.form_template_id || null,
+          type: tier.type || 'membership',
+          
+          // Add enhanced duration fields
+          has_fixed_dates: tier.has_fixed_dates || false,
+          fixed_start_date: tier.fixed_start_date || null,
+          fixed_end_date: tier.fixed_end_date || null,
+          
+          is_fiscal_period: tier.is_fiscal_period || false,
+          fiscal_start_month: tier.fiscal_start_month || null,
+          fiscal_start_day: tier.fiscal_start_day || null,
+          
+          has_monthly_cycle: tier.has_monthly_cycle || false,
+          monthly_start_day: tier.monthly_start_day || null,
+          monthly_end_day_type: tier.monthly_end_day_type || 'specific',
+          monthly_end_day: tier.monthly_end_day || null,
+          
+          member_id_format: tier.member_id_format,
+          roles: tier.roles?.map(id => ({ id })) || []
         }
       } as IMembershipTierProduct;
     } catch (error) {
-      // Rollback on error
+      // Rollback transaction on error
       await supabase.rpc('rollback_transaction');
       throw error;
     }
@@ -389,120 +471,89 @@ export class ProductService {
     price?: number;
     currency?: string;
     duration_months?: number;
+    duration_unit?: 'month' | 'year';
     activation_type?: string;
     member_id_format?: string;
     form_template_id?: string | null;
     rolesToAdd?: string[];
     rolesToRemove?: string[];
     type?: 'membership' | 'organization';
+    has_fixed_dates?: boolean;
+    fixed_start_date?: string | null;
+    fixed_end_date?: string | null;
+    is_fiscal_period?: boolean;
+    fiscal_start_month?: number | null;
+    fiscal_start_day?: number | null;
+    has_monthly_cycle?: boolean;
+    monthly_start_day?: number | null;
+    monthly_end_day_type?: 'specific' | 'last_day';
+    monthly_end_day?: number | null;
   }): Promise<IMembershipTierProduct> {
     const supabase = await createClient();
     
-    const { 
-      name, 
-      description, 
-      price, 
-      currency, 
-      duration_months, 
-      activation_type, 
-      member_id_format, 
-      form_template_id,
-      type,
-      rolesToAdd = [], 
-      rolesToRemove = [] 
-    } = tier;
-
-    // Start a transaction
+    // Start transaction
     await supabase.rpc('begin_transaction');
 
     try {
-      const { data: product, error: productError } = await supabase
-        .from('products')
-        .update({
-          name,
-          description,
-          price,
-          currency
-        })
-        .eq('id', id)
-        .select()
-        .single();
+      // Update product data
+      const productData: Record<string, any> = {};
+      if (tier.name) productData.name = tier.name;
+      if (tier.description !== undefined) productData.description = tier.description;
+      if (tier.price !== undefined) productData.price = tier.price;
+      if (tier.currency) productData.currency = tier.currency;
 
-      if (productError) {
-        throw productError;
+      if (Object.keys(productData).length > 0) {
+        const { data: product, error: productError } = await supabase
+          .from('products')
+          .update(productData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (productError) {
+          throw productError;
+        }
       }
 
-      if (!product) {
-        throw new Error('Failed to update product');
-      }
+      // Update membership tier data
+      const tierData: Record<string, any> = {};
+      if (tier.duration_months !== undefined) tierData.duration_months = tier.duration_months;
+      if (tier.activation_type) tierData.activation_type = tier.activation_type;
+      if (tier.form_template_id !== undefined) tierData.form_template_id = tier.form_template_id;
+      if (tier.type) tierData.type = tier.type;
+      if (tier.duration_unit) tierData.duration_unit = tier.duration_unit;
+      
+      // Add enhanced duration fields
+      if (tier.has_fixed_dates !== undefined) tierData.has_fixed_dates = tier.has_fixed_dates;
+      if (tier.fixed_start_date !== undefined) tierData.fixed_start_date = tier.fixed_start_date;
+      if (tier.fixed_end_date !== undefined) tierData.fixed_end_date = tier.fixed_end_date;
+      
+      if (tier.is_fiscal_period !== undefined) tierData.is_fiscal_period = tier.is_fiscal_period;
+      if (tier.fiscal_start_month !== undefined) tierData.fiscal_start_month = tier.fiscal_start_month;
+      if (tier.fiscal_start_day !== undefined) tierData.fiscal_start_day = tier.fiscal_start_day;
+      
+      if (tier.has_monthly_cycle !== undefined) tierData.has_monthly_cycle = tier.has_monthly_cycle;
+      if (tier.monthly_start_day !== undefined) tierData.monthly_start_day = tier.monthly_start_day;
+      if (tier.monthly_end_day_type !== undefined) tierData.monthly_end_day_type = tier.monthly_end_day_type;
+      if (tier.monthly_end_day !== undefined) tierData.monthly_end_day = tier.monthly_end_day;
 
-      const { data: membershipTier, error: membershipError } = await supabase
-        .from('membership_tiers')
-        .update({
-          duration_months,
-          activation_type,
-          form_template_id,
-          type
-        })
-        .eq('product_id', id)
-        .select()
-        .single();
-
-      if (membershipError) {
-        throw membershipError;
-      }
-
-      // Handle role changes if any are provided
-      if (rolesToRemove.length > 0 || rolesToAdd.length > 0) {
-        console.log('Role changes detected:', { rolesToAdd, rolesToRemove });
+      if (Object.keys(tierData).length > 0) {
+        const { error: tierError } = await supabase
+          .from('membership_tiers')
+          .update(tierData)
+          .eq('product_id', id);
         
-        // First, delete the roles that need to be removed
-        if (rolesToRemove.length > 0) {
-          console.log('Removing roles:', rolesToRemove);
-          
-          const { data: removedRoles, error: deleteRolesError } = await supabase
-            .from('membership_tier_roles')
-            .delete()
-            .eq('tier_id', id)
-            .in('group_role_id', rolesToRemove)
-            .select();
-
-          if (deleteRolesError) {
-            console.error('Error removing roles:', deleteRolesError);
-            throw deleteRolesError;
-          }
-          
-          console.log('Removed roles result:', removedRoles);
-        }
-
-        // Then add new roles
-        if (rolesToAdd.length > 0) {
-          const { error: upsertRolesError } = await supabase
-            .from('membership_tier_roles')
-            .upsert(
-              rolesToAdd.map(roleId => ({
-                tier_id: id,
-                group_role_id: roleId,
-                deleted_at: null,
-                deleted_by: null
-              })),
-              {
-                onConflict: 'tier_id,group_role_id',
-                ignoreDuplicates: false
-              }
-            );
-
-          if (upsertRolesError) {
-            throw upsertRolesError;
-          }
+        if (tierError) {
+          throw tierError;
         }
       }
 
-      if (member_id_format) {
+      // Update member_id_format if provided
+      if (tier.member_id_format) {
         const { data: tierSettings, error: settingsError } = await supabase
           .from('membership_tier_settings')
           .update({
-            member_id_format
+            member_id_format: tier.member_id_format
           })
           .eq('tier_id', id)
           .select()
@@ -523,9 +574,9 @@ export class ProductService {
           .is('deleted_at', null);
 
         return {
-          ...product,
+          ...productData,
           membership_tier: {
-            ...membershipTier,
+            ...tierData,
             member_id_format: tierSettings.member_id_format,
             roles: currentRoles?.map(role => ({ id: role.group_role_id })) || []
           }
@@ -543,13 +594,12 @@ export class ProductService {
         .is('deleted_at', null);
 
       return {
-        ...product,
+        ...productData,
         membership_tier: {
-          ...membershipTier,
+          ...tierData,
           roles: currentRoles?.map(role => ({ id: role.group_role_id })) || []
         }
       } as IMembershipTierProduct;
-
     } catch (error) {
       // Rollback transaction on error
       await supabase.rpc('rollback_transaction');
@@ -609,10 +659,88 @@ export class ProductService {
     isDeleted = false, 
     type?: 'membership' | 'organization'
   ): Promise<IMembershipTierProduct[]> {
-    // Get membership tiers with the cardsOnly option and type filter
-    return await this.getMembershipTiers(groupId, isDeleted, { 
-      cardsOnly: true,
-      tierType: type
+    const supabase = await createClient();
+    
+    let query = supabase
+      .from('products')
+      .select(`
+        id, name, description, price, currency, group_id, is_active, created_at, updated_at,
+        membership_tiers!inner(
+          activation_type, duration_months, duration_unit, type,
+          has_fixed_dates, fixed_start_date, fixed_end_date,
+          is_fiscal_period, fiscal_start_month, fiscal_start_day,
+          has_monthly_cycle, monthly_start_day, monthly_end_day_type, monthly_end_day
+        )
+      `)
+      .eq('group_id', groupId)
+      .eq('type', 'membership_tier');
+
+    // Handle deleted items filtering
+    if (isDeleted) {
+      query = query.eq('is_deleted', true);
+    } else {
+      query = query.or('is_deleted.eq.false,is_deleted.is.null');
+    }
+    
+    // Filter by tier type if specified
+    if (type) {
+      query = query.eq('membership_tiers.type', type);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Error fetching membership tiers:', error);
+      return [];
+    }
+
+    if (!data || data.length === 0) {
+      return [];
+    }
+    
+    // For card-only display, return simplified objects
+    return data.map((item: any) => {
+      const tierData = item.membership_tiers || {};
+      
+      return {
+        id: item.id || '',
+        type: 'membership_tier' as const,
+        name: item.name || '',
+        description: item.description || '',
+        price: typeof item.price === 'number' ? item.price : 0,
+        currency: item.currency || 'USD',
+        group_id: item.group_id || '',
+        is_active: !!item.is_active,
+        created_at: item.created_at || new Date().toISOString(),
+        updated_at: item.updated_at || new Date().toISOString(),
+        form_template_id: '', // Required by interface
+        membership_tier: {
+          product_id: item.id || '',
+          duration_months: typeof tierData.duration_months === 'number' ? tierData.duration_months : 1,
+          duration_unit: tierData.duration_unit || 'month',
+          activation_type: tierData.activation_type || 'automatic',
+          type: tierData.type || 'membership',
+          
+          // Add enhanced duration fields
+          has_fixed_dates: tierData.has_fixed_dates || false,
+          fixed_start_date: tierData.fixed_start_date || null,
+          fixed_end_date: tierData.fixed_end_date || null,
+          
+          is_fiscal_period: tierData.is_fiscal_period || false,
+          fiscal_start_month: tierData.fiscal_start_month || null,
+          fiscal_start_day: tierData.fiscal_start_day || null,
+          
+          has_monthly_cycle: tierData.has_monthly_cycle || false,
+          monthly_start_day: tierData.monthly_start_day || null,
+          monthly_end_day_type: tierData.monthly_end_day_type || 'specific',
+          monthly_end_day: tierData.monthly_end_day || null,
+          
+          member_id_format: 'MEM-{YYYY}-{SEQ:3}',
+          roles: [],
+          form_template_id: null,
+          form_template: null
+        }
+      } as unknown as IMembershipTierProduct;
     });
   }
 } 
