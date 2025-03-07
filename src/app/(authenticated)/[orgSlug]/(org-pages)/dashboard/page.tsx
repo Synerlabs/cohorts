@@ -10,7 +10,7 @@ import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import JoinNowHero from "./_components/JoinNowHero";
 async function OrgHomePage({ org, user, isGuest }: OrgAccessHOCProps) {
   // Since we're not allowing guests, user will always be defined
-  const membership = await getUserMembership(user!.id, org.id);
+  const membership = await getUserMembership({ userId: user!.id, groupId: org.id });
 
   if (!membership) {
     return <JoinNowHero org={org} />;

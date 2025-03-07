@@ -190,8 +190,25 @@ export async function getMembership(
   return data;
 }
 
-export async function getUserMembership({ userId, groupId }: { userId: string; groupId: string }) {
+export async function getUserMembership(userIdOrParams: string | { userId: string; groupId: string }, groupIdParam?: string) {
   const supabase = await createClient();
+  
+  // Handle both parameter styles for backward compatibility
+  let userId: string;
+  let groupId: string;
+  
+  if (typeof userIdOrParams === 'string' && groupIdParam) {
+    // Old style with positional parameters
+    userId = userIdOrParams;
+    groupId = groupIdParam;
+  } else if (typeof userIdOrParams === 'object') {
+    // New style with object parameter
+    userId = userIdOrParams.userId;
+    groupId = userIdOrParams.groupId;
+  } else {
+    throw new Error('Invalid parameters for getUserMembership');
+  }
+  
   console.log('Getting user membership:', { userId, groupId });
 
   // Get the group user ID first
@@ -229,7 +246,7 @@ export async function getUserMembership({ userId, groupId }: { userId: string; g
     description: string;
     price: number;
     currency: string;
-    membership_tiers: MembershipTierData[];
+    membership_tiers: MembershipTierData;
   };
 
   type PaymentData = {
@@ -250,7 +267,7 @@ export async function getUserMembership({ userId, groupId }: { userId: string; g
     end_date: string | null;
     created_at: string;
     tier: TierData;
-    orders: OrderData[];
+    orders: OrderData;
   };
 
   // Get the membership
@@ -263,18 +280,12 @@ export async function getUserMembership({ userId, groupId }: { userId: string; g
       end_date,
       created_at,
       tier:tier_id (
-        id,
-        name,
-        description,
-        price,
-        currency,
-        membership_tiers (
+        
           activation_type,
           duration_months,
           membership_tier_settings (
             member_id_format
           )
-        )
       ),
       orders:order_id (
         id,
@@ -300,9 +311,7 @@ export async function getUserMembership({ userId, groupId }: { userId: string; g
     const typedMembership = membership as unknown as MembershipData;
     
     // Check if there are any pending payments
-    const hasPendingPayments = typedMembership.orders?.some((order) => 
-      order.payments?.some((p) => p.status === 'pending')
-    );
+    const hasPendingPayments = typedMembership.orders?.status === 'pending';
     const status = hasPendingPayments ? 'pending_payment' : typedMembership.status;
 
     // A membership is active if:
@@ -325,9 +334,9 @@ export async function getUserMembership({ userId, groupId }: { userId: string; g
         price: typedMembership.tier.price,
         currency: typedMembership.tier.currency,
         membership_tiers: {
-          activation_type: typedMembership.tier.membership_tiers[0]?.activation_type,
-          duration_months: typedMembership.tier.membership_tiers[0]?.duration_months,
-          member_id_format: typedMembership.tier.membership_tiers[0]?.membership_tier_settings?.[0]?.member_id_format
+          activation_type: typedMembership.tier.activation_type,
+          duration_months: typedMembership.tier.duration_months,
+          member_id_format: typedMembership.tier.membership_tier_settings?.[0]?.member_id_format
         }
       },
       is_active: isActive,

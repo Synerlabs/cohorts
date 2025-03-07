@@ -1,9 +1,10 @@
 "use client";
 import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { startTransition, useActionState } from "react";
 import { joinGroupAction } from "@/app/(public)/[orgSlug]/join/actions/join.action";
+import { UserPlus, Loader2 } from "lucide-react";
 
 type JoinOrgFormProps = {
   org: {
@@ -26,26 +27,52 @@ export function JoinOrgForm({ org, userId }: JoinOrgFormProps) {
   };
 
   return (
-    <Card className="w-[369px]">
-      <CardHeader>
-        <CardTitle className="text-xl">Join {org.name}</CardTitle>
-        <CardDescription>
-          Click below to join this organization
+    <Card className="w-full max-w-md shadow-lg border-primary/20">
+      <CardHeader className="text-center pb-4">
+        <CardTitle className="text-2xl font-bold">Join {org.name}</CardTitle>
+        <CardDescription className="text-base">
+          Become a member of this organization
         </CardDescription>
+      </CardHeader>
+      
+      <CardContent className="space-y-6">
+        <div className="bg-primary/5 p-4 rounded-lg text-center space-y-2">
+          <p className="text-sm text-muted-foreground">
+            By joining this organization, you'll get access to exclusive content, events, and community discussions.
+          </p>
+          <p className="text-sm font-medium">
+            Membership is free and instant!
+          </p>
+        </div>
+        
         {state?.error && (
           <Alert variant="destructive">
             <AlertTitle>Error</AlertTitle>
             <AlertDescription>{state.error}</AlertDescription>
           </Alert>
         )}
+      </CardContent>
+      
+      <CardFooter>
         <Button 
           onClick={handleJoinOrg} 
           disabled={pending}
-          className="w-full mt-4"
+          className="w-full"
+          size="lg"
         >
-          {pending ? "Joining..." : "Join Organization"}
+          {pending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Joining...
+            </>
+          ) : (
+            <>
+              <UserPlus className="mr-2 h-5 w-5" />
+              Join Organization
+            </>
+          )}
         </Button>
-      </CardHeader>
+      </CardFooter>
     </Card>
   );
 } 
