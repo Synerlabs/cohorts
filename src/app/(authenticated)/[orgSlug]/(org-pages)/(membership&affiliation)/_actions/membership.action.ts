@@ -16,6 +16,7 @@ const membershipTierSchema = z.object({
   price: z.number().min(0, "Price must be 0 or greater"),
   currency: z.enum(['USD', 'EUR', 'GBP', 'CAD', 'AUD'] as const),
   duration_months: z.number().min(1, "Duration must be at least 1 month"),
+  duration_unit: z.enum(['month', 'year'] as const).default('month'),
   group_id: z.string(),
   activation_type: z.enum([
     'automatic',
@@ -31,7 +32,18 @@ const membershipTierSchema = z.object({
   member_id_format: z.string().min(1, "Member ID format is required").default('MEM-{YYYY}-{SEQ:3}'),
   form_template_id: z.string().optional().nullable(),
   roles: z.array(z.string()).default([]),
-  type: z.enum(['membership', 'organization'] as const).default('membership')
+  type: z.enum(['membership', 'organization'] as const).default('membership'),
+  // Duration settings
+  has_fixed_dates: z.boolean().default(false),
+  fixed_start_date: z.string().nullable().optional(),
+  fixed_end_date: z.string().nullable().optional(),
+  is_fiscal_period: z.boolean().default(false),
+  fiscal_start_month: z.number().nullable().optional(),
+  fiscal_start_day: z.number().nullable().optional(),
+  has_monthly_cycle: z.boolean().default(false),
+  monthly_start_day: z.number().nullable().optional(),
+  monthly_end_day_type: z.enum(['specific', 'last_day'] as const).default('specific'),
+  monthly_end_day: z.number().nullable().optional()
 });
 
 const membershipTierUpdateSchema = membershipTierSchema
@@ -205,12 +217,59 @@ export async function createMembershipTierAction(
           formTemplateId = null;
         }
 
+        // Parse duration unit (ensuring it has a value)
+        const duration_unit = (formDataObj.duration_unit as string) || 'month';
+
+        // Parse boolean values
+        const has_fixed_dates = formDataObj.has_fixed_dates === 'true';
+        const is_fiscal_period = formDataObj.is_fiscal_period === 'true';
+        const has_monthly_cycle = formDataObj.has_monthly_cycle === 'true';
+
+        // Handle date fields
+        let fixed_start_date: string | null = formDataObj.fixed_start_date as string;
+        if (!fixed_start_date || fixed_start_date === 'null' || fixed_start_date === '') {
+          fixed_start_date = null;
+        }
+
+        let fixed_end_date: string | null = formDataObj.fixed_end_date as string;
+        if (!fixed_end_date || fixed_end_date === 'null' || fixed_end_date === '') {
+          fixed_end_date = null;
+        }
+
+        // Parse nullable number values - handling 'null' string values
+        const fiscal_start_month = formDataObj.fiscal_start_month === 'null' || !formDataObj.fiscal_start_month 
+          ? null 
+          : parseInt(formDataObj.fiscal_start_month as string);
+          
+        const fiscal_start_day = formDataObj.fiscal_start_day === 'null' || !formDataObj.fiscal_start_day 
+          ? null 
+          : parseInt(formDataObj.fiscal_start_day as string);
+          
+        const monthly_start_day = formDataObj.monthly_start_day === 'null' || !formDataObj.monthly_start_day 
+          ? null 
+          : parseInt(formDataObj.monthly_start_day as string);
+          
+        const monthly_end_day = formDataObj.monthly_end_day === 'null' || !formDataObj.monthly_end_day 
+          ? null 
+          : parseInt(formDataObj.monthly_end_day as string);
+
         const parsedFormData = membershipTierSchema.safeParse({
           ...formDataObj,
           price,
           duration_months,
+          duration_unit,
           roles,
-          form_template_id: formTemplateId
+          form_template_id: formTemplateId,
+          has_fixed_dates,
+          is_fiscal_period,
+          has_monthly_cycle,
+          fixed_start_date,
+          fixed_end_date,
+          fiscal_start_month,
+          fiscal_start_day,
+          monthly_start_day,
+          monthly_end_day_type: formDataObj.monthly_end_day_type as 'specific' | 'last_day' || 'specific',
+          monthly_end_day
         });
 
         if (!parsedFormData.success) {
@@ -243,11 +302,23 @@ export async function createMembershipTierAction(
             price: parsedFormData.data.price,
             currency: parsedFormData.data.currency,
             duration_months: parsedFormData.data.duration_months,
+            duration_unit: parsedFormData.data.duration_unit,
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
             form_template_id: parsedFormData.data.form_template_id,
             roles: parsedFormData.data.roles,
-            type: parsedFormData.data.type || 'membership'
+            type: parsedFormData.data.type || 'membership',
+            // Include duration settings
+            has_fixed_dates: parsedFormData.data.has_fixed_dates,
+            fixed_start_date: parsedFormData.data.fixed_start_date,
+            fixed_end_date: parsedFormData.data.fixed_end_date,
+            is_fiscal_period: parsedFormData.data.is_fiscal_period,
+            fiscal_start_month: parsedFormData.data.fiscal_start_month,
+            fiscal_start_day: parsedFormData.data.fiscal_start_day,
+            has_monthly_cycle: parsedFormData.data.has_monthly_cycle,
+            monthly_start_day: parsedFormData.data.monthly_start_day,
+            monthly_end_day_type: parsedFormData.data.monthly_end_day_type,
+            monthly_end_day: parsedFormData.data.monthly_end_day
           }
         );
 
@@ -282,6 +353,9 @@ export async function updateMembershipTierAction(
   prevState: PrevState,
   formData: FormData,
 ) {
+  // Log the form data for debugging
+  console.log('Update Membership Tier Action - Form Data:', Object.fromEntries(formData.entries()));
+
   const handler = await withPermissions(
     async (context: { userId: string; groupId: string }, params: unknown): Promise<ActionResult<unknown>> => {
       try {
@@ -297,12 +371,59 @@ export async function updateMembershipTierAction(
           formTemplateId = null;
         }
 
+        // Parse duration unit (ensuring it has a value)
+        const duration_unit = (formDataObj.duration_unit as string) || 'month';
+
+        // Parse boolean values
+        const has_fixed_dates = formDataObj.has_fixed_dates === 'true';
+        const is_fiscal_period = formDataObj.is_fiscal_period === 'true';
+        const has_monthly_cycle = formDataObj.has_monthly_cycle === 'true';
+
+        // Handle date fields
+        let fixed_start_date: string | null = formDataObj.fixed_start_date as string;
+        if (!fixed_start_date || fixed_start_date === 'null' || fixed_start_date === '') {
+          fixed_start_date = null;
+        }
+
+        let fixed_end_date: string | null = formDataObj.fixed_end_date as string;
+        if (!fixed_end_date || fixed_end_date === 'null' || fixed_end_date === '') {
+          fixed_end_date = null;
+        }
+
+        // Parse nullable number values - handling 'null' string values
+        const fiscal_start_month = formDataObj.fiscal_start_month === 'null' || !formDataObj.fiscal_start_month 
+          ? null 
+          : parseInt(formDataObj.fiscal_start_month as string);
+          
+        const fiscal_start_day = formDataObj.fiscal_start_day === 'null' || !formDataObj.fiscal_start_day 
+          ? null 
+          : parseInt(formDataObj.fiscal_start_day as string);
+          
+        const monthly_start_day = formDataObj.monthly_start_day === 'null' || !formDataObj.monthly_start_day 
+          ? null 
+          : parseInt(formDataObj.monthly_start_day as string);
+          
+        const monthly_end_day = formDataObj.monthly_end_day === 'null' || !formDataObj.monthly_end_day 
+          ? null 
+          : parseInt(formDataObj.monthly_end_day as string);
+
         const parsedFormData = membershipTierUpdateSchema.safeParse({
           ...formDataObj,
           price,
           duration_months,
+          duration_unit,
           roles: newRoles,
-          form_template_id: formTemplateId
+          form_template_id: formTemplateId,
+          has_fixed_dates,
+          is_fiscal_period,
+          has_monthly_cycle,
+          fixed_start_date,
+          fixed_end_date,
+          fiscal_start_month,
+          fiscal_start_day,
+          monthly_start_day,
+          monthly_end_day_type: formDataObj.monthly_end_day_type as 'specific' | 'last_day' || 'specific',
+          monthly_end_day
         });
 
         if (!parsedFormData.success) {
@@ -339,12 +460,24 @@ export async function updateMembershipTierAction(
             price: parsedFormData.data.price,
             currency: parsedFormData.data.currency,
             duration_months: parsedFormData.data.duration_months,
+            duration_unit: parsedFormData.data.duration_unit,
             activation_type: parsedFormData.data.activation_type,
             member_id_format: parsedFormData.data.member_id_format,
             form_template_id: parsedFormData.data.form_template_id || null,
             rolesToAdd,
             rolesToRemove,
-            type: parsedFormData.data.type
+            type: parsedFormData.data.type,
+            // Include duration settings
+            has_fixed_dates: parsedFormData.data.has_fixed_dates,
+            fixed_start_date: parsedFormData.data.fixed_start_date,
+            fixed_end_date: parsedFormData.data.fixed_end_date,
+            is_fiscal_period: parsedFormData.data.is_fiscal_period,
+            fiscal_start_month: parsedFormData.data.fiscal_start_month,
+            fiscal_start_day: parsedFormData.data.fiscal_start_day,
+            has_monthly_cycle: parsedFormData.data.has_monthly_cycle,
+            monthly_start_day: parsedFormData.data.monthly_start_day,
+            monthly_end_day_type: parsedFormData.data.monthly_end_day_type,
+            monthly_end_day: parsedFormData.data.monthly_end_day
           }
         );
 

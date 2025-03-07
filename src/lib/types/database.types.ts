@@ -560,23 +560,56 @@ export type Database = {
         Row: {
           activation_type: string
           duration_months: number
+          duration_unit?: string
           form_template_id: string | null
           product_id: string
           type: string
+          has_fixed_dates?: boolean
+          fixed_start_date?: string | null
+          fixed_end_date?: string | null
+          is_fiscal_period?: boolean
+          fiscal_start_month?: number | null
+          fiscal_start_day?: number | null
+          has_monthly_cycle?: boolean
+          monthly_start_day?: number | null
+          monthly_end_day_type?: string
+          monthly_end_day?: number | null
         }
         Insert: {
           activation_type: string
           duration_months?: number
+          duration_unit?: string
           form_template_id?: string | null
           product_id: string
           type?: string
+          has_fixed_dates?: boolean
+          fixed_start_date?: string | null
+          fixed_end_date?: string | null
+          is_fiscal_period?: boolean
+          fiscal_start_month?: number | null
+          fiscal_start_day?: number | null
+          has_monthly_cycle?: boolean
+          monthly_start_day?: number | null
+          monthly_end_day_type?: string
+          monthly_end_day?: number | null
         }
         Update: {
           activation_type?: string
           duration_months?: number
+          duration_unit?: string
           form_template_id?: string | null
           product_id?: string
           type?: string
+          has_fixed_dates?: boolean
+          fixed_start_date?: string | null
+          fixed_end_date?: string | null
+          is_fiscal_period?: boolean
+          fiscal_start_month?: number | null
+          fiscal_start_day?: number | null
+          has_monthly_cycle?: boolean
+          monthly_start_day?: number | null
+          monthly_end_day_type?: string
+          monthly_end_day?: number | null
         }
         Relationships: [
           {

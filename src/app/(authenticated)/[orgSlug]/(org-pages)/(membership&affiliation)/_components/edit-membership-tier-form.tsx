@@ -1,7 +1,7 @@
 'use client';
 
 import { IMembershipTierProduct } from "@/lib/types/product";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { MembershipActivationType, Currency } from "@/lib/types/membership";
 import { Database } from "@/lib/types/database.types";
 import { updateMembershipTierAction } from "../_actions/membership.action";
@@ -122,12 +122,45 @@ export function EditMembershipTierForm({
     price: tier.price / 100,
     currency: tier.currency as Currency,
     duration_months: tier.membership_tier?.duration_months || 1,
+    duration_unit: tier.membership_tier?.duration_unit as ('month' | 'year') || 'month',
     ...getStepConfiguration(tier.membership_tier?.activation_type as MembershipActivationType || MembershipActivationType.AUTOMATIC),
     member_id_format: tier.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
     form_template_id: tier.membership_tier?.form_template_id || null,
     roles: tier.membership_tier?.roles?.map(role => role.id) || [],
-    is_active: tier.is_active
+    is_active: tier.is_active,
+    has_fixed_dates: tier.membership_tier?.has_fixed_dates || false,
+    fixed_start_date: tier.membership_tier?.fixed_start_date || '',
+    fixed_end_date: tier.membership_tier?.fixed_end_date || '',
+    is_fiscal_period: tier.membership_tier?.is_fiscal_period || false,
+    fiscal_start_month: tier.membership_tier?.fiscal_start_month || null,
+    fiscal_start_day: tier.membership_tier?.fiscal_start_day || null,
+    has_monthly_cycle: tier.membership_tier?.has_monthly_cycle || false,
+    monthly_start_day: tier.membership_tier?.monthly_start_day || null,
+    monthly_end_day_type: tier.membership_tier?.monthly_end_day_type as ('specific' | 'last_day') || 'specific',
+    monthly_end_day: tier.membership_tier?.monthly_end_day || null,
   });
+
+  // Debug output for membership tier data
+  useEffect(() => {
+    console.log('Tier data:', {
+      id: tier.id,
+      name: tier.name,
+      price: tier.price,
+      currency: tier.currency,
+      duration_months: tier.membership_tier?.duration_months,
+      duration_unit: tier.membership_tier?.duration_unit,
+      has_fixed_dates: tier.membership_tier?.has_fixed_dates,
+      fixed_start_date: tier.membership_tier?.fixed_start_date,
+      fixed_end_date: tier.membership_tier?.fixed_end_date,
+      is_fiscal_period: tier.membership_tier?.is_fiscal_period,
+      fiscal_start_month: tier.membership_tier?.fiscal_start_month,
+      fiscal_start_day: tier.membership_tier?.fiscal_start_day,
+      has_monthly_cycle: tier.membership_tier?.has_monthly_cycle,
+      monthly_start_day: tier.membership_tier?.monthly_start_day,
+      monthly_end_day_type: tier.membership_tier?.monthly_end_day_type,
+      monthly_end_day: tier.membership_tier?.monthly_end_day
+    });
+  }, [tier]);
 
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>(
     initialFormTemplate ? [initialFormTemplate] : []
@@ -179,7 +212,55 @@ export function EditMembershipTierForm({
     formDataToSubmit.append('price', String(Math.round(newData.price * 100)));
     formDataToSubmit.append('currency', newData.currency);
     formDataToSubmit.append('duration_months', String(newData.duration_months));
+    formDataToSubmit.append('duration_unit', newData.duration_unit || 'month');
     formDataToSubmit.append('is_active', String(newData.is_active));
+
+    // Add duration settings - properly handle date fields
+    formDataToSubmit.append('has_fixed_dates', String(!!newData.has_fixed_dates));
+    
+    // Handle fixed date fields - empty strings should be null
+    if (newData.fixed_start_date && newData.fixed_start_date.trim() !== '') {
+      formDataToSubmit.append('fixed_start_date', newData.fixed_start_date);
+    } else {
+      formDataToSubmit.append('fixed_start_date', 'null');
+    }
+    
+    if (newData.fixed_end_date && newData.fixed_end_date.trim() !== '') {
+      formDataToSubmit.append('fixed_end_date', newData.fixed_end_date);
+    } else {
+      formDataToSubmit.append('fixed_end_date', 'null');
+    }
+    
+    formDataToSubmit.append('is_fiscal_period', String(!!newData.is_fiscal_period));
+    
+    // Handle numeric fields - empty or zero values should be null
+    if (newData.fiscal_start_month) {
+      formDataToSubmit.append('fiscal_start_month', String(newData.fiscal_start_month));
+    } else {
+      formDataToSubmit.append('fiscal_start_month', 'null');
+    }
+    
+    if (newData.fiscal_start_day) {
+      formDataToSubmit.append('fiscal_start_day', String(newData.fiscal_start_day));
+    } else {
+      formDataToSubmit.append('fiscal_start_day', 'null');
+    }
+    
+    formDataToSubmit.append('has_monthly_cycle', String(!!newData.has_monthly_cycle));
+    
+    if (newData.monthly_start_day) {
+      formDataToSubmit.append('monthly_start_day', String(newData.monthly_start_day));
+    } else {
+      formDataToSubmit.append('monthly_start_day', 'null');
+    }
+    
+    formDataToSubmit.append('monthly_end_day_type', newData.monthly_end_day_type || 'specific');
+    
+    if (newData.monthly_end_day) {
+      formDataToSubmit.append('monthly_end_day', String(newData.monthly_end_day));
+    } else {
+      formDataToSubmit.append('monthly_end_day', 'null');
+    }
 
     const activationType = getActivationType({
       price: newData.price,
@@ -385,7 +466,18 @@ export function EditMembershipTierForm({
               defaultValues={{
                 price: formData.price,
                 currency: formData.currency,
-                duration_months: formData.duration_months
+                duration_months: formData.duration_months,
+                duration_unit: formData.duration_unit,
+                has_fixed_dates: formData.has_fixed_dates,
+                fixed_start_date: formData.fixed_start_date || null,
+                fixed_end_date: formData.fixed_end_date || null,
+                is_fiscal_period: formData.is_fiscal_period,
+                fiscal_start_month: formData.fiscal_start_month,
+                fiscal_start_day: formData.fiscal_start_day,
+                has_monthly_cycle: formData.has_monthly_cycle,
+                monthly_start_day: formData.monthly_start_day,
+                monthly_end_day_type: formData.monthly_end_day_type,
+                monthly_end_day: formData.monthly_end_day
               }}
               onEdit={() => setEditingSections(prev => {
                 const newState = Object.keys(prev).reduce((acc, key) => ({
@@ -396,7 +488,8 @@ export function EditMembershipTierForm({
               })}
               onCancel={() => setEditingSections(prev => ({ ...prev, pricing: false }))}
               onSave={async (values) => {
-                await handleUpdate(values);
+                // Use type assertion to handle the type mismatch
+                await handleUpdate(values as any);
                 setEditingSections(prev => ({ ...prev, pricing: false }));
               }}
               isPending={pending}

@@ -80,6 +80,23 @@ export function PricingDuration({
   onSave,
   isPending
 }: PricingDurationProps) {
+  // More detailed debug output
+  console.log('PricingDuration defaultValues:', {
+    price: defaultValues.price,
+    currency: defaultValues.currency,
+    duration_months: defaultValues.duration_months,
+    duration_unit: defaultValues.duration_unit,
+    has_fixed_dates: defaultValues.has_fixed_dates,
+    fixed_start_date: defaultValues.fixed_start_date,
+    fixed_end_date: defaultValues.fixed_end_date,
+    is_fiscal_period: defaultValues.is_fiscal_period,
+    fiscal_start_month: defaultValues.fiscal_start_month,
+    fiscal_start_day: defaultValues.fiscal_start_day,
+    has_monthly_cycle: defaultValues.has_monthly_cycle,
+    monthly_start_day: defaultValues.monthly_start_day,
+    monthly_end_day_type: defaultValues.monthly_end_day_type,
+    monthly_end_day: defaultValues.monthly_end_day
+  });
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (defaultValues.has_fixed_dates) {
       return 'fixed-dates';
@@ -115,6 +132,25 @@ export function PricingDuration({
     }
   }, [isEditing]);
 
+  // Update active tab when values change
+  useEffect(() => {
+    let newTab = 'standard';
+    
+    if (defaultValues.has_fixed_dates) {
+      newTab = 'fixed-dates';
+    } else if (defaultValues.is_fiscal_period) {
+      newTab = 'fiscal-period';
+    } else {
+      newTab = 'standard';
+    }
+    
+    setActiveTab(newTab);
+  }, [
+    defaultValues.has_fixed_dates, 
+    defaultValues.is_fiscal_period,
+    defaultValues.has_monthly_cycle
+  ]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -125,6 +161,19 @@ export function PricingDuration({
       monthly_end_day_type: defaultValues.monthly_end_day_type || 'specific',
     }
   });
+
+  // Update form values when defaultValues or isEditing changes
+  useEffect(() => {
+    if (isEditing) {
+      form.reset({
+        ...defaultValues,
+        has_fixed_dates: defaultValues.has_fixed_dates || false,
+        is_fiscal_period: defaultValues.is_fiscal_period || false,
+        has_monthly_cycle: defaultValues.has_monthly_cycle || false,
+        monthly_end_day_type: defaultValues.monthly_end_day_type || 'specific',
+      });
+    }
+  }, [form, defaultValues, isEditing]);
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     await onSave(values);
@@ -679,14 +728,22 @@ export function PricingDuration({
                       })()}
                     </div>
 
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                    <Tabs 
+                      value={activeTab}
+                      onValueChange={setActiveTab}
+                      className="w-full"
+                    >
                       <TabsList className="grid w-full grid-cols-3">
                         <TabsTrigger 
-                          value="standard"
+                          value="standard" 
                           onClick={() => {
                             form.setValue('has_fixed_dates', false);
                             form.setValue('is_fiscal_period', false);
-                            // Note: We no longer reset has_monthly_cycle since it can be part of standard
+                            // Ensure duration_unit has a value
+                            const currentUnit = form.getValues('duration_unit');
+                            if (!currentUnit) {
+                              form.setValue('duration_unit', 'month');
+                            }
                           }}
                         >
                           Standard

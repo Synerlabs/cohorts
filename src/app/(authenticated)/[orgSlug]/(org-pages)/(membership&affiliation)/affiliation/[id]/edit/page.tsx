@@ -59,13 +59,25 @@ export default async function EditMembershipTierPage({ params: _params }: Props)
         product_id: tier.id,
         activation_type: tier.membership_tier.activation_type,
         duration_months: tier.membership_tier.duration_months,
+        duration_unit: tier.membership_tier.duration_unit || 'month',
         form_template_id: tier.membership_tier.form_template_id,
         member_id_format: tier.membership_tier.member_id_format,
+        type: tier.membership_tier.type || 'organization',
         roles: tier.membership_tier.roles?.map(role => ({
           id: role.id,
           role_name: role.role_name,
           permissions: role.permissions || []
-        })) || []
+        })) || [],
+        has_fixed_dates: tier.membership_tier.has_fixed_dates || false,
+        fixed_start_date: tier.membership_tier.fixed_start_date || null,
+        fixed_end_date: tier.membership_tier.fixed_end_date || null,
+        is_fiscal_period: tier.membership_tier.is_fiscal_period || false,
+        fiscal_start_month: tier.membership_tier.fiscal_start_month || null,
+        fiscal_start_day: tier.membership_tier.fiscal_start_day || null,
+        has_monthly_cycle: tier.membership_tier.has_monthly_cycle || false,
+        monthly_start_day: tier.membership_tier.monthly_start_day || null,
+        monthly_end_day_type: tier.membership_tier.monthly_end_day_type || 'specific',
+        monthly_end_day: tier.membership_tier.monthly_end_day || null
       }
     };
 

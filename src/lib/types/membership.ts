@@ -54,6 +54,10 @@ export type MembershipTierRow = {
   is_fiscal_period: boolean;
   fiscal_start_month?: number | null;
   fiscal_start_day?: number | null;
+  has_monthly_cycle?: boolean;
+  monthly_start_day?: number | null;
+  monthly_end_day_type?: 'specific' | 'last_day';
+  monthly_end_day?: number | null;
 };
 
 export enum MembershipStatus {
@@ -149,5 +153,9 @@ export interface IMembershipTierProduct {
     is_fiscal_period?: boolean;
     fiscal_start_month?: number | null;
     fiscal_start_day?: number | null;
+    has_monthly_cycle?: boolean;
+    monthly_start_day?: number | null;
+    monthly_end_day_type?: 'specific' | 'last_day';
+    monthly_end_day?: number | null;
   };
 } 

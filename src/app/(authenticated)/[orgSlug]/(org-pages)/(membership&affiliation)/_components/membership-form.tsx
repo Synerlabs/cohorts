@@ -270,23 +270,41 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
       price: tier?.price || 0,
       currency: tier?.currency || "USD",
       duration_months: tier?.membership_tier?.duration_months || 1,
-      duration_unit: 'month',
+      duration_unit: tier?.membership_tier?.duration_unit || 'month',
       ...getStepConfiguration(tier?.membership_tier?.activation_type as MembershipActivationType || MembershipActivationType.AUTOMATIC),
       member_id_format: tier?.membership_tier?.member_id_format || 'MEM-{YYYY}-{SEQ:3}',
       form_template_id: tier?.membership_tier?.form_template_id || null,
       roles: [],
-      has_fixed_dates: false,
-      fixed_start_date: null,
-      fixed_end_date: null,
-      is_fiscal_period: false,
-      fiscal_start_month: null,
-      fiscal_start_day: null,
-      has_monthly_cycle: false,
-      monthly_start_day: null,
-      monthly_end_day_type: 'specific',
-      monthly_end_day: null,
+      has_fixed_dates: tier?.membership_tier?.has_fixed_dates || false,
+      fixed_start_date: tier?.membership_tier?.fixed_start_date || null,
+      fixed_end_date: tier?.membership_tier?.fixed_end_date || null,
+      is_fiscal_period: tier?.membership_tier?.is_fiscal_period || false,
+      fiscal_start_month: tier?.membership_tier?.fiscal_start_month || null,
+      fiscal_start_day: tier?.membership_tier?.fiscal_start_day || null,
+      has_monthly_cycle: tier?.membership_tier?.has_monthly_cycle || false,
+      monthly_start_day: tier?.membership_tier?.monthly_start_day || null,
+      monthly_end_day_type: tier?.membership_tier?.monthly_end_day_type || 'specific',
+      monthly_end_day: tier?.membership_tier?.monthly_end_day || null,
     },
   });
+
+  // Initialize form with tier data when it's loaded
+  useEffect(() => {
+    if (tier && tier.membership_tier) {
+      // Set duration tab fields
+      form.setValue('has_fixed_dates', tier.membership_tier.has_fixed_dates || false);
+      form.setValue('fixed_start_date', tier.membership_tier.fixed_start_date || null);
+      form.setValue('fixed_end_date', tier.membership_tier.fixed_end_date || null);
+      form.setValue('is_fiscal_period', tier.membership_tier.is_fiscal_period || false);
+      form.setValue('fiscal_start_month', tier.membership_tier.fiscal_start_month || null);
+      form.setValue('fiscal_start_day', tier.membership_tier.fiscal_start_day || null);
+      form.setValue('has_monthly_cycle', tier.membership_tier.has_monthly_cycle || false);
+      form.setValue('monthly_start_day', tier.membership_tier.monthly_start_day || null);
+      form.setValue('monthly_end_day_type', tier.membership_tier.monthly_end_day_type || 'specific');
+      form.setValue('monthly_end_day', tier.membership_tier.monthly_end_day || null);
+      form.setValue('duration_unit', tier.membership_tier.duration_unit || 'month');
+    }
+  }, [tier, form]);
 
   // Add useEffect to load form template when component mounts
   useEffect(() => {
@@ -419,6 +437,17 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
   });
 
   const isFree = price === 0;
+
+  // Add a function to determine which tab should be active
+  const getDurationTabValue = () => {
+    if (form.watch('is_fiscal_period')) {
+      return 'fiscal-period';
+    } else if (form.watch('has_fixed_dates')) {
+      return 'fixed-dates';
+    } else {
+      return 'standard';
+    }
+  };
 
   if (state?.success && onSuccess) {
     onSuccess();
@@ -949,11 +978,51 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
               </div>
             
               <div className="border rounded-md p-6 space-y-5">
-                <Tabs defaultValue="standard" className="w-full">
+                <Tabs 
+                  defaultValue={getDurationTabValue()} 
+                  value={getDurationTabValue()}
+                  className="w-full"
+                >
                   <TabsList className="grid w-full grid-cols-3">
-                    <TabsTrigger value="standard">Standard</TabsTrigger>
-                    <TabsTrigger value="fixed-dates">Fixed Dates</TabsTrigger>
-                    <TabsTrigger value="fiscal-period">Fiscal Period</TabsTrigger>
+                    <TabsTrigger 
+                      value="standard" 
+                      onClick={() => {
+                        form.setValue('has_fixed_dates', false);
+                        form.setValue('is_fiscal_period', false);
+                        // Ensure duration_unit has a value
+                        const currentUnit = form.getValues('duration_unit');
+                        if (!currentUnit) {
+                          form.setValue('duration_unit', 'month');
+                        }
+                      }}
+                    >
+                      Standard
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="fixed-dates"
+                      onClick={() => {
+                        form.setValue('has_fixed_dates', true);
+                        form.setValue('is_fiscal_period', false);
+                        // Ensure duration_unit has a value
+                        const currentUnit = form.getValues('duration_unit');
+                        if (!currentUnit) {
+                          form.setValue('duration_unit', 'month');
+                        }
+                      }}
+                    >
+                      Fixed Dates
+                    </TabsTrigger>
+                    <TabsTrigger 
+                      value="fiscal-period"
+                      onClick={() => {
+                        form.setValue('has_fixed_dates', false);
+                        form.setValue('is_fiscal_period', true);
+                        // For fiscal period, always use year as duration unit
+                        form.setValue('duration_unit', 'year');
+                      }}
+                    >
+                      Fiscal Period
+                    </TabsTrigger>
                   </TabsList>
                   
                   <TabsContent value="standard" className="mt-4">
@@ -984,8 +1053,16 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                                     min={1}
                                     {...field}
                                     onChange={(e) => {
+                                      // Set tab-specific flags
                                       form.setValue('has_fixed_dates', false);
                                       form.setValue('is_fiscal_period', false);
+                                      
+                                      // Ensure duration_unit has a value
+                                      const currentUnit = form.getValues('duration_unit');
+                                      if (!currentUnit) {
+                                        form.setValue('duration_unit', 'month');
+                                      }
+                                      
                                       field.onChange(parseInt(e.target.value) || 1);
                                     }}
                                   />
@@ -997,6 +1074,7 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                                         <Select
                                           value={field.value}
                                           onValueChange={(value) => {
+                                            // Set tab-specific flags
                                             form.setValue('has_fixed_dates', false);
                                             form.setValue('is_fiscal_period', false);
                                             field.onChange(value);
@@ -1013,7 +1091,7 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                                       </FormItem>
                                     )}
                                   />
-                    </div>
+                                </div>
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -1125,7 +1203,17 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                                                 max={31}
                                                 {...field}
                                                 value={field.value || ''}
-                                                onChange={(e) => field.onChange(parseInt(e.target.value) || '')}
+                                                onChange={(e) => {
+                                                  // Also update the tab-specific flags
+                                                  form.setValue('has_fixed_dates', true);
+                                                  form.setValue('is_fiscal_period', false);
+                                                  // Maintain duration_unit
+                                                  const currentUnit = form.getValues('duration_unit');
+                                                  if (!currentUnit) {
+                                                    form.setValue('duration_unit', 'month');
+                                                  }
+                                                  field.onChange(parseInt(e.target.value) || '');
+                                                }}
                                                 className="h-9"
                                                 placeholder="e.g., 31"
                                               />
@@ -1154,228 +1242,151 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                     
                   <TabsContent value="fixed-dates" className="mt-4">
                     <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-2 text-muted-foreground text-sm">
+                        <Info size={15} />
+                        <span>
+                          Memberships will start and end on specific calendar dates, regardless of when members join.
+                        </span>
+                      </div>
+                      
                       <div className="grid grid-cols-2 gap-6">
                         <FormField
                           control={form.control}
                           name="fixed_start_date"
                           render={({ field }) => (
                             <FormItem>
-                              <div className="flex items-center justify-between">
-                                <FormLabel>Start Date</FormLabel>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="w-80">
-                                      <p>All memberships will start on this specific date regardless of when members join</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
+                              <FormLabel>Start Date</FormLabel>
                               <FormControl>
                                 <Input
                                   type="date"
                                   {...field}
-                                  value={field.value || ''}
-                  onChange={(e) => {
+                                  value={field.value || ""}
+                                  onChange={(e) => {
+                                    // Also update the tab-specific flags
                                     form.setValue('has_fixed_dates', true);
                                     form.setValue('is_fiscal_period', false);
+                                    // Maintain duration_unit
+                                    const currentUnit = form.getValues('duration_unit');
+                                    if (!currentUnit) {
+                                      form.setValue('duration_unit', 'month');
+                                    }
                                     field.onChange(e.target.value);
-                  }}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
+                                  }}
+                                />
+                              </FormControl>
+                            </FormItem>
+                          )}
+                        />
+                        
                         <FormField
                           control={form.control}
                           name="fixed_end_date"
                           render={({ field }) => (
                             <FormItem>
-                              <div className="flex items-center justify-between">
-                                <FormLabel>End Date</FormLabel>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="w-80">
-                                      <p>All memberships will end on this specific date regardless of when members join</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
+                              <FormLabel>End Date</FormLabel>
                               <FormControl>
                                 <Input
                                   type="date"
                                   {...field}
-                                  value={field.value || ''}
+                                  value={field.value || ""}
                                   onChange={(e) => {
+                                    // Also update the tab-specific flags
                                     form.setValue('has_fixed_dates', true);
                                     form.setValue('is_fiscal_period', false);
+                                    // Maintain duration_unit
+                                    const currentUnit = form.getValues('duration_unit');
+                                    if (!currentUnit) {
+                                      form.setValue('duration_unit', 'month');
+                                    }
                                     field.onChange(e.target.value);
                                   }}
                                 />
                               </FormControl>
-                              <FormMessage />
                             </FormItem>
                           )}
                         />
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        <p>With this setting, all memberships will have the same fixed start and end dates, regardless of when members join.</p>
                       </div>
                     </div>
                   </TabsContent>
                     
                   <TabsContent value="fiscal-period" className="mt-4">
                     <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-2 text-muted-foreground text-sm">
+                        <Info size={15} />
+                        <span>
+                          Memberships will align with fiscal periods, with all memberships renewing on the same annual date.
+                        </span>
+                      </div>
+                      
                       <div className="grid grid-cols-2 gap-6">
                         <FormField
                           control={form.control}
                           name="fiscal_start_month"
                           render={({ field }) => (
                             <FormItem>
-                              <div className="flex items-center justify-between">
-                                <FormLabel>Fiscal Start Month</FormLabel>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="w-80">
-                                      <p>The month when your fiscal year begins</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                              <FormControl>
-                                <Select
-                                  value={field.value?.toString() || ''}
-                                  onValueChange={(value) => {
-                                    form.setValue('has_fixed_dates', false);
-                                    form.setValue('is_fiscal_period', true);
-                                    field.onChange(parseInt(value));
-                                  }}
-                                >
+                              <FormLabel>Fiscal Start Month</FormLabel>
+                              <Select
+                                value={field.value?.toString() || ""}
+                                onValueChange={(value) => {
+                                  // Update tab-specific flags
+                                  form.setValue('fiscal_start_month', parseInt(value) || null);
+                                  form.setValue('is_fiscal_period', true);
+                                  form.setValue('has_fixed_dates', false);
+                                  // Ensure duration_unit is set to year for fiscal period
+                                  form.setValue('duration_unit', 'year');
+                                }}
+                              >
+                                <FormControl>
                                   <SelectTrigger>
                                     <SelectValue placeholder="Select month" />
                                   </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="1">January</SelectItem>
-                                    <SelectItem value="2">February</SelectItem>
-                                    <SelectItem value="3">March</SelectItem>
-                                    <SelectItem value="4">April</SelectItem>
-                                    <SelectItem value="5">May</SelectItem>
-                                    <SelectItem value="6">June</SelectItem>
-                                    <SelectItem value="7">July</SelectItem>
-                                    <SelectItem value="8">August</SelectItem>
-                                    <SelectItem value="9">September</SelectItem>
-                                    <SelectItem value="10">October</SelectItem>
-                                    <SelectItem value="11">November</SelectItem>
-                                    <SelectItem value="12">December</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </FormControl>
-                              <FormMessage />
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="1">January</SelectItem>
+                                  <SelectItem value="2">February</SelectItem>
+                                  <SelectItem value="3">March</SelectItem>
+                                  <SelectItem value="4">April</SelectItem>
+                                  <SelectItem value="5">May</SelectItem>
+                                  <SelectItem value="6">June</SelectItem>
+                                  <SelectItem value="7">July</SelectItem>
+                                  <SelectItem value="8">August</SelectItem>
+                                  <SelectItem value="9">September</SelectItem>
+                                  <SelectItem value="10">October</SelectItem>
+                                  <SelectItem value="11">November</SelectItem>
+                                  <SelectItem value="12">December</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </FormItem>
                           )}
                         />
+                        
                         <FormField
                           control={form.control}
                           name="fiscal_start_day"
                           render={({ field }) => (
                             <FormItem>
-                              <div className="flex items-center justify-between">
-                                <FormLabel>Fiscal Start Day</FormLabel>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="w-80">
-                                      <p>The day of month when your fiscal year begins</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
+                              <FormLabel>Fiscal Start Day</FormLabel>
                               <FormControl>
                                 <Input
                                   type="number"
                                   min={1}
                                   max={31}
+                                  placeholder="Day of month"
                                   {...field}
-                                  value={field.value || ''}
+                                  value={field.value || ""}
                                   onChange={(e) => {
-                                    form.setValue('has_fixed_dates', false);
+                                    // Update tab-specific flags
+                                    form.setValue('fiscal_start_day', e.target.value ? parseInt(e.target.value) : null);
                                     form.setValue('is_fiscal_period', true);
-                                    field.onChange(parseInt(e.target.value) || null);
+                                    form.setValue('has_fixed_dates', false);
+                                    // Ensure duration_unit is set to year for fiscal period
+                                    form.setValue('duration_unit', 'year');
                                   }}
                                 />
                               </FormControl>
-                              <FormMessage />
                             </FormItem>
                           )}
                         />
-                      </div>
-                      <div className="grid grid-cols-2 gap-6">
-                        <FormField
-                          control={form.control}
-                          name="duration_months"
-                          render={({ field }) => (
-                            <FormItem>
-                              <div className="flex items-center justify-between">
-                                <FormLabel>Duration</FormLabel>
-                                <TooltipProvider>
-                                  <Tooltip>
-                                    <TooltipTrigger asChild>
-                                      <InfoIcon className="h-4 w-4 text-muted-foreground" />
-                                    </TooltipTrigger>
-                                    <TooltipContent className="w-80">
-                                      <p>How many fiscal periods the membership will last</p>
-                                    </TooltipContent>
-                                  </Tooltip>
-                                </TooltipProvider>
-                              </div>
-                              <FormControl>
-                                <div className="flex gap-2">
-                                  <Input
-                                    type="number"
-                                    min={1}
-                                    {...field}
-                                    onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
-                                  />
-                                  <FormField
-                                    control={form.control}
-                                    name="duration_unit"
-                                    render={({ field }) => (
-                                      <FormItem className="flex-1">
-                                        <Select
-                                          value={field.value}
-                                          onValueChange={field.onChange}
-                                        >
-                                          <SelectTrigger>
-                                            <SelectValue placeholder="Unit" />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="month">Month(s)</SelectItem>
-                                            <SelectItem value="year">Year(s)</SelectItem>
-                                          </SelectContent>
-                                        </Select>
-                                      </FormItem>
-                                    )}
-                                  />
-                                </div>
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        <p>With this setting, memberships will align with your fiscal periods. If a member joins mid-fiscal period, their membership will end at the completion of {form.watch('duration_months') || 1} {form.watch('duration_unit') === 'year' ? (form.watch('duration_months') === 1 ? 'fiscal year' : 'fiscal years') : (form.watch('duration_months') === 1 ? 'fiscal month' : 'fiscal months')}.</p>
                       </div>
                     </div>
                   </TabsContent>

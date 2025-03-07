@@ -97,3 +97,23 @@ To learn more about Next.js, take a look at the following resources:
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+
+# Duration Unit Fixes
+
+This project has been updated to fix issues with the membership tier duration system.
+
+## Changes Made
+
+1. Fixed form submission to properly handle all duration-related fields
+2. Updated the membership form to ensure `duration_unit` is always set correctly
+3. Fixed the server-side action to parse and process all duration fields properly
+
+These fixes ensure that the membership form properly submits both `duration_months` and `duration_unit`, and correctly saves fiscal period and fixed dates settings.
+
+## Troubleshooting
+
+If you still encounter issues with the form not submitting duration_unit:
+1. Clear your browser cache and reload the page
+2. Restart your development server
+
+For any other issues, please create a ticket in the issue tracker.
