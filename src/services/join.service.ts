@@ -299,9 +299,9 @@ export async function getUserMembership(userIdOrParams: string | { userId: strin
     .eq('group_user_id', groupUser.id)
     .order('created_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
-  console.log('Membership result:', { membership, error: membershipError });
+  console.log('Membership result:', groupUser.id, { membership, error: membershipError });
 
   if (membershipError) {
     throw membershipError;

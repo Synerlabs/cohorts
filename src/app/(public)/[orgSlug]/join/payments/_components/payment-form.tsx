@@ -1,20 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Upload as UploadIcon, Globe } from "lucide-react";
+import { CreditCard, Upload as UploadIcon, Globe, ChevronsUpDown, Check, AlertCircle, Loader2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ManualPaymentForm } from "@/app/(authenticated)/[orgSlug]/(org-pages)/payments/_components/manual-payment-form";
 import { StripePaymentForm } from './stripe-payment-form';
 import { XenditPaymentForm } from './xendit-payment-form';
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { createStripePaymentIntent } from '../actions';
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { formatAmount } from '@/lib/utils/currency';
 import { isFeatureEnabled } from '@/lib/features';
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface PaymentFormProps {
   order: {
@@ -51,6 +58,7 @@ export function PaymentForm({
     status: order.status,
     totalPaid: 0 // Initialize with 0 to avoid hydration mismatch
   });
+  const { toast } = useToast();
 
   // Pre-format the amount to ensure consistent rendering
   const formattedAmount = formatAmount(order.amount, order.currency);
@@ -84,280 +92,259 @@ export function PaymentForm({
     }
   }, [isClient, hasActiveStripeAccount, hasActiveXenditAccount, selectedMethod]);
 
-  // Initialize Stripe payment when card method is selected
-  useEffect(() => {
-    if (selectedMethod === 'stripe' && !clientSecret && !isCreatingIntent) {
-      initializeStripePayment();
-    }
-  }, [selectedMethod, clientSecret, isCreatingIntent]);
-
-  // Check URL params for payment success (only on client)
+  // Initialize Stripe when card method is selected
   useEffect(() => {
     if (!isClient) return;
-
-    const searchParams = new URLSearchParams(window.location.search);
-    // Check both our custom success parameter and Stripe's redirect parameters
-    const isSuccess = 
-      searchParams.get('payment_status') === 'success' || 
-      searchParams.get('redirect_status') === 'succeeded' ||
-      searchParams.get('payment_intent_client_secret') !== null;
-
-    if (isSuccess) {
-      setPaymentSuccess(true);
-
-      // Only start polling if payment is not already completed
-      if (order.status !== 'paid' && order.status !== 'completed') {
-        let pollCount = 0;
-        const maxPolls = 20; // Maximum number of polling attempts (1 minute)
-        let pollInterval: ReturnType<typeof setTimeout>;
-        
-        const checkPaymentStatus = async () => {
-          try {
-            const response = await fetch(`/api/payments/${order.id}/status`);
-            const data = await response.json();
-            
-            setPaymentStatus({
-              status: data.status,
-              totalPaid: data.totalPaid
-            });
-
-            // Stop polling if payment is complete or we've reached max attempts
-            if (data.status === 'paid' || data.status === 'completed' || !data.hasPendingPayment) {
-              // Only reload if the status has actually changed
-              if (data.status !== order.status) {
-                window.location.reload();
-              }
-            } else if (pollCount < maxPolls) {
-              pollCount++;
-              pollInterval = setTimeout(checkPaymentStatus, 3000);
-            } else {
-              // After max attempts, show a message but don't refresh
-              toast({
-                title: "Payment Status Update",
-                description: "The payment is still being processed. You can refresh the page to check the latest status.",
-                duration: 10000,
-              });
-            }
-          } catch (error) {
-            console.error('Error checking payment status:', error);
-            if (pollCount < maxPolls) {
-              pollCount++;
-              pollInterval = setTimeout(checkPaymentStatus, 3000);
-            }
-          }
-        };
-
-        // Start checking payment status
-        pollInterval = setTimeout(checkPaymentStatus, 3000);
-
-        // Cleanup interval on unmount
-        return () => {
-          if (pollInterval) {
-            clearTimeout(pollInterval);
-          }
-        };
-      }
+    
+    if (selectedMethod === 'stripe' && !clientSecret && hasActiveStripeAccount && !isCreatingIntent) {
+      console.log('Creating Stripe payment intent');
+      createStripeIntent();
     }
-  }, [isClient, order.id, order.status]);
+  }, [selectedMethod, clientSecret, isClient, hasActiveStripeAccount]);
+  
+  // Check if payment is possible
+  const canPerformPayment = 
+    (order.status === 'pending' || order.status === 'partial') && 
+    (!order.application || order.application.status !== 'cancelled');
 
-  // Calculate if payments are allowed
-  const isOrderSettled = paymentStatus.status === 'completed' || paymentStatus.status === 'paid';
-  const isApplicationSettled = order.application?.status === 'approved' || order.application?.status === 'completed';
-  const isFullyPaid = paymentStatus.totalPaid >= order.amount;
-  const canAcceptPayments = !isOrderSettled && !isApplicationSettled && !isFullyPaid && !paymentSuccess;
-
-  // If we haven't hydrated yet, show a loading state or the initial server state
-  if (!isClient) {
-    return (
-      <Card>
-        <CardHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Loading Payment Status</CardTitle>
-              <CardDescription className="mt-1.5">Please wait...</CardDescription>
-            </div>
-            <div className="text-2xl font-semibold">
-              {formattedAmount}
-            </div>
-          </div>
-        </CardHeader>
-      </Card>
-    );
-  }
-
-  // If payment was successful but still processing
-  if (paymentSuccess) {
-    const showProcessingMessage = order.status !== 'paid' && order.status !== 'completed';
+  // Helper function to get payment message
+  function getPaymentMessage() {
+    if (order.status === 'completed' || order.status === 'paid') {
+      return 'This order has been fully paid.';
+    }
     
-    return (
-      <Card>
-        <CardHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>
-                {showProcessingMessage ? 'Payment Processing' : 'Payment Complete'}
-              </CardTitle>
-              <CardDescription className="mt-1.5">
-                {showProcessingMessage ? 'Your payment is being processed' : 'Your payment has been processed successfully'}
-              </CardDescription>
-            </div>
-            <div className="text-2xl font-semibold">
-              {formattedAmount}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <div className="space-y-4">
-            <Alert className="bg-green-50 border-green-200">
-              <div className="flex items-center gap-2">
-                {showProcessingMessage ? (
-                  <>
-                    <div className="h-2 w-2 rounded-full bg-green-400 animate-pulse" />
-                    <AlertDescription className="text-green-800">
-                      Payment successful! Please wait while we process your payment. This may take a few moments.
-                    </AlertDescription>
-                  </>
-                ) : (
-                  <AlertDescription className="text-green-800">
-                    Your payment has been processed successfully.
-                  </AlertDescription>
-                )}
-              </div>
-            </Alert>
-            {showProcessingMessage && (
-              <div className="text-sm text-muted-foreground">
-                <p>Your payment has been confirmed and is being processed. The page will automatically update to show your payment status.</p>
-                <p className="mt-2">If the status doesn't update after a few minutes, you can safely refresh the page.</p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // If payments are not allowed, show appropriate message
-  if (!canAcceptPayments) {
-    return (
-      <Card>
-        <CardHeader className="border-b">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Payment Status</CardTitle>
-              <CardDescription className="mt-1.5">
-                {isFullyPaid ? 'Payment completed' : 'Payment not required'}
-              </CardDescription>
-            </div>
-            <div className="text-2xl font-semibold">
-              {formattedAmount}
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <Alert>
-            <AlertDescription>
-              {isFullyPaid 
-                ? 'This order has been fully paid.' 
-                : isOrderSettled 
-                  ? 'This order has already been completed.'
-                  : 'This application has already been processed.'}
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const handleStripeSuccess = async () => {
-    // Set success state
-    setPaymentSuccess(true);
+    if (order.application?.status === 'cancelled') {
+      return 'This application has been cancelled. Payment is not accepted.';
+    }
     
-    // Add success parameter to URL
-    const url = new URL(window.location.href);
-    url.searchParams.set('payment_status', 'success');
-    window.history.replaceState({}, '', url.toString());
-  };
+    return null;
+  }
 
-  const handleStripeError = (error: string) => {
-    setPaymentError(error);
-    toast({
-      variant: 'destructive',
-      title: 'Payment failed',
-      description: error
-    });
-  };
-
-  const initializeStripePayment = async () => {
+  // Create the Stripe payment intent
+  async function createStripeIntent() {
     setIsCreatingIntent(true);
     setPaymentError(undefined);
     
     try {
-      const secret = await createStripePaymentIntent(
+      const clientSecret = await createStripePaymentIntent(
         order.id,
         order.amount,
         order.currency,
         orgId
       );
-      if (secret) {
-        setClientSecret(secret);
+      if (clientSecret) {
+        setClientSecret(clientSecret);
+      } else {
+        setPaymentError('Failed to initialize payment. Please try again.');
+        console.error('Failed to create payment intent: No client secret returned');
+        toast({
+          variant: "destructive",
+          title: "Payment Error",
+          description: "Failed to initialize payment. Please try again."
+        });
       }
-    } catch (error: any) {
-      const errorMessage = error.message || 'Failed to create payment intent. Please try again.';
+    } catch (error) {
+      console.error('Error creating payment intent:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to initialize payment. Please try again.';
       setPaymentError(errorMessage);
       toast({
-        variant: 'destructive',
-        title: 'Error',
+        variant: "destructive",
+        title: "Payment Error",
         description: errorMessage
       });
     } finally {
       setIsCreatingIntent(false);
     }
-  };
+  }
 
-  // Add this function to determine available payment methods for the select dropdown
-  const getAvailablePaymentMethods = () => {
-    const methods = [
-      { id: 'manual', name: 'Manual Payment' },
-    ];
+  // Handle successful payment
+  function handlePaymentSuccess() {
+    setPaymentSuccess(true);
+    console.log('Payment successful');
+    toast({
+      title: "Payment Successful",
+      description: "Your payment has been processed successfully.",
+    });
     
+    // Update payment status
+    setPaymentStatus({
+      status: 'paid',
+      totalPaid: order.amount
+    });
+    
+    // Polling mechanism to check payment status
+    let pollCount = 0;
+    const maxPolls = 10; // Maximum polling attempts
+    
+    const checkPaymentStatus = async () => {
+      try {
+        // After a few seconds of showing the success state, reload the page
+        if (pollCount >= maxPolls) {
+          window.location.reload();
+          return;
+        }
+        
+        pollCount++;
+        setTimeout(checkPaymentStatus, 1000);
+      } catch (error) {
+        console.error('Error checking payment status:', error);
+        // Even if there's an error, reload after maximum polls
+        if (pollCount >= maxPolls) {
+          window.location.reload();
+        } else {
+          pollCount++;
+          setTimeout(checkPaymentStatus, 1000);
+        }
+      }
+    };
+    
+    // Start checking payment status
+    setTimeout(checkPaymentStatus, 1000);
+  }
+
+  // Handle payment error
+  function handlePaymentError(error: string) {
+    console.error('Payment error:', error);
+    setPaymentError(error);
+    toast({
+      variant: "destructive",
+      title: "Payment Failed",
+      description: error,
+    });
+  }
+
+  // Get available payment methods
+  function getAvailablePaymentMethods() {
+    const methods = [];
+    
+    // Manual payment is always available
+    methods.push({
+      id: 'manual',
+      name: 'Manual / Bank Transfer',
+      icon: UploadIcon
+    });
+    
+    // Add Stripe if available
     if (hasActiveStripeAccount) {
-      methods.push({ id: 'stripe', name: 'Card Payment' });
+      methods.push({
+        id: 'stripe',
+        name: 'Credit Card (Stripe)',
+        icon: CreditCard
+      });
     }
     
-    // Only show Xendit if the feature flag is enabled AND there's an active account
+    // Add Xendit if enabled and available
     if (isFeatureEnabled('XENDIT_ENABLED') && hasActiveXenditAccount) {
-      methods.push({ id: 'xendit', name: 'Xendit Payment' });
+      methods.push({
+        id: 'xendit',
+        name: 'Online Banking (Xendit)',
+        icon: Globe
+      });
     }
     
     return methods;
-  };
-  
-  // Use this where the TabsContent for Xendit is rendered
-  const renderXenditTabContent = () => {
-    if (!isFeatureEnabled('XENDIT_ENABLED') || !hasActiveXenditAccount) {
-      return null;
+  }
+
+  // Render payment method content
+  function renderPaymentMethodContent() {
+    if (paymentSuccess) {
+      return (
+        <div className="bg-primary/5 rounded-lg p-8 border border-primary/10">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <div className="rounded-full bg-emerald-100 p-3">
+              <Check className="h-6 w-6 text-emerald-600" />
+            </div>
+            <h3 className="text-xl font-medium">Payment Successful!</h3>
+            <p className="text-muted-foreground max-w-md">
+              Your payment has been processed successfully. The page will refresh shortly to show your updated status.
+            </p>
+            <div className="h-2 w-full max-w-xs bg-muted rounded-full overflow-hidden mt-4">
+              <div className="h-2 bg-emerald-500 animate-pulse rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      );
     }
     
-    return (
-      <TabsContent value="xendit">
-        <XenditPaymentForm
-          orderId={order.id}
-          orgId={orgId}
-          amount={order.amount}
-          currency={order.currency}
-          onSuccess={handleStripeSuccess}
-          onError={handleStripeError}
-        />
-      </TabsContent>
-    );
-  };
+    if (!canPerformPayment) {
+      return (
+        <Alert className="my-4">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Payment Status</AlertTitle>
+          <AlertDescription>
+            {getPaymentMessage()}
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    
+    // Render appropriate payment form based on selected method
+    switch (selectedMethod) {
+      case 'stripe':
+        return (
+          <div className="space-y-6 mt-4">
+            {isCreatingIntent ? (
+              <div className="bg-primary/5 rounded-lg p-8 border border-primary/10">
+                <div className="flex flex-col items-center space-y-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary/70" />
+                  <p className="text-muted-foreground">Initializing payment...</p>
+                </div>
+              </div>
+            ) : paymentError ? (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Payment Error</AlertTitle>
+                <AlertDescription>
+                  {paymentError}
+                </AlertDescription>
+              </Alert>
+            ) : clientSecret ? (
+              <StripePaymentForm
+                clientSecret={clientSecret}
+                amount={order.amount}
+                currency={order.currency}
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+              />
+            ) : null}
+          </div>
+        );
+        
+      case 'xendit':
+        return (
+          <div className="space-y-6 mt-4">
+            <XenditPaymentForm
+              orderId={order.id}
+              orgId={orgId}
+              amount={order.amount}
+              currency={order.currency}
+              onSuccess={handlePaymentSuccess}
+              onError={handlePaymentError}
+            />
+          </div>
+        );
+        
+      case 'manual':
+      default:
+        return (
+          <div className="space-y-6 mt-6">
+            <ManualPaymentForm
+              orderId={order.id}
+              orgId={orgId}
+              expectedAmount={order.amount}
+              currency={order.currency}
+            />
+          </div>
+        );
+    }
+  }
 
   return (
-    <Card>
-      <CardHeader className="border-b">
+    <Card className="shadow-md border-muted/80">
+      <CardHeader className="border-b px-6">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Complete Your Payment</CardTitle>
+            <CardTitle className="text-xl">Complete Your Payment</CardTitle>
             <CardDescription className="mt-1.5">
               Choose your preferred payment method
             </CardDescription>
@@ -367,89 +354,86 @@ export function PaymentForm({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="p-6">
-        <div className="space-y-4">
+      <CardContent className="p-6 pt-6">
+        <div className="space-y-6">
+          {/* Payment Method Selector */}
           <div className="grid gap-2">
-            <Label htmlFor="payment-method">Payment Method</Label>
+            <Label htmlFor="payment-method" className="text-base font-medium">
+              Payment Method
+            </Label>
             <Select
               value={selectedMethod}
               onValueChange={setSelectedMethod}
               disabled={isCreatingIntent || paymentSuccess}
             >
-              <SelectTrigger id="payment-method">
+              <SelectTrigger id="payment-method" className="h-11">
                 <SelectValue placeholder="Select payment method" />
               </SelectTrigger>
               <SelectContent>
-                {getAvailablePaymentMethods().map(method => (
-                  <SelectItem key={method.id} value={method.id}>
-                    {method.name}
-                  </SelectItem>
-                ))}
+                {getAvailablePaymentMethods().map(method => {
+                  const Method = method.icon;
+                  return (
+                    <SelectItem key={method.id} value={method.id} className="py-2.5">
+                      <div className="flex items-center">
+                        <Method className="h-4 w-4 mr-2 text-muted-foreground" />
+                        <span>{method.name}</span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
-        </div>
-        <Tabs value={selectedMethod} onValueChange={setSelectedMethod} className="space-y-6">
-          <TabsList className={`grid grid-cols-${getAvailablePaymentMethods().length} mb-6`}>
-            <TabsTrigger value="manual">
-              <UploadIcon size={16} className="mr-2" />
-              Manual
-            </TabsTrigger>
-            
-            {hasActiveStripeAccount && (
+          
+          {/* Payment Method Cards - Alternative Tab-based UI */}
+          <Tabs value={selectedMethod} onValueChange={setSelectedMethod} className="hidden">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="manual" className="data-[state=active]:bg-primary/10">
+                <UploadIcon className="h-4 w-4 mr-2" />
+                Manual
+              </TabsTrigger>
               <TabsTrigger 
-                value="stripe"
-                onClick={() => {
-                  if (!clientSecret && !isCreatingIntent) {
-                    initializeStripePayment();
-                  }
-                }}
-                disabled={isCreatingIntent || paymentSuccess}
+                value="stripe" 
+                disabled={!hasActiveStripeAccount} 
+                className="data-[state=active]:bg-primary/10"
               >
-                <CreditCard size={16} className="mr-2" />
+                <CreditCard className="h-4 w-4 mr-2" />
                 Card
               </TabsTrigger>
-            )}
-            
-            {isFeatureEnabled('XENDIT_ENABLED') && hasActiveXenditAccount && (
               <TabsTrigger 
-                value="xendit"
-                disabled={isCreatingIntent || paymentSuccess}
+                value="xendit" 
+                disabled={!isFeatureEnabled('XENDIT_ENABLED') || !hasActiveXenditAccount} 
+                className="data-[state=active]:bg-primary/10"
               >
-                <Globe size={16} className="mr-2" />
-                Xendit
+                <Globe className="h-4 w-4 mr-2" />
+                Bank
               </TabsTrigger>
-            )}
-          </TabsList>
+            </TabsList>
+          </Tabs>
           
-          <TabsContent value="manual">
-            <ManualPaymentForm
-              orderId={order.id}
-              orgId={orgId}
-              expectedAmount={order.amount}
-              currency={order.currency}
-            />
-          </TabsContent>
+          {/* Divider */}
+          <div className="relative py-2">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t"></span>
+            </div>
+            <div className="relative flex justify-center">
+              <span className="bg-card px-2 text-xs text-muted-foreground">PAYMENT DETAILS</span>
+            </div>
+          </div>
           
-          <TabsContent value="stripe">
-            {clientSecret ? (
-              <StripePaymentForm
-                clientSecret={clientSecret}
-                amount={order.amount}
-                currency={order.currency}
-                onSuccess={handleStripeSuccess}
-                onError={handleStripeError}
-              />
-            ) : (
-              <div className="flex items-center justify-center py-6">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              </div>
-            )}
-          </TabsContent>
-
-          {renderXenditTabContent()}
-        </Tabs>
+          {/* Payment Method Content */}
+          {renderPaymentMethodContent()}
+        </div>
       </CardContent>
+      
+      {paymentError && (
+        <CardFooter className="bg-destructive/5 px-6 py-4">
+          <div className="flex items-start space-x-2 text-sm">
+            <AlertCircle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
+            <p className="text-destructive">{paymentError}</p>
+          </div>
+        </CardFooter>
+      )}
     </Card>
   );
 } 

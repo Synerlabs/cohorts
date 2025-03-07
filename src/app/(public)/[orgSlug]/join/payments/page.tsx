@@ -1,9 +1,8 @@
 import { createServiceRoleClient } from "@/lib/utils/supabase/server";
-import { PaymentManagement } from "@/app/(public)/[orgSlug]/join/payments/_components/payment-management";
 import { createStorageProvider } from "@/services/storage/storage-settings.service";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Receipt, Star, Clock } from "lucide-react";
 import Link from "next/link";
 import { getUserMembershipApplications } from "@/services/applications.service";
 import { redirect } from "next/navigation";
@@ -11,6 +10,11 @@ import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { PaymentForm } from './_components/payment-form';
 import { OrderService } from "@/services/order.service";
 import { getPaymentGatewaysStatus } from "@/services/payment-gateways.service";
+import { Separator } from "@/components/ui/separator";
+import { formatCurrency } from "@/lib/utils/formatters";
+import { Badge } from "@/components/ui/badge";
+import { PaymentDetailsService } from "@/services/payment-details.service";
+import type { MembershipTier } from "@/types/membership";
 
 interface SearchParams {
   applicationId?: string;
@@ -20,19 +24,22 @@ interface SearchParams {
 
 function ErrorDisplay({ message, details, orgSlug }: { message: string; details?: string; orgSlug: string }) {
   return (
-    <div className="container max-w-4xl py-6">
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center text-center space-y-4">
-            <div className="p-3 bg-destructive/10 rounded-full">
-              <AlertCircle className="h-6 w-6 text-destructive" />
+    <div className="container max-w-5xl py-12">
+      <Card className="shadow-md border-destructive/20">
+        <CardContent className="pt-8 pb-6 px-6">
+          <div className="flex flex-col items-center text-center space-y-6">
+            <div className="p-4 bg-destructive/10 rounded-full">
+              <AlertCircle className="h-8 w-8 text-destructive" />
             </div>
-            <div className="space-y-2">
-              <h2 className="text-lg font-semibold">{message}</h2>
-              {details && <p className="text-sm text-muted-foreground">{details}</p>}
+            <div className="space-y-3">
+              <h2 className="text-xl font-semibold">{message}</h2>
+              {details && <p className="text-muted-foreground">{details}</p>}
             </div>
-            <Button asChild>
-              <Link href={`/@${orgSlug}/join`}>Return to Join Page</Link>
+            <Button size="lg" asChild className="mt-2">
+              <Link href={`/@${orgSlug}/join`} className="flex items-center">
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Return to Join Page
+              </Link>
             </Button>
           </div>
         </CardContent>
@@ -114,6 +121,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
       />;
     }
     order = data;
+    console.log('Order fetched successfully:', order.id);
   } else if (applicationId) {
     // Get application
     const applications = await getUserMembershipApplications(user.id, org.id);
@@ -174,7 +182,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
         }
 
         // Create order with validated data
-        console.log('✅ Creating membership order with validated data');
+        console.log('Creating membership order with validated data');
         order = await OrderService.createMembershipOrder(
           user.id,
           application.product_id,
@@ -227,104 +235,177 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
   // Check for active Stripe account
   const hasActiveStripeAccount = await checkActiveStripeAccount(org.id);
 
+  // Fetch membership details using our service
+  const membershipDetails = await PaymentDetailsService.getMembershipDetailsForOrder(order.id);
+  
+  // Parse benefits using the service
+  const benefits = PaymentDetailsService.parseBenefits(membershipDetails);
+  
+  console.log('Membership details found:', membershipDetails ? membershipDetails.name : 'None');
+  console.log('Benefits count:', benefits.length);
+
   return (
-    <div className="container max-w-7xl py-6">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div className="container max-w-6xl py-12 px-4 sm:px-6">
+      {/* Page Header */}
+      <div className="mb-8 space-y-3">
+        <Link 
+          href={`/@${org.slug}/join`}
+          className="text-sm inline-flex items-center font-medium text-primary hover:underline"
+        >
+          <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+          Back to membership options
+        </Link>
+        <h1 className="text-3xl font-bold tracking-tight">Complete Your Payment</h1>
+        <p className="text-muted-foreground">Process your payment to finalize your membership application.</p>
+      </div>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Left Column - Payment Form */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <PaymentForm 
             order={order}
             orgId={org.id}
             defaultMethod={gatewaysStatus.manual.enabled ? 'manual' : 'card'}
             hasActiveStripeAccount={gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected}
           />
-        </div>
-
-        {/* Right Column - Order Details & Payment History */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader className="border-b">
-              <CardTitle>Order Summary</CardTitle>
+          
+          <Card className="shadow-sm border-muted/60">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center">
+                <CheckCircle2 className="mr-2 h-5 w-5 text-emerald-500" />
+                Secure Payment
+              </CardTitle>
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Order ID</span>
-                  <span className="font-medium">{order.id.slice(0, 8)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Status</span>
-                  <span className="font-medium capitalize">{order.status}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Amount</span>
-                  <span className="font-medium">
-                    {(order.amount / 100).toLocaleString(undefined, {
-                      style: 'currency',
-                      currency: order.currency
-                    })}
-                  </span>
-                </div>
-                {order.payments?.length > 0 && (
-                  <div className="pt-4 border-t">
-                    <h4 className="text-sm font-medium mb-2">Payment Status</h4>
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Total Paid</span>
-                        <span className="font-medium">
-                          {(order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
-                            sum + (p.status === 'paid' ? p.amount : 0), 0) / 100).toLocaleString(undefined, {
-                            style: 'currency',
-                            currency: order.currency
-                          })}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Pending</span>
-                        <span className="font-medium">
-                          {(order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
-                            sum + (p.status === 'pending' ? p.amount : 0), 0) / 100).toLocaleString(undefined, {
-                            style: 'currency',
-                            currency: order.currency
-                          })}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Remaining</span>
-                        <span className="font-medium">
-                          {((order.amount - order.payments.reduce((sum: number, p: { status: string; amount: number }) => 
-                            sum + (p.status === 'paid' ? p.amount : 0), 0)) / 100).toLocaleString(undefined, {
-                            style: 'currency',
-                            currency: order.currency
-                          })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                All transactions are secure and encrypted. By completing your payment, you agree to the organization's terms and conditions.
+              </p>
             </CardContent>
           </Card>
+        </div>
 
-          {order.payments?.length > 0 && (
-            <Card>
-              <CardHeader className="border-b">
-                <CardTitle>Payment History</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <PaymentManagement
-                  orgId={org.id}
-                  userId={user.id}
-                  orderId={order.id}
-                  initialPayments={order.payments}
-                />
+        {/* Right Column - Order Summary & Membership Details */}
+        <div className="space-y-6">
+          {/* Membership Details Card */}
+          {membershipDetails && (
+            <Card className="shadow-sm border-primary/20 overflow-hidden">
+              <div className="bg-primary/5 border-b border-primary/10 px-6 py-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-medium flex items-center">
+                      <Star className="h-4 w-4 mr-1.5 text-primary" />
+                      Membership Details
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1">You are joining as a:</p>
+                  </div>
+                  {membershipDetails.interval && (
+                    <Badge variant="outline" className="bg-primary/10 border-primary/20 text-primary">
+                      {membershipDetails.interval === 'month' ? 'Monthly' : 
+                       membershipDetails.interval === 'year' ? 'Annual' : 
+                       membershipDetails.interval === 'lifetime' ? 'Lifetime' : 
+                       membershipDetails.interval}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <CardContent className="p-6 space-y-4">
+                <div>
+                  <h4 className="text-xl font-semibold">{membershipDetails.name}</h4>
+                  {membershipDetails.description && (
+                    <p className="text-muted-foreground text-sm mt-1">{membershipDetails.description}</p>
+                  )}
+                  
+                  <div className="mt-2 flex items-center text-sm">
+                    <Clock className="h-4 w-4 mr-1.5 text-muted-foreground" />
+                    <span>
+                      {membershipDetails.interval === 'month' ? 'Monthly membership' : 
+                       membershipDetails.interval === 'year' ? 'Annual membership' : 
+                       membershipDetails.interval === 'lifetime' ? 'Lifetime membership' : 
+                       'Membership'}
+                    </span>
+                  </div>
+                </div>
+                
+                {benefits.length > 0 && (
+                  <div className="space-y-3 pt-3">
+                    <h5 className="text-sm font-medium">Membership Benefits</h5>
+                    <ul className="space-y-2">
+                      {benefits.map((benefit: string, index: number) => (
+                        <li key={index} className="flex text-sm">
+                          <CheckCircle2 className="h-4 w-4 mr-2 text-emerald-500 flex-shrink-0 mt-0.5" />
+                          <span>{benefit}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
+
+          {/* Order Summary Card */}
+          <Card className="shadow-sm border-muted/60">
+            <CardHeader className="border-b pb-4">
+              <CardTitle className="flex items-center">
+                <Receipt className="mr-2 h-5 w-5" />
+                Order Summary
+              </CardTitle>
+              <CardDescription>Details about your membership</CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <div className="space-y-3">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Order ID</span>
+                  <span className="font-mono text-xs bg-muted px-2 py-1 rounded">{order.id.split('-')[0]}...</span>
+                </div>
+                
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-muted-foreground">Status</span>
+                  <span className={`capitalize font-medium px-2 py-0.5 rounded text-xs ${
+                    order.status === 'completed' || order.status === 'paid' 
+                      ? 'bg-emerald-50 text-emerald-700' 
+                      : order.status === 'pending' 
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-blue-50 text-blue-700'
+                  }`}>
+                    {order.status}
+                  </span>
+                </div>
+                
+                <Separator />
+                
+                <div className="flex justify-between items-center text-sm pt-1">
+                  <span className="font-medium">Total Amount</span>
+                  <span className="text-lg font-bold">
+                    {formatCurrency(order.amount, order.currency)}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="bg-muted/20 p-4 rounded-b-lg flex justify-center">
+              <Button variant="outline" asChild className="w-full">
+                <Link href={`/@${org.slug}/join`}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Membership Options
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
+          
+          <Card className="shadow-sm border-primary/10 bg-primary/5">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Need Help?</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                If you're experiencing any issues with your payment, please contact the organization administrator for assistance.
+              </p>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
   );
 }
 
-export default withOrgAccess(PaymentsPage, { allowGuest: true }); 
+export default withOrgAccess(PaymentsPage, { allowGuest: false }); 
