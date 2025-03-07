@@ -1132,8 +1132,6 @@ export function PricingDuration({
             </div>
             <div>
               <h3 className="font-medium text-sm text-muted-foreground">Duration</h3>
-              <div className="p-4 rounded-lg border bg-card text-card-foreground shadow-sm">
-                <h3 className="text-lg font-semibold">Duration</h3>
                 
                 {/* Fixed Dates Display */}
                 {defaultValues.has_fixed_dates && defaultValues.fixed_start_date && defaultValues.fixed_end_date ? (
@@ -1203,7 +1201,6 @@ export function PricingDuration({
                     </p>
                   </>
                 )}
-              </div>
             </div>
           </div>
         )}
