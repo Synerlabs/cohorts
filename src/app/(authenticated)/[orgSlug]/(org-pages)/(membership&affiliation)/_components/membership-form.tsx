@@ -34,6 +34,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { InfoIcon } from "lucide-react";
 import { format, addMonths, addYears } from 'date-fns';
+import { calculateMembershipDates, calculatePartialPeriodInfo, isValidJoinDate } from '@/lib/utils/membership-dates';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 type GroupRole = Database['public']['Tables']['group_roles']['Row'];
@@ -564,101 +565,99 @@ export default function MembershipForm({ groupId, tier, onSuccess, type = Member
                       const monthlyEndDayType = form.watch('monthly_end_day_type') || 'specific';
                       const monthlyEndDay = form.watch('monthly_end_day');
                       
-                      // Case 1: Has fixed dates
-                      if (hasFixedDates && fixedStartDate && fixedEndDate) {
-                        try {
-                          const start = new Date(fixedStartDate);
-                          const end = new Date(fixedEndDate);
+                      // Use the shared utility to calculate dates and display preview
+                      try {
+                        const tierSettings = {
+                          duration_months: durationMonths,
+                          duration_unit: durationUnit,
+                          has_fixed_dates: hasFixedDates,
+                          fixed_start_date: fixedStartDate,
+                          fixed_end_date: fixedEndDate,
+                          is_fiscal_period: isFiscalPeriod,
+                          fiscal_start_month: fiscalStartMonth,
+                          fiscal_start_day: fiscalStartDay,
+                          has_monthly_cycle: hasMonthlyCycle,
+                          monthly_start_day: monthlyStartDay,
+                          monthly_end_day_type: monthlyEndDayType,
+                          monthly_end_day: monthlyEndDay
+                        };
+                        
+                        // Case 1: Has fixed dates
+                        if (hasFixedDates && fixedStartDate && fixedEndDate) {
+                          const isJoinDateValid = isValidJoinDate(tierSettings, today);
+                          const { startDate, endDate } = calculateMembershipDates(tierSettings, today);
+                          
+                          // Calculate duration in days
+                          const daysUntilEnd = Math.round((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
                           
                           return (
                             <div className="mt-1 font-medium">
-                              <p>Membership will run from <span className="text-primary">{format(start, 'MMM d, yyyy')}</span> to <span className="text-primary">{format(end, 'MMM d, yyyy')}</span></p>
-                              <p className="text-sm text-muted-foreground mt-1">regardless of when the member joins</p>
+                              {isJoinDateValid ? (
+                                <p>Members will have a fixed membership period from <span className="text-primary">{format(startDate, 'MMM d, yyyy')}</span> to <span className="text-primary">{format(endDate, 'MMM d, yyyy')}</span></p>
+                              ) : (
+                                <p className="text-destructive">Warning: The fixed end date is in the past. New members would have an expired membership.</p>
+                              )}
                             </div>
                           );
-                        } catch (error) {
-                          return <p className="mt-1 text-destructive">Invalid dates provided</p>;
                         }
-                      }
-                      
-                      // Case 2: Is fiscal period
-                      if (isFiscalPeriod && fiscalStartMonth && fiscalStartDay) {
-                        try {
-                          const currentYear = today.getFullYear();
-                          const fiscalStartDate = new Date(currentYear, fiscalStartMonth - 1, fiscalStartDay);
-                          
-                          // Determine which fiscal year we're in
-                          let fiscalYear = currentYear;
-                          if (today < fiscalStartDate) {
-                            fiscalYear = currentYear - 1;
-                          }
-                          
-                          const fiscalStart = new Date(fiscalYear, fiscalStartMonth - 1, fiscalStartDay);
-                          let fiscalEnd;
-                          
-                          if (durationUnit === 'year') {
-                            fiscalEnd = new Date(fiscalYear + durationMonths, fiscalStartMonth - 1, fiscalStartDay - 1);
-                          } else {
-                            // Add months to the fiscal start date and subtract 1 day
-                            fiscalEnd = new Date(fiscalStart);
-                            fiscalEnd.setMonth(fiscalEnd.getMonth() + durationMonths);
-                            fiscalEnd.setDate(fiscalEnd.getDate() - 1);
-                          }
+                        
+                        // Case 2: Is fiscal period
+                        else if (isFiscalPeriod && fiscalStartMonth && fiscalStartDay) {
+                          const { startDate, endDate } = calculateMembershipDates(tierSettings, today);
                           
                           return (
                             <div className="mt-1 font-medium">
-                              <p>Based on your fiscal year starting <span className="text-primary">{format(fiscalStart, 'MMM d')}</span>, a member joining today would have membership until <span className="text-primary">{format(fiscalEnd, 'MMM d, yyyy')}</span></p>
+                              <p>Based on your fiscal year starting <span className="text-primary">{format(new Date(today.getFullYear(), fiscalStartMonth - 1, fiscalStartDay), 'MMM d')}</span>, a member joining today would have membership until <span className="text-primary">{format(endDate, 'MMM d, yyyy')}</span></p>
                             </div>
                           );
-                        } catch (error) {
-                          return <p className="mt-1 text-destructive">Invalid fiscal period settings</p>;
                         }
-                      }
-                      
-                      // Case 3: Monthly cycle
-                      if (durationUnit === 'month' && hasMonthlyCycle && monthlyStartDay) {
-                        return (
-                          <div className="mt-1">
-                            <div className="flex items-center gap-2 mb-1 text-primary">
-                              <CalendarRange size={16} />
-                              <span className="font-medium">Monthly Billing Cycle</span>
+                        
+                        // Case 3: Monthly cycle
+                        else if (durationUnit === 'month' && hasMonthlyCycle && monthlyStartDay) {
+                          const { startDate, endDate } = calculateMembershipDates(tierSettings, today);
+                          const { hasInitialPartialPeriod, firstFullCycleStart } = calculatePartialPeriodInfo(tierSettings, today);
+                          
+                          return (
+                            <div className="mt-1">
+                              <div className="flex items-center gap-2 mb-1 text-primary">
+                                <CalendarRange size={16} />
+                                <span className="font-medium">Monthly Billing Cycle</span>
+                              </div>
+                              <div>
+                                <p className="text-sm">
+                                  Memberships align with monthly cycles from
+                                  day <span className="font-medium">{monthlyStartDay}</span> to
+                                  {monthlyEndDayType === 'last_day' ? (
+                                    <span className="font-medium"> end of month</span>
+                                  ) : (
+                                    <span className="font-medium"> day {monthlyEndDay}</span>
+                                  )}
+                                </p>
+                                <p className="text-sm mt-1">
+                                  Members joining mid-cycle get a partial first month.
+                                </p>
+                                <p className="text-sm mt-1 font-medium">
+                                  Total duration: {durationMonths} {durationUnit}{durationMonths > 1 ? 's' : ''}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-sm">
-                                Memberships align with monthly cycles from
-                                day <span className="font-medium">{monthlyStartDay}</span> to
-                                {monthlyEndDayType === 'last_day' ? (
-                                  <span className="font-medium"> end of month</span>
-                                ) : (
-                                  <span className="font-medium"> day {monthlyEndDay}</span>
-                                )}
-                              </p>
-                              <p className="text-sm mt-1">
-                                Members joining mid-cycle get a partial first month.
-                              </p>
-                              <p className="text-sm mt-1 font-medium">
-                                Total duration: {durationMonths} {durationUnit}{durationMonths > 1 ? 's' : ''}
-                              </p>
+                          );
+                        }
+                        
+                        // Case 4: Standard duration
+                        else {
+                          const { startDate, endDate } = calculateMembershipDates(tierSettings, today);
+                          
+                          return (
+                            <div className="mt-1 font-medium">
+                              <p>A member joining today would have membership until <span className="text-primary">{format(endDate, 'MMM d, yyyy')}</span></p>
                             </div>
-                          </div>
-                        );
+                          );
+                        }
+                      } catch (error) {
+                        console.error('Error calculating dates:', error);
+                        return <p className="mt-1 text-destructive">Error calculating membership dates</p>;
                       }
-                      
-                      // Case 4: Standard duration
-                      let endDate;
-                      if (durationUnit === 'year') {
-                        endDate = addYears(today, durationMonths);
-                      } else {
-                        endDate = addMonths(today, durationMonths);
-                      }
-                      
-                      const durationInDays = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-                      
-                      return (
-                        <div className="mt-1 font-medium">
-                          <p>Joining on <span className="text-primary">{format(today, 'MMM d, yyyy')}</span> would result in membership until <span className="text-primary">{format(endDate, 'MMM d, yyyy')}</span></p>
-                        </div>
-                      );
                     })()}
                   </div>
                 </div>

@@ -16,6 +16,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from "@/comp
 import { useState, useRef, useEffect } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { calculateMembershipDates, calculatePartialPeriodInfo, isValidJoinDate, MembershipTierSettings } from '@/lib/utils/membership-dates';
 
 const currencySymbols: Record<Currency, string> = {
   USD: '$',
@@ -177,63 +178,6 @@ export function PricingDuration({
 
   const handleSubmit = async (values: z.infer<typeof formSchema>) => {
     await onSave(values);
-  };
-
-  // Function to calculate monthly cycle dates
-  const calculateMonthlyCycleDates = (
-    joinDate: Date,
-    startDay: number,
-    endDayType: 'specific' | 'last_day',
-    endDay: number | null,
-    durationMonths: number
-  ) => {
-    // Find the first full billing cycle
-    let cycleStart = new Date(joinDate);
-    
-    // Set to the specified start day
-    cycleStart.setDate(startDay);
-    
-    // If the join date is after the start day in the current month,
-    // move to the next month's start day
-    if (joinDate.getDate() > startDay) {
-      cycleStart = addMonths(cycleStart, 1);
-    }
-    
-    // Calculate the end date of the membership based on duration
-    const membershipEnd = addMonths(cycleStart, durationMonths);
-    
-    // Calculate the last day of the final cycle
-    let cycleEnd = new Date(membershipEnd);
-    
-    if (endDayType === 'last_day') {
-      // Set to the last day of the month
-      cycleEnd = lastDayOfMonth(cycleEnd);
-    } else if (endDay) {
-      // Check if end day is greater than the number of days in the month
-      const lastDay = lastDayOfMonth(cycleEnd).getDate();
-      const actualEndDay = Math.min(endDay, lastDay);
-      cycleEnd.setDate(actualEndDay);
-      
-      // If this would make the cycle end before the membership end,
-      // move to the previous day
-      if (cycleEnd < membershipEnd) {
-        cycleEnd.setDate(cycleEnd.getDate() - 1);
-      }
-    }
-    
-    // Calculate the initial partial cycle if applicable
-    let initialCycleEnd: Date | null = null;
-    if (joinDate < cycleStart) {
-      // There's a partial initial cycle
-      initialCycleEnd = new Date(cycleStart);
-      initialCycleEnd.setDate(initialCycleEnd.getDate() - 1);
-    }
-    
-    return {
-      firstFullCycleStart: cycleStart,
-      finalCycleEnd: cycleEnd,
-      initialPartialCycleEnd: initialCycleEnd
-    };
   };
 
   return (
@@ -571,18 +515,34 @@ export function PricingDuration({
                         // If monthly cycle is enabled and we have valid settings, use that calculation
                         if (hasMonthlyCycle && monthlyStartDay && durationUnit === 'month') {
                           try {
-                            // Calculate using our helper function
-                            const {
-                              firstFullCycleStart,
-                              finalCycleEnd,
-                              initialPartialCycleEnd
-                            } = calculateMonthlyCycleDates(
-                              joinDate,
-                              monthlyStartDay,
-                              monthlyEndDayType,
-                              monthlyEndDay || null,
-                              durationMonths
-                            );
+                            const tierSettings: MembershipTierSettings = {
+                              duration_months: durationMonths,
+                              duration_unit: durationUnit,
+                              has_fixed_dates: hasFixedDates,
+                              fixed_start_date: fixedStartDate,
+                              fixed_end_date: fixedEndDate,
+                              is_fiscal_period: isFiscalPeriod,
+                              fiscal_start_month: fiscalStartMonth,
+                              fiscal_start_day: fiscalStartDay,
+                              has_monthly_cycle: hasMonthlyCycle,
+                              monthly_start_day: monthlyStartDay,
+                              monthly_end_day_type: monthlyEndDayType,
+                              monthly_end_day: monthlyEndDay
+                            };
+                            
+                            // Calculate using our shared utility
+                            const { endDate: finalCycleEnd } = calculateMembershipDates(tierSettings, joinDate);
+                            const { hasInitialPartialPeriod, firstFullCycleStart, initialPartialDays } = 
+                              calculatePartialPeriodInfo(tierSettings, joinDate);
+                            
+                            // Calculate initial partial cycle end if applicable
+                            const initialPartialCycleEnd = hasInitialPartialPeriod && firstFullCycleStart 
+                              ? new Date(firstFullCycleStart)
+                              : null;
+                              
+                            if (initialPartialCycleEnd) {
+                              initialPartialCycleEnd.setDate(initialPartialCycleEnd.getDate() - 1);
+                            }
                             
                             // Calculate total duration in days
                             const totalDays = Math.round((finalCycleEnd.getTime() - joinDate.getTime()) / (1000 * 60 * 60 * 24));
