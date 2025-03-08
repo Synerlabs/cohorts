@@ -8,6 +8,7 @@ import { getUserMembershipApplications } from "@/services/applications.service";
 import { redirect } from "next/navigation";
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { PaymentForm } from './_components/payment-form';
+import { PaymentVerification } from './_components/payment-verification';
 import { OrderService } from "@/services/order.service";
 import { getPaymentGatewaysStatus } from "@/services/payment-gateways.service";
 import { Separator } from "@/components/ui/separator";
@@ -22,6 +23,8 @@ interface SearchParams {
   applicationId?: string;
   orderId?: string;
   method?: string;
+  redirect_status?: string;
+  payment_intent_client_secret?: string;
 }
 
 function ErrorDisplay({ message, details, orgSlug }: { message: string; details?: string; orgSlug: string }) {
@@ -83,6 +86,57 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
   const applicationId = _searchParams?.applicationId;
   const orderId = _searchParams?.orderId;
   const method = _searchParams?.method || 'manual';
+  const redirectStatus = _searchParams?.redirect_status;
+  const paymentIntentClientSecret = _searchParams?.payment_intent_client_secret;
+
+  // Check if we're returning from a successful Stripe payment
+  if (redirectStatus === 'succeeded' && paymentIntentClientSecret) {
+    // Extract payment intent ID from the client secret (format: pi_XXXXXX_secret_YYYY)
+    const clientSecret = typeof paymentIntentClientSecret === 'string' 
+      ? paymentIntentClientSecret 
+      : paymentIntentClientSecret[0];
+    
+    const paymentIntentId = clientSecret.split('_secret_')[0];
+    
+    // Check if we have the orderId - if not, we need to find the order associated with this payment
+    let targetOrderId = orderId;
+    if (!targetOrderId) {
+      try {
+        // Look up the order by paymentIntentId
+        const { data: paymentData, error: paymentError } = await serviceClient
+          .from('stripe_payments')
+          .select(`
+            payment:payment_id(
+              order_id
+            )
+          `)
+          .eq('stripe_payment_intent_id', paymentIntentId)
+          .single();
+        
+        if (paymentData && paymentData.payment) {
+          // Use type assertion to handle the unknown structure
+          const payment = paymentData.payment as any;
+          if (payment.order_id) {
+            targetOrderId = payment.order_id;
+          }
+        }
+      } catch (error) {
+        console.error('Error looking up order for payment intent:', error);
+      }
+      
+      if (!targetOrderId) {
+        console.log('Could not find order for payment intent:', paymentIntentId);
+      }
+    }
+    
+    // If we found the order, include it in the URL when we return from verification
+    const returnParams = targetOrderId ? `?orderId=${targetOrderId}` : '';
+    
+    return <PaymentVerification 
+      orgSlug={org.slug} 
+      paymentIntentId={paymentIntentId} 
+    />;
+  }
 
   // Get payment gateways status
   const gatewaysStatus = await getPaymentGatewaysStatus(org.id);
