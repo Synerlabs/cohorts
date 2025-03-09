@@ -349,6 +349,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
               <PaymentForm 
                 order={order}
                 orgId={org.id}
+                userId={user.id}
                 defaultMethod={gatewaysStatus.manual.enabled ? 'manual' : 'card'}
                 hasActiveStripeAccount={gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected}
               />

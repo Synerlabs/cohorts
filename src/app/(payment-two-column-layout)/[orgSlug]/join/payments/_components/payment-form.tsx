@@ -5,25 +5,115 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { CreditCard, Receipt } from 'lucide-react';
+import { CreditCard, Receipt, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 import { StripePaymentForm } from './stripe-payment-form';
 import { ManualPaymentForm } from './manual-payment-form';
 import { XenditPaymentForm } from './xendit-payment-form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 
 interface PaymentFormProps {
   order: any;
   orgId: string;
+  userId: string;
   defaultMethod?: string;
   hasActiveStripeAccount?: boolean;
   hasActiveXenditAccount?: boolean;
   hasActiveManualPayments?: boolean;
 }
 
+// Helper component to display existing payments
+function ExistingPaymentsDisplay({ payments }: { payments: any[] }) {
+  if (!payments || payments.length === 0) {
+    return null;
+  }
+
+  // Function to get status icon based on payment status
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'completed':
+      case 'success':
+      case 'paid':
+        return <CheckCircle className="h-4 w-4 text-green-500" />;
+      case 'pending':
+      case 'pending_approval':
+        return <Clock className="h-4 w-4 text-amber-500" />;
+      case 'failed':
+      case 'rejected':
+        return <AlertCircle className="h-4 w-4 text-red-500" />;
+      default:
+        return <Clock className="h-4 w-4 text-slate-500" />;
+    }
+  };
+
+  // Function to get status badge based on payment status
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'completed':
+      case 'success':
+      case 'paid':
+        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Completed</Badge>;
+      case 'pending':
+        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>;
+      case 'pending_approval':
+        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">Awaiting Approval</Badge>;
+      case 'failed':
+      case 'rejected':
+        return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Failed</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  // Format date
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  return (
+    <div className="space-y-3 mb-6">
+      <h3 className="text-sm font-medium">Payment History</h3>
+      <div className="bg-slate-50 rounded-lg border border-slate-100">
+        {payments.map((payment, index) => (
+          <div key={payment.id} className={`p-4 flex items-center justify-between ${index !== payments.length - 1 ? 'border-b border-slate-100' : ''}`}>
+            <div className="flex items-start gap-3">
+              <div className="mt-0.5">{getStatusIcon(payment.status)}</div>
+              <div>
+                <div className="font-medium text-sm">
+                  {payment.type === 'manual' ? 'Manual Payment' : 
+                   payment.type === 'stripe' ? 'Credit Card Payment' : 
+                   payment.type === 'xendit' ? 'Online Payment' : 
+                   'Payment'}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {formatDate(payment.created_at)} • {new Intl.NumberFormat('en-US', {
+                    style: 'currency',
+                    currency: payment.currency || 'USD'
+                  }).format(payment.amount / 100)}
+                </div>
+              </div>
+            </div>
+            <div>
+              {getStatusBadge(payment.status)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function PaymentForm({ 
   order,
   orgId,
+  userId,
   defaultMethod = 'card',
   hasActiveStripeAccount = false,
   hasActiveXenditAccount = false,
@@ -84,8 +174,27 @@ export function PaymentForm({
     );
   }
 
+  // Check if the order has existing payments
+  const existingPayments = order.payments || [];
+  const hasPendingPayment = existingPayments.some((p: { status: string }) => p.status === 'pending' || p.status === 'pending_approval');
+
   return (
     <div className="space-y-6">
+      {/* Display existing payments if any */}
+      {existingPayments.length > 0 && (
+        <ExistingPaymentsDisplay payments={existingPayments} />
+      )}
+
+      {/* Warning about pending payments */}
+      {hasPendingPayment && (
+        <Alert className="bg-amber-50 text-amber-800 border-amber-200">
+          <AlertCircle className="h-4 w-4 text-amber-600" />
+          <AlertDescription>
+            You have pending payments that are being processed. You can still submit a new payment if needed.
+          </AlertDescription>
+        </Alert>
+      )}
+
       <RadioGroup
         defaultValue={selectedMethod}
         value={selectedMethod}
@@ -183,11 +292,13 @@ export function PaymentForm({
         <ManualPaymentForm
           order={order}
           orgId={orgId}
+          userId={userId}
           onError={(message: string) => {
             setError(message);
             setPaymentStatus('error');
           }}
           onProcessing={() => setPaymentStatus('processing')}
+          onSuccess={() => setPaymentStatus('success')}
         />
       )}
     </div>

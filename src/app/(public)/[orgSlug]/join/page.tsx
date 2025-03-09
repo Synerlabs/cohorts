@@ -16,6 +16,7 @@ import { getUserMembership } from "@/services/join.service";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { ActiveMembershipDisplay } from "./components/ActiveMembershipDisplay";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -59,9 +60,9 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
   // First check for active membership
   const membership = await getUserMembership({ userId: data.user.id, groupId: org.id });
   
-  // If user has an active membership, redirect to org page
+  // If user has an active membership, show membership details instead of redirecting
   if (membership?.is_active) {
-    redirect(`/@${org.slug}`);
+    return <ActiveMembershipDisplay membership={membership} orgSlug={org.slug} />;
   }
 
   // Get user's applications
