@@ -171,7 +171,7 @@ function StripeCardFormContent({ billingDetails }: StripeCardFormContentProps) {
   
   return (
 
-        <div className="space-y-6 mt-12 pt-6">
+        <div className="space-y-6 mt-12">
           <div>
             <h3 className="text-base font-medium mb-2">Payment Information</h3>
             <p className="text-sm text-muted-foreground">

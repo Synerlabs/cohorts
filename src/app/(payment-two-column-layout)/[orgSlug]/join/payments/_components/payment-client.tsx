@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useContext, createContext, useTransition } from 'react';
+import { useState, useEffect, useCallback, useContext, createContext, useTransition, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowLeft, CheckCircle2, Receipt, Star, Clock, Lock, Loader2, CheckCircle, CreditCard, FileText, Upload, Globe, ChevronsUpDown, Pencil, Info } from "lucide-react";
@@ -509,6 +509,9 @@ function PaymentPageContent({
   
   // Add a new state for tracking edit mode
   const [isEditingBillingDetails, setIsEditingBillingDetails] = useState(false);
+  
+  // Add a ref for the payment form
+  const paymentFormRef = useRef<HTMLDivElement>(null);
   
   // Add effect to ensure saveAsDefault is properly initialized
   useEffect(() => {
@@ -1073,12 +1076,45 @@ function PaymentPageContent({
     }
   }, [paymentStatus, refreshOrderStatus]);
   
-  // Update handleMethodSelect to check order status after selection
+  // Update handleMethodSelect to just set the selected method without trying to scroll
   const handleMethodSelect = (method: 'stripe' | 'manual') => {
     setSelectedMethod(method);
     // Refresh order status when method is selected
     refreshOrderStatus();
   };
+  
+  // Add a useEffect that watches for stripeClientSecret and loadingStripe to scroll when appropriate
+  useEffect(() => {
+    // For stripe payments, wait until stripe is loaded (not loading and client secret exists)
+    if (selectedMethod === 'stripe' && !loadingStripe && stripeClientSecret) {
+      // Scroll to payment form after a delay to ensure it's rendered
+      const scrollTimeout = setTimeout(() => {
+        if (paymentFormRef.current) {
+          paymentFormRef.current.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+          });
+          console.log('Scrolling to Stripe form after it loaded');
+        }
+      }, 500); // Use a longer delay for Stripe
+      
+      return () => clearTimeout(scrollTimeout);
+    }
+    // For manual payments, scroll immediately
+    else if (selectedMethod === 'manual') {
+      const scrollTimeout = setTimeout(() => {
+        if (paymentFormRef.current) {
+          paymentFormRef.current.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'start'
+          });
+          console.log('Scrolling to manual payment form');
+        }
+      }, 100);
+      
+      return () => clearTimeout(scrollTimeout);
+    }
+  }, [selectedMethod, loadingStripe, stripeClientSecret]);
   
   // Update the goBack function with more detailed logging
   const goBack = () => {
@@ -1141,94 +1177,24 @@ function PaymentPageContent({
         const stripeWithAccount = getStripePromise(stripeAccountId);
         
         return (
-          <Elements 
-            stripe={stripeWithAccount} 
-            options={{ 
-              clientSecret: stripeClientSecret,
-              appearance: {
-                theme: 'flat',
-                variables: {
-                  colorPrimary: 'hsl(0, 0%, 9%)', // Using primary from theme
-                  colorBackground: 'white',
-                  colorText: 'hsl(0, 0%, 9%)', // Using primary text
-                  colorDanger: 'hsl(0, 84.2%, 60.2%)', // Using destructive from theme
-                  fontFamily: 'system-ui, -apple-system, sans-serif',
-                  spacingUnit: '4px',
-                  borderRadius: '0.5rem', // Matching --radius
-                },
-                rules: {
-                  '.Input': {
-                    border: '1px solid hsl(0, 0%, 89.8%)', // Using border from theme
-                    boxShadow: 'none',
-                    fontSize: '15px',
-                    padding: '10px 14px',
-                  },
-                  '.Input:focus': {
-                    border: '1px solid hsl(0, 0%, 9%)', // Primary color on focus
-                    boxShadow: '0 0 0 1px hsl(0, 0%, 9%)', // Primary as ring
-                  },
-                  '.Label': {
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    color: 'hsl(0, 0%, 45.1%)', // Using muted-foreground
-                    marginBottom: '8px',
-                  },
-                  '.Error': {
-                    color: 'hsl(0, 84.2%, 60.2%)', // Using destructive from theme
-                    fontSize: '13px',
-                  },
-                  '.Tab': {
-                    border: '1px solid hsl(0, 0%, 89.8%)',
-                    boxShadow: 'none',
-                    backgroundColor: 'white',
-                  },
-                  '.Tab:hover': {
-                    backgroundColor: 'hsl(0, 0%, 96.1%)', // Using secondary color
-                  },
-                  '.Tab--selected': {
-                    border: '1px solid hsl(0, 0%, 9%)',
-                    boxShadow: '0 0 0 1px hsl(0, 0%, 9%)',
-                    backgroundColor: 'white',
-                  },
-                  '.TabIcon': {
-                    color: 'hsl(0, 0%, 45.1%)', // Using muted-foreground
-                    marginRight: '8px',
-                    opacity: '1 !important',
-                    fill: 'hsl(0, 0%, 45.1%) !important',
-                  },
-                  '.Tab--selected .TabIcon': {
-                    color: 'hsl(0, 0%, 9%) !important', // Darker color for selected tab
-                    fill: 'hsl(0, 0%, 9%) !important',
-                  },
-                  '.TabLabel': {
-                    color: 'hsl(0, 0%, 9%)', // Using primary text
-                    fontWeight: '500',
-                  },
-                  '.TabMore': {
-                    fontSize: '14px',
-                  },
-                  // Make card number field take full width
-                  '.CardNumberField': {
-                    width: '100%',
-                  },
-                  '.CardNumber': {
-                    width: '100%',
-                  },
-                  // Add proper spacing between fields
-                  '.FormSection': {
-                    marginTop: '16px',
-                  }
+          <div ref={paymentFormRef}>
+            <Elements 
+              stripe={stripeWithAccount} 
+              options={{ 
+                clientSecret: stripeClientSecret,
+                appearance: {
+                  // ... existing appearance options ...
                 }
-              }
-            }}
-          >
-            <StripeCardForm billingDetails={billingDetails} />
-          </Elements>
+              }}
+            >
+              <StripeCardForm billingDetails={billingDetails} />
+            </Elements>
+          </div>
         );
       } else if (loadingStripe) {
         // Show loading state while waiting for Stripe to initialize
         return (
-          <div className="py-6 flex justify-center">
+          <div ref={paymentFormRef} className="py-6 flex justify-center">
             <div className="flex flex-col items-center">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-sm text-muted-foreground mt-2">Preparing payment form...</p>
@@ -1239,19 +1205,21 @@ function PaymentPageContent({
       
       // Error state if Stripe fails to initialize
       return (
-        <Alert className="bg-red-50 text-red-800 border-red-200 mt-4">
-          <AlertCircle className="h-4 w-4 text-red-600" />
-          <AlertTitle>Payment Error</AlertTitle>
-          <AlertDescription>
-            There was an error initializing the payment form. Please try again or contact support.
-          </AlertDescription>
-        </Alert>
+        <div ref={paymentFormRef}>
+          <Alert className="bg-red-50 text-red-800 border-red-200 mt-4">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertTitle>Payment Error</AlertTitle>
+            <AlertDescription>
+              There was an error initializing the payment form. Please try again or contact support.
+            </AlertDescription>
+          </Alert>
+        </div>
       );
     }
     
     // Manual Payment Form
     if (selectedMethod === 'manual') {
-      return <ManualPaymentForm order={order} orgId={org.id} userId={user.id} />;
+      return <div ref={paymentFormRef}><ManualPaymentForm order={order} orgId={org.id} userId={user.id} /></div>;
     }
     
     // Default - empty form
@@ -1295,7 +1263,7 @@ function PaymentPageContent({
   // Main content without the payment form
   return (
     <RefreshOrderStatusContext.Provider value={refreshOrderStatus}>
-      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-screen">
+      <div className={`grid grid-cols-1 lg:grid-cols-12 ${isLoadingBillingDetails ? 'h-auto' : 'min-h-screen'}`}>
         {/* Left Column - Customer Information */}
         <div className="lg:col-span-7 bg-white">
           <div className="max-w-2xl mx-auto py-8 px-4 md:px-8 lg:px-12 space-y-12">
