@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowLeft, CheckCircle2, Receipt, Star, Clock, Lock, Loader2, CheckCircle, CreditCard, FileText } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Receipt, Star, Clock, Lock, Loader2, CheckCircle, CreditCard, FileText, Upload, Globe, ChevronsUpDown, Pencil } from "lucide-react";
 import Link from "next/link";
 import { PaymentForm } from './payment-form';
 import { Separator } from "@/components/ui/separator";
@@ -18,6 +18,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StripeCardForm } from './stripe-card-form';
 import { ManualPaymentForm } from './manual-payment-form';
 import { PaymentVerification } from './payment-verification';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // Initialize Stripe - will be replaced by account-specific key when needed
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -378,13 +379,88 @@ function PaymentPageContent({
   const [showPaymentSelection, setShowPaymentSelection] = useState(true);
   const [loadingStripe, setLoadingStripe] = useState(false);
   
-  // Add state for billing details
+  // Enhanced billing details with more fields
   const [billingDetails, setBillingDetails] = useState({
-    fullName: '',
-    email: '',
-    phone: ''
+    fullName: user?.full_name || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    company: '',
+    address: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    country: 'US'
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [billingCompleted, setBillingCompleted] = useState(false);
+  
+  // Validate email format
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+  
+  // Validate phone format (basic validation)
+  const validatePhone = (phone: string): boolean => {
+    if (!phone) return true; // Phone is optional
+    const phoneRegex = /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/;
+    return phoneRegex.test(phone);
+  };
+  
+  // Handle billing field change
+  const handleBillingFieldChange = (field: string, value: string) => {
+    setBillingDetails(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Clear error for this field
+    if (fieldErrors[field]) {
+      setFieldErrors(prev => ({
+        ...prev,
+        [field]: ''
+      }));
+    }
+  };
+  
+  // Validate all billing fields
+  const validateBillingFields = (): boolean => {
+    const errors: Record<string, string> = {};
+    
+    // Required fields
+    if (!billingDetails.fullName.trim()) {
+      errors.fullName = 'Full name is required';
+    }
+    
+    if (!billingDetails.email.trim()) {
+      errors.email = 'Email address is required';
+    } else if (!validateEmail(billingDetails.email)) {
+      errors.email = 'Please enter a valid email address';
+    }
+    
+    if (billingDetails.phone && !validatePhone(billingDetails.phone)) {
+      errors.phone = 'Please enter a valid phone number';
+    }
+    
+    // Update error state
+    setFieldErrors(errors);
+    
+    // Form is valid if there are no errors
+    return Object.keys(errors).length === 0;
+  };
+  
+  // Handle billing form submission
+  const handleBillingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate all fields
+    if (!validateBillingFields()) {
+      return; // Don't proceed if there are validation errors
+    }
+    
+    // Proceed to payment
+    setBillingCompleted(true);
+  };
   
   // Create Stripe intent when Stripe is selected
   useEffect(() => {
@@ -486,16 +562,6 @@ function PaymentPageContent({
       clearInterval(pollingInterval);
     };
   }, [order.id, paymentStatus, hasSubmittedPayment]);
-  
-  // Handle billing details submission
-  const handleBillingSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Basic validation
-    if (!billingDetails.fullName.trim() || !billingDetails.email.trim()) {
-      return; // Don't proceed if required fields are empty
-    }
-    setBillingCompleted(true);
-  };
   
   // Handle payment method selection
   const handleMethodSelect = (method: 'stripe' | 'manual') => {
@@ -607,103 +673,258 @@ function PaymentPageContent({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       {/* Left Column - Customer Information */}
-      <div className="lg:col-span-7 space-y-8">
+      <div className="lg:col-span-7 space-y-6">
         <div>
           <Link 
             href={`/@${org.slug}/join`}
-            className="text-sm inline-flex items-center font-medium text-primary hover:underline"
+            className="text-sm inline-flex items-center font-medium text-primary hover:underline hover:text-primary/80 transition-colors"
           >
             <ArrowLeft className="mr-1 h-3.5 w-3.5" />
             Back to membership options
           </Link>
-          <h1 className="text-3xl font-bold tracking-tight mt-2">Complete your membership payment</h1>
-          <p className="text-muted-foreground mt-1">Fill in your details to complete your payment</p>
+          <h1 className="text-3xl font-bold tracking-tight mt-3 mb-1">Complete your membership</h1>
+          <p className="text-muted-foreground">Secure payment for {membershipDetails.name}</p>
         </div>
         
         <div className="space-y-6">
-          {/* Billing Information - Full form or compact preview */}
+          {/* Billing Information */}
           {!billingCompleted ? (
-            <Card>
-              <CardHeader className="border-b bg-slate-50">
-                <CardTitle className="text-lg">Contact Information</CardTitle>
-                <CardDescription>We'll use this information for your membership record</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <form onSubmit={handleBillingSubmit}>
-                  <div className="grid grid-cols-1 gap-4">
+            <div className="rounded-lg overflow-hidden border shadow-sm">
+              <div className="bg-gradient-to-r from-slate-50 to-slate-100 p-5 border-b">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-semibold">Billing Details</h3>
+                    <p className="text-sm text-muted-foreground mt-0.5">Used for payment verification and receipts</p>
+                  </div>
+                  <div className="flex items-center gap-1 text-muted-foreground text-xs bg-white/80 px-2 py-1 rounded-full border">
+                    <Lock className="h-3 w-3" />
+                    <span>Secure form</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6 bg-white">
+                {/* Payment methods preview - Moved to the top */}
+                <div className="mb-6 pb-5 border-b">
+                  <div className="mb-3 flex items-center">
+                    <h4 className="text-sm font-medium">Available Payment Methods</h4>
+                    <span className="ml-2 px-2 py-0.5 bg-slate-100 rounded-full text-xs text-muted-foreground">
+                      Choose after completing this form
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
+                      <div className="flex items-center gap-3 p-3 bg-white rounded-md border border-slate-200 shadow-sm">
+                        <div className="bg-primary/5 p-1.5 rounded-md">
+                          <CreditCard className="h-4 w-4 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium">Credit Card</span>
+                      </div>
+                    )}
+                    {gatewaysStatus.manual.enabled && (
+                      <div className="flex items-center gap-3 p-3 bg-white rounded-md border border-slate-200 shadow-sm">
+                        <div className="bg-primary/5 p-1.5 rounded-md">
+                          <Receipt className="h-4 w-4 text-primary" />
+                        </div>
+                        <span className="text-sm font-medium">Bank Transfer</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <form onSubmit={handleBillingSubmit} className="space-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Full Name - Required */}
                     <div className="space-y-2">
-                      <Label htmlFor="fullName">Full Name <span className="text-destructive">*</span></Label>
+                      <Label htmlFor="fullName" className="font-medium">
+                        Full Name <span className="text-destructive">*</span>
+                      </Label>
                       <Input 
                         id="fullName" 
                         placeholder="Enter your full name" 
                         value={billingDetails.fullName}
-                        onChange={(e) => setBillingDetails({...billingDetails, fullName: e.target.value})}
+                        onChange={(e) => handleBillingFieldChange('fullName', e.target.value)}
+                        className={fieldErrors.fullName ? "border-destructive ring-destructive/10 ring-1" : ""}
                         required
                       />
+                      {fieldErrors.fullName && (
+                        <p className="text-destructive text-sm flex items-center mt-1">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          {fieldErrors.fullName}
+                        </p>
+                      )}
                     </div>
+                    
+                    {/* Email - Required */}
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email Address <span className="text-destructive">*</span></Label>
+                      <Label htmlFor="email" className="font-medium">
+                        Email Address <span className="text-destructive">*</span>
+                      </Label>
                       <Input 
                         id="email" 
                         type="email" 
                         placeholder="Enter your email address" 
                         value={billingDetails.email}
-                        onChange={(e) => setBillingDetails({...billingDetails, email: e.target.value})}
+                        onChange={(e) => handleBillingFieldChange('email', e.target.value)}
+                        className={fieldErrors.email ? "border-destructive ring-destructive/10 ring-1" : ""}
                         required
                       />
+                      {fieldErrors.email && (
+                        <p className="text-destructive text-sm flex items-center mt-1">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          {fieldErrors.email}
+                        </p>
+                      )}
                     </div>
+                    
+                    {/* Phone - Optional */}
                     <div className="space-y-2">
-                      <Label htmlFor="phone">Phone Number</Label>
+                      <Label htmlFor="phone" className="font-medium">
+                        Phone Number <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                      </Label>
                       <Input 
                         id="phone" 
                         type="tel" 
                         placeholder="Enter your phone number" 
                         value={billingDetails.phone}
-                        onChange={(e) => setBillingDetails({...billingDetails, phone: e.target.value})}
+                        onChange={(e) => handleBillingFieldChange('phone', e.target.value)}
+                        className={fieldErrors.phone ? "border-destructive ring-destructive/10 ring-1" : ""}
+                      />
+                      {fieldErrors.phone && (
+                        <p className="text-destructive text-sm flex items-center mt-1">
+                          <AlertCircle className="h-3 w-3 mr-1" />
+                          {fieldErrors.phone}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Company - Optional */}
+                    <div className="space-y-2">
+                      <Label htmlFor="company" className="font-medium">
+                        Company <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                      </Label>
+                      <Input 
+                        id="company" 
+                        placeholder="Enter your company name" 
+                        value={billingDetails.company}
+                        onChange={(e) => handleBillingFieldChange('company', e.target.value)}
                       />
                     </div>
                     
-                    {/* Payment methods preview */}
-                    <div className="mt-2 pt-4 border-t">
-                      <div className="mb-3">
-                        <h4 className="text-sm font-medium text-muted-foreground">Available Payment Methods</h4>
+                    {/* Address - Optional - Full Width */}
+                    <div className="space-y-2 md:col-span-2">
+                      <Label htmlFor="address" className="font-medium">
+                        Street Address <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                      </Label>
+                      <Input 
+                        id="address" 
+                        placeholder="Enter your street address" 
+                        value={billingDetails.address}
+                        onChange={(e) => handleBillingFieldChange('address', e.target.value)}
+                      />
+                    </div>
+                    
+                    {/* City - Optional */}
+                    <div className="space-y-2">
+                      <Label htmlFor="city" className="font-medium">
+                        City <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                      </Label>
+                      <Input 
+                        id="city" 
+                        placeholder="Enter your city" 
+                        value={billingDetails.city}
+                        onChange={(e) => handleBillingFieldChange('city', e.target.value)}
+                      />
+                    </div>
+                    
+                    {/* Country - Optional */}
+                    <div className="space-y-2">
+                      <Label htmlFor="country" className="font-medium">
+                        Country <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                      </Label>
+                      <Select
+                        value={billingDetails.country}
+                        onValueChange={(value) => handleBillingFieldChange('country', value)}
+                      >
+                        <SelectTrigger id="country" className="w-full">
+                          <SelectValue placeholder="Select country" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="US">United States</SelectItem>
+                          <SelectItem value="CA">Canada</SelectItem>
+                          <SelectItem value="UK">United Kingdom</SelectItem>
+                          <SelectItem value="AU">Australia</SelectItem>
+                          <SelectItem value="DE">Germany</SelectItem>
+                          <SelectItem value="FR">France</SelectItem>
+                          <SelectItem value="JP">Japan</SelectItem>
+                          <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    {/* State and Zip - Optional - Full Width */}
+                    <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="state" className="font-medium">
+                          State/Province <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                        </Label>
+                        <Input 
+                          id="state" 
+                          placeholder="Enter state or province" 
+                          value={billingDetails.state}
+                          onChange={(e) => handleBillingFieldChange('state', e.target.value)}
+                        />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
-                          <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-md border">
-                            <CreditCard className="h-4 w-4 text-slate-500" />
-                            <span className="text-sm">Credit Card</span>
-                          </div>
-                        )}
-                        {gatewaysStatus.manual.enabled && (
-                          <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-md border">
-                            <Receipt className="h-4 w-4 text-slate-500" />
-                            <span className="text-sm">Bank Transfer</span>
-                          </div>
-                        )}
+                      <div className="space-y-2">
+                        <Label htmlFor="zipCode" className="font-medium">
+                          Zip/Postal Code <span className="text-muted-foreground text-xs font-normal">(Optional)</span>
+                        </Label>
+                        <Input 
+                          id="zipCode" 
+                          placeholder="Enter postal code" 
+                          value={billingDetails.zipCode}
+                          onChange={(e) => handleBillingFieldChange('zipCode', e.target.value)}
+                        />
                       </div>
                     </div>
                     
-                    <div className="pt-2">
-                      <Button type="submit" className="w-full">Continue to Payment</Button>
+                    {/* Submit Button - Full Width */}
+                    <div className="md:col-span-2 pt-4">
+                      <Button type="submit" className="w-full h-11 text-base" size="lg">
+                        Continue to Payment
+                      </Button>
                     </div>
                   </div>
                 </form>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ) : (
-            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-md border">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg border border-slate-200 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-50 text-green-600 rounded-full p-1.5 border border-green-100">
+                  <CheckCircle className="h-4 w-4" />
+                </div>
                 <div>
-                  <span className="font-medium">{billingDetails.fullName}</span>
-                  <div className="text-sm text-muted-foreground">
-                    {billingDetails.email}
-                    {billingDetails.phone && <> • {billingDetails.phone}</>}
+                  <div className="font-medium">{billingDetails.fullName}</div>
+                  <div className="text-sm text-muted-foreground flex flex-wrap gap-x-2">
+                    <span>{billingDetails.email}</span>
+                    {billingDetails.phone && <span>• {billingDetails.phone}</span>}
+                    {billingDetails.company && <span>• {billingDetails.company}</span>}
+                    {billingDetails.address && (
+                      <span className="whitespace-nowrap">
+                        • {[
+                          billingDetails.address,
+                          billingDetails.city,
+                          billingDetails.state,
+                          billingDetails.zipCode,
+                          billingDetails.country !== 'US' ? billingDetails.country : ''
+                        ].filter(Boolean).join(', ')}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
-              <Button variant="outline" size="sm" onClick={goBack}>
+              <Button variant="outline" size="sm" onClick={goBack} className="h-8 bg-white">
+                <Pencil className="h-3.5 w-3.5 mr-1" />
                 Edit
               </Button>
             </div>
@@ -711,20 +932,30 @@ function PaymentPageContent({
           
           {/* Payment Section - Only shown after billing is completed */}
           {billingCompleted && (
-            <Card>
-              <CardHeader className="border-b bg-slate-50">
-                <CardTitle className="text-lg">Payment Method</CardTitle>
-                <CardDescription>Choose how you'd like to pay</CardDescription>
+            <Card className="border-slate-200 shadow-sm overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 border-b py-5">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-lg font-semibold">Payment Method</CardTitle>
+                    <CardDescription>Choose how you'd like to pay</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-1 text-muted-foreground text-xs bg-white/80 px-2 py-1 rounded-full border">
+                    <Lock className="h-3 w-3" />
+                    <span>Secure payment</span>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent className="pt-6">
                 <PaymentStatusMessages />
                 
                 {/* Only show payment history if payments exist */}
                 {isLoading ? (
-                  <div className="py-6 flex justify-center">
+                  <div className="py-8 flex justify-center">
                     <div className="flex flex-col items-center">
-                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      <p className="text-sm text-muted-foreground mt-2">Loading payment information...</p>
+                      <div className="rounded-full p-2 bg-primary/5">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-3">Loading payment information...</p>
                     </div>
                   </div>
                 ) : orderStatus?.payments && orderStatus.payments.length > 0 ? (
@@ -757,7 +988,8 @@ function PaymentPageContent({
                     <Button 
                       variant="outline" 
                       onClick={() => setShowPaymentSelection(true)}
-                      className="flex items-center gap-2"
+                      className="flex items-center gap-2 h-10"
+                      size="lg"
                     >
                       <CreditCard className="h-4 w-4" />
                       Add Another Payment
@@ -770,7 +1002,7 @@ function PaymentPageContent({
                     2. (User hasn't submitted a payment OR showPaymentSelection is true) */}
                 {!orderStatus?.isPaid && (showPaymentSelection || !hasSubmittedPayment) && (
                   <div className="space-y-6">
-                    <div className="mb-4">
+                    <div className="mb-5">
                       <h3 className="text-base font-medium mb-3">Select Payment Method</h3>
                       
                       {/* Payment method options as clickable cards */}
@@ -778,13 +1010,15 @@ function PaymentPageContent({
                         {/* Credit Card Option */}
                         {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
                           <div 
-                            className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
-                              selectedMethod === 'stripe' ? 'border-primary' : 'border-muted'
+                            className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
+                              selectedMethod === 'stripe' ? 'border-primary bg-primary/5' : 'border-muted'
                             }`}
                             onClick={() => handleMethodSelect('stripe')}
                           >
                             <div className="flex items-center gap-3">
-                              <CreditCard className="h-5 w-5 text-primary/70" />
+                              <div className={`rounded-full p-2 ${selectedMethod === 'stripe' ? 'bg-primary/10' : 'bg-slate-100'}`}>
+                                <CreditCard className={`h-5 w-5 ${selectedMethod === 'stripe' ? 'text-primary' : 'text-slate-500'}`} />
+                              </div>
                               <div>
                                 <p className="font-medium">Credit Card</p>
                                 <p className="text-sm text-muted-foreground">Pay securely using your credit or debit card</p>
@@ -796,13 +1030,15 @@ function PaymentPageContent({
                         {/* Manual Payment Option */}
                         {gatewaysStatus.manual.enabled && (
                           <div 
-                            className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
-                              selectedMethod === 'manual' ? 'border-primary' : 'border-muted'
+                            className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
+                              selectedMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-muted'
                             }`}
                             onClick={() => handleMethodSelect('manual')}
                           >
                             <div className="flex items-center gap-3">
-                              <Receipt className="h-5 w-5 text-primary/70" />
+                              <div className={`rounded-full p-2 ${selectedMethod === 'manual' ? 'bg-primary/10' : 'bg-slate-100'}`}>
+                                <Receipt className={`h-5 w-5 ${selectedMethod === 'manual' ? 'text-primary' : 'text-slate-500'}`} />
+                              </div>
                               <div>
                                 <p className="font-medium">Bank Transfer</p>
                                 <p className="text-sm text-muted-foreground">Upload proof of payment after bank transfer</p>
