@@ -15,9 +15,9 @@ export const stripeAppearance: Appearance = {
     fontFamily: 'system-ui, -apple-system, sans-serif',
     spacingUnit: '4px',
     borderRadius: '0.5rem', // Matching --radius
-    fontSizeBase: '15px',
-    fontSizeSm: '13px',
-    fontSizeLg: '16px', // For mobile inputs to prevent zoom
+    fontSizeBase: '16px',
+    fontSizeSm: '14px',
+    fontSizeLg: '18px',
     fontWeightNormal: '400',
     fontWeightMedium: '500',
   },
@@ -25,8 +25,11 @@ export const stripeAppearance: Appearance = {
     '.Input': {
       border: '1px solid hsl(0, 0%, 89.8%)', // Using border from theme
       boxShadow: 'none',
-      fontSize: '15px',
-      padding: '10px 14px',
+      fontSize: '16px',
+      padding: '12px 16px',
+      height: 'auto',
+      lineHeight: '1.5',
+      minHeight: '50px',
     },
     '.Input:focus': {
       border: '1px solid hsl(0, 0%, 9%)', // Primary color on focus
@@ -36,16 +39,17 @@ export const stripeAppearance: Appearance = {
       fontSize: '14px',
       fontWeight: '500',
       color: 'hsl(0, 0%, 45.1%)', // Using muted-foreground
-      marginBottom: '8px',
+      marginBottom: '10px',
     },
     '.Error': {
       color: 'hsl(0, 84.2%, 60.2%)', // Using destructive from theme
-      fontSize: '13px',
+      fontSize: '14px',
     },
     '.Tab': {
       border: '1px solid hsl(0, 0%, 89.8%)',
       boxShadow: 'none',
       backgroundColor: 'white',
+      padding: '12px 16px',
     },
     '.Tab:hover': {
       backgroundColor: 'hsl(0, 0%, 96.1%)', // Using secondary color
@@ -68,20 +72,30 @@ export const stripeAppearance: Appearance = {
     '.TabLabel': {
       color: 'hsl(0, 0%, 9%)', // Using primary text
       fontWeight: '500',
+      fontSize: '16px',
     },
     '.TabMore': {
       fontSize: '14px',
     },
-    // Make card number field take full width
+    // Make card number field take full width and increase size
     '.CardNumberField': {
       width: '100%',
+      fontSize: '16px',
     },
     '.CardNumber': {
       width: '100%',
+      fontSize: '16px',
+    },
+    '.CardField': {
+      padding: '12px 16px',
+      minHeight: '50px',
+    },
+    '.CardField-input': {
+      fontSize: '16px',
     },
     // Add proper spacing between fields
     '.FormSection': {
-      marginTop: '16px',
+      marginTop: '20px',
     },
     // Better error state visibility
     '.Input--invalid': {
@@ -110,8 +124,9 @@ export function getOptimizedStripeAppearance(isMobile = false): Appearance {
       '.Input': {
         ...baseInputStyles,
         // On mobile, use larger font size and padding for better touch targets
-        fontSize: isMobile ? '16px' : '15px',
-        padding: isMobile ? '12px 14px' : '10px 14px',
+        fontSize: isMobile ? '18px' : '16px',
+        padding: isMobile ? '14px 16px' : '12px 16px',
+        minHeight: isMobile ? '56px' : '50px',
       }
     }
   };
