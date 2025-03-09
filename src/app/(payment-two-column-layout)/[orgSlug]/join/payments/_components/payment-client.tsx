@@ -786,14 +786,39 @@ function PaymentPageContent({
             options={{ 
               clientSecret: stripeClientSecret,
               appearance: {
-                theme: 'stripe',
+                theme: 'flat',
                 variables: {
-                  colorPrimary: '#0070f3',
+                  colorPrimary: 'hsl(0, 0%, 9%)', // Using primary from theme
+                  colorBackground: 'white',
+                  colorText: 'hsl(0, 0%, 9%)', // Using primary text
+                  colorDanger: 'hsl(0, 84.2%, 60.2%)', // Using destructive from theme
+                  fontFamily: 'system-ui, -apple-system, sans-serif',
+                  spacingUnit: '4px',
+                  borderRadius: '0.5rem', // Matching --radius
+                },
+                rules: {
+                  '.Input': {
+                    border: '1px solid hsl(0, 0%, 89.8%)', // Using border from theme
+                    boxShadow: 'none',
+                  },
+                  '.Input:focus': {
+                    border: '1px solid hsl(0, 0%, 9%)', // Primary color on focus
+                    boxShadow: '0 0 0 1px hsl(0, 0%, 9%)', // Primary as ring
+                  },
+                  '.Label': {
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: 'hsl(0, 0%, 45.1%)', // Using muted-foreground
+                  },
+                  '.Error': {
+                    color: 'hsl(0, 84.2%, 60.2%)', // Using destructive from theme
+                    fontSize: '13px',
+                  }
                 }
               }
             }}
           >
-            <StripeCardForm />
+            <StripeCardForm billingDetails={billingDetails} />
           </Elements>
         );
       } else if (loadingStripe) {
