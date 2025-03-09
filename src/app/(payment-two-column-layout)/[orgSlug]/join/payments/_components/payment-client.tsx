@@ -421,10 +421,10 @@ function PaymentPageContent({
   }
 
   // Update the state definition
-  const [billingDetails, setBillingDetails] = useState<BillingDetailsState>({
-    fullName: user?.full_name || '',
-    email: user?.email || '',
-    phone: user?.phone || '',
+  const [billingDetails, setBillingDetails] = useState<BillingDetailsFormData>({
+    fullName: '',
+    email: '',
+    phone: '',
     company: '',
     address: '',
     city: '',
@@ -449,6 +449,9 @@ function PaymentPageContent({
   // Add a pending state
   const [isPending, startTransition] = useTransition();
   
+  // Add state for existing billing ID
+  const [existingBillingId, setExistingBillingId] = useState<string | null>(null);
+  
   // Add effect to ensure saveAsDefault is properly initialized
   useEffect(() => {
     // Make sure saveAsDefault is set to true by default to encourage users to save their details
@@ -471,6 +474,7 @@ function PaymentPageContent({
           // We found billing details for this order
           console.log('Found existing billing details for order:', orderBillingDetails);
           setBillingDetails(convertToFormData(orderBillingDetails));
+          setExistingBillingId(orderBillingDetails.id); // Store the ID of existing billing details
           setBillingCompleted(true);  // Skip the form
         } else {
           // Check for default billing details
@@ -530,18 +534,8 @@ function PaymentPageContent({
   
   // Update handleBillingSubmit to better handle errors and ensure proper validation
   const handleBillingSubmit = async (e: React.FormEvent) => {
-    console.log('Handle billing submit called with event:', e.type);
-    console.log('Save as default checked:', saveAsDefault);  // Log the current state
+    e.preventDefault();
     
-    // Always prevent default to handle the form submission ourselves
-    if (e && e.preventDefault) {
-      e.preventDefault();
-      console.log('Prevented default form submission');
-    }
-    
-    console.log('Current billing details:', billingDetails);
-    
-    // Validate all fields
     if (!validateBillingFields()) {
       console.log('Validation failed, not proceeding');
       return; // Don't proceed if there are validation errors
@@ -568,15 +562,20 @@ function PaymentPageContent({
           formData,
           userId: user.id,
           orderId: order.id,
-          saveAsDefault
+          saveAsDefault,
+          existingId: existingBillingId
         });
         
         const result = await saveBillingDetails({
           formData,
           userId: user.id,
           orderId: order.id,
-          saveAsDefault
+          saveAsDefault,
+          existingId: existingBillingId
         });
+        
+        // Store the ID of the billing details record
+        setExistingBillingId(result.id);
         
         console.log('Billing details saved successfully:', result);
         
@@ -599,11 +598,18 @@ function PaymentPageContent({
   };
   
   // Handle selection of saved billing details
-  const handleSelectBillingDetail = (formData: BillingDetailsFormData, isDefault: boolean) => {
-    console.log('Selected billing detail, isDefault:', isDefault);
+  const handleSelectBillingDetail = (formData: BillingDetailsFormData, isDefault: boolean, billingDetailId?: string) => {
+    console.log('Selected billing detail, isDefault:', isDefault, 'id:', billingDetailId);
     setBillingDetails(formData);
     // Set the saveAsDefault checkbox based on whether this is a default billing detail
     setSaveAsDefault(isDefault);
+    // If a billing detail ID was provided, store it for updating later
+    if (billingDetailId) {
+      setExistingBillingId(billingDetailId);
+    } else {
+      // If no ID was provided, we'll create a new record for this order
+      setExistingBillingId(null);
+    }
     // Auto-advance when selecting a saved billing detail
     setBillingCompleted(true);
   };
@@ -1154,7 +1160,9 @@ function PaymentPageContent({
                       <SavedBillingDetails 
                         savedDetails={savedBillingDetails}
                         userId={user.id}
-                        onSelect={(formData, isDefault) => handleSelectBillingDetail(formData, isDefault)}
+                        onSelect={(formData, isDefault, billingDetailId) => {
+                          handleSelectBillingDetail(formData, isDefault, billingDetailId);
+                        }}
                         onDelete={handleDeleteBillingDetail}
                         onSetDefault={handleSetDefaultBillingDetail}
                       />

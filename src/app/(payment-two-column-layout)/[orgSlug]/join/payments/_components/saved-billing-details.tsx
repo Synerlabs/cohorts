@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 interface SavedBillingDetailsProps {
   savedDetails: BillingDetails[];
   userId: string;
-  onSelect: (formData: BillingDetailsFormData, isDefault: boolean) => void;
+  onSelect: (formData: BillingDetailsFormData, isDefault: boolean, billingDetailId: string) => void;
   onDelete: (id: string) => void;
   onSetDefault: (id: string) => void;
 }
@@ -147,7 +147,7 @@ export function SavedBillingDetails({
               variant="outline"
               size="sm"
               className="h-8"
-              onClick={() => onSelect(convertToFormData(detail), detail.is_default)}
+              onClick={() => onSelect(convertToFormData(detail), detail.is_default, detail.id)}
             >
               Use these details
             </Button>
