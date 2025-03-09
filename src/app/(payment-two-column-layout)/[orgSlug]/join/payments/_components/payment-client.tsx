@@ -467,7 +467,10 @@ function PaymentPageContent({
   // Fetch existing billing details on component mount
   useEffect(() => {
     async function fetchBillingDetails() {
-      if (!user?.id) return;
+      if (!user?.id) {
+        setIsLoadingBillingDetails(false);
+        return;
+      }
       
       setIsLoadingBillingDetails(true);
       try {
@@ -478,47 +481,87 @@ function PaymentPageContent({
         if (existingBillingDetails) {
           // We have server-provided billing details for this order
           console.log('Using server-provided billing details:', existingBillingDetails);
+          // Update all states synchronously before proceeding with async operations
+          setIsLoadingBillingDetails(false); // Set loading to false immediately
           setBillingDetails(convertToFormData(existingBillingDetails));
           setExistingBillingId(existingBillingDetails.id); // Store the ID of existing billing details
           setBillingCompleted(true);  // Skip the form
           
           // Get all saved billing details for the user to display in the saved section
-          const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
-          setSavedBillingDetails(allUserBillingDetails || []);
+          try {
+            const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+            setSavedBillingDetails(allUserBillingDetails || []);
+          } catch (err) {
+            console.error('Error fetching all user billing details:', err);
+            // This is non-critical, so we just log the error
+          }
           
-          setIsLoadingBillingDetails(false);
-          return;
+          return; // Exit early since we have all we need
         }
         
         // If no server-side details, proceed with client-side fetching
         // First check if there are billing details for this order
-        const orderBillingDetails = await getBillingDetailsForOrder(order.id);
-        
-        if (orderBillingDetails) {
-          // We found billing details for this order
-          console.log('Found existing billing details for order:', orderBillingDetails);
-          setBillingDetails(convertToFormData(orderBillingDetails));
-          setExistingBillingId(orderBillingDetails.id); // Store the ID of existing billing details
-          setBillingCompleted(true);  // Skip the form
+        try {
+          const orderBillingDetails = await getBillingDetailsForOrder(order.id);
+          
+          if (orderBillingDetails) {
+            // We found billing details for this order
+            console.log('Found existing billing details for order:', orderBillingDetails);
+            setBillingDetails(convertToFormData(orderBillingDetails));
+            setExistingBillingId(orderBillingDetails.id); // Store the ID of existing billing details
+            setBillingCompleted(true);  // Skip the form
+            
+            // Since we found order-specific billing details, we can get saved details and exit
+            try {
+              const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+              setSavedBillingDetails(allUserBillingDetails || []);
+            } catch (err) {
+              console.error('Error fetching all user billing details:', err);
+              // This is non-critical, so we just log the error
+            }
+            
+            setIsLoadingBillingDetails(false);
+            return; // Exit early since we found order-specific details
+          }
+        } catch (err) {
+          console.error('Error fetching order billing details:', err);
+          // Continue with fallback options rather than failing completely
         }
         
         // Check for default billing details
-        const defaultBillingDetails = await getDefaultBillingDetails(user.id);
-        
-        if (defaultBillingDetails) {
-          // We found default billing details - use them and auto-advance
-          console.log('Found default billing details, using them:', defaultBillingDetails);
-          setBillingDetails(convertToFormData(defaultBillingDetails));
-          setUsingDefaultBillingDetails(true);
-          setSaveAsDefault(true);
-          setBillingCompleted(true); // Skip the form when default details exist
+        try {
+          const defaultBillingDetails = await getDefaultBillingDetails(user.id);
           
-          // Get all saved billing details for the user
-          const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
-          setSavedBillingDetails(allUserBillingDetails || []);
-        } else {
-          console.log('No default billing details found, checking for any saved billing details');
-          // No default billing details, just get all saved billing details
+          if (defaultBillingDetails) {
+            // We found default billing details - use them and auto-advance
+            console.log('Found default billing details, using them:', defaultBillingDetails);
+            setBillingDetails(convertToFormData(defaultBillingDetails));
+            setUsingDefaultBillingDetails(true);
+            setSaveAsDefault(true);
+            setBillingCompleted(true); // Skip the form when default details exist
+            
+            // Get all saved billing details for the user
+            try {
+              const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+              setSavedBillingDetails(allUserBillingDetails || []);
+            } catch (err) {
+              console.error('Error fetching all user billing details:', err);
+              // This is non-critical, so we just log the error
+            }
+            
+            setIsLoadingBillingDetails(false);
+            return; // Exit early since we found default billing details
+          }
+        } catch (err) {
+          console.error('Error fetching default billing details:', err);
+          // Continue with fallback options
+        }
+        
+        // If we reach here, we didn't find any order-specific or default billing details
+        console.log('No default billing details found, checking for any saved billing details');
+        // No default billing details, just get all saved billing details
+        
+        try {
           const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
           setSavedBillingDetails(allUserBillingDetails || []);
           
@@ -534,20 +577,32 @@ function PaymentPageContent({
             
             // Don't auto-set saveAsDefault here, but keep the option visible for the user
             setBillingCompleted(true); // Skip the form when we have saved details
-          } else {
-            // Pre-fill form with user data if available
-            if (!billingDetails.fullName && user.full_name) {
-              handleBillingFieldChange('fullName', user.full_name);
-            }
-            if (!billingDetails.email && user.email) {
-              handleBillingFieldChange('email', user.email);
-            }
-            console.log('No saved billing details found, using basic user info');
-            // Don't set billingCompleted = true here - we need user to complete the form
+            setIsLoadingBillingDetails(false);
+            return;
           }
+        } catch (err) {
+          console.error('Error fetching all user billing details:', err);
         }
+        
+        // If we reach here, we have no billing details to use
+        // Pre-fill form with user data if available
+        if (user?.full_name) {
+          handleBillingFieldChange('fullName', user.full_name);
+        }
+        if (user?.email) {
+          handleBillingFieldChange('email', user.email);
+        }
+        console.log('No saved billing details found, using basic user info');
+        // Don't set billingCompleted = true here - we need user to complete the form
+        
       } catch (error) {
         console.error('Error fetching billing details:', error);
+        // Show a user-friendly error toast
+        toast({
+          title: "Error loading billing details",
+          description: "There was a problem loading your billing information. You can still proceed with entering your details.",
+          variant: "destructive"
+        });
       } finally {
         setIsLoadingBillingDetails(false);
       }
@@ -1540,8 +1595,8 @@ function PaymentPageContent({
                           {/* Credit Card Option */}
                           {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
                             <div 
-                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
-                                selectedMethod === 'stripe' ? 'border-primary bg-primary/5' : 'border-muted'
+                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
+                                selectedMethod === 'stripe' ? 'border-primary bg-slate-50' : 'border-muted'
                               }`}
                               onClick={() => handleMethodSelect('stripe')}
                             >
@@ -1560,8 +1615,8 @@ function PaymentPageContent({
                           {/* Manual Payment Option */}
                           {gatewaysStatus.manual.enabled && (
                             <div 
-                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
-                                selectedMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-muted'
+                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
+                                selectedMethod === 'manual' ? 'border-primary bg-slate-50' : 'border-muted'
                               }`}
                               onClick={() => handleMethodSelect('manual')}
                             >
