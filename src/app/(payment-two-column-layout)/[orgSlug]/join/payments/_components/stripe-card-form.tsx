@@ -170,9 +170,8 @@ function StripeCardFormContent({ billingDetails }: StripeCardFormContentProps) {
   }
   
   return (
-    <Card className="border border-muted shadow-sm overflow-hidden">
-      <CardContent className="p-6">
-        <div className="space-y-6">
+
+        <div className="space-y-6 mt-12 pt-6">
           <div>
             <h3 className="text-base font-medium mb-2">Payment Information</h3>
             <p className="text-sm text-muted-foreground">
@@ -203,7 +202,5 @@ function StripeCardFormContent({ billingDetails }: StripeCardFormContentProps) {
             <span>Your payment information is securely processed</span>
           </div>
         </div>
-      </CardContent>
-    </Card>
   );
 } 

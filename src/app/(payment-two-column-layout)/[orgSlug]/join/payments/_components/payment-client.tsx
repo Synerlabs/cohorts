@@ -1298,7 +1298,7 @@ function PaymentPageContent({
       <div className="grid grid-cols-1 lg:grid-cols-12 min-h-screen">
         {/* Left Column - Customer Information */}
         <div className="lg:col-span-7 bg-white">
-          <div className="max-w-3xl mx-auto py-8 px-4 md:px-8 lg:px-12 space-y-6">
+          <div className="max-w-3xl mx-auto py-8 px-4 md:px-8 lg:px-12 space-y-12">
             <div>
               <Link 
                 href={`/@${org.slug}/join`}
@@ -1645,20 +1645,7 @@ function PaymentPageContent({
             
             {/* Payment Section - Only shown after billing is completed */}
             {billingCompleted && (
-              <Card className="border-slate-200 shadow-sm overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 border-b py-5">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg font-semibold">Payment Method</CardTitle>
-                      <CardDescription>Choose how you'd like to pay</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-1 text-muted-foreground text-xs bg-white/80 px-2 py-1 rounded-full border">
-                      <Lock className="h-3 w-3" />
-                      <span>Secure payment</span>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
+              <>
                   <PaymentStatusMessages />
                   
                   {/* Only show payment history if payments exist */}
@@ -1758,7 +1745,7 @@ function PaymentPageContent({
                     </div>
                   )}
                   
-                  {/* Loading indicator */}
+                  {/* Loading indicator
                   {isLoading && (
                     <div className="py-8 flex justify-center">
                       <div className="flex flex-col items-center">
@@ -1768,9 +1755,8 @@ function PaymentPageContent({
                         <p className="text-sm text-muted-foreground mt-3">Loading payment information...</p>
                       </div>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  )} */}
+              </>
             )}
           </div>
         </div>
