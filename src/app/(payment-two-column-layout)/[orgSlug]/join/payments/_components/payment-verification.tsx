@@ -12,18 +12,31 @@ import Link from 'next/link';
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 
 interface PaymentVerificationProps {
-  clientSecret: string;
-  accountId: string | null;
+  clientSecret?: string;
+  accountId?: string | null;
   orgSlug: string;
-  orderId: string;
+  orderId?: string;
+  paymentIntentId?: string;
 }
 
-export function PaymentVerification({ clientSecret, accountId, orgSlug, orderId }: PaymentVerificationProps) {
+export function PaymentVerification({ clientSecret, accountId, orgSlug, orderId, paymentIntentId }: PaymentVerificationProps) {
   const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'already_paid'>('loading');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [paymentId, setPaymentId] = useState<string>('');
 
   useEffect(() => {
+    // If we have a paymentIntentId, we'll use that
+    if (paymentIntentId) {
+      checkPaymentStatus();
+    } else if (clientSecret) {
+      // We have a client secret, so we'll use that
+      checkOrderStatus();
+    } else {
+      // We don't have either, so we'll show an error
+      setStatus('error');
+      setErrorMessage('Missing payment information');
+    }
+    
     async function checkOrderStatus() {
       try {
         // First check if the order still needs payment
@@ -51,57 +64,21 @@ export function PaymentVerification({ clientSecret, accountId, orgSlug, orderId 
     
     async function checkPaymentStatus() {
       try {
-        // Get Stripe instance with the correct account
-        const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!, 
-          accountId ? { stripeAccount: accountId } : undefined
-        );
-        
-        if (!stripe) {
-          throw new Error('Failed to load Stripe');
-        }
-
-        // Retrieve the payment intent to check its status
-        const { paymentIntent, error } = await stripe.retrievePaymentIntent(clientSecret);
-        
-        if (error) {
-          throw new Error(error.message);
-        }
-        
-        if (!paymentIntent) {
-          throw new Error('No payment intent found');
-        }
-
-        // Store the payment ID for reference
-        setPaymentId(paymentIntent.id);
-        
-        // Check the payment status
-        switch (paymentIntent.status) {
-          case 'succeeded':
-            setStatus('success');
-            break;
-          case 'processing':
-            // Poll again in 2 seconds
-            setTimeout(checkPaymentStatus, 2000);
-            break;
-          case 'requires_payment_method':
-            setStatus('error');
-            setErrorMessage('Your payment was not successful, please try again.');
-            break;
-          default:
-            setStatus('error');
-            setErrorMessage(`Unexpected payment status: ${paymentIntent.status}`);
-            break;
+        // Check payment status using the paymentIntentId
+        if (paymentIntentId) {
+          setStatus('success');
+          setPaymentId(paymentIntentId);
+        } else {
+          setStatus('error');
+          setErrorMessage('Missing payment intent ID');
         }
       } catch (error) {
         console.error('Error checking payment status:', error);
         setStatus('error');
-        setErrorMessage(error instanceof Error ? error.message : 'An unknown error occurred');
+        setErrorMessage('Failed to retrieve payment status');
       }
     }
-
-    // Start the verification process
-    checkOrderStatus();
-  }, [clientSecret, accountId, orderId]);
+  }, [clientSecret, orderId, paymentIntentId]);
 
   return (
     <Card className="w-full max-w-md mx-auto">

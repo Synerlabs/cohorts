@@ -74,6 +74,29 @@ async function checkActiveStripeAccount(orgId: string) {
   return accounts && accounts.length > 0;
 }
 
+// Server-side function to fetch billing details
+async function getBillingDetailsForOrderServer(orderId: string) {
+  const supabase = await createServiceRoleClient();
+  
+  const { data, error } = await supabase
+    .from('billing_details')
+    .select('*')
+    .eq('order_id', orderId)
+    .limit(1)
+    .single();
+    
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // No rows returned - not an error for our purposes
+      return null;
+    }
+    console.error('Error fetching billing details for order:', error);
+    return null;
+  }
+  
+  return data;
+}
+
 // Main server component
 async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { searchParams: SearchParams }) {
   if (!user) {
@@ -133,11 +156,10 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
     }
     
     // If we found the order, include it in the URL when we return from verification
-    const returnParams = targetOrderId ? `?orderId=${targetOrderId}` : '';
-    
     return <PaymentVerification 
-      orgSlug={org.slug} 
-      paymentIntentId={paymentIntentId} 
+      orgSlug={org.slug}
+      orderId={targetOrderId || ''}
+      paymentIntentId={paymentIntentId}
     />;
   }
 
@@ -316,6 +338,9 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
       }
     };
     
+    // Fetch billing details on the server
+    const existingBillingDetails = await getBillingDetailsForOrderServer(order.id);
+    
     return (
       <PaymentClient 
         org={org}
@@ -325,6 +350,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
         benefits={benefits}
         gatewaysStatus={safeGatewaysStatus}
         createStripePaymentIntentFn={createStripePaymentIntentForClient}
+        existingBillingDetails={existingBillingDetails}
       />
     );
   }

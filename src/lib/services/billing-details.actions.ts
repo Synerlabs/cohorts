@@ -52,8 +52,46 @@ export async function saveBillingDetailsAction({
     
     console.log('[SERVER] Billing details to save:', dbData);
     
-    // If we're saving a record as default, first clear any existing defaults
-    if (saveAsDefault && !orderId) {
+    // If the user wants to save for future orders (saveAsDefault is true) AND we're editing an order-specific record,
+    // we need to also create a non-order-specific copy for future use
+    if (saveAsDefault && orderId) {
+      console.log('[SERVER] User wants to save billing details for future orders');
+      
+      // Create a reusable copy without the order_id
+      const reusableCopy = {
+        ...dbData,
+        order_id: null,
+        is_default: true // Set this copy as default
+      };
+      
+      // First clear any existing defaults
+      console.log('[SERVER] Clearing existing defaults for user:', userId);
+      const { error: clearError } = await supabase
+        .from('billing_details')
+        .update({ is_default: false })
+        .eq('user_id', userId)
+        .eq('is_default', true);
+        
+      if (clearError) {
+        console.error('[SERVER] Error clearing existing default billing details:', clearError);
+        throw clearError;
+      }
+      
+      // Insert the reusable copy
+      console.log('[SERVER] Creating reusable copy of billing details');
+      const { error: insertError } = await supabase
+        .from('billing_details')
+        .insert(reusableCopy);
+        
+      if (insertError) {
+        console.error('[SERVER] Error creating reusable copy of billing details:', insertError);
+        throw insertError;
+      }
+      
+      console.log('[SERVER] Successfully created reusable copy of billing details');
+    } 
+    // If we're saving a non-order-specific record as default, first clear any existing defaults
+    else if (saveAsDefault && !orderId) {
       console.log('[SERVER] Clearing existing defaults for user:', userId);
       const { data: clearData, error: clearError } = await supabase
         .from('billing_details')

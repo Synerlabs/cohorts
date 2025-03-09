@@ -343,7 +343,8 @@ export function PaymentClient({
   membershipDetails, 
   benefits, 
   gatewaysStatus,
-  createStripePaymentIntentFn
+  createStripePaymentIntentFn,
+  existingBillingDetails
 }: {
   org: any;
   user: any;
@@ -355,6 +356,7 @@ export function PaymentClient({
     manual: { enabled: boolean };
   };
   createStripePaymentIntentFn: (orderId: string, groupId: string) => Promise<{ clientSecret: string; accountId: string }>;
+  existingBillingDetails?: any;
 }) {
   // Main component wrapping with payment provider
   return (
@@ -371,6 +373,7 @@ export function PaymentClient({
         membershipDetails={membershipDetails} 
         benefits={benefits} 
         gatewaysStatus={gatewaysStatus}
+        existingBillingDetails={existingBillingDetails}
       />
     </PaymentProvider>
   );
@@ -383,7 +386,8 @@ function PaymentPageContent({
   order, 
   membershipDetails, 
   benefits, 
-  gatewaysStatus 
+  gatewaysStatus,
+  existingBillingDetails
 }: {
   org: any;
   user: any;
@@ -394,6 +398,7 @@ function PaymentPageContent({
     stripe: { enabled: boolean; stripeConnected: boolean };
     manual: { enabled: boolean };
   };
+  existingBillingDetails?: any;
 }) {
   const { selectedMethod, stripeClientSecret, stripeAccountId, showVerification, paymentStatus, setSelectedMethod, createStripePaymentIntent, submitPayment, isSubmitting, setIsSubmitting } = usePayment();
   const [orderStatus, setOrderStatus] = useState<{
@@ -467,6 +472,25 @@ function PaymentPageContent({
       setIsLoadingBillingDetails(true);
       try {
         console.log('Starting to fetch billing details for user:', user.id);
+        console.log('Server-provided existingBillingDetails:', existingBillingDetails);
+        
+        // First check if we received server-side billing details for this order
+        if (existingBillingDetails) {
+          // We have server-provided billing details for this order
+          console.log('Using server-provided billing details:', existingBillingDetails);
+          setBillingDetails(convertToFormData(existingBillingDetails));
+          setExistingBillingId(existingBillingDetails.id); // Store the ID of existing billing details
+          setBillingCompleted(true);  // Skip the form
+          
+          // Get all saved billing details for the user to display in the saved section
+          const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+          setSavedBillingDetails(allUserBillingDetails || []);
+          
+          setIsLoadingBillingDetails(false);
+          return;
+        }
+        
+        // If no server-side details, proceed with client-side fetching
         // First check if there are billing details for this order
         const orderBillingDetails = await getBillingDetailsForOrder(order.id);
         
@@ -476,50 +500,50 @@ function PaymentPageContent({
           setBillingDetails(convertToFormData(orderBillingDetails));
           setExistingBillingId(orderBillingDetails.id); // Store the ID of existing billing details
           setBillingCompleted(true);  // Skip the form
-        } else {
-          // Check for default billing details
-          const defaultBillingDetails = await getDefaultBillingDetails(user.id);
+        }
+        
+        // Check for default billing details
+        const defaultBillingDetails = await getDefaultBillingDetails(user.id);
+        
+        if (defaultBillingDetails) {
+          // We found default billing details - use them and auto-advance
+          console.log('Found default billing details, using them:', defaultBillingDetails);
+          setBillingDetails(convertToFormData(defaultBillingDetails));
+          setUsingDefaultBillingDetails(true);
+          setSaveAsDefault(true);
+          setBillingCompleted(true); // Skip the form when default details exist
           
-          if (defaultBillingDetails) {
-            // We found default billing details - use them and auto-advance
-            console.log('Found default billing details, using them:', defaultBillingDetails);
-            setBillingDetails(convertToFormData(defaultBillingDetails));
-            setUsingDefaultBillingDetails(true);
-            setSaveAsDefault(true);
-            setBillingCompleted(true); // Skip the form when default details exist
+          // Get all saved billing details for the user
+          const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+          setSavedBillingDetails(allUserBillingDetails || []);
+        } else {
+          console.log('No default billing details found, checking for any saved billing details');
+          // No default billing details, just get all saved billing details
+          const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+          setSavedBillingDetails(allUserBillingDetails || []);
+          
+          // If we have any billing details, use the most recent one and auto-advance
+          if (allUserBillingDetails && allUserBillingDetails.length > 0) {
+            // Sort by updated_at descending (most recent first)
+            const sortedDetails = [...allUserBillingDetails].sort(
+              (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+            );
             
-            // Get all saved billing details for the user
-            const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
-            setSavedBillingDetails(allUserBillingDetails || []);
+            console.log('Using most recent billing detail:', sortedDetails[0]);
+            setBillingDetails(convertToFormData(sortedDetails[0]));
+            
+            // Don't auto-set saveAsDefault here, but keep the option visible for the user
+            setBillingCompleted(true); // Skip the form when we have saved details
           } else {
-            console.log('No default billing details found, checking for any saved billing details');
-            // No default billing details, just get all saved billing details
-            const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
-            setSavedBillingDetails(allUserBillingDetails || []);
-            
-            // If we have any billing details, use the most recent one and auto-advance
-            if (allUserBillingDetails && allUserBillingDetails.length > 0) {
-              // Sort by updated_at descending (most recent first)
-              const sortedDetails = [...allUserBillingDetails].sort(
-                (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
-              );
-              
-              console.log('Using most recent billing detail:', sortedDetails[0]);
-              setBillingDetails(convertToFormData(sortedDetails[0]));
-              
-              // Don't auto-set saveAsDefault here, but keep the option visible for the user
-              setBillingCompleted(true); // Skip the form when we have saved details
-            } else {
-              // Pre-fill form with user data if available
-              if (!billingDetails.fullName && user.full_name) {
-                handleBillingFieldChange('fullName', user.full_name);
-              }
-              if (!billingDetails.email && user.email) {
-                handleBillingFieldChange('email', user.email);
-              }
-              console.log('No saved billing details found, using basic user info');
-              // Don't set billingCompleted = true here - we need user to complete the form
+            // Pre-fill form with user data if available
+            if (!billingDetails.fullName && user.full_name) {
+              handleBillingFieldChange('fullName', user.full_name);
             }
+            if (!billingDetails.email && user.email) {
+              handleBillingFieldChange('email', user.email);
+            }
+            console.log('No saved billing details found, using basic user info');
+            // Don't set billingCompleted = true here - we need user to complete the form
           }
         }
       } catch (error) {
@@ -530,7 +554,7 @@ function PaymentPageContent({
     }
     
     fetchBillingDetails();
-  }, [order.id, user?.id]);  // Only re-run when order or user ID changes
+  }, [order.id, user?.id, existingBillingDetails]);
   
   // Update handleBillingSubmit to better handle errors and ensure proper validation
   const handleBillingSubmit = async (e: React.FormEvent) => {
@@ -1086,7 +1110,28 @@ function PaymentPageContent({
           
           <div className="space-y-6">
             {/* Billing Information */}
-            {!billingCompleted ? (
+            {isLoadingBillingDetails ? (
+              <div className="rounded-lg overflow-hidden border shadow-sm">
+                <div className="bg-gradient-to-r from-slate-50 to-slate-100 p-5 border-b">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="text-lg font-semibold">Billing Details</h3>
+                      <p className="text-sm text-muted-foreground mt-0.5">Used for payment verification and receipts</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 bg-white">
+                  <div className="py-8 flex justify-center">
+                    <div className="flex flex-col items-center">
+                      <div className="rounded-full p-2 bg-primary/5">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-3">Loading billing information...</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : !billingCompleted ? (
               <div className="rounded-lg overflow-hidden border shadow-sm">
                 <div className="bg-gradient-to-r from-slate-50 to-slate-100 p-5 border-b">
                   <div className="flex justify-between items-start">
@@ -1443,16 +1488,7 @@ function PaymentPageContent({
                   <PaymentStatusMessages />
                   
                   {/* Only show payment history if payments exist */}
-                  {isLoading ? (
-                    <div className="py-8 flex justify-center">
-                      <div className="flex flex-col items-center">
-                        <div className="rounded-full p-2 bg-primary/5">
-                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-3">Loading payment information...</p>
-                      </div>
-                    </div>
-                  ) : orderStatus?.payments && orderStatus.payments.length > 0 ? (
+                  {!isLoading && orderStatus?.payments && orderStatus.payments.length > 0 ? (
                     <div className="mb-6">
                       <ExistingPaymentsDisplay payments={orderStatus.payments} />
                     </div>
@@ -1543,10 +1579,23 @@ function PaymentPageContent({
                         </div>
                       </div>
                       
-                      {/* Render the appropriate payment form based on selected method */}
+                      {/* Display the selected payment form - now shown below payment selectors */}
                       {renderPaymentForm()}
                     </div>
                   )}
+                  
+                  {/* Loading indicator - moved below payment selectors */}
+                  {isLoading && (
+                    <div className="py-8 flex justify-center">
+                      <div className="flex flex-col items-center">
+                        <div className="rounded-full p-2 bg-primary/5">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-3">Loading payment information...</p>
+                      </div>
+                    </div>
+                  )}
+                  
                 </CardContent>
               </Card>
             )}
