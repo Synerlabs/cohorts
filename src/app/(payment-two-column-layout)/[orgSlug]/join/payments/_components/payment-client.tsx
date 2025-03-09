@@ -1084,9 +1084,9 @@ function PaymentPageContent({
     refreshOrderStatus();
   };
   
-  // Add a useEffect that watches for stripeClientSecret and loadingStripe to scroll when appropriate
+  // Update useEffect that watches for stripeClientSecret and loadingStripe to scroll only for Stripe
   useEffect(() => {
-    // For stripe payments, wait until stripe is loaded (not loading and client secret exists)
+    // For stripe payments only, wait until stripe is loaded (not loading and client secret exists)
     if (selectedMethod === 'stripe' && !loadingStripe && stripeClientSecret) {
       // Scroll to payment form after a delay to ensure it's rendered
       const scrollTimeout = setTimeout(() => {
@@ -1101,20 +1101,7 @@ function PaymentPageContent({
       
       return () => clearTimeout(scrollTimeout);
     }
-    // For manual payments, scroll immediately
-    else if (selectedMethod === 'manual') {
-      const scrollTimeout = setTimeout(() => {
-        if (paymentFormRef.current) {
-          paymentFormRef.current.scrollIntoView({ 
-            behavior: 'smooth',
-            block: 'start'
-          });
-          console.log('Scrolling to manual payment form');
-        }
-      }, 100);
-      
-      return () => clearTimeout(scrollTimeout);
-    }
+    // No scrolling for manual payments
   }, [selectedMethod, loadingStripe, stripeClientSecret]);
   
   // Update the goBack function with more detailed logging
@@ -1171,58 +1158,50 @@ function PaymentPageContent({
       return null;
     }
 
-    // Stripe Form with client secret available
+    // Create a container with consistent height for Stripe forms to minimize layout shift
     if (selectedMethod === 'stripe') {
-      if (stripeClientSecret) {
-        // Use the connected account-specific Stripe instance
-        const stripeWithAccount = getStripePromise(stripeAccountId);
-        
-        // Determine if we should use mobile optimized appearance
-        const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
-        const optimizedAppearance = getOptimizedStripeAppearance(isMobileDevice);
-        
-        return (
-          <div ref={paymentFormRef}>
-            <Elements 
-              stripe={stripeWithAccount} 
-              options={{ 
-                clientSecret: stripeClientSecret,
-                appearance: optimizedAppearance
-              }}
-            >
-              <StripeCardForm billingDetails={billingDetails} />
-            </Elements>
-          </div>
-        );
-      } else if (loadingStripe) {
-        // Show loading state while waiting for Stripe to initialize
-        return (
-          <div ref={paymentFormRef} className="py-6 flex justify-center">
-            <div className="flex flex-col items-center">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground mt-2">Preparing payment form...</p>
-            </div>
-          </div>
-        );
-      }
-      
-      // Error state if Stripe fails to initialize
       return (
-        <div ref={paymentFormRef}>
-          <Alert className="bg-red-50 text-red-800 border-red-200 mt-4">
-            <AlertCircle className="h-4 w-4 text-red-600" />
-            <AlertTitle>Payment Error</AlertTitle>
-            <AlertDescription>
-              There was an error initializing the payment form. Please try again or contact support.
-            </AlertDescription>
-          </Alert>
+        <div className="stripe-form-container transition-all duration-300 ease-in-out min-h-[250px]">
+          {stripeClientSecret ? (
+            // Stripe Form with client secret available
+            <div ref={paymentFormRef} className="transition-all duration-300 ease-in-out">
+              <Elements 
+                stripe={getStripePromise(stripeAccountId)} 
+                options={{ 
+                  clientSecret: stripeClientSecret,
+                  appearance: getOptimizedStripeAppearance(typeof window !== 'undefined' && window.innerWidth < 768)
+                }}
+              >
+                <StripeCardForm billingDetails={billingDetails} />
+              </Elements>
+            </div>
+          ) : loadingStripe ? (
+            // Show loading state while waiting for Stripe to initialize
+            <div ref={paymentFormRef} className="py-6 flex justify-center transition-all duration-300 ease-in-out min-h-[200px]">
+              <div className="flex flex-col items-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground mt-2">Preparing payment form...</p>
+              </div>
+            </div>
+          ) : (
+            // Error state if Stripe fails to initialize
+            <div ref={paymentFormRef} className="transition-all duration-300 ease-in-out">
+              <Alert className="bg-red-50 text-red-800 border-red-200 mt-4">
+                <AlertCircle className="h-4 w-4 text-red-600" />
+                <AlertTitle>Payment Error</AlertTitle>
+                <AlertDescription>
+                  There was an error initializing the payment form. Please try again or contact support.
+                </AlertDescription>
+              </Alert>
+            </div>
+          )}
         </div>
       );
     }
     
     // Manual Payment Form
     if (selectedMethod === 'manual') {
-      return <div ref={paymentFormRef}><ManualPaymentForm order={order} orgId={org.id} userId={user.id} /></div>;
+      return <div><ManualPaymentForm order={order} orgId={org.id} userId={user.id} /></div>;
     }
     
     // Default - empty form
