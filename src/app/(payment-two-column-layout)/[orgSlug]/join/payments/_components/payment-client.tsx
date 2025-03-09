@@ -1298,7 +1298,7 @@ function PaymentPageContent({
       <div className="grid grid-cols-1 lg:grid-cols-12 min-h-screen">
         {/* Left Column - Customer Information */}
         <div className="lg:col-span-7 bg-white">
-          <div className="max-w-3xl mx-auto py-8 px-4 md:px-8 lg:px-12 space-y-12">
+          <div className="max-w-2xl mx-auto py-8 px-4 md:px-8 lg:px-12 space-y-12">
             <div>
               <Link 
                 href={`/@${org.slug}/join`}
