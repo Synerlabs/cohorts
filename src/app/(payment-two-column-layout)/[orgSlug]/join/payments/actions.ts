@@ -31,6 +31,100 @@ export async function createStripePaymentIntent(orderId: string, groupId: string
     const supabase = await createServiceRoleClient();
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
     
+    console.log(`[${new Date().toISOString()}] Starting createStripePaymentIntent for order: ${orderId}`);
+    
+    // STEP 1: Check for existing Stripe payment records first with valid Stripe data
+    // Use a join query to only get payments that have related stripe_payments records
+    const { data: existingStripePayments, error: existingPaymentsError } = await supabase
+      .from('payments')
+      .select(`
+        id,
+        status,
+        created_at,
+        user_id,
+        stripe_payments!inner(
+          payment_id,
+          stripe_payment_intent_id,
+          stripe_payment_intent_client_secret,
+          stripe_account_id
+        )
+      `)
+      .eq('order_id', orderId)
+      .eq('type', 'stripe')
+      .not('status', 'eq', 'cancelled')
+      .not('status', 'eq', 'failed');
+    
+    console.log(`Found ${existingStripePayments?.length || 0} existing Stripe payment records for order: ${orderId}`);
+    
+    // If we have existing payments with stripe data, check each one
+    if (existingStripePayments && existingStripePayments.length > 0) {
+      // First, get the Stripe connected account to use with API calls
+      const { data: account, error: accountError } = await supabase
+        .from('stripe_connected_accounts')
+        .select('account_id, is_active')
+        .eq('org_id', groupId)
+        .eq('is_active', true)
+        .single();
+
+      if (accountError || !account) {
+        console.error('Failed to get Stripe connected account:', accountError);
+        throw new Error('No active Stripe account available for this organization');
+      }
+      
+      // Try each existing payment record, starting with the most recent
+      const sortedPayments = [...existingStripePayments].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      
+      for (const payment of sortedPayments) {
+        // Each payment should have stripe_payments data due to inner join
+        if (!payment.stripe_payments || payment.stripe_payments.length === 0) {
+          console.log(`Payment ${payment.id} unexpectedly has no stripe_payments data, skipping`);
+          continue;
+        }
+        
+        const stripePayment = payment.stripe_payments[0];
+        
+        // Double check the payment data has the required fields
+        if (!stripePayment.stripe_payment_intent_id || !stripePayment.stripe_payment_intent_client_secret) {
+          console.log(`Payment ${payment.id} missing intent ID or client secret, skipping`);
+          continue;
+        }
+        
+        try {
+          console.log(`Checking Stripe intent ${stripePayment.stripe_payment_intent_id} for payment ${payment.id}`);
+          
+          // Retrieve the intent from Stripe
+          const intent = await stripe.paymentIntents.retrieve(
+            stripePayment.stripe_payment_intent_id,
+            { stripeAccount: account.account_id }
+          );
+          
+          console.log(`Intent ${stripePayment.stripe_payment_intent_id} has status: ${intent.status}`);
+          
+          // Check if the intent is usable
+          if (['requires_payment_method', 'requires_confirmation', 'requires_action'].includes(intent.status)) {
+            console.log(`Found valid intent ${stripePayment.stripe_payment_intent_id} - reusing it`);
+            
+            // Return the existing client secret
+            return {
+              clientSecret: stripePayment.stripe_payment_intent_client_secret,
+              accountId: account.account_id
+            };
+          } else {
+            console.log(`Intent ${intent.id} has status ${intent.status}, not reusable`);
+          }
+        } catch (error) {
+          console.error(`Error retrieving intent ${stripePayment.stripe_payment_intent_id}:`, error);
+          // Continue to next payment
+        }
+      }
+      
+      console.log(`No reusable payment intents found for order ${orderId}, creating new one`);
+    }
+    
+    // STEP 2: If no reusable intents found, continue with creating a new one
+    
     // Get order details
     const { data: orderDetails, error: orderDetailsError } = await supabase
       .from('orders')
@@ -39,7 +133,13 @@ export async function createStripePaymentIntent(orderId: string, groupId: string
         user_id,
         status,
         amount,
-        currency
+        currency,
+        payments (
+          id,
+          status,
+          amount,
+          type
+        )
       `)
       .eq('id', orderId)
       .single();
@@ -49,61 +149,44 @@ export async function createStripePaymentIntent(orderId: string, groupId: string
       throw new Error('Failed to fetch order');
     }
 
-    // Check if order is already paid
-    const isPaid = orderDetails.status === 'paid' || 
-                  orderDetails.status === 'completed';
-    
-    if (isPaid) {
+    // Check if order is already paid or completed
+    if (orderDetails.status === 'paid' || orderDetails.status === 'completed') {
+      console.log(`Order ${orderId} is already paid, not creating new payment intent`);
       throw new Error('This order has already been paid');
     }
-    
-    // Check if there's already a Stripe payment for this order
-    const { data: existingPayment, error: existingPaymentError } = await supabase
-      .from('payments')
-      .select(`
-        id,
-        status,
-        stripe_payments (
-          payment_id,
-          stripe_payment_intent_id,
-          stripe_payment_intent_client_secret,
-          stripe_account_id
-        )
-      `)
-      .eq('order_id', orderId)
-      .eq('type', 'stripe')
-      .in('status', ['initialized', 'pending'])
-      .maybeSingle();
-    
-    // Get connected account
-    const { data: account, error: accountError } = await supabase
-      .from('stripe_connected_accounts')
-      .select('account_id, is_active')
-      .eq('org_id', groupId)
-      .eq('is_active', true)
-      .single();
 
-    if (accountError || !account) {
-      console.error('Failed to get Stripe connected account:', accountError);
-      throw new Error('No active Stripe account available for this organization');
+    // Calculate total paid amount
+    const totalPaid = orderDetails.payments
+      ?.filter(p => p.status === 'approved' || p.status === 'paid')
+      ?.reduce((sum, p) => sum + (p.amount || 0), 0) ?? 0;
+
+    // Check if already fully paid
+    if (totalPaid >= orderDetails.amount) {
+      console.log(`Order ${orderId} is already fully paid (${totalPaid} paid of ${orderDetails.amount}), not creating new payment intent`);
+      throw new Error('This order has already been fully paid');
     }
     
-    // If there's an existing payment with a client secret, return that
-    if (existingPayment && 
-        !existingPaymentError && 
-        existingPayment.stripe_payments && 
-        existingPayment.stripe_payments.length > 0 && 
-        existingPayment.stripe_payments[0].stripe_payment_intent_client_secret) {
-      
-      console.log('Using existing payment intent for order:', orderId);
-      
-      return {
-        clientSecret: existingPayment.stripe_payments[0].stripe_payment_intent_client_secret,
-        accountId: account.account_id
-      };
-    }
+    // Get connected account if not already retrieved
+    let account;
+    if (!account) {
+      const { data, error } = await supabase
+        .from('stripe_connected_accounts')
+        .select('account_id, is_active')
+        .eq('org_id', groupId)
+        .eq('is_active', true)
+        .single();
 
-    // Create a payment intent
+      if (error || !data) {
+        console.error('Failed to get Stripe connected account:', error);
+        throw new Error('No active Stripe account available for this organization');
+      }
+      
+      account = data;
+    }
+    
+    // Create a new payment intent
+    console.log(`Creating new payment intent for order: ${orderId}`);
+    
     const paymentIntent = await stripe.paymentIntents.create({
       amount: orderDetails.amount,
       currency: orderDetails.currency.toLowerCase(),
@@ -121,6 +204,8 @@ export async function createStripePaymentIntent(orderId: string, groupId: string
     if (!paymentIntent || !paymentIntent.client_secret) {
       throw new Error('Failed to create payment intent');
     }
+
+    console.log(`Created new payment intent: ${paymentIntent.id} with status: ${paymentIntent.status}`);
 
     // Create payment record in the database
     const { data: payment, error: paymentError } = await supabase
@@ -142,6 +227,8 @@ export async function createStripePaymentIntent(orderId: string, groupId: string
       throw new Error('Failed to create payment record');
     }
 
+    console.log(`Created payment record with ID: ${payment.id}`);
+
     // Create stripe_payments record
     const { error: stripePaymentError } = await supabase
       .from('stripe_payments')
@@ -157,6 +244,8 @@ export async function createStripePaymentIntent(orderId: string, groupId: string
       throw new Error('Failed to create stripe payment record');
     }
 
+    console.log(`Successfully created stripe payment record for payment intent: ${paymentIntent.id}`);
+    
     // Return the client secret and account ID
     return {
       clientSecret: paymentIntent.client_secret,

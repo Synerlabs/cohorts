@@ -20,7 +20,7 @@ interface PaymentContextType {
   setError: (error: string | null) => void;
   showVerification: boolean;
   setShowVerification: (show: boolean) => void;
-  createStripePaymentIntent: (orderId: string, groupId: string) => Promise<void>;
+  createStripePaymentIntent: (orderId: string, groupId: string, existingClientSecret?: string, existingAccountId?: string) => Promise<void>;
   submitPayment: () => Promise<void>;
   registerStripeSubmitHandler: (handler: () => Promise<boolean>) => void;
   registerManualSubmitHandler: (handler: () => Promise<boolean>) => void;
@@ -75,15 +75,29 @@ export function PaymentProvider({
   };
 
   // Create Stripe payment intent
-  const createStripePaymentIntent = async (orderId: string, groupId: string) => {
+  const createStripePaymentIntent = async (
+    orderId: string, 
+    groupId: string,
+    existingClientSecret?: string,
+    existingAccountId?: string
+  ) => {
     try {
       // If we already have a client secret, don't create a new payment intent
       if (stripeClientSecret && stripeAccountId) {
-        console.log('Using existing payment intent');
+        console.log('Using existing payment intent from state');
+        return;
+      }
+      
+      // If existing client secret and account ID are provided, use them
+      if (existingClientSecret && existingAccountId) {
+        console.log('Using provided existing payment intent');
+        setStripeClientSecret(existingClientSecret);
+        setStripeAccountId(existingAccountId);
         return;
       }
       
       setError(null);
+      console.log('Creating new payment intent');
       const result = await createStripePaymentIntentFn(orderId, groupId);
       setStripeClientSecret(result.clientSecret);
       setStripeAccountId(result.accountId);

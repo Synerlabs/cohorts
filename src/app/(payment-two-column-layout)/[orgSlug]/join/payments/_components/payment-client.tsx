@@ -37,12 +37,15 @@ function getStripePromise(accountId: string | null) {
 
 // Order Summary Button Component
 function OrderSummaryButton() {
-  const { selectedMethod, stripeClientSecret, submitPayment } = usePayment();
+  const { selectedMethod, stripeClientSecret, submitPayment, isSubmitting, setIsSubmitting } = usePayment();
   const [loading, setLoading] = useState(false);
   
+  // Use the global submission state to determine if we're loading
+  const isLoading = loading || isSubmitting;
+  
   const getButtonText = () => {
-    if (loading) {
-      return 'Processing...';
+    if (isLoading) {
+      return selectedMethod === 'manual' ? 'Uploading...' : 'Processing...';
     }
     
     if (selectedMethod === 'stripe') {
@@ -56,32 +59,31 @@ function OrderSummaryButton() {
     return 'Complete Payment';
   };
   
-  // For manual payments, the form handles submission
-  // For Stripe, we need to handle it here
+  // Handle payment submission for both payment methods
   const handleClick = async () => {
-    if (selectedMethod !== 'stripe') {
-      return; // Let the form handle it
-    }
+    if (!selectedMethod) return;
     
     setLoading(true);
     try {
-      await submitPayment();
+      // For both Stripe and manual, use the submitPayment function
+      const result = await submitPayment();
+      console.log('Payment submission result:', result);
     } catch (error) {
       console.error('Payment submission error:', error);
     } finally {
-      setTimeout(() => setLoading(false), 1000);
+      // Delay resetting local loading state to ensure UI feedback
+      setTimeout(() => setLoading(false), 1500);
     }
   };
   
   return (
     <Button 
       className="w-full" 
-      type={selectedMethod === 'manual' ? 'submit' : 'button'}
-      form={selectedMethod === 'manual' ? 'manual-payment-form' : undefined}
-      disabled={loading || !selectedMethod}
+      type="button"
+      disabled={isLoading || !selectedMethod}
       onClick={handleClick}
     >
-      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       {getButtonText()}
     </Button>
   );
@@ -364,7 +366,7 @@ function PaymentPageContent({
     manual: { enabled: boolean };
   };
 }) {
-  const { selectedMethod, stripeClientSecret, stripeAccountId, showVerification, paymentStatus, setSelectedMethod, createStripePaymentIntent, submitPayment } = usePayment();
+  const { selectedMethod, stripeClientSecret, stripeAccountId, showVerification, paymentStatus, setSelectedMethod, createStripePaymentIntent, submitPayment, isSubmitting, setIsSubmitting } = usePayment();
   const [orderStatus, setOrderStatus] = useState<{
     isPaid: boolean;
     status: string;
@@ -390,6 +392,9 @@ function PaymentPageContent({
       const initializeStripe = async () => {
         try {
           setLoadingStripe(true);
+          console.log('Checking for existing payment intents');
+          
+          // Check if there's an existing intent in the API route directly
           await createStripePaymentIntent(order.id, org.id);
         } catch (error) {
           console.error('Failed to initialize Stripe:', error);
@@ -404,9 +409,10 @@ function PaymentPageContent({
   
   // Fetch order status when component mounts and when paymentStatus changes
   useEffect(() => {
-    // When payment status becomes 'success', hide the payment selection
+    // When payment status becomes 'success', hide the payment selection and set submittedPayment
     if (paymentStatus === 'success') {
       setShowPaymentSelection(false);
+      setHasSubmittedPayment(true);
     }
     
     async function checkOrderStatus() {
@@ -501,28 +507,11 @@ function PaymentPageContent({
     setBillingCompleted(false);
   };
 
-  // Modify the renderPaymentForm function to handle the new step-based flow
+  // Render the payment form based on selected method
   const renderPaymentForm = () => {
     // Return empty if no method is selected
     if (!selectedMethod) {
       return null;
-    }
-    
-    // Already submitted manual payment successfully, show success message
-    if (selectedMethod === 'manual' && paymentStatus === 'success') {
-      return (
-        <div className="p-6 bg-green-50 rounded-lg border border-green-100">
-          <div className="flex flex-col items-center text-center">
-            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mb-3">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-            <h3 className="text-lg font-medium text-green-800">Payment Proof Submitted</h3>
-            <p className="text-green-700 mt-1 max-w-md">
-              Your payment proof has been submitted successfully. We'll review it shortly and update your membership status.
-            </p>
-          </div>
-        </div>
-      );
     }
 
     // Stripe Form with client secret available
@@ -577,6 +566,26 @@ function PaymentPageContent({
     }
     
     // Default - empty form
+    return null;
+  };
+
+  // Render the payment success message
+  const renderPaymentSuccessMessage = () => {
+    if (selectedMethod === 'manual' && paymentStatus === 'success' && !showPaymentSelection) {
+      return (
+        <div className="p-6 bg-green-50 rounded-lg border border-green-100">
+          <div className="flex flex-col items-center text-center">
+            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mb-3">
+              <CheckCircle className="h-6 w-6 text-green-600" />
+            </div>
+            <h3 className="text-lg font-medium text-green-800">Payment Proof Submitted</h3>
+            <p className="text-green-700 mt-1 max-w-md">
+              Your payment proof has been submitted successfully. We'll review it shortly and update your membership status.
+            </p>
+          </div>
+        </div>
+      );
+    }
     return null;
   };
 
@@ -738,6 +747,9 @@ function PaymentPageContent({
                     </div>
                   </Alert>
                 )}
+                
+                {/* Show payment success message if payment was successful */}
+                {renderPaymentSuccessMessage()}
                 
                 {/* Show button to add more payments if one has been submitted but the order isn't paid */}
                 {hasSubmittedPayment && !orderStatus?.isPaid && !showPaymentSelection && (
