@@ -705,6 +705,7 @@ export const paymentStatusSchema = z.union([
   z.literal("paid"),
   z.literal("rejected"),
   z.literal("initialized"),
+  z.literal("pending_approval"),
 ]);
 
 export const paymentTypeSchema = z.union([

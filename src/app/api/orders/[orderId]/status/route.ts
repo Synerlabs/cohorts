@@ -26,9 +26,21 @@ export async function GET(
         currency,
         payments (
           id,
+          type,
           status,
           amount,
-          currency
+          currency,
+          created_at,
+          updated_at,
+          manual_payments (
+            payment_id,
+            notes
+          ),
+          stripe_payments (
+            payment_id,
+            stripe_payment_intent_id,
+            stripe_status
+          )
         )
       `)
       .eq('id', orderId)
@@ -43,6 +55,20 @@ export async function GET(
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
     
+    // Process payments to add reference if available from manual payments
+    const processedPayments = order.payments?.map(payment => {
+      if (payment.type === 'manual' && payment.manual_payments && payment.manual_payments.length > 0) {
+        const notes = payment.manual_payments[0].notes;
+        // Extract reference from notes if it exists
+        let reference = '';
+        if (notes && notes.includes('Reference:')) {
+          reference = notes.split('Reference:')[1].trim();
+        }
+        return { ...payment, reference };
+      }
+      return payment;
+    });
+    
     // Check if the order is already paid
     const isPaid = order.status === 'paid' || 
                    order.status === 'completed' || 
@@ -55,7 +81,7 @@ export async function GET(
       isPaid,
       amount: order.amount,
       currency: order.currency,
-      payments: order.payments
+      payments: processedPayments || []
     });
   } catch (error) {
     console.error('Error checking order status:', error);

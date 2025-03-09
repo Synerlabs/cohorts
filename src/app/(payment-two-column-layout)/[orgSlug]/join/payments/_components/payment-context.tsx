@@ -77,6 +77,12 @@ export function PaymentProvider({
   // Create Stripe payment intent
   const createStripePaymentIntent = async (orderId: string, groupId: string) => {
     try {
+      // If we already have a client secret, don't create a new payment intent
+      if (stripeClientSecret && stripeAccountId) {
+        console.log('Using existing payment intent');
+        return;
+      }
+      
       setError(null);
       const result = await createStripePaymentIntentFn(orderId, groupId);
       setStripeClientSecret(result.clientSecret);

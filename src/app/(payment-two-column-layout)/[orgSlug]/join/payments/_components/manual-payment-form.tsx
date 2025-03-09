@@ -23,75 +23,84 @@ export function ManualPaymentForm({
   userId,
 }: ManualPaymentFormProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [referenceNumber, setReferenceNumber] = useState('');
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const { registerManualSubmitHandler, setError } = usePayment();
+  const { registerManualSubmitHandler, setError, setPaymentStatus } = usePayment();
 
   // Register the submit handler with the payment context
   useEffect(() => {
     registerManualSubmitHandler(async () => {
-      if (!file) {
-        setError('Please upload your proof of payment');
-        return false;
-      }
-
-      if (!referenceNumber.trim()) {
-        setError('Please enter a payment reference number');
-        return false;
-      }
-
-      try {
-        // Convert file to base64
-        const base64File = await fileToBase64(file);
-        
-        // Prepare file data
-        const fileData = {
-          name: file.name,
-          type: file.type,
-          base64: base64File
-        };
-        
-        // Call server action
-        const result = await createManualPayment(
-          order.id,
-          orgId,
-          userId,
-          referenceNumber,
-          [fileData]
-        );
-        
-        if (!result.success) {
-          throw new Error(result.error || 'Failed to process payment');
-        }
-        
-        // Reset form
-        setReferenceNumber('');
-        setFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-        
-        toast({
-          title: "Payment Submitted",
-          description: "Your payment proof has been submitted successfully and is pending review.",
-        });
-        
-        return true;
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Payment submission failed';
-        setError(errorMessage);
-        toast({
-          variant: "destructive",
-          title: "Payment Failed",
-          description: errorMessage,
-        });
-        return false;
-      }
+      return await handleSubmit();
     });
-  }, [registerManualSubmitHandler, file, referenceNumber, order.id, orgId, userId, setError, toast]);
+  }, [registerManualSubmitHandler, file, referenceNumber]);
+
+  // Handle the form submission
+  const handleSubmit = async () => {
+    if (!file) {
+      setError('Please upload your proof of payment');
+      return false;
+    }
+
+    if (!referenceNumber.trim()) {
+      setError('Please enter a payment reference number');
+      return false;
+    }
+
+    setIsLoading(true);
+
+    try {
+      // Convert file to base64
+      const base64File = await fileToBase64(file);
+      
+      // Prepare file data
+      const fileData = {
+        name: file.name,
+        type: file.type,
+        base64: base64File
+      };
+      
+      // Call server action
+      const result = await createManualPayment(
+        order.id,
+        orgId,
+        userId,
+        referenceNumber,
+        [fileData]
+      );
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to process payment');
+      }
+      
+      // Reset form
+      setReferenceNumber('');
+      setFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      toast({
+        title: "Payment Submitted",
+        description: "Your payment proof has been submitted successfully and is pending review.",
+      });
+      
+      setPaymentStatus('success');
+      return true;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Payment submission failed';
+      setError(errorMessage);
+      toast({
+        variant: "destructive",
+        title: "Payment Failed",
+        description: errorMessage,
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -126,25 +135,6 @@ export function ManualPaymentForm({
       reader.onerror = error => reject(error);
     });
   };
-
-  if (isSuccess) {
-    return (
-      <Card>
-        <CardContent className="pt-6 pb-6">
-          <div className="flex flex-col items-center justify-center text-center space-y-4">
-            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-            <h3 className="text-lg font-medium">Payment Submitted Successfully</h3>
-            <p className="text-muted-foreground max-w-md">
-              Your payment proof has been submitted and is pending review by the organization administrator.
-              You will be notified when your payment is approved.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div>
@@ -232,24 +222,9 @@ export function ManualPaymentForm({
             </div>
           </div>
 
-          <Button
-            type="submit"
-            className="w-full"
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              'Submit Bank Transfer Proof'
-            )}
-          </Button>
-
-          {/* Note about submission */}
+          {/* Instruction about submission */}
           <div className="text-sm text-center text-muted-foreground pt-2">
-            After providing your reference number and proof of payment, click "Complete Payment" in the order summary to submit.
+            Complete the information above, then use the "Submit Payment Proof" button in the order summary to submit.
           </div>
         </CardContent>
       </Card>
