@@ -373,6 +373,7 @@ function SavedBillingDetailsDisplay({
         onSelect={onSelect}
         onDelete={onDelete}
         onSetDefault={onSetDefault}
+        limit={3}
       />
     </div>
   );
@@ -845,8 +846,8 @@ function PaymentPageContent({
       return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
     });
     
-    // Limit to 5 details (or fewer if there aren't that many)
-    return sortedDetails.slice(0, 5);
+    // Limit to 3 details (or fewer if there aren't that many)
+    return sortedDetails.slice(0, 3);
   };
   
   // Validate email format
@@ -1714,7 +1715,7 @@ function PaymentPageContent({
                           {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
                             <div 
                               className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
-                                selectedMethod === 'stripe' ? 'border-primary bg-primary/5' : 'border-muted'
+                                selectedMethod === 'stripe' ? 'border-primary' : 'border-muted'
                               }`}
                               onClick={() => handleMethodSelect('stripe')}
                             >
@@ -1734,7 +1735,7 @@ function PaymentPageContent({
                           {gatewaysStatus.manual.enabled && (
                             <div 
                               className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
-                                selectedMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-muted'
+                                selectedMethod === 'manual' ? 'border-primary' : 'border-muted'
                               }`}
                               onClick={() => handleMethodSelect('manual')}
                             >

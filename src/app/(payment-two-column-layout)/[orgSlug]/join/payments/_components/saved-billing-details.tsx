@@ -26,6 +26,7 @@ interface SavedBillingDetailsProps {
   onSelect: (formData: BillingDetailsFormData, isDefault: boolean, billingDetailId: string) => void;
   onDelete: (id: string) => void;
   onSetDefault: (id: string) => void;
+  limit?: number; // Optional limit for how many details to display
 }
 
 export function SavedBillingDetails({
@@ -33,11 +34,13 @@ export function SavedBillingDetails({
   userId,
   onSelect,
   onDelete,
-  onSetDefault
+  onSetDefault,
+  limit = 3 // Default to showing 3 billing details
 }: SavedBillingDetailsProps) {
   const params = useParams<{ orgSlug: string }>();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingDetail, setDeletingDetail] = useState<BillingDetails | null>(null);
+  const [showAll, setShowAll] = useState(false); // State to toggle showing all details
   
   const [deleteState, deleteBillingDetail, deletePending] = useToastActionState(
     deleteBillingDetailAction,
@@ -81,11 +84,25 @@ export function SavedBillingDetails({
     return null;
   }
   
+  // First prioritize defaults, then sort by most recently updated
+  const sortedDetails = [...savedDetails].sort((a, b) => {
+    // Default details come first
+    if (a.is_default && !b.is_default) return -1;
+    if (!a.is_default && b.is_default) return 1;
+    
+    // Then sort by updated_at (most recent first)
+    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+  });
+  
+  // Only display limited number of details if not showing all
+  const displayedDetails = showAll ? sortedDetails : sortedDetails.slice(0, limit);
+  const hasMoreDetails = sortedDetails.length > limit;
+  
   return (
     <div className="space-y-4">
       <h4 className="font-medium text-sm">Saved Billing Details</h4>
       
-      {savedDetails.map((detail) => (
+      {displayedDetails.map((detail) => (
         <div 
           key={detail.id}
           className={cn(
@@ -169,6 +186,17 @@ export function SavedBillingDetails({
           </div>
         </div>
       ))}
+      
+      {hasMoreDetails && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full"
+          onClick={() => setShowAll(!showAll)}
+        >
+          {showAll ? "Show Less" : `Show ${sortedDetails.length - limit} More`}
+        </Button>
+      )}
       
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
