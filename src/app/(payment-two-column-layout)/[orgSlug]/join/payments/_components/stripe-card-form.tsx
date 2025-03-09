@@ -7,6 +7,38 @@ import { AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Loader2 } from 'lucide-react';
 import { usePayment } from './payment-context';
 
+// Define custom styles for the payment element
+const customStyles = `
+  .payment-element .CardNumberField {
+    width: 100% !important;
+  }
+  .payment-element .CardNumber {
+    width: 100% !important;
+  }
+  .payment-element .CardField-input-wrapper {
+    width: 100% !important;
+  }
+  .payment-element .FormFieldInput {
+    width: 100% !important;
+  }
+  
+  /* Ensure payment method icons are visible */
+  .payment-element .Tab .TabIcon {
+    color: hsl(0, 0%, 45.1%) !important;
+    opacity: 1 !important;
+    fill: hsl(0, 0%, 45.1%) !important;
+  }
+  .payment-element .Tab--selected .TabIcon {
+    color: hsl(0, 0%, 9%) !important;
+    fill: hsl(0, 0%, 9%) !important;
+  }
+  .payment-element .TabIcon svg {
+    opacity: 1 !important;
+    color: currentColor !important;
+    fill: currentColor !important;
+  }
+`;
+
 // Define the BillingDetails interface to match the state in payment-client.tsx
 interface BillingDetails {
   fullName: string;
@@ -32,6 +64,19 @@ export function StripeCardForm({ billingDetails }: StripeCardFormProps) {
   // Set mounted state when component mounts
   useEffect(() => {
     setIsMounted(true);
+  }, []);
+
+  // Add custom styles when component mounts
+  useEffect(() => {
+    // Add styles to document head
+    const styleElement = document.createElement('style');
+    styleElement.textContent = customStyles;
+    document.head.appendChild(styleElement);
+
+    // Clean up when component unmounts
+    return () => {
+      document.head.removeChild(styleElement);
+    };
   }, []);
   
   // If not mounted yet, render a placeholder to avoid SSR issues
@@ -127,21 +172,30 @@ function StripeCardFormContent({ billingDetails }: StripeCardFormContentProps) {
   return (
     <Card className="border border-muted shadow-sm overflow-hidden">
       <CardContent className="p-6">
-        <div className="space-y-4">
-          <h3 className="text-base font-medium">Payment Information</h3>
-          <div className="text-sm text-muted-foreground mb-4">
-            Enter your card details to complete the payment securely.
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-base font-medium mb-2">Payment Information</h3>
+            <p className="text-sm text-muted-foreground">
+              Enter your card details to complete the payment securely.
+            </p>
           </div>
-          <PaymentElement options={{
-            layout: {
-              type: 'tabs',
-              defaultCollapsed: false
-            },
-            fields: {
-              billingDetails: 'never'
-            }
-          }} />
-          <div className="text-xs text-muted-foreground mt-4 flex items-center space-x-2">
+          
+          <div className="py-1"> {/* Adjusted padding */}
+            <PaymentElement 
+              options={{
+                layout: {
+                  type: 'tabs',
+                  defaultCollapsed: false
+                },
+                fields: {
+                  billingDetails: 'never'
+                }
+              }} 
+              className="payment-element"
+            />
+          </div>
+          
+          <div className="text-xs text-muted-foreground flex items-center space-x-2 pt-1">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
               <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />

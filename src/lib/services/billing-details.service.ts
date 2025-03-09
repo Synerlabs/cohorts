@@ -1,3 +1,5 @@
+'use client';
+
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import type { BillingDetails } from '@/types/database.types';
 
@@ -13,6 +15,9 @@ export interface BillingDetailsFormData {
   zipCode: string;
   country: string;
 }
+
+// Import the server action for saving billing details
+import { saveBillingDetailsAction } from './billing-details.actions';
 
 /**
  * Fetch billing details for a specific order
@@ -132,80 +137,23 @@ export async function saveBillingDetails({
   saveAsDefault?: boolean;
   existingId?: string | null;
 }) {
-  console.log('Saving billing details:', { 
-    userId, 
-    orderId, 
-    saveAsDefault, 
-    existingId 
-  });
+  console.log('Calling saveBillingDetailsAction from client');
   
-  const supabase = createClientComponentClient();
-  
-  // Convert form data to database format
-  const dbData = {
-    user_id: userId,
-    order_id: orderId || null,
-    full_name: formData.fullName,
-    email: formData.email,
-    phone: formData.phone || null,
-    company: formData.company || null,
-    address: formData.address || null,
-    city: formData.city || null,
-    state: formData.state || null,
-    zip_code: formData.zipCode || null,
-    country: formData.country,
-    is_default: saveAsDefault && !orderId // Only set as default if not order-specific
-  };
-  
-  console.log('Billing details to save:', dbData);
-  
-  // If we're saving a record as default, first clear any existing defaults
-  if (saveAsDefault && !orderId) {
-    console.log('Clearing existing defaults for user:', userId);
-    const { error: clearError } = await supabase
-      .from('billing_details')
-      .update({ is_default: false })
-      .eq('user_id', userId)
-      .eq('is_default', true);
-      
-    if (clearError) {
-      console.error('Error clearing existing default billing details:', clearError);
-      throw clearError;
-    }
+  try {
+    // Call the server action instead of using the client directly
+    const result = await saveBillingDetailsAction({
+      formData,
+      userId,
+      orderId,
+      saveAsDefault,
+      existingId
+    });
     
-    console.log('Default flag set on new billing details:', dbData.is_default);
-  }
-  
-  // Either insert new or update existing record
-  if (existingId) {
-    // Update existing record
-    const { data, error } = await supabase
-      .from('billing_details')
-      .update(dbData)
-      .eq('id', existingId)
-      .select()
-      .single();
-      
-    if (error) {
-      console.error('Error updating billing details:', error);
-      throw error;
-    }
-    
-    return data as BillingDetails;
-  } else {
-    // Insert new record
-    const { data, error } = await supabase
-      .from('billing_details')
-      .insert(dbData)
-      .select()
-      .single();
-      
-    if (error) {
-      console.error('Error inserting billing details:', error);
-      throw error;
-    }
-    
-    return data as BillingDetails;
+    console.log('Server action returned result:', result);
+    return result as BillingDetails;
+  } catch (error) {
+    console.error('Error in saveBillingDetails client wrapper:', error);
+    throw error;
   }
 }
 
