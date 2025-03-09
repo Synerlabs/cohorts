@@ -8,8 +8,9 @@ export async function GET(
   { params }: { params: { orderId: string } }
 ) {
   try {
+    const _params = await params;
     // Ensure params is properly resolved
-    const { orderId } = params;
+    const { orderId } = _params;
     
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });

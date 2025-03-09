@@ -43,26 +43,54 @@ export async function getBillingDetailsForOrder(orderId: string) {
  * Fetch default billing details for a user
  */
 export async function getDefaultBillingDetails(userId: string) {
+  console.log('Fetching default billing details for user:', userId);
   const supabase = createClientComponentClient();
   
+  // First, let's check how many billing details this user has (regardless of is_default)
+  const { data: allData, error: allError } = await supabase
+    .from('billing_details')
+    .select('*')
+    .eq('user_id', userId);
+    
+  if (allError) {
+    console.error('Error fetching all billing details:', allError);
+  } else {
+    console.log(`User has ${allData?.length || 0} total billing details:`, 
+      allData?.map(d => ({
+        id: d.id, 
+        is_default: d.is_default, 
+        order_id: d.order_id,
+        name: d.full_name
+      }))
+    );
+  }
+  
+  // Now get the default one
   const { data, error } = await supabase
     .from('billing_details')
     .select('*')
     .eq('user_id', userId)
     .eq('is_default', true)
-    .is('order_id', null)
     .limit(1)
     .single();
     
   if (error) {
     if (error.code === 'PGRST116') {
       // No rows returned - not an error for our purposes
+      console.log('No default billing details found for user:', userId);
+      console.log('SQL query used:', 
+        `SELECT * FROM billing_details 
+         WHERE user_id = '${userId}' 
+         AND is_default = true 
+         LIMIT 1`
+      );
       return null;
     }
     console.error('Error fetching default billing details:', error);
     throw error;
   }
   
+  console.log('Found default billing details:', data);
   return data as BillingDetails;
 }
 
@@ -104,6 +132,13 @@ export async function saveBillingDetails({
   saveAsDefault?: boolean;
   existingId?: string | null;
 }) {
+  console.log('Saving billing details:', { 
+    userId, 
+    orderId, 
+    saveAsDefault, 
+    existingId 
+  });
+  
   const supabase = createClientComponentClient();
   
   // Convert form data to database format
@@ -122,13 +157,23 @@ export async function saveBillingDetails({
     is_default: saveAsDefault && !orderId // Only set as default if not order-specific
   };
   
+  console.log('Billing details to save:', dbData);
+  
   // If we're saving a record as default, first clear any existing defaults
   if (saveAsDefault && !orderId) {
-    await supabase
+    console.log('Clearing existing defaults for user:', userId);
+    const { error: clearError } = await supabase
       .from('billing_details')
       .update({ is_default: false })
       .eq('user_id', userId)
       .eq('is_default', true);
+      
+    if (clearError) {
+      console.error('Error clearing existing default billing details:', clearError);
+      throw clearError;
+    }
+    
+    console.log('Default flag set on new billing details:', dbData.is_default);
   }
   
   // Either insert new or update existing record
@@ -168,14 +213,37 @@ export async function saveBillingDetails({
  * Set an existing billing detail as the default
  */
 export async function setDefaultBillingDetail(userId: string, billingDetailId: string) {
+  console.log('Setting default billing detail:', { userId, billingDetailId });
   const supabase = createClientComponentClient();
   
+  // First check if the billing detail exists
+  const { data: checkData, error: checkError } = await supabase
+    .from('billing_details')
+    .select('*')
+    .eq('id', billingDetailId)
+    .eq('user_id', userId)
+    .single();
+    
+  if (checkError) {
+    console.error('Error checking billing detail before setting as default:', checkError);
+    throw checkError;
+  }
+  
+  console.log('Clearing existing defaults for user:', userId);
+  
   // First clear any existing defaults
-  await supabase
+  const { error: clearError } = await supabase
     .from('billing_details')
     .update({ is_default: false })
     .eq('user_id', userId)
     .eq('is_default', true);
+    
+  if (clearError) {
+    console.error('Error clearing existing default billing details:', clearError);
+    throw clearError;
+  }
+  
+  console.log('Setting new default billing detail, id:', billingDetailId);
   
   // Then set the new default
   const { data, error } = await supabase
@@ -191,6 +259,7 @@ export async function setDefaultBillingDetail(userId: string, billingDetailId: s
     throw error;
   }
   
+  console.log('Successfully set default billing detail:', data);
   return data as BillingDetails;
 }
 
@@ -229,4 +298,63 @@ export function convertToFormData(billingDetails: BillingDetails): BillingDetail
     zipCode: billingDetails.zip_code || '',
     country: billingDetails.country
   };
+}
+
+/**
+ * Fix default billing details inconsistencies
+ * This can be used to ensure only one default billing detail exists for a user
+ */
+export async function fixDefaultBillingDetails(userId: string) {
+  console.log('Fixing default billing details for user:', userId);
+  const supabase = createClientComponentClient();
+  
+  // First, get all billing details for this user
+  const { data, error } = await supabase
+    .from('billing_details')
+    .select('*')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+    
+  if (error) {
+    console.error('Error fetching billing details for fixing defaults:', error);
+    throw error;
+  }
+  
+  console.log(`Found ${data?.length || 0} billing details for user`);
+  
+  if (!data || data.length === 0) {
+    console.log('No billing details to fix for this user');
+    return null;
+  }
+  
+  // First, clear all defaults
+  const { error: clearError } = await supabase
+    .from('billing_details')
+    .update({ is_default: false })
+    .eq('user_id', userId)
+    .eq('is_default', true);
+    
+  if (clearError) {
+    console.error('Error clearing all defaults during fix:', clearError);
+    throw clearError;
+  }
+  
+  // Now set the most recently updated one as default
+  const mostRecent = data[0];
+  console.log('Setting most recent billing detail as default:', mostRecent.id);
+  
+  const { data: updatedData, error: updateError } = await supabase
+    .from('billing_details')
+    .update({ is_default: true })
+    .eq('id', mostRecent.id)
+    .select()
+    .single();
+    
+  if (updateError) {
+    console.error('Error setting new default during fix:', updateError);
+    throw updateError;
+  }
+  
+  console.log('Successfully fixed default billing details. New default:', updatedData);
+  return updatedData as BillingDetails;
 } 

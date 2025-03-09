@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, ArrowLeft, CheckCircle2, Receipt, Star, Clock, Lock, Loader2, CheckCircle, CreditCard, FileText, Upload, Globe, ChevronsUpDown, Pencil } from "lucide-react";
+import { AlertCircle, ArrowLeft, CheckCircle2, Receipt, Star, Clock, Lock, Loader2, CheckCircle, CreditCard, FileText, Upload, Globe, ChevronsUpDown, Pencil, Info } from "lucide-react";
 import Link from "next/link";
 import { PaymentForm } from './payment-form';
 import { Separator } from "@/components/ui/separator";
@@ -25,10 +25,14 @@ import {
   getAllBillingDetailsForUser, 
   getBillingDetailsForOrder, 
   saveBillingDetails, 
-  convertToFormData 
+  convertToFormData, 
+  getDefaultBillingDetails,
+  fixDefaultBillingDetails
 } from '@/lib/services/billing-details.service';
 import { BillingDetails } from '@/types/database.types';
 import { Checkbox } from '@/components/ui/checkbox';
+import { cn } from '@/lib/utils';
+import { toast } from "@/components/ui/use-toast";
 
 // Initialize Stripe - will be replaced by account-specific key when needed
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -422,6 +426,12 @@ function PaymentPageContent({
   const [isLoadingBillingDetails, setIsLoadingBillingDetails] = useState(true);
   const [saveAsDefault, setSaveAsDefault] = useState(false);
   
+  // Add state for default billing details usage
+  const [usingDefaultBillingDetails, setUsingDefaultBillingDetails] = useState(false);
+  
+  // Add state for fixing default billing details
+  const [isFixingDefaults, setIsFixingDefaults] = useState(false);
+  
   // Fetch existing billing details on component mount
   useEffect(() => {
     async function fetchBillingDetails() {
@@ -434,22 +444,52 @@ function PaymentPageContent({
         
         if (orderBillingDetails) {
           // We found billing details for this order
+          console.log('Found existing billing details for order:', orderBillingDetails);
           setBillingDetails(convertToFormData(orderBillingDetails));
           setBillingCompleted(true);  // Skip the form
-          console.log('Found existing billing details for order');
         } else {
-          // Get all saved billing details for the user
-          const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
-          setSavedBillingDetails(allUserBillingDetails || []);
+          // Check for default billing details
+          const defaultBillingDetails = await getDefaultBillingDetails(user.id);
           
-          // Pre-fill form with user data if available
-          if (!billingDetails.fullName && user.full_name) {
-            handleBillingFieldChange('fullName', user.full_name);
+          if (defaultBillingDetails) {
+            // We found default billing details - use them and auto-advance
+            console.log('Found default billing details, using them:', defaultBillingDetails);
+            setBillingDetails(convertToFormData(defaultBillingDetails));
+            setUsingDefaultBillingDetails(true);
+            setSaveAsDefault(true);
+            setBillingCompleted(true); // Skip the form when default details exist
+            
+            // Get all saved billing details for the user
+            const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+            setSavedBillingDetails(allUserBillingDetails || []);
+          } else {
+            console.log('No default billing details found, checking for any saved billing details');
+            // No default billing details, just get all saved billing details
+            const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+            setSavedBillingDetails(allUserBillingDetails || []);
+            
+            // If we have any billing details, use the most recent one and auto-advance
+            if (allUserBillingDetails && allUserBillingDetails.length > 0) {
+              // Sort by updated_at descending (most recent first)
+              const sortedDetails = [...allUserBillingDetails].sort(
+                (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+              );
+              
+              console.log('Using most recent billing detail:', sortedDetails[0]);
+              setBillingDetails(convertToFormData(sortedDetails[0]));
+              setBillingCompleted(true); // Skip the form when we have saved details
+            } else {
+              // Pre-fill form with user data if available
+              if (!billingDetails.fullName && user.full_name) {
+                handleBillingFieldChange('fullName', user.full_name);
+              }
+              if (!billingDetails.email && user.email) {
+                handleBillingFieldChange('email', user.email);
+              }
+              console.log('No saved billing details found, using basic user info');
+              // Don't set billingCompleted = true here - we need user to complete the form
+            }
           }
-          if (!billingDetails.email && user.email) {
-            handleBillingFieldChange('email', user.email);
-          }
-          console.log('Fetched saved billing details for user');
         }
       } catch (error) {
         console.error('Error fetching billing details:', error);
@@ -459,7 +499,7 @@ function PaymentPageContent({
     }
     
     fetchBillingDetails();
-  }, [order.id, user.id]);
+  }, [order.id, user?.id]);  // Only re-run when order or user ID changes
   
   // Updated handleBillingSubmit to save billing details
   const handleBillingSubmit = async (e: React.FormEvent) => {
@@ -500,8 +540,13 @@ function PaymentPageContent({
   };
   
   // Handle selection of saved billing details
-  const handleSelectBillingDetail = (formData: BillingDetailsFormData) => {
+  const handleSelectBillingDetail = (formData: BillingDetailsFormData, isDefault: boolean) => {
+    console.log('Selected billing detail, isDefault:', isDefault);
     setBillingDetails(formData);
+    // Set the saveAsDefault checkbox based on whether this is a default billing detail
+    setSaveAsDefault(isDefault);
+    // Auto-advance when selecting a saved billing detail
+    setBillingCompleted(true);
   };
   
   // Handle deletion of a saved billing detail
@@ -683,6 +728,45 @@ function PaymentPageContent({
     setBillingCompleted(false);
   };
 
+  // Add handler for fixing default billing details
+  const handleFixDefaultBillingDetails = async () => {
+    if (!user?.id) return;
+    
+    setIsFixingDefaults(true);
+    try {
+      const fixedDefault = await fixDefaultBillingDetails(user.id);
+      if (fixedDefault) {
+        // Update the saved billing details list
+        setSavedBillingDetails(prevDetails => {
+          return prevDetails.map(detail => ({
+            ...detail,
+            is_default: detail.id === fixedDefault.id
+          }));
+        });
+        
+        // Use the fixed default
+        setBillingDetails(convertToFormData(fixedDefault));
+        setUsingDefaultBillingDetails(true);
+        setSaveAsDefault(true);
+        
+        toast({
+          title: "Default billing details fixed",
+          description: "We've set your most recent billing details as the default.",
+          variant: "default"
+        });
+      }
+    } catch (error) {
+      console.error('Error fixing default billing details:', error);
+      toast({
+        title: "Error fixing default billing details",
+        description: "Please try again or contact support.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsFixingDefaults(false);
+    }
+  };
+
   // Render the payment form based on selected method
   const renderPaymentForm = () => {
     // Return empty if no method is selected
@@ -842,15 +926,51 @@ function PaymentPageContent({
                 </div>
                 
                 {/* Add saved billing details section */}
-                {!isLoadingBillingDetails && savedBillingDetails.length > 0 && (
-                  <div className="mb-6 pb-5 border-b">
-                    <SavedBillingDetails
+                {savedBillingDetails && savedBillingDetails.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="text-sm font-medium text-gray-700">Your saved billing details</h3>
+                      {!usingDefaultBillingDetails && (
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={handleFixDefaultBillingDetails}
+                          disabled={isFixingDefaults}
+                          className="h-8 text-xs"
+                        >
+                          {isFixingDefaults ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                              Fixing...
+                            </>
+                          ) : (
+                            <>
+                              <Star className="mr-1.5 h-3 w-3" />
+                              Set Default
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                    <SavedBillingDetails 
                       savedDetails={savedBillingDetails}
                       userId={user.id}
-                      onSelect={handleSelectBillingDetail}
+                      onSelect={(formData, isDefault) => handleSelectBillingDetail(formData, isDefault)}
                       onDelete={handleDeleteBillingDetail}
                       onSetDefault={handleSetDefaultBillingDetail}
                     />
+                  </div>
+                )}
+                
+                {usingDefaultBillingDetails && (
+                  <div className="mb-4 px-4 py-3 bg-gray-50 text-gray-800 rounded-md border border-gray-200 flex items-start gap-2">
+                    <Info className="h-5 w-5 text-gray-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Using your saved billing details</p>
+                      <p className="text-xs mt-1">We've pre-filled the form with your saved billing details. You can make changes if needed or continue to payment.</p>
+                      <p className="text-xs mt-2 italic">Note: To keep these as your default, leave the "Save as default" checkbox checked below.</p>
+                    </div>
                   </div>
                 )}
                 
@@ -1022,6 +1142,9 @@ function PaymentPageContent({
                         className="text-sm text-muted-foreground leading-none cursor-pointer"
                       >
                         Save these billing details for future orders
+                        {saveAsDefault && usingDefaultBillingDetails && (
+                          <span className="ml-1 text-xs bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded-full">Default</span>
+                        )}
                       </label>
                     </div>
                     
