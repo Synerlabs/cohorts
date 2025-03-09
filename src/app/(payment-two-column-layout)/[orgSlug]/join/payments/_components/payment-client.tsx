@@ -35,6 +35,7 @@ import { BillingDetails } from '@/types/database.types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { toast } from "@/components/ui/use-toast";
+import { stripeAppearance, getOptimizedStripeAppearance } from '@/lib/stripe/stripe-appearance';
 
 // Create a context to pass the refreshOrderStatus function down to child components
 const RefreshOrderStatusContext = createContext<(() => Promise<void>) | null>(null);
@@ -1176,15 +1177,17 @@ function PaymentPageContent({
         // Use the connected account-specific Stripe instance
         const stripeWithAccount = getStripePromise(stripeAccountId);
         
+        // Determine if we should use mobile optimized appearance
+        const isMobileDevice = typeof window !== 'undefined' && window.innerWidth < 768;
+        const optimizedAppearance = getOptimizedStripeAppearance(isMobileDevice);
+        
         return (
           <div ref={paymentFormRef}>
             <Elements 
               stripe={stripeWithAccount} 
               options={{ 
                 clientSecret: stripeClientSecret,
-                appearance: {
-                  // ... existing appearance options ...
-                }
+                appearance: optimizedAppearance
               }}
             >
               <StripeCardForm billingDetails={billingDetails} />
