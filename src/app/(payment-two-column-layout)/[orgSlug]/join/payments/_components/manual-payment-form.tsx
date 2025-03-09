@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,23 +9,18 @@ import { Loader2, Upload, CheckCircle, AlertCircle } from 'lucide-react';
 import { createManualPayment } from '../actions';
 import { useToast } from '@/components/ui/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { usePayment } from './payment-context';
 
 interface ManualPaymentFormProps {
   order: any;
   orgId: string;
   userId: string;
-  onError: (message: string) => void;
-  onProcessing: () => void;
-  onSuccess: () => void;
 }
 
 export function ManualPaymentForm({
   order,
   orgId,
   userId,
-  onError,
-  onProcessing,
-  onSuccess
 }: ManualPaymentFormProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -33,75 +28,70 @@ export function ManualPaymentForm({
   const [referenceNumber, setReferenceNumber] = useState('');
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { registerManualSubmitHandler, setError } = usePayment();
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!file) {
-      onError('Please upload your proof of payment');
-      return;
-    }
-
-    if (!referenceNumber.trim()) {
-      onError('Please enter a payment reference number');
-      return;
-    }
-
-    setIsLoading(true);
-    onProcessing();
-
-    try {
-      // Convert file to base64
-      const base64File = await fileToBase64(file);
-      
-      // Prepare file data
-      const fileData = {
-        name: file.name,
-        type: file.type,
-        base64: base64File
-      };
-      
-      // Call server action
-      const result = await createManualPayment(
-        order.id,
-        orgId,
-        userId,
-        referenceNumber,
-        [fileData]
-      );
-      
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to process payment');
+  // Register the submit handler with the payment context
+  useEffect(() => {
+    registerManualSubmitHandler(async () => {
+      if (!file) {
+        setError('Please upload your proof of payment');
+        return false;
       }
-      
-      // Show success
-      setIsSuccess(true);
-      toast({
-        title: "Payment Submitted",
-        description: "Your payment proof has been submitted successfully and is pending review.",
-      });
-      
-      // Call onSuccess to notify parent component
-      onSuccess();
-      
-      // Reset form
-      setReferenceNumber('');
-      setFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+
+      if (!referenceNumber.trim()) {
+        setError('Please enter a payment reference number');
+        return false;
       }
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Payment submission failed';
-      onError(errorMessage);
-      toast({
-        variant: "destructive",
-        title: "Payment Failed",
-        description: errorMessage,
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
+      try {
+        // Convert file to base64
+        const base64File = await fileToBase64(file);
+        
+        // Prepare file data
+        const fileData = {
+          name: file.name,
+          type: file.type,
+          base64: base64File
+        };
+        
+        // Call server action
+        const result = await createManualPayment(
+          order.id,
+          orgId,
+          userId,
+          referenceNumber,
+          [fileData]
+        );
+        
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to process payment');
+        }
+        
+        // Reset form
+        setReferenceNumber('');
+        setFile(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        
+        toast({
+          title: "Payment Submitted",
+          description: "Your payment proof has been submitted successfully and is pending review.",
+        });
+        
+        return true;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Payment submission failed';
+        setError(errorMessage);
+        toast({
+          variant: "destructive",
+          title: "Payment Failed",
+          description: errorMessage,
+        });
+        return false;
+      }
+    });
+  }, [registerManualSubmitHandler, file, referenceNumber, order.id, orgId, userId, setError, toast]);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -157,7 +147,7 @@ export function ManualPaymentForm({
   }
 
   return (
-    <form onSubmit={handleSubmit}>
+    <div>
       <Card>
         <CardContent className="pt-6 space-y-6">
           <Alert className="bg-blue-50 text-blue-800 border-blue-200">
@@ -256,8 +246,13 @@ export function ManualPaymentForm({
               'Submit Bank Transfer Proof'
             )}
           </Button>
+
+          {/* Note about submission */}
+          <div className="text-sm text-center text-muted-foreground pt-2">
+            After providing your reference number and proof of payment, click "Complete Payment" in the order summary to submit.
+          </div>
         </CardContent>
       </Card>
-    </form>
+    </div>
   );
 } 

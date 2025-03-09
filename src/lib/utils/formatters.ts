@@ -12,7 +12,8 @@ export function formatCurrency(amount: number, currency: string = 'USD'): string
   // Convert from cents to standard currency unit
   const standardAmount = amount / 100;
   
-  return standardAmount.toLocaleString(undefined, {
+  // Use a fixed locale ('en-US') instead of undefined to ensure consistent rendering
+  return standardAmount.toLocaleString('en-US', {
     style: 'currency',
     currency: currency,
     minimumFractionDigits: 2,

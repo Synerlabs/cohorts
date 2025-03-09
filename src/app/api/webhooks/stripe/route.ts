@@ -20,7 +20,8 @@ type SupportedStripeEvent =
   | Stripe.Event & { type: 'account.external_account.updated' }
   | Stripe.Event & { type: 'account.application.deauthorized' }
   | Stripe.Event & { type: 'payment_intent.succeeded' }
-  | Stripe.Event & { type: 'payment_intent.payment_failed' };
+  | Stripe.Event & { type: 'payment_intent.payment_failed' }
+  | Stripe.Event & { type: 'charge.succeeded' };
 
 // Helper function to determine account status
 function determineAccountStatus(account: Stripe.Account): {
@@ -439,6 +440,110 @@ export async function POST(req: Request) {
         if (updateError) {
           console.error('❌ Failed to update payment status:', updateError);
           return new NextResponse('Failed to update payment', { status: 500 });
+        }
+
+        break;
+      }
+
+      case 'charge.succeeded': {
+        const charge = stripeEvent.data.object as Stripe.Charge;
+        console.log('💰 Charge succeeded:', {
+          chargeId: charge.id,
+          amount: charge.amount,
+          currency: charge.currency,
+          paymentIntentId: charge.payment_intent
+        });
+
+        // Skip if no payment intent is associated
+        if (!charge.payment_intent) {
+          console.log('⚠️ No payment intent associated with charge');
+          return new NextResponse('OK - No payment intent to update', { status: 200 });
+        }
+
+        // Get the payment intent ID as string (could be expanded object or string ID)
+        const paymentIntentId = typeof charge.payment_intent === 'string' 
+          ? charge.payment_intent 
+          : charge.payment_intent.id;
+
+        // Update the payment status
+        const { data: stripePayment, error: stripePaymentError } = await supabase
+          .from('stripe_payments')
+          .select('payment_id')
+          .eq('stripe_payment_intent_id', paymentIntentId)
+          .single();
+
+        if (stripePaymentError || !stripePayment) {
+          console.error('❌ Failed to find stripe payment:', { paymentIntentId, error: stripePaymentError });
+          return new NextResponse('Stripe payment not found', { status: 404 });
+        }
+
+        // Get the payment record
+        const { data: payment, error: paymentError } = await supabase
+          .from('payments')
+          .select('id, status')
+          .eq('id', stripePayment.payment_id)
+          .single();
+
+        if (paymentError || !payment) {
+          console.error('❌ Failed to find payment:', { paymentId: stripePayment.payment_id, error: paymentError });
+          return new NextResponse('Payment not found', { status: 404 });
+        }
+
+        console.log('✅ Found payment record:', payment.id, 'Current status:', payment.status);
+
+        // Only update if not already marked as paid
+        if (payment.status !== 'paid') {
+          // Update stripe payment status
+          const { error: stripeError } = await supabase
+            .from('stripe_payments')
+            .update({ stripe_status: 'succeeded' })
+            .eq('payment_id', payment.id);
+
+          if (stripeError) {
+            console.error('❌ Failed to update stripe payment:', stripeError);
+            return new NextResponse('Failed to update payment', { status: 500 });
+          }
+
+          console.log('✅ Updated stripe payment status');
+
+          // Update payment status to paid
+          const { error: updateError } = await supabase
+            .from('payments')
+            .update({ 
+              status: 'paid',
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', payment.id);
+
+          if (updateError) {
+            console.error('❌ Failed to update payment status:', updateError);
+            return new NextResponse('Failed to update payment', { status: 500 });
+          }
+
+          console.log('✅ Updated payment status to paid');
+
+          // Get the order associated with this payment
+          const { data: paymentWithOrder, error: paymentWithOrderError } = await supabase
+            .from('payments')
+            .select('order_id')
+            .eq('id', payment.id)
+            .single();
+
+          if (paymentWithOrderError || !paymentWithOrder) {
+            console.error('❌ Failed to fetch order for payment:', paymentWithOrderError);
+            return new NextResponse('Failed to fetch order', { status: 500 });
+          }
+
+          // Process the order and its suborders
+          try {
+            await PaymentProcessorService.processPayment(paymentWithOrder.order_id);
+            console.log('✅ Order processed successfully');
+          } catch (error) {
+            console.error('❌ Failed to process order:', error);
+            return new NextResponse('Failed to process order', { status: 500 });
+          }
+        } else {
+          console.log('ℹ️ Payment already marked as paid, skipping update');
         }
 
         break;

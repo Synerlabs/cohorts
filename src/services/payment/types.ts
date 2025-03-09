@@ -1,4 +1,4 @@
-export type PaymentStatus = 'pending' | 'paid' | 'rejected';
+export type PaymentStatus = 'pending' | 'paid' | 'rejected' | 'initialized';
 export type PaymentType = 'manual' | 'stripe' | 'xendit';
 
 export interface Upload {
