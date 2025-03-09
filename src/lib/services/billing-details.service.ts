@@ -105,20 +105,26 @@ export async function getDefaultBillingDetails(userId: string) {
 export async function getAllBillingDetailsForUser(userId: string) {
   const supabase = createClientComponentClient();
   
-  const { data, error } = await supabase
-    .from('billing_details')
-    .select('*')
-    .eq('user_id', userId)
-    .is('order_id', null)
-    .order('is_default', { ascending: false })
-    .order('updated_at', { ascending: false });
+  try {
+    // Get ALL billing details for the user, regardless of order_id
+    const { data, error } = await supabase
+      .from('billing_details')
+      .select('*')
+      .eq('user_id', userId)
+      // Removed the .is('order_id', null) filter to get ALL billing details
+      .order('is_default', { ascending: false })
+      .order('updated_at', { ascending: false });
     
-  if (error) {
-    console.error('Error fetching all billing details:', error);
-    throw error;
+    if (error) {
+      console.error('Error fetching billing details:', error);
+      throw error;
+    }
+    
+    return data as BillingDetails[];
+  } catch (err) {
+    console.error('Unexpected error in getAllBillingDetailsForUser:', err);
+    throw err;
   }
-  
-  return data as BillingDetails[];
 }
 
 /**

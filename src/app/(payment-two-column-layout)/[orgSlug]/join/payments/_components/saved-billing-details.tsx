@@ -16,6 +16,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { cn } from '@/lib/utils';
+import { useParams } from 'next/navigation';
+import useToastActionState from '@/lib/hooks/toast-action-state.hook';
+import { deleteBillingDetailAction } from '@/lib/services/billing-details.actions';
 
 interface SavedBillingDetailsProps {
   savedDetails: BillingDetails[];
@@ -32,34 +35,46 @@ export function SavedBillingDetails({
   onDelete,
   onSetDefault
 }: SavedBillingDetailsProps) {
+  const params = useParams<{ orgSlug: string }>();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletingDetail, setDeletingDetail] = useState<BillingDetails | null>(null);
   
-  const handleDelete = async (id: string) => {
-    setDeletingId(id);
+  const [deleteState, deleteBillingDetail, deletePending] = useToastActionState(
+    deleteBillingDetailAction,
+    undefined,
+    undefined,
+    {
+      successTitle: 'Billing Detail Deleted',
+      successDescription: 'The billing detail has been successfully deleted',
+    }
+  );
+
+  const handleDeleteClick = (detail: BillingDetails) => {
+    setDeletingDetail(detail);
     setIsDeleteDialogOpen(true);
   };
   
   const confirmDelete = async () => {
-    if (deletingId) {
-      try {
-        await deleteBillingDetail(userId, deletingId);
-        onDelete(deletingId);
-      } catch (error) {
-        console.error('Error deleting billing detail:', error);
+    if (deletingDetail) {
+      console.log('Confirming delete of billing detail', deletingDetail.id);
+      
+      const formData = new FormData();
+      formData.append('billingDetailId', deletingDetail.id);
+      formData.append('userId', userId);
+      
+      await deleteBillingDetail(formData);
+      
+      // Still call the parent's onDelete so it can update the UI
+      if (onDelete) {
+        onDelete(deletingDetail.id);
       }
     }
     setIsDeleteDialogOpen(false);
-    setDeletingId(null);
+    setDeletingDetail(null);
   };
   
   const handleSetDefault = async (id: string) => {
-    try {
-      await setDefaultBillingDetail(userId, id);
-      onSetDefault(id);
-    } catch (error) {
-      console.error('Error setting default billing detail:', error);
-    }
+    onSetDefault(id);
   };
   
   if (!savedDetails || savedDetails.length === 0) {
@@ -104,7 +119,7 @@ export function SavedBillingDetails({
                 variant="ghost" 
                 size="sm"
                 className="h-8 px-2 text-destructive/80 hover:text-destructive hover:bg-destructive/10"
-                onClick={() => handleDelete(detail.id)}
+                onClick={() => handleDeleteClick(detail)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
@@ -165,8 +180,12 @@ export function SavedBillingDetails({
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Delete
+            <AlertDialogAction 
+              onClick={confirmDelete} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deletePending}
+            >
+              {deletePending ? 'Deleting...' : 'Delete'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -4,6 +4,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import type { BillingDetails } from '@/types/database.types';
 import { BillingDetailsFormData } from './billing-details.service';
+import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 
 /**
  * Server action to save billing details
@@ -51,7 +52,7 @@ export async function saveBillingDetailsAction({
     };
     
     console.log('[SERVER] Billing details to save:', dbData);
-    
+     
     // If the user wants to save for future orders (saveAsDefault is true) AND we're editing an order-specific record,
     // we need to also create a non-order-specific copy for future use
     if (saveAsDefault && orderId) {
@@ -111,41 +112,106 @@ export async function saveBillingDetailsAction({
     
     // Either insert new or update existing record
     if (existingId) {
-      // Update existing record
-      console.log('[SERVER] Updating existing billing details with ID:', existingId);
-      const { data, error } = await supabase
+      // Check if the record exists first
+      console.log('[SERVER] Checking if billing detail with ID exists:', existingId);
+      const { data: existingRecord, error: checkError } = await supabase
         .from('billing_details')
-        .update(dbData)
+        .select('id')
         .eq('id', existingId)
-        .select()
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single to avoid error if no record
         
-      if (error) {
-        console.error('[SERVER] Error updating billing details:', error);
-        throw error;
+      if (checkError) {
+        console.error('[SERVER] Error checking billing details existence:', checkError);
+        throw checkError;
       }
       
-      console.log('[SERVER] Billing details updated successfully:', data);
-      return data as BillingDetails;
-    } else {
-      // Insert new record
-      console.log('[SERVER] Inserting new billing details');
-      const { data, error } = await supabase
-        .from('billing_details')
-        .insert(dbData)
-        .select()
-        .single();
+      if (!existingRecord) {
+        console.log('[SERVER] Billing detail with ID not found, creating new record instead:', existingId);
+        // If ID doesn't exist, fall through to insert logic
+      } else {
+        // Update existing record
+        console.log('[SERVER] Updating existing billing details with ID:', existingId);
+        const { data, error } = await supabase
+          .from('billing_details')
+          .update(dbData)
+          .eq('id', existingId)
+          .select()
+          .single();
+          
+        if (error) {
+          console.error('[SERVER] Error updating billing details:', error);
+          throw error;
+        }
         
-      if (error) {
-        console.error('[SERVER] Error inserting billing details:', error);
-        throw error;
+        console.log('[SERVER] Billing details updated successfully:', data);
+        return data as BillingDetails;
       }
-      
-      console.log('[SERVER] Billing details inserted successfully:', data);
-      return data as BillingDetails;
     }
+    
+    // Insert new record (if existingId was null or the record wasn't found)
+    console.log('[SERVER] Inserting new billing details');
+    const { data, error } = await supabase
+      .from('billing_details')
+      .insert(dbData)
+      .select()
+      .single();
+      
+    if (error) {
+      console.error('[SERVER] Error inserting billing details:', error);
+      throw error;
+    }
+    
+    console.log('[SERVER] Billing details inserted successfully:', data);
+    return data as BillingDetails;
   } catch (error) {
     console.error('[SERVER] Error in saveBillingDetailsAction:', error);
     throw error;
+  }
+}
+
+export async function deleteBillingDetailAction(
+  prevState: { success: boolean } | null,
+  formData: FormData
+): Promise<{ success: boolean; message?: string }> {
+  const billingDetailId = formData.get('billingDetailId') as string;
+  const userId = formData.get('userId') as string;
+  
+  console.log('Delete billing detail action triggered', { billingDetailId, userId });
+  
+  if (!billingDetailId || !userId) {
+    return { 
+      success: false, 
+      message: 'Missing required fields' 
+    };
+  }
+  
+  try {
+    const supabase = await createServiceRoleClient();
+    
+    // Delete the billing detail
+    const { error } = await supabase
+      .from('billing_details')
+      .delete()
+      .eq('id', billingDetailId)
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('Error deleting billing detail:', error);
+      return { 
+        success: false, 
+        message: `Failed to delete billing detail: ${error.message}` 
+      };
+    }
+    
+    return { 
+      success: true, 
+      message: 'Billing detail deleted successfully' 
+    };
+  } catch (error) {
+    console.error('Error in deleteBillingDetailAction:', error);
+    return { 
+      success: false, 
+      message: error instanceof Error ? error.message : 'An unexpected error occurred'
+    };
   }
 } 

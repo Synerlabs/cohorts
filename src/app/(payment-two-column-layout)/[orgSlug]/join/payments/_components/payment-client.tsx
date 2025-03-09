@@ -27,7 +27,9 @@ import {
   getDefaultBillingDetails, 
   getAllBillingDetailsForUser, 
   saveBillingDetails,
-  fixDefaultBillingDetails
+  fixDefaultBillingDetails,
+  setDefaultBillingDetail,
+  deleteBillingDetail
 } from '@/lib/services/billing-details.service';
 import { BillingDetails } from '@/types/database.types';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -335,6 +337,47 @@ function ExistingPaymentsDisplay({ payments }: { payments: any[] }) {
   );
 }
 
+// Saved Billing Details Display Component
+function SavedBillingDetailsDisplay({
+  savedDetails,
+  userId,
+  onSelect,
+  onDelete,
+  onSetDefault,
+  isFixingDefaults,
+  usingDefaultBillingDetails,
+  handleFixDefaultBillingDetails
+}: {
+  savedDetails: BillingDetails[];
+  userId: string;
+  onSelect: (formData: BillingDetailsFormData, isDefault: boolean, billingDetailId?: string) => void;
+  onDelete: (id: string) => void;
+  onSetDefault: (id: string) => void;
+  isFixingDefaults: boolean;
+  usingDefaultBillingDetails: boolean;
+  handleFixDefaultBillingDetails: () => void;
+}) {
+  if (!savedDetails || savedDetails.length === 0) {
+    return (
+      <div className="px-4 py-3 bg-gray-50 text-gray-600 rounded-md border border-gray-200 mb-6">
+        <p className="text-sm">No saved billing details found.</p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="mb-6">
+      <SavedBillingDetails 
+        savedDetails={savedDetails}
+        userId={userId}
+        onSelect={onSelect}
+        onDelete={onDelete}
+        onSetDefault={onSetDefault}
+      />
+    </div>
+  );
+}
+
 // Main Client Component
 export function PaymentClient({ 
   org, 
@@ -356,7 +399,10 @@ export function PaymentClient({
     manual: { enabled: boolean };
   };
   createStripePaymentIntentFn: (orderId: string, groupId: string) => Promise<{ clientSecret: string; accountId: string }>;
-  existingBillingDetails?: any;
+  existingBillingDetails?: {
+    orderBillingDetails: BillingDetails | null;
+    allUserBillingDetails: BillingDetails[];
+  };
 }) {
   // Main component wrapping with payment provider
   return (
@@ -398,7 +444,10 @@ function PaymentPageContent({
     stripe: { enabled: boolean; stripeConnected: boolean };
     manual: { enabled: boolean };
   };
-  existingBillingDetails?: any;
+  existingBillingDetails?: {
+    orderBillingDetails: BillingDetails | null;
+    allUserBillingDetails: BillingDetails[];
+  };
 }) {
   const { selectedMethod, stripeClientSecret, stripeAccountId, showVerification, paymentStatus, setSelectedMethod, createStripePaymentIntent, submitPayment, isSubmitting, setIsSubmitting } = usePayment();
   const [orderStatus, setOrderStatus] = useState<{
@@ -457,6 +506,9 @@ function PaymentPageContent({
   // Add state for existing billing ID
   const [existingBillingId, setExistingBillingId] = useState<string | null>(null);
   
+  // Add a new state for tracking edit mode
+  const [isEditingBillingDetails, setIsEditingBillingDetails] = useState(false);
+  
   // Add effect to ensure saveAsDefault is properly initialized
   useEffect(() => {
     // Make sure saveAsDefault is set to true by default to encourage users to save their details
@@ -474,32 +526,59 @@ function PaymentPageContent({
       
       setIsLoadingBillingDetails(true);
       try {
-        console.log('Starting to fetch billing details for user:', user.id);
-        console.log('Server-provided existingBillingDetails:', existingBillingDetails);
-        
-        // First check if we received server-side billing details for this order
+        // First check if we received server-side billing details
         if (existingBillingDetails) {
-          // We have server-provided billing details for this order
-          console.log('Using server-provided billing details:', existingBillingDetails);
-          // Update all states synchronously before proceeding with async operations
-          setIsLoadingBillingDetails(false); // Set loading to false immediately
-          setBillingDetails(convertToFormData(existingBillingDetails));
-          setExistingBillingId(existingBillingDetails.id); // Store the ID of existing billing details
-          setBillingCompleted(true);  // Skip the form
+          // Use the server-provided data
           
-          // Get all saved billing details for the user to display in the saved section
-          try {
-            const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
-            setSavedBillingDetails(allUserBillingDetails || []);
-          } catch (err) {
-            console.error('Error fetching all user billing details:', err);
-            // This is non-critical, so we just log the error
+          // Set saved billing details from the server (limited to 5)
+          setSavedBillingDetails(existingBillingDetails.allUserBillingDetails || []);
+          
+          // If there are order-specific billing details, use them
+          if (existingBillingDetails.orderBillingDetails) {
+            setBillingDetails(convertToFormData(existingBillingDetails.orderBillingDetails));
+            setExistingBillingId(existingBillingDetails.orderBillingDetails.id);
+            setBillingCompleted(true);
+          } else if (existingBillingDetails.allUserBillingDetails?.length > 0) {
+            // Get limited and sorted details
+            const limitedDetails = getLimitedBillingDetails(existingBillingDetails.allUserBillingDetails);
+            
+            // Use default or most recent billing details
+            const defaultDetail = limitedDetails.find(d => d.is_default);
+            
+            if (defaultDetail) {
+              // Use default billing details
+              setBillingDetails(convertToFormData(defaultDetail));
+              setUsingDefaultBillingDetails(true);
+              setSaveAsDefault(true);
+              setBillingCompleted(true);
+            } else if (limitedDetails.length > 0) {
+              // Use most recent billing details (first in the limited list)
+              setBillingDetails(convertToFormData(limitedDetails[0]));
+              setBillingCompleted(true);
+            } else {
+              // No billing details found, pre-fill with user info
+              if (user.full_name) {
+                handleBillingFieldChange('fullName', user.full_name);
+              }
+              if (user.email) {
+                handleBillingFieldChange('email', user.email);
+              }
+            }
+          } else {
+            // No billing details found, pre-fill with user info
+            if (user.full_name) {
+              handleBillingFieldChange('fullName', user.full_name);
+            }
+            if (user.email) {
+              handleBillingFieldChange('email', user.email);
+            }
           }
           
-          return; // Exit early since we have all we need
+          setIsLoadingBillingDetails(false);
+          return;
         }
         
-        // If no server-side details, proceed with client-side fetching
+        // If no server-provided data, fall back to client-side fetching
         // First check if there are billing details for this order
         try {
           const orderBillingDetails = await getBillingDetailsForOrder(order.id);
@@ -609,7 +688,7 @@ function PaymentPageContent({
     }
     
     fetchBillingDetails();
-  }, [order.id, user?.id, existingBillingDetails]);
+  }, [user?.id, existingBillingDetails, order.id]);
   
   // Update handleBillingSubmit to better handle errors and ensure proper validation
   const handleBillingSubmit = async (e: React.FormEvent) => {
@@ -662,6 +741,7 @@ function PaymentPageContent({
         setShowPaymentSelection(true);
         // Proceed to payment
         setBillingCompleted(true);
+        setIsEditingBillingDetails(false); // Reset editing state
         
         // Refresh order status after billing details are saved
         refreshOrderStatus();
@@ -694,16 +774,79 @@ function PaymentPageContent({
   };
   
   // Handle deletion of a saved billing detail
-  const handleDeleteBillingDetail = (id: string) => {
-    setSavedBillingDetails(savedBillingDetails.filter(detail => detail.id !== id));
+  const handleDeleteBillingDetail = async (id: string) => {
+    console.log('Parent handleDeleteBillingDetail called with id:', id);
+    try {
+      // Call the service function to delete the billing detail from the database
+      await deleteBillingDetail(user.id, id);
+      
+      // Update local state after successful deletion
+      setSavedBillingDetails(savedBillingDetails.filter(detail => detail.id !== id));
+      
+      // Show success message
+      toast({
+        title: "Billing details deleted",
+        description: "Your saved billing details have been removed.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error deleting billing detail:', error);
+      
+      // Show error message
+      toast({
+        title: "Failed to delete billing details",
+        description: "There was a problem removing your billing details. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Handle setting a billing detail as default
-  const handleSetDefaultBillingDetail = (id: string) => {
-    setSavedBillingDetails(savedBillingDetails.map(detail => ({
-      ...detail,
-      is_default: detail.id === id
-    })));
+  const handleSetDefaultBillingDetail = async (id: string) => {
+    try {
+      // Call the service function to set the default billing detail
+      await setDefaultBillingDetail(user.id, id);
+      
+      // Update local state after successful update
+      setSavedBillingDetails(savedBillingDetails.map(detail => ({
+        ...detail,
+        is_default: detail.id === id
+      })));
+      
+      // Show success message
+      toast({
+        title: "Default billing details updated",
+        description: "Your default billing details have been updated.",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Error setting default billing detail:', error);
+      
+      // Show error message
+      toast({
+        title: "Failed to update default billing details",
+        description: "There was a problem updating your default billing details. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Helper to limit and sort billing details for display
+  const getLimitedBillingDetails = (details: BillingDetails[]) => {
+    if (!details || details.length === 0) return [];
+    
+    // Sort: Put default first, then sort by most recently updated
+    const sortedDetails = [...details].sort((a, b) => {
+      // Default details come first
+      if (a.is_default && !b.is_default) return -1;
+      if (!a.is_default && b.is_default) return 1;
+      
+      // Then sort by updated_at date (most recent first)
+      return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+    });
+    
+    // Limit to 5 details (or fewer if there aren't that many)
+    return sortedDetails.slice(0, 5);
   };
   
   // Validate email format
@@ -936,9 +1079,12 @@ function PaymentPageContent({
     refreshOrderStatus();
   };
   
-  // Go back to billing details
+  // Update the goBack function with more detailed logging
   const goBack = () => {
     setBillingCompleted(false);
+    setIsEditingBillingDetails(true);
+    
+    // No need to fetch billing details again since we already have them from the server
   };
 
   // Add handler for fixing default billing details
@@ -1148,22 +1294,22 @@ function PaymentPageContent({
   // Main content without the payment form
   return (
     <RefreshOrderStatusContext.Provider value={refreshOrderStatus}>
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 min-h-screen">
         {/* Left Column - Customer Information */}
-        <div className="lg:col-span-7 space-y-6">
-          <div>
-            <Link 
-              href={`/@${org.slug}/join`}
-              className="text-sm inline-flex items-center font-medium text-primary hover:underline hover:text-primary/80 transition-colors"
-            >
-              <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-              Back to membership options
-            </Link>
-            <h1 className="text-3xl font-bold tracking-tight mt-3 mb-1">Complete your membership</h1>
-            <p className="text-muted-foreground">Secure payment for {membershipDetails.name}</p>
-          </div>
-          
-          <div className="space-y-6">
+        <div className="lg:col-span-7 bg-white">
+          <div className="max-w-3xl mx-auto py-8 px-4 md:px-8 lg:px-12 space-y-6">
+            <div>
+              <Link 
+                href={`/@${org.slug}/join`}
+                className="text-sm inline-flex items-center font-medium text-primary hover:underline hover:text-primary/80 transition-colors"
+              >
+                <ArrowLeft className="mr-1 h-3.5 w-3.5" />
+                Back to membership options
+              </Link>
+              <h1 className="text-3xl font-bold tracking-tight mt-3 mb-1">Complete your membership</h1>
+              <p className="text-muted-foreground">Secure payment for {membershipDetails.name}</p>
+            </div>
+            
             {/* Billing Information */}
             {isLoadingBillingDetails ? (
               <div className="rounded-lg overflow-hidden border shadow-sm">
@@ -1191,7 +1337,9 @@ function PaymentPageContent({
                 <div className="bg-gradient-to-r from-slate-50 to-slate-100 p-5 border-b">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="text-lg font-semibold">Billing Details</h3>
+                      <h3 className="text-lg font-semibold">
+                        {isEditingBillingDetails ? 'Edit Billing Details' : 'Billing Details'}
+                      </h3>
                       <p className="text-sm text-muted-foreground mt-0.5">Used for payment verification and receipts</p>
                     </div>
                     <div className="flex items-center gap-1 text-muted-foreground text-xs bg-white/80 px-2 py-1 rounded-full border">
@@ -1232,53 +1380,23 @@ function PaymentPageContent({
                   {/* Add saved billing details section */}
                   {savedBillingDetails && savedBillingDetails.length > 0 && (
                     <div className="mb-6">
-                      <div className="flex justify-between items-center mb-3">
-                        <h3 className="text-sm font-medium text-gray-700">Your saved billing details</h3>
-                        {!usingDefaultBillingDetails && (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={handleFixDefaultBillingDetails}
-                            disabled={isFixingDefaults}
-                            className="h-8 text-xs"
-                          >
-                            {isFixingDefaults ? (
-                              <>
-                                <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                                Fixing...
-                              </>
-                            ) : (
-                              <>
-                                <Star className="mr-1.5 h-3 w-3" />
-                                Set Default
-                              </>
-                            )}
-                          </Button>
-                        )}
-                      </div>
-                      <SavedBillingDetails 
-                        savedDetails={savedBillingDetails}
+
+                      <SavedBillingDetailsDisplay 
+                        savedDetails={getLimitedBillingDetails(savedBillingDetails)}
                         userId={user.id}
                         onSelect={(formData, isDefault, billingDetailId) => {
                           handleSelectBillingDetail(formData, isDefault, billingDetailId);
                         }}
                         onDelete={handleDeleteBillingDetail}
                         onSetDefault={handleSetDefaultBillingDetail}
+                        isFixingDefaults={isFixingDefaults}
+                        usingDefaultBillingDetails={usingDefaultBillingDetails}
+                        handleFixDefaultBillingDetails={handleFixDefaultBillingDetails}
                       />
                     </div>
                   )}
                   
-                  {usingDefaultBillingDetails && (
-                    <div className="mb-4 px-4 py-3 bg-gray-50 text-gray-800 rounded-md border border-gray-200 flex items-start gap-2">
-                      <Info className="h-5 w-5 text-gray-500 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="text-sm font-medium">Using your saved billing details</p>
-                        <p className="text-xs mt-1">We've pre-filled the form with your saved billing details. You can make changes if needed or continue to payment.</p>
-                        <p className="text-xs mt-2 italic">Note: To keep these as your default, leave the "Save as default" checkbox checked below.</p>
-                      </div>
-                    </div>
-                  )}
+
                   
                   <form 
                     onSubmit={(e) => {
@@ -1595,8 +1713,8 @@ function PaymentPageContent({
                           {/* Credit Card Option */}
                           {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
                             <div 
-                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
-                                selectedMethod === 'stripe' ? 'border-primary bg-slate-50' : 'border-muted'
+                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
+                                selectedMethod === 'stripe' ? 'border-primary bg-primary/5' : 'border-muted'
                               }`}
                               onClick={() => handleMethodSelect('stripe')}
                             >
@@ -1615,8 +1733,8 @@ function PaymentPageContent({
                           {/* Manual Payment Option */}
                           {gatewaysStatus.manual.enabled && (
                             <div 
-                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
-                                selectedMethod === 'manual' ? 'border-primary bg-slate-50' : 'border-muted'
+                              className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors shadow-sm ${
+                                selectedMethod === 'manual' ? 'border-primary bg-primary/5' : 'border-muted'
                               }`}
                               onClick={() => handleMethodSelect('manual')}
                             >
@@ -1634,12 +1752,12 @@ function PaymentPageContent({
                         </div>
                       </div>
                       
-                      {/* Display the selected payment form - now shown below payment selectors */}
+                      {/* Display the selected payment form */}
                       {renderPaymentForm()}
                     </div>
                   )}
                   
-                  {/* Loading indicator - moved below payment selectors */}
+                  {/* Loading indicator */}
                   {isLoading && (
                     <div className="py-8 flex justify-center">
                       <div className="flex flex-col items-center">
@@ -1650,7 +1768,6 @@ function PaymentPageContent({
                       </div>
                     </div>
                   )}
-                  
                 </CardContent>
               </Card>
             )}
@@ -1658,86 +1775,85 @@ function PaymentPageContent({
         </div>
 
         {/* Right Column - Order Summary */}
-        <div className="lg:col-span-5 space-y-6">
-          <Card className="bg-slate-50 border-0 shadow-none sticky top-6">
-            <CardHeader>
-              <CardTitle className="text-xl">Order Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Membership Details */}
-              {membershipDetails && (
-                <div className="space-y-4">
-                  <div className="flex items-start gap-4">
-                    <div className="h-16 w-16 rounded bg-slate-100 flex items-center justify-center">
-                      <Star className="h-6 w-6 text-primary/70" />
-                    </div>
-                    <div>
-                      <h3 className="font-medium">{membershipDetails.name}</h3>
-                      {membershipDetails.interval && (
-                        <Badge variant="outline" className="mt-1">
-                          {membershipDetails.interval === 'month' ? 'Monthly' : 
-                           membershipDetails.interval === 'year' ? 'Annual' : 
-                           membershipDetails.interval === 'lifetime' ? 'Lifetime' : 
-                           membershipDetails.interval}
-                        </Badge>
-                      )}
-                      <p className="text-sm text-muted-foreground mt-1">{membershipDetails.description}</p>
-                    </div>
+        <div className="lg:col-span-5 bg-slate-50 lg:border-l border-slate-200">
+          <div className="max-w-lg mx-auto py-8 px-4 md:px-8 lg:px-12 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto space-y-6">
+            {/* Order Summary Title */}
+            <h2 className="text-xl font-semibold">Order Summary</h2>
+            
+            {/* Membership Details */}
+            {membershipDetails && (
+              <div className="space-y-4">
+                {/* Product Information */}
+                <div className="flex items-start gap-4">
+                  <div className="h-16 w-16 rounded bg-slate-100 flex items-center justify-center">
+                    <Star className="h-6 w-6 text-primary/70" />
                   </div>
-                  
-                  <Separator />
-                  
-                  {benefits.length > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-sm font-medium">Benefits include:</h4>
-                      <ul className="text-sm space-y-1.5">
-                        {benefits.slice(0, 3).map((benefit, index) => (
-                          <li key={index} className="flex items-start gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                            <span>{benefit}</span>
-                          </li>
-                        ))}
-                        {benefits.length > 3 && (
-                          <li className="text-primary text-sm font-medium">
-                            +{benefits.length - 3} more benefits
-                          </li>
-                        )}
-                      </ul>
-                    </div>
-                  )}
+                  <div>
+                    <h3 className="font-medium">{membershipDetails.name}</h3>
+                    {membershipDetails.interval && (
+                      <Badge variant="outline" className="mt-1">
+                        {membershipDetails.interval === 'month' ? 'Monthly' : 
+                         membershipDetails.interval === 'year' ? 'Annual' : 
+                         membershipDetails.interval === 'lifetime' ? 'Lifetime' : 
+                         membershipDetails.interval}
+                      </Badge>
+                    )}
+                    <p className="text-sm text-muted-foreground mt-1">{membershipDetails.description}</p>
+                  </div>
                 </div>
-              )}
-
-              {/* Price Breakdown */}
-              <div className="space-y-2">
-                <div className="flex justify-between py-1">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span>{formatCurrency(order.amount, order.currency)}</span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-muted-foreground">Tax</span>
-                  <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency || 'USD' }).format(0)}</span>
-                </div>
-                <Separator className="my-2" />
-                <div className="flex justify-between font-medium">
-                  <span>Total</span>
-                  <span>{formatCurrency(order.amount, order.currency)}</span>
-                </div>
+                
+                <Separator />
+                
+                {benefits.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Benefits include:</h4>
+                    <ul className="text-sm space-y-1.5">
+                      {benefits.slice(0, 3).map((benefit, index) => (
+                        <li key={index} className="flex items-start gap-2">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                          <span>{benefit}</span>
+                        </li>
+                      ))}
+                      {benefits.length > 3 && (
+                        <li className="text-primary text-sm font-medium">
+                          +{benefits.length - 3} more benefits
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
               </div>
+            )}
 
-              {/* Payment Button - Only shown after billing is completed */}
-              {billingCompleted && !(selectedMethod === 'manual' && paymentStatus === 'success') && (
-                <div className="pt-2">
-                  <OrderSummaryButton />
-                </div>
-              )}
-              
-              <div className="flex items-center justify-center text-sm text-muted-foreground gap-1.5">
-                <Lock className="h-3.5 w-3.5" />
-                <span>Secure checkout - SSL encrypted</span>
+            {/* Price Breakdown */}
+            <div className="space-y-2">
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span>{formatCurrency(order.amount, order.currency)}</span>
               </div>
-            </CardContent>
-          </Card>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Tax</span>
+                <span>{new Intl.NumberFormat('en-US', { style: 'currency', currency: order.currency || 'USD' }).format(0)}</span>
+              </div>
+              <Separator className="my-2" />
+              <div className="flex justify-between font-medium">
+                <span>Total</span>
+                <span>{formatCurrency(order.amount, order.currency)}</span>
+              </div>
+            </div>
+
+            {/* Payment Button - Only shown after billing is completed */}
+            {billingCompleted && !(selectedMethod === 'manual' && paymentStatus === 'success') && (
+              <div className="pt-2">
+                <OrderSummaryButton />
+              </div>
+            )}
+            
+            <div className="flex items-center justify-center text-sm text-muted-foreground gap-1.5">
+              <Lock className="h-3.5 w-3.5" />
+              <span>Secure checkout - SSL encrypted</span>
+            </div>
+          </div>
         </div>
       </div>
     </RefreshOrderStatusContext.Provider>
