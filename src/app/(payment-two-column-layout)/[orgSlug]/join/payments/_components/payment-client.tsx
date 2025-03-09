@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { PaymentProvider, usePayment } from './payment-context';
 import { Elements } from '@stripe/react-stripe-js';
 import { loadStripe } from '@stripe/stripe-js';
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StripeCardForm } from './stripe-card-form';
 import { ManualPaymentForm } from './manual-payment-form';
 import { PaymentVerification } from './payment-verification';
@@ -37,66 +37,52 @@ function getStripePromise(accountId: string | null) {
 
 // Order Summary Button Component
 function OrderSummaryButton() {
-  const { submitPayment, isSubmitting, paymentStatus, selectedMethod } = usePayment();
+  const { selectedMethod, stripeClientSecret, submitPayment } = usePayment();
+  const [loading, setLoading] = useState(false);
   
-  // Get text based on payment method
   const getButtonText = () => {
-    if (isSubmitting || paymentStatus === 'processing') {
-      return selectedMethod === 'manual' 
-        ? 'Uploading Proof...' 
-        : 'Processing Payment...';
+    if (loading) {
+      return 'Processing...';
     }
     
-    if (paymentStatus === 'success') {
-      return selectedMethod === 'manual' 
-        ? 'Proof Submitted' 
-        : 'Payment Complete';
+    if (selectedMethod === 'stripe') {
+      return 'Pay with Card';
     }
     
-    if (paymentStatus === 'verifying') {
-      return selectedMethod === 'stripe' 
-        ? 'Verifying Payment...' 
-        : 'Verifying Status...';
+    if (selectedMethod === 'manual') {
+      return 'Submit Payment Proof';
     }
     
-    // Default button text based on payment method
-    return selectedMethod === 'manual' 
-      ? 'Submit Payment Proof' 
-      : selectedMethod === 'stripe'
-        ? 'Pay Now'
-        : 'Complete Payment';
+    return 'Complete Payment';
+  };
+  
+  // For manual payments, the form handles submission
+  // For Stripe, we need to handle it here
+  const handleClick = async () => {
+    if (selectedMethod !== 'stripe') {
+      return; // Let the form handle it
+    }
+    
+    setLoading(true);
+    try {
+      await submitPayment();
+    } catch (error) {
+      console.error('Payment submission error:', error);
+    } finally {
+      setTimeout(() => setLoading(false), 1000);
+    }
   };
   
   return (
     <Button 
-      type="button" 
       className="w-full" 
-      size="lg"
-      onClick={() => submitPayment()}
-      disabled={isSubmitting || paymentStatus === 'processing' || paymentStatus === 'success' || paymentStatus === 'verifying'}
+      type={selectedMethod === 'manual' ? 'submit' : 'button'}
+      form={selectedMethod === 'manual' ? 'manual-payment-form' : undefined}
+      disabled={loading || !selectedMethod}
+      onClick={handleClick}
     >
-      {isSubmitting || paymentStatus === 'processing' ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          {selectedMethod === 'manual' ? 'Uploading Proof...' : 'Processing Payment...'}
-        </>
-      ) : paymentStatus === 'success' ? (
-        <>
-          <CheckCircle2 className="mr-2 h-4 w-4" />
-          {selectedMethod === 'manual' ? 'Proof Submitted' : 'Payment Complete'}
-        </>
-      ) : paymentStatus === 'verifying' ? (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          {selectedMethod === 'stripe' ? 'Verifying Payment...' : 'Verifying Status...'}
-        </>
-      ) : (
-        <>
-          {selectedMethod === 'stripe' && <CreditCard className="mr-2 h-4 w-4" />}
-          {selectedMethod === 'manual' && <FileText className="mr-2 h-4 w-4" />}
-          {getButtonText()}
-        </>
-      )}
+      {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {getButtonText()}
     </Button>
   );
 }
@@ -378,7 +364,7 @@ function PaymentPageContent({
     manual: { enabled: boolean };
   };
 }) {
-  const { selectedMethod, stripeClientSecret, stripeAccountId, showVerification, paymentStatus } = usePayment();
+  const { selectedMethod, stripeClientSecret, stripeAccountId, showVerification, paymentStatus, setSelectedMethod, createStripePaymentIntent, submitPayment } = usePayment();
   const [orderStatus, setOrderStatus] = useState<{
     isPaid: boolean;
     status: string;
@@ -388,7 +374,34 @@ function PaymentPageContent({
   const [hasPendingPayment, setHasPendingPayment] = useState(false);
   const [hasSubmittedPayment, setHasSubmittedPayment] = useState(false);
   const [showPaymentSelection, setShowPaymentSelection] = useState(true);
-
+  const [loadingStripe, setLoadingStripe] = useState(false);
+  
+  // Add state for billing details
+  const [billingDetails, setBillingDetails] = useState({
+    fullName: '',
+    email: '',
+    phone: ''
+  });
+  const [billingCompleted, setBillingCompleted] = useState(false);
+  
+  // Create Stripe intent when Stripe is selected
+  useEffect(() => {
+    if (selectedMethod === 'stripe' && !stripeClientSecret && billingCompleted) {
+      const initializeStripe = async () => {
+        try {
+          setLoadingStripe(true);
+          await createStripePaymentIntent(order.id, org.id);
+        } catch (error) {
+          console.error('Failed to initialize Stripe:', error);
+        } finally {
+          setLoadingStripe(false);
+        }
+      };
+      
+      initializeStripe();
+    }
+  }, [selectedMethod, stripeClientSecret, billingCompleted, createStripePaymentIntent, order.id, org.id]);
+  
   // Fetch order status when component mounts and when paymentStatus changes
   useEffect(() => {
     // When payment status becomes 'success', hide the payment selection
@@ -468,6 +481,105 @@ function PaymentPageContent({
     };
   }, [order.id, paymentStatus, hasSubmittedPayment]);
   
+  // Handle billing details submission
+  const handleBillingSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Basic validation
+    if (!billingDetails.fullName.trim() || !billingDetails.email.trim()) {
+      return; // Don't proceed if required fields are empty
+    }
+    setBillingCompleted(true);
+  };
+  
+  // Handle payment method selection
+  const handleMethodSelect = (method: 'stripe' | 'manual') => {
+    setSelectedMethod(method);
+  };
+  
+  // Go back to billing details
+  const goBack = () => {
+    setBillingCompleted(false);
+  };
+
+  // Modify the renderPaymentForm function to handle the new step-based flow
+  const renderPaymentForm = () => {
+    // Return empty if no method is selected
+    if (!selectedMethod) {
+      return null;
+    }
+    
+    // Already submitted manual payment successfully, show success message
+    if (selectedMethod === 'manual' && paymentStatus === 'success') {
+      return (
+        <div className="p-6 bg-green-50 rounded-lg border border-green-100">
+          <div className="flex flex-col items-center text-center">
+            <div className="h-12 w-12 rounded-full bg-green-100 flex items-center justify-center mb-3">
+              <CheckCircle className="h-6 w-6 text-green-600" />
+            </div>
+            <h3 className="text-lg font-medium text-green-800">Payment Proof Submitted</h3>
+            <p className="text-green-700 mt-1 max-w-md">
+              Your payment proof has been submitted successfully. We'll review it shortly and update your membership status.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Stripe Form with client secret available
+    if (selectedMethod === 'stripe') {
+      if (stripeClientSecret) {
+        // Use the connected account-specific Stripe instance
+        const stripeWithAccount = getStripePromise(stripeAccountId);
+        
+        return (
+          <Elements 
+            stripe={stripeWithAccount} 
+            options={{ 
+              clientSecret: stripeClientSecret,
+              appearance: {
+                theme: 'stripe',
+                variables: {
+                  colorPrimary: '#0070f3',
+                }
+              }
+            }}
+          >
+            <StripeCardForm />
+          </Elements>
+        );
+      } else if (loadingStripe) {
+        // Show loading state while waiting for Stripe to initialize
+        return (
+          <div className="py-6 flex justify-center">
+            <div className="flex flex-col items-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground mt-2">Preparing payment form...</p>
+            </div>
+          </div>
+        );
+      }
+      
+      // Error state if Stripe fails to initialize
+      return (
+        <Alert className="bg-red-50 text-red-800 border-red-200 mt-4">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertTitle>Payment Error</AlertTitle>
+          <AlertDescription>
+            There was an error initializing the payment form. Please try again or contact support.
+          </AlertDescription>
+        </Alert>
+      );
+    }
+    
+    // Manual Payment Form
+    if (selectedMethod === 'manual') {
+      return <ManualPaymentForm order={order} orgId={org.id} userId={user.id} />;
+    }
+    
+    // Default - empty form
+    return null;
+  };
+
   // If we're showing the verification component, render it instead of the regular content
   if (showVerification && stripeClientSecret) {
     return (
@@ -482,99 +594,8 @@ function PaymentPageContent({
     );
   }
   
-  // Determine which payment form to show based on selected method
-  const renderPaymentForm = () => {
-    // If order is already paid, don't show any payment forms
-    if (orderStatus?.isPaid) {
-      return (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-6 mb-6">
-          <div className="flex flex-col items-center text-center gap-4">
-            <div className="rounded-full bg-green-100 p-3">
-              <CheckCircle className="h-8 w-8 text-green-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-green-800">Payment Completed</h3>
-              <p className="text-green-700 mt-2 max-w-md">
-                This order has already been paid. Your membership is now active.
-              </p>
-            </div>
-            <div className="pt-2">
-              <Link href={`/@${org.slug}/dashboard`}>
-                <Button variant="default">Go to Dashboard</Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // If a manual payment has been submitted and is in review,
-    // OR if the payment status is success for manual payments
-    // BUT the user hasn't clicked "Add Another Payment"
-    if (selectedMethod === 'manual' && 
-        ((hasSubmittedPayment && !showPaymentSelection) || 
-         (paymentStatus === 'success' && !showPaymentSelection))) {
-      return (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 mb-6">
-          <div className="flex flex-col items-center text-center gap-4">
-            <div className="rounded-full bg-amber-100 p-3">
-              <Clock className="h-8 w-8 text-amber-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold text-amber-800">Payment Proof Submitted</h3>
-              <p className="text-amber-700 mt-2 max-w-md">
-                Your payment proof has been submitted and is awaiting approval by an administrator.
-                This typically takes 1-2 business days.
-              </p>
-              <div className="mt-3">
-                <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-300">
-                  Pending Approval
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    // Regular form rendering for stripe or manual payment
-    if (selectedMethod === 'stripe') {
-      // For Stripe, we only render the form if we have a client secret
-      // and we're inside the Elements provider
-      if (stripeClientSecret) {
-        return <StripeCardForm />;
-      }
-      
-      // Show loading state while waiting for client secret
-      return (
-        <div className="flex justify-center items-center py-8">
-          <div className="flex flex-col items-center space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-primary/70" />
-            <p className="text-muted-foreground">Preparing payment form...</p>
-          </div>
-        </div>
-      );
-    }
-    
-    // For manual payment - show form if the user has clicked "Add Another Payment"
-    // even if they have previously submitted a payment
-    if (selectedMethod === 'manual' && 
-        (showPaymentSelection || 
-         (!hasSubmittedPayment && paymentStatus !== 'success'))) {
-      return (
-        <ManualPaymentForm 
-          order={order}
-          orgId={org.id}
-          userId={user.id}
-        />
-      );
-    }
-    
-    return null;
-  };
-  
   // Main content without the payment form
-  const commonContent = (
+  return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
       {/* Left Column - Customer Information */}
       <div className="lg:col-span-7 space-y-8">
@@ -591,101 +612,202 @@ function PaymentPageContent({
         </div>
         
         <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">Contact Information</CardTitle>
-              <CardDescription>We'll use this information for your membership record</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name <span className="text-destructive">*</span></Label>
-                  <Input id="fullName" placeholder="Enter your full name" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email Address <span className="text-destructive">*</span></Label>
-                  <Input id="email" type="email" placeholder="Enter your email address" />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
-                  <Input id="phone" type="tel" placeholder="Enter your phone number" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="border-b bg-slate-50">
-              <CardTitle className="text-lg">Payment Method</CardTitle>
-              <CardDescription>Choose how you'd like to pay</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <PaymentStatusMessages />
-              
-              {/* Only show payment history if payments exist */}
-              {isLoading ? (
-                <div className="py-6 flex justify-center">
-                  <div className="flex flex-col items-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                    <p className="text-sm text-muted-foreground mt-2">Loading payment information...</p>
-                  </div>
-                </div>
-              ) : orderStatus?.payments && orderStatus.payments.length > 0 ? (
-                <div className="mb-6">
-                  <ExistingPaymentsDisplay payments={orderStatus.payments} />
-                </div>
-              ) : null}
-              
-              {/* Warning about pending payments */}
-              {hasPendingPayment && !hasSubmittedPayment && (
-                <Alert className="bg-amber-50 text-amber-800 border-amber-200 mb-6">
-                  <div className="flex gap-3">
-                    <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
-                    <div className="space-y-1">
-                      <h4 className="font-medium">Pending Payment Detected</h4>
-                      <AlertDescription className="text-amber-700">
-                        You have pending payments that are being processed. You can still submit a new payment if needed.
-                      </AlertDescription>
+          {/* Billing Information - Full form or compact preview */}
+          {!billingCompleted ? (
+            <Card>
+              <CardHeader className="border-b bg-slate-50">
+                <CardTitle className="text-lg">Contact Information</CardTitle>
+                <CardDescription>We'll use this information for your membership record</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <form onSubmit={handleBillingSubmit}>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Full Name <span className="text-destructive">*</span></Label>
+                      <Input 
+                        id="fullName" 
+                        placeholder="Enter your full name" 
+                        value={billingDetails.fullName}
+                        onChange={(e) => setBillingDetails({...billingDetails, fullName: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email Address <span className="text-destructive">*</span></Label>
+                      <Input 
+                        id="email" 
+                        type="email" 
+                        placeholder="Enter your email address" 
+                        value={billingDetails.email}
+                        onChange={(e) => setBillingDetails({...billingDetails, email: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone Number</Label>
+                      <Input 
+                        id="phone" 
+                        type="tel" 
+                        placeholder="Enter your phone number" 
+                        value={billingDetails.phone}
+                        onChange={(e) => setBillingDetails({...billingDetails, phone: e.target.value})}
+                      />
+                    </div>
+                    
+                    {/* Payment methods preview */}
+                    <div className="mt-2 pt-4 border-t">
+                      <div className="mb-3">
+                        <h4 className="text-sm font-medium text-muted-foreground">Available Payment Methods</h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
+                          <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-md border">
+                            <CreditCard className="h-4 w-4 text-slate-500" />
+                            <span className="text-sm">Credit Card</span>
+                          </div>
+                        )}
+                        {gatewaysStatus.manual.enabled && (
+                          <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-md border">
+                            <Receipt className="h-4 w-4 text-slate-500" />
+                            <span className="text-sm">Bank Transfer</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="pt-2">
+                      <Button type="submit" className="w-full">Continue to Payment</Button>
                     </div>
                   </div>
-                </Alert>
-              )}
-              
-              {/* Show button to add more payments if one has been submitted but the order isn't paid */}
-              {hasSubmittedPayment && !orderStatus?.isPaid && !showPaymentSelection && (
-                <div className="flex justify-center my-6">
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowPaymentSelection(true)}
-                    className="flex items-center gap-2"
-                  >
-                    <CreditCard className="h-4 w-4" />
-                    Add Another Payment
-                  </Button>
-                </div>
-              )}
-              
-              {/* Only show payment method selection if:
-                  1. Order is not already paid AND
-                  2. (User hasn't submitted a payment OR showPaymentSelection is true) */}
-              {!orderStatus?.isPaid && (showPaymentSelection || !hasSubmittedPayment) && (
-                <>
-                  <div className="mb-6">
-                    <h3 className="text-base font-medium mb-3">Select Payment Method</h3>
-                    <PaymentForm 
-                      order={order}
-                      orgId={org.id}
-                      userId={user.id}
-                      hasActiveStripeAccount={gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected}
-                    />
+                </form>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-md border">
+              <div className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                <div>
+                  <span className="font-medium">{billingDetails.fullName}</span>
+                  <div className="text-sm text-muted-foreground">
+                    {billingDetails.email}
+                    {billingDetails.phone && <> • {billingDetails.phone}</>}
                   </div>
-                </>
-              )}
-              
-              {/* Render the appropriate payment form based on selected method */}
-              {renderPaymentForm()}
-            </CardContent>
-          </Card>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={goBack}>
+                Edit
+              </Button>
+            </div>
+          )}
+          
+          {/* Payment Section - Only shown after billing is completed */}
+          {billingCompleted && (
+            <Card>
+              <CardHeader className="border-b bg-slate-50">
+                <CardTitle className="text-lg">Payment Method</CardTitle>
+                <CardDescription>Choose how you'd like to pay</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <PaymentStatusMessages />
+                
+                {/* Only show payment history if payments exist */}
+                {isLoading ? (
+                  <div className="py-6 flex justify-center">
+                    <div className="flex flex-col items-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground mt-2">Loading payment information...</p>
+                    </div>
+                  </div>
+                ) : orderStatus?.payments && orderStatus.payments.length > 0 ? (
+                  <div className="mb-6">
+                    <ExistingPaymentsDisplay payments={orderStatus.payments} />
+                  </div>
+                ) : null}
+                
+                {/* Warning about pending payments */}
+                {hasPendingPayment && !hasSubmittedPayment && (
+                  <Alert className="bg-amber-50 text-amber-800 border-amber-200 mb-6">
+                    <div className="flex gap-3">
+                      <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                      <div className="space-y-1">
+                        <h4 className="font-medium">Pending Payment Detected</h4>
+                        <AlertDescription className="text-amber-700">
+                          You have pending payments that are being processed. You can still submit a new payment if needed.
+                        </AlertDescription>
+                      </div>
+                    </div>
+                  </Alert>
+                )}
+                
+                {/* Show button to add more payments if one has been submitted but the order isn't paid */}
+                {hasSubmittedPayment && !orderStatus?.isPaid && !showPaymentSelection && (
+                  <div className="flex justify-center my-6">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowPaymentSelection(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      Add Another Payment
+                    </Button>
+                  </div>
+                )}
+                
+                {/* Only show payment method selection if:
+                    1. Order is not already paid AND
+                    2. (User hasn't submitted a payment OR showPaymentSelection is true) */}
+                {!orderStatus?.isPaid && (showPaymentSelection || !hasSubmittedPayment) && (
+                  <div className="space-y-6">
+                    <div className="mb-4">
+                      <h3 className="text-base font-medium mb-3">Select Payment Method</h3>
+                      
+                      {/* Payment method options as clickable cards */}
+                      <div className="grid grid-cols-1 gap-4">
+                        {/* Credit Card Option */}
+                        {gatewaysStatus.stripe.enabled && gatewaysStatus.stripe.stripeConnected && (
+                          <div 
+                            className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
+                              selectedMethod === 'stripe' ? 'border-primary' : 'border-muted'
+                            }`}
+                            onClick={() => handleMethodSelect('stripe')}
+                          >
+                            <div className="flex items-center gap-3">
+                              <CreditCard className="h-5 w-5 text-primary/70" />
+                              <div>
+                                <p className="font-medium">Credit Card</p>
+                                <p className="text-sm text-muted-foreground">Pay securely using your credit or debit card</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Manual Payment Option */}
+                        {gatewaysStatus.manual.enabled && (
+                          <div 
+                            className={`p-4 border-2 rounded-lg cursor-pointer hover:bg-slate-50 transition-colors ${
+                              selectedMethod === 'manual' ? 'border-primary' : 'border-muted'
+                            }`}
+                            onClick={() => handleMethodSelect('manual')}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Receipt className="h-5 w-5 text-primary/70" />
+                              <div>
+                                <p className="font-medium">Bank Transfer</p>
+                                <p className="text-sm text-muted-foreground">Upload proof of payment after bank transfer</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {/* Render the appropriate payment form based on selected method */}
+                    {renderPaymentForm()}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
 
@@ -756,9 +878,9 @@ function PaymentPageContent({
                 <span>{formatCurrency(order.amount, order.currency)}</span>
               </div>
             </div>
-            
-            {/* Payment Button - Don't show for manual payments after successful submission */}
-            {!(selectedMethod === 'manual' && paymentStatus === 'success') && (
+
+            {/* Payment Button - Only shown after billing is completed */}
+            {billingCompleted && !(selectedMethod === 'manual' && paymentStatus === 'success') && (
               <div className="pt-2">
                 <OrderSummaryButton />
               </div>
@@ -773,30 +895,4 @@ function PaymentPageContent({
       </div>
     </div>
   );
-  
-  // If we're using Stripe and have a client secret, wrap everything in Elements
-  if (selectedMethod === 'stripe' && stripeClientSecret) {
-    // Use the connected account-specific Stripe instance
-    const stripeWithAccount = getStripePromise(stripeAccountId);
-    
-    return (
-      <Elements 
-        stripe={stripeWithAccount} 
-        options={{ 
-          clientSecret: stripeClientSecret,
-          appearance: {
-            theme: 'stripe',
-            variables: {
-              colorPrimary: '#0070f3',
-            }
-          }
-        }}
-      >
-        {commonContent}
-      </Elements>
-    );
-  }
-  
-  // Otherwise return the content directly
-  return commonContent;
 } 

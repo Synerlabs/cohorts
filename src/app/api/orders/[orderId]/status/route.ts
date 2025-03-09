@@ -8,7 +8,8 @@ export async function GET(
   { params }: { params: { orderId: string } }
 ) {
   try {
-    const orderId = params.orderId;
+    // Ensure params is properly resolved
+    const { orderId } = params;
     
     if (!orderId) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
