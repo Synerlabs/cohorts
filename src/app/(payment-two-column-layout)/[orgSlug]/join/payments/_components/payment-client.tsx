@@ -19,6 +19,16 @@ import { StripeCardForm } from './stripe-card-form';
 import { ManualPaymentForm } from './manual-payment-form';
 import { PaymentVerification } from './payment-verification';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SavedBillingDetails } from './saved-billing-details';
+import { 
+  BillingDetailsFormData, 
+  getAllBillingDetailsForUser, 
+  getBillingDetailsForOrder, 
+  saveBillingDetails, 
+  convertToFormData 
+} from '@/lib/services/billing-details.service';
+import { BillingDetails } from '@/types/database.types';
+import { Checkbox } from '@/components/ui/checkbox';
 
 // Initialize Stripe - will be replaced by account-specific key when needed
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
@@ -379,8 +389,21 @@ function PaymentPageContent({
   const [showPaymentSelection, setShowPaymentSelection] = useState(true);
   const [loadingStripe, setLoadingStripe] = useState(false);
   
-  // Enhanced billing details with more fields
-  const [billingDetails, setBillingDetails] = useState({
+  // Define a type for the billing details state
+  interface BillingDetailsState {
+    fullName: string;
+    email: string;
+    phone: string;
+    company: string;
+    address: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    country: string;
+  }
+
+  // Update the state definition
+  const [billingDetails, setBillingDetails] = useState<BillingDetailsState>({
     fullName: user?.full_name || '',
     email: user?.email || '',
     phone: user?.phone || '',
@@ -393,6 +416,106 @@ function PaymentPageContent({
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [billingCompleted, setBillingCompleted] = useState(false);
+  
+  // Add state for saved billing details
+  const [savedBillingDetails, setSavedBillingDetails] = useState<BillingDetails[]>([]);
+  const [isLoadingBillingDetails, setIsLoadingBillingDetails] = useState(true);
+  const [saveAsDefault, setSaveAsDefault] = useState(false);
+  
+  // Fetch existing billing details on component mount
+  useEffect(() => {
+    async function fetchBillingDetails() {
+      if (!user?.id) return;
+      
+      setIsLoadingBillingDetails(true);
+      try {
+        // First check if there are billing details for this order
+        const orderBillingDetails = await getBillingDetailsForOrder(order.id);
+        
+        if (orderBillingDetails) {
+          // We found billing details for this order
+          setBillingDetails(convertToFormData(orderBillingDetails));
+          setBillingCompleted(true);  // Skip the form
+          console.log('Found existing billing details for order');
+        } else {
+          // Get all saved billing details for the user
+          const allUserBillingDetails = await getAllBillingDetailsForUser(user.id);
+          setSavedBillingDetails(allUserBillingDetails || []);
+          
+          // Pre-fill form with user data if available
+          if (!billingDetails.fullName && user.full_name) {
+            handleBillingFieldChange('fullName', user.full_name);
+          }
+          if (!billingDetails.email && user.email) {
+            handleBillingFieldChange('email', user.email);
+          }
+          console.log('Fetched saved billing details for user');
+        }
+      } catch (error) {
+        console.error('Error fetching billing details:', error);
+      } finally {
+        setIsLoadingBillingDetails(false);
+      }
+    }
+    
+    fetchBillingDetails();
+  }, [order.id, user.id]);
+  
+  // Updated handleBillingSubmit to save billing details
+  const handleBillingSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validate all fields
+    if (!validateBillingFields()) {
+      return; // Don't proceed if there are validation errors
+    }
+    
+    try {
+      // Save billing details to database
+      const formData: BillingDetailsFormData = {
+        fullName: billingDetails.fullName,
+        email: billingDetails.email,
+        phone: billingDetails.phone,
+        company: billingDetails.company,
+        address: billingDetails.address,
+        city: billingDetails.city,
+        state: billingDetails.state,
+        zipCode: billingDetails.zipCode,
+        country: billingDetails.country
+      };
+      
+      await saveBillingDetails({
+        formData,
+        userId: user.id,
+        orderId: order.id,
+        saveAsDefault
+      });
+      
+      // Proceed to payment
+      setBillingCompleted(true);
+    } catch (error) {
+      console.error('Error submitting billing details:', error);
+      // Show error to user
+    }
+  };
+  
+  // Handle selection of saved billing details
+  const handleSelectBillingDetail = (formData: BillingDetailsFormData) => {
+    setBillingDetails(formData);
+  };
+  
+  // Handle deletion of a saved billing detail
+  const handleDeleteBillingDetail = (id: string) => {
+    setSavedBillingDetails(savedBillingDetails.filter(detail => detail.id !== id));
+  };
+  
+  // Handle setting a billing detail as default
+  const handleSetDefaultBillingDetail = (id: string) => {
+    setSavedBillingDetails(savedBillingDetails.map(detail => ({
+      ...detail,
+      is_default: detail.id === id
+    })));
+  };
   
   // Validate email format
   const validateEmail = (email: string): boolean => {
@@ -447,19 +570,6 @@ function PaymentPageContent({
     
     // Form is valid if there are no errors
     return Object.keys(errors).length === 0;
-  };
-  
-  // Handle billing form submission
-  const handleBillingSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate all fields
-    if (!validateBillingFields()) {
-      return; // Don't proceed if there are validation errors
-    }
-    
-    // Proceed to payment
-    setBillingCompleted(true);
   };
   
   // Create Stripe intent when Stripe is selected
@@ -731,6 +841,19 @@ function PaymentPageContent({
                   </div>
                 </div>
                 
+                {/* Add saved billing details section */}
+                {!isLoadingBillingDetails && savedBillingDetails.length > 0 && (
+                  <div className="mb-6 pb-5 border-b">
+                    <SavedBillingDetails
+                      savedDetails={savedBillingDetails}
+                      userId={user.id}
+                      onSelect={handleSelectBillingDetail}
+                      onDelete={handleDeleteBillingDetail}
+                      onSetDefault={handleSetDefaultBillingDetail}
+                    />
+                  </div>
+                )}
+                
                 <form onSubmit={handleBillingSubmit} className="space-y-5">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Full Name - Required */}
@@ -885,6 +1008,21 @@ function PaymentPageContent({
                           onChange={(e) => handleBillingFieldChange('zipCode', e.target.value)}
                         />
                       </div>
+                    </div>
+                    
+                    {/* Add "Save as default" checkbox at the bottom */}
+                    <div className="md:col-span-2 flex items-center space-x-2 mt-2">
+                      <Checkbox 
+                        id="saveAsDefault" 
+                        checked={saveAsDefault}
+                        onCheckedChange={(checked) => setSaveAsDefault(checked === true)}
+                      />
+                      <label 
+                        htmlFor="saveAsDefault" 
+                        className="text-sm text-muted-foreground leading-none cursor-pointer"
+                      >
+                        Save these billing details for future orders
+                      </label>
                     </div>
                     
                     {/* Submit Button - Full Width */}

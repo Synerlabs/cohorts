@@ -315,4 +315,22 @@ export interface Database {
       [_ in never]: never
     }
   }
+}
+
+export interface BillingDetails {
+  id: string;
+  user_id: string;
+  order_id: string | null;
+  full_name: string;
+  email: string;
+  phone: string | null;
+  company: string | null;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  zip_code: string | null;
+  country: string;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
 } 
