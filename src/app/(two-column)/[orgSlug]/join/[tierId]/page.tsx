@@ -7,22 +7,60 @@ import { Database } from "@/lib/types/database.types";
 import { JoinForm } from "./_components/join-form";
 import { MembershipService } from "@/services/membership.service";
 import ApplicationStepper from "./_components/application-stepper";
-interface JoinPageProps extends Omit<OrgAccessHOCProps, 'params'> {
-  params: {
-    tierId: string;
-    slug: string;
-  };
-}
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
-async function JoinPage({ org, user, params }: JoinPageProps) {
+// Define a simpler component that doesn't extend OrgAccessHOCProps
+// The HOC will provide the org and user props
+async function JoinPage({
+  org,
+  user,
+  params,
+  searchParams
+}: {
+  org: any;
+  user: any;
+  params: { tierId: string; slug: string };
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   if (!user) {
     console.log('user not found');
     notFound();
   }
 
-  const { tierId } = await params;
+  const { tierId } = params;
+  
+  // Extract organization information from search params - convert array values to strings if needed
+  const applicationId = typeof searchParams.applicationId === 'string' 
+    ? searchParams.applicationId 
+    : Array.isArray(searchParams.applicationId) 
+      ? searchParams.applicationId[0] 
+      : undefined;
+      
+  const organizationId = typeof searchParams.organizationId === 'string' 
+    ? searchParams.organizationId 
+    : Array.isArray(searchParams.organizationId) 
+      ? searchParams.organizationId[0] 
+      : undefined;
+      
+  const organizationName = typeof searchParams.organizationName === 'string' 
+    ? searchParams.organizationName 
+    : Array.isArray(searchParams.organizationName) 
+      ? searchParams.organizationName[0] 
+      : undefined;
+      
+  const isNewOrg = typeof searchParams.isNewOrg === 'string' 
+    ? searchParams.isNewOrg === 'true'
+    : Array.isArray(searchParams.isNewOrg) 
+      ? searchParams.isNewOrg[0] === 'true'
+      : false;
+  
+  console.log('Organization context for form:', {
+    applicationId,
+    organizationId,
+    organizationName,
+    isNewOrg
+  });
   
   try {
     const { tier, formTemplate } = await MembershipService.getMembershipTierAndForm(tierId);
@@ -47,6 +85,16 @@ async function JoinPage({ org, user, params }: JoinPageProps) {
                 <p className="text-sm text-muted-foreground mt-2">
                   {tier.description}
                 </p>
+                
+                {/* Show organization context if available */}
+                {(organizationId || organizationName) && (
+                  <div className="mt-4 p-3 bg-blue-50 rounded-md text-sm text-blue-800">
+                    <p className="font-medium">Organization Information:</p>
+                    <p>{isNewOrg ? 'New organization: ' : 'Organization: '} 
+                      {organizationName || 'Unknown'}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -67,6 +115,10 @@ async function JoinPage({ org, user, params }: JoinPageProps) {
               orgId={org.id}
               orgSlug={org.slug}
               userId={user.id}
+              applicationId={applicationId}
+              organizationId={organizationId}
+              organizationName={organizationName}
+              isNewOrg={isNewOrg}
             />
           </div>
         </div>

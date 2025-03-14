@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { Check, Loader2, Sparkles } from "lucide-react";
 import { Currency, MembershipActivationType } from "@/lib/types/membership";
+import { useEffect } from "react";
 
 const currencySymbols: Record<Currency, string> = {
   USD: '$',
@@ -41,6 +42,13 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
   const individualMemberships = memberships.filter(
     tier => tier.membership_tier?.type !== 'organization'
   );
+
+  // Handle redirect if provided in state
+  useEffect(() => {
+    if (state?.redirect) {
+      router.push(state.redirect);
+    }
+  }, [state?.redirect, router]);
 
   if (!individualMemberships || individualMemberships.length === 0) {
     return (
@@ -81,11 +89,6 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
       action(formData);
     });
   };
-
-  // Handle redirect if provided in state
-  if (state?.redirect) {
-    router.push(state.redirect);
-  }
 
   return (
     <div className="space-y-8">

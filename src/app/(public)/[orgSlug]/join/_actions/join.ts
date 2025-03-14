@@ -192,10 +192,40 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       if (orgSlugError) {
         console.error('Could not get org slug for form URL:', orgSlugError);
       } else if (org?.slug) {
-        // Use the tier ID instead of application ID - this matches the route structure
-        // The correct pattern is /{orgSlug}/join/{tierId} which renders the form
-        const formUrl = `/${org.slug}/join/${membershipTierId}`;
-        console.log('⭐ Redirecting to correct form URL:', formUrl);
+        // Create a query string with organization information and application ID
+        const queryParams = new URLSearchParams();
+        
+        // Add application ID to link form submission with existing application
+        queryParams.append('applicationId', application.id);
+        
+        // Pass organization information via query parameters
+        if (organizationId) {
+          // For existing organization
+          queryParams.append('organizationId', organizationId);
+          
+          // Find organization name if not provided directly
+          if (!organizationName) {
+            const { data: orgData } = await supabase
+              .from('group')
+              .select('name')
+              .eq('id', organizationId)
+              .single();
+              
+            if (orgData?.name) {
+              queryParams.append('organizationName', orgData.name);
+            }
+          } else {
+            queryParams.append('organizationName', organizationName);
+          }
+        } else if (organizationName) {
+          // For newly created organization
+          queryParams.append('organizationName', organizationName);
+          queryParams.append('isNewOrg', 'true');
+        }
+        
+        // Use the tier ID and include the query parameters
+        const formUrl = `/${org.slug}/join/${membershipTierId}?${queryParams.toString()}`;
+        console.log('⭐ Redirecting to form URL with organization data:', formUrl);
         
         // This will throw a NEXT_REDIRECT error that should bubble up
         // It shouldn't be caught by our catch block
@@ -254,7 +284,7 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     )) {
       return {
         message: 'Redirecting to payment...',
-        redirect: `/${org.slug}/join/payment`
+        redirect: `/${org.slug}/join/payments?applicationId=${application.id}`
       };
     }
 
