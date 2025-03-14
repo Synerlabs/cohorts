@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Check, ArrowLeft, Building, Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { applyForMembership } from '../_actions/membership';
+import { join } from '../_actions/join';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
 
 interface Organization {
@@ -54,48 +54,57 @@ export default function SelectOrganizationPage() {
     : !!selectedOrgId;
   const [debugMode, setDebugMode] = useState(false);
   
+  // Add state for tracking when a form redirect is in progress
+  const [redirectInProgress, setRedirectInProgress] = useState(false);
+  
   // Server action with toast state
   const [actionState, dispatchAction, isPending] = useToastActionState(
     async (prevState: any, formData: FormData) => {
-      // Prepare submission data
-      const tierProductId = formData.get('tierProductId') as string;
-      const isCreatingNewOrg = formData.get('isCreatingNew') === 'true';
-      
-      let formSubmission: any = {
-        parentGroupId: formData.get('groupId') as string,
-        _organizationInfo: {
-          createNew: isCreatingNewOrg,
-        }
-      };
-      
-      if (isCreatingNewOrg) {
-        formSubmission._organizationInfo.name = formData.get('newOrgName') as string;
-      } else {
-        formSubmission._organizationInfo.organizationId = formData.get('selectedOrgId') as string;
-        // Find the organization name for the selected ID
-        const selectedOrg = organizations.find(
-          org => org.id === formData.get('selectedOrgId')
-        );
-        formSubmission._organizationInfo.organizationName = selectedOrg?.name;
-      }
-      
-      // Call the server action
       try {
-        console.log('Calling server action with data:', { tierProductId, formSubmission });
-        const result = await applyForMembership(tierProductId, formSubmission);
+        console.log('Calling server action with data:', Object.fromEntries(formData.entries()));
+        const result = await join({ 
+          // Empty state object matches the expected State type
+        }, formData);
         
-        // Set success state locally
-        setIsSuccess(true);
+        console.log('Server action response:', result);
         
-        // Get the current URL path to extract the organization slug
-        const pathSegments = window.location.pathname.split('/');
-        const orgSlug = pathSegments[1];
-        
-        // Redirect to memberships page after a short delay
-        setTimeout(() => {
-          console.log(`Redirecting to /${orgSlug}/membership`);
-          router.push(`/${orgSlug}/membership`);
-        }, 1500);
+        // If we have a redirect in the response, use it
+        if (result.redirect) {
+          toast({
+            title: "Success",
+            description: result.message || "Organization affiliation request submitted",
+          });
+          
+          // Redirect after a short delay to allow the toast to be seen
+          setTimeout(() => {
+            // Use null check to satisfy TypeScript
+            if (typeof result.redirect === 'string') {
+              router.push(result.redirect);
+            } else {
+              console.error('Expected redirect URL but received:', result.redirect);
+            }
+          }, 1000);
+        } else if (result.errors) {
+          // If there are errors, display them
+          throw new Error(result.errors.form?.[0] || "An error occurred");
+        } else {
+          // If no redirect and no errors, show success state
+          setIsSuccess(true);
+          toast({
+            title: "Success",
+            description: result.message || "Organization affiliation request submitted",
+          });
+          
+          // Get the current URL path to extract the organization slug
+          const pathSegments = window.location.pathname.split('/');
+          const orgSlug = pathSegments[1];
+          
+          // Redirect to memberships page after a short delay
+          setTimeout(() => {
+            console.log(`Redirecting to /${orgSlug}/membership`);
+            router.push(`/${orgSlug}/membership`);
+          }, 1500);
+        }
         
         return result;
       } catch (error) {
@@ -105,13 +114,6 @@ export default function SelectOrganizationPage() {
         let errorMessage = 'An unexpected error occurred';
         if (error instanceof Error) {
           errorMessage = error.message;
-          
-          // Add more specific messages for common errors
-          if (errorMessage.includes('Organization not found')) {
-            errorMessage = 'Organization not found. Please try selecting a different organization.';
-          } else if (errorMessage.includes('already affiliated')) {
-            errorMessage = 'These organizations are already affiliated.';
-          }
         }
         
         throw new Error(errorMessage);
@@ -122,8 +124,8 @@ export default function SelectOrganizationPage() {
     {
       successTitle: "Success",
       successDescription: isCreatingNew 
-        ? "New organization created and affiliation request submitted" 
-        : "Affiliation request submitted successfully"
+        ? "New organization created and application submitted" 
+        : "Organization affiliation application submitted"
     }
   );
   
@@ -206,25 +208,64 @@ export default function SelectOrganizationPage() {
     router.back();
   };
   
-  const handleSubmit = () => {
-    // Create a FormData object to pass to the server action
+  const handleSubmit = async () => {
+    // Create a FormData object to pass to the standard join action
     const formData = new FormData();
-    formData.append('tierProductId', tierId || '');
-    formData.append('groupId', groupId || '');
-    formData.append('isCreatingNew', isCreatingNew.toString());
     
+    // Ensure all required fields are present
+    if (!tierId || !groupId || !userId) {
+      console.error('Missing required fields for membership join', { tierId, groupId, userId });
+      toast({
+        title: "Error",
+        description: "Missing required information. Please ensure all fields are filled out.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Now we know these values are defined - use String to force string type
+    formData.append('membershipTierId', String(tierId));
+    formData.append('groupId', String(groupId));
+    formData.append('userId', String(userId));
+    
+    // Add organization-specific information
     if (isCreatingNew) {
-      formData.append('newOrgName', newOrgName.trim());
+      // For new organizations, pass the name
+      formData.append('organizationName', newOrgName.trim());
     } else {
-      formData.append('selectedOrgId', selectedOrgId);
+      // For existing organizations, pass the ID and look up the name
+      formData.append('organizationId', selectedOrgId);
+      
+      // Find the organization name for logging
+      const selectedOrg = organizations.find(org => org.id === selectedOrgId);
+      if (selectedOrg) {
+        formData.append('organizationName', selectedOrg.name);
+      }
     }
     
     // Log the submission data
     console.log('Submitting form data:', Object.fromEntries(formData.entries()));
     
-    // Dispatch the action
-    dispatchAction(formData);
+    // Set redirect in progress flag if this is likely a tier with a form
+    setRedirectInProgress(true);
+    
+    // Call the join action
+    try {
+      dispatchAction(formData);
+      
+      // If we get here and a redirect hasn't happened after a timeout,
+      // reset the flag to avoid UI being stuck in loading state
+      setTimeout(() => {
+        setRedirectInProgress(false);
+      }, 3000);
+    } catch (err) {
+      setRedirectInProgress(false);
+      console.error('Error in dispatchAction:', err);
+    }
   };
+  
+  // Show pending state for both direct isPending flag and redirectInProgress
+  const isProcessing = isPending || redirectInProgress;
   
   return (
     <div className="container max-w-2xl py-10">
@@ -232,7 +273,7 @@ export default function SelectOrganizationPage() {
         variant="ghost" 
         className="mb-4" 
         onClick={handleGoBack}
-        disabled={isPending || isSuccess}
+        disabled={isProcessing || isSuccess}
       >
         <ArrowLeft className="mr-2 h-4 w-4" />
         Back
@@ -287,7 +328,7 @@ export default function SelectOrganizationPage() {
                   onChange={(e) => setNewOrgName(e.target.value)}
                   placeholder="Enter organization name"
                   autoFocus
-                  disabled={isPending}
+                  disabled={isProcessing}
                 />
               </div>
               
@@ -301,7 +342,7 @@ export default function SelectOrganizationPage() {
                 variant="outline"
                 className="w-full"
                 onClick={handleSelectExisting}
-                disabled={organizations.length === 0 || isPending}
+                disabled={organizations.length === 0 || isProcessing}
               >
                 <Building className="mr-2 h-4 w-4" />
                 Select Existing Organization
@@ -321,7 +362,7 @@ export default function SelectOrganizationPage() {
                   <Select 
                     value={selectedOrgId} 
                     onValueChange={setSelectedOrgId}
-                    disabled={isPending}
+                    disabled={isProcessing}
                   >
                     <SelectTrigger id="organization">
                       <SelectValue placeholder="Select an organization" />
@@ -356,7 +397,7 @@ export default function SelectOrganizationPage() {
                 variant="outline"
                 className="w-full"
                 onClick={handleCreateNew}
-                disabled={isPending}
+                disabled={isProcessing}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Create New Organization
@@ -364,7 +405,7 @@ export default function SelectOrganizationPage() {
             </div>
           )}
           
-          {isPending && (
+          {isProcessing && (
             <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded-md">
               <div className="flex items-center">
                 <Loader2 className="h-4 w-4 animate-spin text-blue-600 mr-2" />
@@ -375,7 +416,9 @@ export default function SelectOrganizationPage() {
                 </span>
               </div>
               <p className="text-xs text-blue-600 mt-2">
-                Please wait while we process your request. This may take a few moments.
+                {redirectInProgress 
+                  ? "If a form is required, you'll be redirected to complete it..."
+                  : "Please wait while we process your request. This may take a few moments."}
               </p>
             </div>
           )}
@@ -391,6 +434,7 @@ export default function SelectOrganizationPage() {
                 <div><strong>newOrgName:</strong> {newOrgName || '(empty)'}</div>
                 <div><strong>selectedOrgId:</strong> {selectedOrgId || '(empty)'}</div>
                 <div><strong>isPending:</strong> {isPending ? 'Yes' : 'No'}</div>
+                <div><strong>redirectInProgress:</strong> {redirectInProgress ? 'Yes' : 'No'}</div>
                 <div><strong>isSuccess:</strong> {isSuccess ? 'Yes' : 'No'}</div>
                 <div><strong>Form Valid:</strong> {isFormValid ? 'Yes' : 'No'}</div>
                 <div><strong>Action State:</strong> <pre className="text-xs overflow-auto max-h-20 bg-gray-100 p-1 rounded">{actionState ? JSON.stringify(actionState, null, 2) : 'null'}</pre></div>
@@ -400,11 +444,15 @@ export default function SelectOrganizationPage() {
                 size="sm"
                 className="mt-2"
                 onClick={() => {
+                  // For the test/debug function, ensure all values are strings
                   const formData = new FormData();
-                  formData.append('tierProductId', tierId || '');
+                  formData.append('membershipTierId', tierId || '');
                   formData.append('groupId', groupId || '');
-                  formData.append('isCreatingNew', 'false');
-                  formData.append('selectedOrgId', organizations[0]?.id || '');
+                  formData.append('userId', userId || '');
+                  if (organizations.length > 0) {
+                    formData.append('organizationId', organizations[0]?.id || '');
+                    formData.append('organizationName', organizations[0]?.name || '');
+                  }
                   console.log('Testing with data:', Object.fromEntries(formData.entries()));
                   dispatchAction(formData);
                 }}
@@ -419,7 +467,7 @@ export default function SelectOrganizationPage() {
           <Button
             variant="outline"
             onClick={handleGoBack}
-            disabled={isPending || isSuccess}
+            disabled={isProcessing || isSuccess}
           >
             Cancel
           </Button>
@@ -440,7 +488,7 @@ export default function SelectOrganizationPage() {
             }}
             disabled={
               !debugMode && (
-                isPending || 
+                isProcessing || 
                 isSuccess ||
                 (isCreatingNew && !newOrgName.trim()) || 
                 (!isCreatingNew && !selectedOrgId && organizations.length > 0)
@@ -448,7 +496,7 @@ export default function SelectOrganizationPage() {
             }
             className={`${isSuccess ? 'bg-green-600 hover:bg-green-700' : ''} ${debugMode ? 'bg-yellow-100 hover:bg-yellow-200 border-yellow-400' : ''}`}
           >
-            {isPending ? (
+            {isProcessing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Processing...
@@ -505,6 +553,53 @@ export default function SelectOrganizationPage() {
               }}
             >
               Force Redirect
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => {
+                // Show the last server response
+                const lastResponse = localStorage.getItem('lastServerResponse');
+                if (lastResponse) {
+                  try {
+                    const data = JSON.parse(lastResponse);
+                    console.log('Last server response:', data);
+                    
+                    toast({
+                      title: "Last Response",
+                      description: `Application ID: ${data.applicationId || 'None'}, Status: ${data.membershipStatus || 'Unknown'}`,
+                    });
+                  } catch (e) {
+                    console.error('Error parsing response:', e);
+                    toast({
+                      title: "Error",
+                      description: "Could not parse last response",
+                      variant: "destructive",
+                    });
+                  }
+                } else {
+                  toast({
+                    title: "No Data",
+                    description: "No previous response found",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              Show Last Response
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => {
+                // Test the server redirection
+                toast({
+                  title: "Server Redirect",
+                  description: "The server should automatically redirect for forms. This button does nothing now.",
+                });
+              }}
+            >
+              Test Server Redirect
             </Button>
           </div>
         </div>

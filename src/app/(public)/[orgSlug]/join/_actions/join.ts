@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { OrderService } from "@/services/order.service";
 import { addItem } from "@/lib/utils/cart";
 import { ProductService } from "@/services/product.service";
@@ -128,6 +129,81 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       metadata
     );
 
+    console.log('Application created successfully:', {
+      id: application.id,
+      tierType: membershipTier.membership_tier.type,
+      activationType: membershipTier.membership_tier.activation_type,
+      hasFormTemplate: !!membershipTier.membership_tier.form_template_id,
+      formTemplateId: membershipTier.membership_tier.form_template_id
+    });
+
+    // For organization tiers, we handle the relationship differently based on form submission
+    let shouldCreateOrganizationRelationship = true;
+    
+    // Check if form completion is required based on form template and activation type
+    // For organization tiers, we need to be extra careful about form detection
+    const needsFormCompletion = 
+      // Must have a form template ID
+      membershipTier.membership_tier.form_template_id && 
+      // Should not already have form data submitted
+      (!formSubmissionData) &&
+      (
+        // Standard form-requiring activation types
+        membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_REQUIRED || 
+        membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT || 
+        membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_REVIEW ||
+        // For organization tiers, always check form if it has a template
+        (isOrganizationTier && membershipTier.membership_tier.form_template_id)
+      );
+
+    // For organization tiers with form requirements, we'll defer relationship creation until after form completion
+    if (isOrganizationTier && needsFormCompletion) {
+      shouldCreateOrganizationRelationship = false;
+      console.log('Deferring organization relationship creation until after form completion');
+    }
+
+    console.log('Form requirement check:', {
+      needsFormCompletion,
+      isOrganizationType: isOrganizationTier,
+      tierType: membershipTier.membership_tier.type,
+      hasFormTemplateId: !!membershipTier.membership_tier.form_template_id,
+      activationType: membershipTier.membership_tier.activation_type,
+      formTemplateId: membershipTier.membership_tier.form_template_id,
+      hasExistingFormData: !!formSubmissionData,
+      shouldCreateOrganizationRelationship
+    });
+
+    // If a form is required, generate the form URL and redirect the user
+    if (needsFormCompletion) {
+      const supabase = await createClient();
+      
+      // Get org slug for the form URL
+      const { data: org, error: orgSlugError } = await supabase
+        .from('group')
+        .select('slug')
+        .eq('id', groupId)
+        .single();
+        
+      console.log('Preparing form redirect:', {
+        orgSlugFound: !!org,
+        orgSlugError: orgSlugError ? orgSlugError.message : null
+      });
+      
+      if (orgSlugError) {
+        console.error('Could not get org slug for form URL:', orgSlugError);
+      } else if (org?.slug) {
+        // Use the tier ID instead of application ID - this matches the route structure
+        // The correct pattern is /{orgSlug}/join/{tierId} which renders the form
+        const formUrl = `/${org.slug}/join/${membershipTierId}`;
+        console.log('⭐ Redirecting to correct form URL:', formUrl);
+        
+        // This will throw a NEXT_REDIRECT error that should bubble up
+        // It shouldn't be caught by our catch block
+        redirect(formUrl);
+        // Code will not reach here due to redirect
+      }
+    }
+
     // For automatic activation types, process the application immediately
     if (membershipTier.membership_tier.activation_type === MembershipActivationType.AUTOMATIC ||
         membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_REQUIRED) {
@@ -190,6 +266,14 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     };
   } catch (error) {
     console.error('Error during join flow:', error);
+    
+    // Let Next.js internal redirects bubble up
+    if (error instanceof Error && 
+        (error.message === 'NEXT_REDIRECT' || 
+         (error as any).digest?.startsWith('NEXT_REDIRECT'))) {
+      throw error; // Re-throw redirect "errors" so Next.js can handle them
+    }
+    
     return {
       errors: {
         form: [(error as Error).message || 'An error occurred during the join process']
