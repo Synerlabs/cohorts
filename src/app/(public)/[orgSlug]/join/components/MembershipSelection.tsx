@@ -37,7 +37,12 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
   const [state, action] = useToastActionState(join);
   const router = useRouter();
 
-  if (!memberships || memberships.length === 0) {
+  // Filter out organization-type tiers (they should be handled by OrganizationSelection)
+  const individualMemberships = memberships.filter(
+    tier => tier.membership_tier?.type !== 'organization'
+  );
+
+  if (!individualMemberships || individualMemberships.length === 0) {
     return (
       <Card className="max-w-lg mx-auto shadow-md">
         <CardHeader className="text-center">
@@ -51,7 +56,7 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
   }
 
   // Choose the middle tier as recommended if there are 3 tiers
-  const recommendedTier = memberships.length === 3 ? memberships[1] : null;
+  const recommendedTier = individualMemberships.length === 3 ? individualMemberships[1] : null;
 
   const handleSubmit = async (tier: IMembershipTierProduct) => {
     // If this tier requires a form, navigate to the form page
@@ -85,7 +90,7 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
   return (
     <div className="space-y-8">
       <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-        {memberships.map((tier) => {
+        {individualMemberships.map((tier) => {
           const isRecommended = tier.id === recommendedTier?.id;
           const activationType = tier.membership_tier?.activation_type;
           

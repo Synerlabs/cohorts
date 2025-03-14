@@ -471,16 +471,8 @@ export class MembershipActivationService {
         if (membershipExists) {
           console.log('⚠️ Membership already exists for application:', applicationId);
           
-          // Check tier type
-          const membershipTier = await ProductService.getMembershipTier(application.tier_id);
-          const tierType = membershipTier.membership_tier.type || 'membership';
-          
-          // Ensure the group user is activated only for membership-type tiers
-          if (tierType === 'membership') {
-            await this.activateGroupUser(application.group_user_id);
-          } else {
-            console.log('ℹ️ Skipping user activation for organization-type tier');
-          }
+          // Use centralized activation function
+          await this.activateBasedOnTierType(application.group_user_id, application.tier_id);
         } else {
           // Create new membership
           const membershipTier = await ProductService.getMembershipTier(application.tier_id);
@@ -499,21 +491,9 @@ export class MembershipActivationService {
             applicationId,
             membershipId: membership.id
           });
-        }
-        
-        // Double-check that the group user is activated
-        const isActive = await this.verifyGroupUserActive(application.group_user_id);
-        if (!isActive) {
-          console.log('⚠️ Group user not active after membership creation, activating explicitly');
-          // Check tier type before activating
-          const tier = await ProductService.getMembershipTier(application.tier_id);
-          const tierType = tier.membership_tier.type || 'membership';
           
-          if (tierType === 'membership') {
-            await this.activateGroupUser(application.group_user_id);
-          } else {
-            console.log('ℹ️ Skipping user activation for organization-type tier');
-          }
+          // Use centralized activation function
+          await this.activateBasedOnTierType(application.group_user_id, application.tier_id);
         }
         
         console.log('✅ Processed application successfully:', {
@@ -698,68 +678,48 @@ export class MembershipActivationService {
       // Get the group_user_id from the application
       const { data: appData } = await supabase
         .from('applications')
-        .select('group_user_id')
+        .select('group_user_id, tier_id')
         .eq('id', applicationId)
         .single();
         
       if (appData) {
-        // Ensure the group user is activated only for membership-type tiers
-        if (tierType === 'membership') {
-          const isActive = await this.verifyGroupUserActive(appData.group_user_id);
-          if (!isActive) {
-            console.log('⚠️ Group user not active after membership creation, activating explicitly');
-            await this.activateGroupUser(appData.group_user_id);
-          }
-        } else {
-          console.log('ℹ️ Skipping user activation for organization-type tier');
-        }
+        // Use centralized activation function
+        await this.activateBasedOnTierType(appData.group_user_id, appData.tier_id);
         
         // Get the existing membership to return
         const { data: existingMembership } = await supabase
           .from('memberships')
           .select('*')
-          .eq('group_user_id', appData.group_user_id)
-          .eq('tier_id', application.tier_id)
-          .eq('status', 'active')
+          .eq('application_id', applicationId)
           .single();
           
-        if (existingMembership) {
-          console.log('✅ Found existing membership:', existingMembership.id);
-          return existingMembership;
-        }
+        return existingMembership;
       }
     }
 
-    // Create membership
-    const membershipDurationMonths = application.tier?.membership_tiers?.[0]?.duration_months || 12;
+    // Create membership if it doesn't exist
+    const durationMonths = application.tier?.membership_tiers?.[0]?.duration_months || 12;
     
+    // Create the membership
     const membership = await this.createMembership({
       groupUserId: application.group_user_id,
       tierId: application.tier_id,
-      orderId,
       applicationId,
-      durationMonths: membershipDurationMonths,
+      orderId,
+      durationMonths,
       startDate: new Date(),
       tierType
     });
-
+    
     console.log('✅ Created membership from suborder:', {
       applicationId,
       orderId,
       membershipId: membership.id
     });
     
-    // Double-check that the group user is activated only for membership-type tiers
-    if (tierType === 'membership') {
-      const isActive = await this.verifyGroupUserActive(application.group_user_id);
-      if (!isActive) {
-        console.log('⚠️ Group user not active after membership creation, activating explicitly');
-        await this.activateGroupUser(application.group_user_id);
-      }
-    } else {
-      console.log('ℹ️ Skipping user activation for organization-type tier');
-    }
-
+    // Use centralized activation function
+    await this.activateBasedOnTierType(application.group_user_id, application.tier_id);
+    
     return membership;
   }
 
@@ -845,5 +805,263 @@ export class MembershipActivationService {
     console.log(`${isActive ? '✅' : '❌'} Group user is ${isActive ? 'active' : 'not active'}:`, groupUserId);
     
     return isActive;
+  }
+
+  /**
+   * Activates the relationship between two organizations
+   * @param groupUserId The ID of the group user representing the organization
+   */
+  static async activateOrganization(groupUserId: string) {
+    console.log('🔄 Activating organization for group user:', groupUserId);
+    
+    const supabase = await createServiceRoleClient();
+    
+    // First, fetch the group user to get group details
+    const { data: groupUser, error: fetchError } = await supabase
+      .from('group_users')
+      .select('id, group_id, user_id')
+      .eq('id', groupUserId)
+      .single();
+    
+    if (fetchError || !groupUser) {
+      console.error('❌ Failed to fetch group user for organization activation:', {
+        error: fetchError,
+        groupUserId
+      });
+      throw new Error(`Failed to fetch group user: ${fetchError?.message || 'User not found'}`);
+    }
+
+    // Get the application to find tier_id and organization details from metadata
+    const { data: application, error: appError } = await supabase
+      .from('applications')
+      .select('id, tier_id, metadata')
+      .eq('group_user_id', groupUserId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (appError) {
+      console.error('❌ Failed to fetch application for organization activation:', {
+        error: appError,
+        groupUserId
+      });
+      throw new Error(`Failed to fetch application: ${appError.message}`);
+    }
+    
+    // Get organization ID from metadata
+    const organizationId = application.metadata?.organizationId;
+    
+    // If the organizationId is null, we can't activate it
+    if (!organizationId) {
+      console.error('❌ Cannot activate organization: organizationId not found in metadata', {
+        groupUserId,
+        applicationId: application.id
+      });
+      throw new Error('Cannot activate organization: organizationId not found in metadata');
+    }
+    
+    // Check if relationship already exists
+    const { data: existingRelation, error: relError } = await supabase
+      .from('group_organization')
+      .select('id')
+      .eq('parent_group_id', groupUser.group_id)
+      .eq('child_group_id', organizationId)
+      .maybeSingle();
+    
+    if (relError) {
+      console.error('❌ Error checking existing group_organization relationship:', {
+        error: relError,
+        parentGroupId: groupUser.group_id,
+        childGroupId: organizationId
+      });
+      throw new Error(`Error checking relationship: ${relError.message}`);
+    }
+    
+    if (existingRelation) {
+      // Update existing relationship
+      const { error: updateError } = await supabase
+        .from('group_organization')
+        .update({
+          is_active: true,
+          tier_id: application.tier_id
+        })
+        .eq('id', existingRelation.id);
+      
+      if (updateError) {
+        console.error('❌ Failed to update organization relationship:', {
+          error: updateError,
+          relationId: existingRelation.id
+        });
+        throw new Error(`Failed to update relationship: ${updateError.message}`);
+      }
+      
+      console.log('✅ Updated organization relationship to active:', {
+        groupUserId,
+        relationId: existingRelation.id
+      });
+    } else {
+      // Create new relationship
+      const { error: insertError } = await supabase
+        .from('group_organization')
+        .insert({
+          parent_group_id: groupUser.group_id,
+          child_group_id: organizationId,
+          tier_id: application.tier_id,
+          is_active: true
+        });
+      
+      if (insertError) {
+        console.error('❌ Failed to create organization relationship:', {
+          error: insertError,
+          parentGroupId: groupUser.group_id,
+          childGroupId: organizationId
+        });
+        throw new Error(`Failed to create relationship: ${insertError.message}`);
+      }
+      
+      console.log('✅ Created active organization relationship:', {
+        groupUserId,
+        parentGroupId: groupUser.group_id,
+        childGroupId: organizationId
+      });
+    }
+  }
+  
+  /**
+   * Verifies if an organization relationship is active
+   * @param groupUserId The ID of the group user representing the organization
+   * @returns True if the organization relationship is active, false otherwise
+   */
+  static async verifyOrganizationActive(groupUserId: string): Promise<boolean> {
+    console.log('🔍 Verifying if organization relationship is active:', groupUserId);
+    
+    const supabase = await createServiceRoleClient();
+    
+    // First, fetch the group user to get group details
+    const { data: groupUser, error: fetchError } = await supabase
+      .from('group_users')
+      .select('id, group_id')
+      .eq('id', groupUserId)
+      .single();
+    
+    if (fetchError || !groupUser) {
+      console.error('❌ Failed to fetch group user:', {
+        error: fetchError,
+        groupUserId
+      });
+      return false;
+    }
+    
+    // Get the application to find the organization ID from metadata
+    const { data: application, error: appError } = await supabase
+      .from('applications')
+      .select('id, metadata')
+      .eq('group_user_id', groupUserId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+      
+    if (appError || !application) {
+      console.error('❌ Failed to fetch application for organization verification:', {
+        error: appError,
+        groupUserId
+      });
+      return false;
+    }
+    
+    // Get organization ID from metadata
+    const organizationId = application.metadata?.organizationId;
+    
+    if (!organizationId) {
+      console.error('❌ Cannot verify organization: organizationId not found in metadata', {
+        groupUserId,
+        applicationId: application.id
+      });
+      return false;
+    }
+    
+    // Check if the organization relationship is active
+    const { data: relation, error: relError } = await supabase
+      .from('group_organization')
+      .select('id, is_active')
+      .eq('parent_group_id', groupUser.group_id)
+      .eq('child_group_id', organizationId)
+      .maybeSingle();
+    
+    if (relError) {
+      console.error('❌ Error checking group_organization relationship:', {
+        error: relError,
+        parentGroupId: groupUser.group_id,
+        childGroupId: organizationId
+      });
+      return false;
+    }
+    
+    // If no relationship exists, it's not active
+    if (!relation) {
+      console.log('❌ No organization relationship exists:', {
+        groupUserId,
+        parentGroupId: groupUser.group_id,
+        childGroupId: organizationId
+      });
+      return false;
+    }
+    
+    console.log(`${relation.is_active ? '✅' : '❌'} Organization relationship ${relation.is_active ? 'is' : 'is not'} active:`, {
+      groupUserId,
+      relationId: relation.id,
+      isActive: relation.is_active
+    });
+    
+    return relation.is_active === true;
+  }
+
+  /**
+   * Activates a user or organization based on tier type
+   * This centralized function handles the activation logic for both user and organization tiers
+   * @param groupUserId The ID of the group user
+   * @param tierId The ID of the membership tier
+   */
+  static async activateBasedOnTierType(groupUserId: string, tierId: string) {
+    console.log('🔄 Activating based on tier type:', { groupUserId, tierId });
+    
+    try {
+      // Get the tier information to determine its type
+      const membershipTier = await ProductService.getMembershipTier(tierId);
+      if (!membershipTier) {
+        throw new Error(`Membership tier ${tierId} not found`);
+      }
+      
+      const tierType = membershipTier.membership_tier.type || 'membership';
+      
+      // Activate based on tier type
+      if (tierType === 'organization') {
+        console.log('ℹ️ Tier is organization type, activating organization');
+        await this.activateOrganization(groupUserId);
+        
+        // Verify activation
+        const isActive = await this.verifyOrganizationActive(groupUserId);
+        if (!isActive) {
+          console.warn('⚠️ Organization not active after initial activation, retrying');
+          await this.activateOrganization(groupUserId);
+        }
+      } else {
+        console.log('ℹ️ Tier is membership type, activating group user');
+        await this.activateGroupUser(groupUserId);
+        
+        // Verify activation
+        const isActive = await this.verifyGroupUserActive(groupUserId);
+        if (!isActive) {
+          console.warn('⚠️ Group user not active after initial activation, retrying');
+          await this.activateGroupUser(groupUserId);
+        }
+      }
+      
+      console.log('✅ Activation based on tier type completed successfully');
+      return true;
+    } catch (error) {
+      console.error('❌ Error in activateBasedOnTierType:', error);
+      throw error;
+    }
   }
 } 

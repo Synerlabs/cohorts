@@ -17,6 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ActiveMembershipDisplay } from "./components/ActiveMembershipDisplay";
+import { OrganizationSelection } from "./components/OrganizationSelection";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -58,166 +59,87 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
   }
 
   // First check for active membership
-  const membership = await getUserMembership({ userId: data.user.id, groupId: org.id });
+  const userMembership = await getUserMembership({ userId: data.user.id, groupId: org.id });
   
-  // If user has an active membership, show membership details instead of redirecting
-  if (membership?.is_active) {
-    return <ActiveMembershipDisplay membership={membership} orgSlug={org.slug} />;
+  if (userMembership && userMembership.status === 'active') {
+    return (
+      <div className="container max-w-4xl py-12 space-y-8">
+        <ActiveMembershipDisplay 
+          membership={userMembership} 
+          orgSlug={org.slug}
+        />
+      </div>
+    );
   }
 
   // Get user's applications
   const applications = await getUserMembershipApplications(data.user.id, org.id);
   const latestApplication = applications[0];
 
-  // If user has a pending application
-  if (latestApplication && !latestApplication.rejected_at) {
-    // If application is approved and requires payment
-    if (latestApplication.status === "pending_payment") {
-      return (
-        <div className="container max-w-5xl py-12 flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="w-full max-w-lg space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold tracking-tight mb-2">Complete Your Membership</h1>
-              <p className="text-base text-muted-foreground mb-8">
-                Your application has been approved. Complete the payment to activate your membership.
-              </p>
-            </div>
-            <Card className="shadow-lg border-primary/20">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xl">Membership Details</CardTitle>
-                <CardDescription>
-                  One step away from becoming a member
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Membership Tier</span>
-                    <span className="font-semibold">{latestApplication.product.name}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Price</span>
-                    <span className="font-semibold">${latestApplication.product.price ? (latestApplication.product.price / 100).toFixed(2) : '0.00'}</span>
-                  </div>
-                </div>
-                
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-blue-800">
-                  <div className="flex gap-2">
-                    <AlertCircle className="h-4 w-4 text-blue-500 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium mb-1">Payment Required</h4>
-                      <p className="text-sm">
-                        Please complete your payment to finalize your membership.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                
-                <Button className="w-full" size="lg" asChild>
-                  <Link href={`/@${org.slug}/join/payments?applicationId=${latestApplication.id}`}>
-                    <CreditCard className="mr-2 h-4 w-4" />
-                    Complete Payment (${latestApplication.product.price ? (latestApplication.product.price / 100).toFixed(2) : '0.00'})
-                    <ChevronRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      );
-    }
+  // Filter membership tiers based on type
+  const membershipTiers = memberships.filter(tier => tier.membership_tier?.type !== 'organization');
+  const orgTiers = memberships.filter(tier => tier.membership_tier?.type === 'organization');
 
-    // If application is pending review
-    if (latestApplication.status === "pending") {
-      return (
-        <div className="container max-w-5xl py-12 flex items-center justify-center min-h-[calc(100vh-4rem)]">
-          <div className="w-full max-w-lg space-y-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold tracking-tight mb-2">Application Under Review</h1>
-              <p className="text-base text-muted-foreground mb-8">
-                Your application to join {org.name} is currently being reviewed.
-              </p>
-            </div>
-            <Card className="shadow-lg border-amber-200">
-              <CardContent className="pt-6 space-y-6">
-                <div className="flex items-center justify-center">
-                  <div className="rounded-full bg-amber-100 p-3">
-                    <Clock className="h-8 w-8 text-amber-600" />
-                  </div>
-                </div>
-                
-                <div className="text-center space-y-2">
-                  <h2 className="text-xl font-medium">Pending Review</h2>
-                  <p className="text-muted-foreground">
-                    Our team is reviewing your application. You'll receive an email when a decision has been made.
-                  </p>
-                </div>
-                
-                <div className="bg-amber-50 border border-amber-100 rounded-lg p-4 text-amber-800">
-                  <div className="flex gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5" />
-                    <div>
-                      <h4 className="font-medium mb-1">Application Details</h4>
-                      <div className="text-sm space-y-2">
-                        <div className="flex justify-between items-center text-sm mt-2">
-                          <span>Membership Tier:</span>
-                          <span className="font-medium">{latestApplication.product.name}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm mt-1">
-                          <span>Submitted:</span>
-                          <span className="font-medium">{new Date(latestApplication.created_at).toDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="text-center text-muted-foreground text-sm">
-                  If you have any questions, please contact the organization administrator.
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      );
-    }
-  }
-
-  // Show membership selection if:
-  // 1. User has no active membership
-  // 2. No pending applications
-  // 3. Previous application was rejected (or no previous applications)
   return (
-    <div className="container max-w-5xl py-12 min-h-[calc(100vh-4rem)]">
-      <div className="w-full space-y-8">
-        <div className="text-center max-w-2xl mx-auto">
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Join {org.name}</h1>
-          <p className="text-base text-muted-foreground mb-8">
-            Select a membership type below to join this organization and access member benefits.
-          </p>
-        </div>
-
-        {latestApplication?.rejected_at && (
-          <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-lg max-w-2xl mx-auto mb-8">
-            <div className="flex gap-2">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-medium mb-1">Previous Application Rejected</h4>
-                <p className="text-sm">
-                  Your previous application was rejected. You may reapply with a different membership type below.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <MembershipSelection 
-          memberships={memberships} 
-          groupId={org.id} 
-          userId={data.user.id} 
-        />
+    <div className="container max-w-4xl py-12 space-y-8">
+      <div className="text-center">
+        <h1 className="text-3xl font-bold tracking-tight">Join {org.name}</h1>
+        <p className="text-muted-foreground mt-2">
+          Choose a membership option below to get started
+        </p>
       </div>
+
+      {/* Display membership tiers for individuals */}
+      {membershipTiers.length > 0 && (
+        <>
+          <h2 className="text-2xl font-bold mt-8">Individual Membership Options</h2>
+          <MembershipSelection 
+            memberships={membershipTiers} 
+            groupId={org.id} 
+            userId={data.user.id} 
+          />
+        </>
+      )}
+
+      {/* Display organization tiers if available */}
+      {orgTiers.length > 0 && (
+        <>
+          <h2 className="text-2xl font-bold mt-12">Organization Affiliation Options</h2>
+          <p className="text-muted-foreground mb-4">
+            Affiliate your organization with {org.name}
+          </p>
+          
+          {orgTiers.map(tier => (
+            <div key={tier.id} className="mb-6">
+              <OrganizationSelection 
+                tier={tier}
+                groupId={org.id}
+                userId={data.user.id}
+              />
+            </div>
+          ))}
+        </>
+      )}
+      
+      {applications.length > 0 && (
+        <div className="mt-8">
+          <Alert>
+            <AlertTitle className="flex items-center">
+              <Clock className="h-4 w-4 mr-2" />
+              You have pending applications
+            </AlertTitle>
+            <AlertDescription>
+              <div className="mt-2">
+                <div className="text-sm mb-4">You have already applied for membership. Check your application status:</div>
+                <Link href={`/${org.slug}/applications`} className="inline-flex items-center text-primary">
+                  View my applications
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Link>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
     </div>
   );
 }

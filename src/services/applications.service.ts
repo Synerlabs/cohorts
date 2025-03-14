@@ -335,7 +335,8 @@ export async function getRejectedApplications(groupId: string): Promise<Applicat
 export async function createMembershipApplication(
   groupUserId: string,
   productId: string,
-  formData?: Record<string, any>
+  formData?: Record<string, any>,
+  externalMetadata?: Record<string, any>
 ): Promise<Application> {
   const supabase = await createClient();
 
@@ -367,7 +368,10 @@ export async function createMembershipApplication(
     throw new Error('Group user not found');
   }
 
-  // console.log('Found group user:', groupUser);
+  // Check if this is an organization-type tier
+  const isOrganizationTier = product.membership_tier.type === 'organization';
+  
+  // For organization tiers, we'll use externalMetadata to store the organization info
 
   let initialStatus: Application['status'];
   const isAutomatic = product.membership_tier.activation_type === 'automatic';
@@ -413,8 +417,11 @@ export async function createMembershipApplication(
     if (formResponseError) throw formResponseError;
     formResponseId = formResponse.id;
   }
-
-  // Create the application
+  
+  // Use external metadata if provided
+  const metadata = externalMetadata || null;
+  
+  // Create the application with metadata
   console.log('Creating application with status:', initialStatus);
   const { data: newApplication, error: insertError } = await supabase
     .from('applications')
@@ -424,7 +431,8 @@ export async function createMembershipApplication(
       status: initialStatus,
       form_response_id: formResponseId,
       type: 'membership',
-      approved_at: isAutomatic ? new Date().toISOString() : null
+      approved_at: isAutomatic ? new Date().toISOString() : null,
+      metadata: metadata
     })
     .select()
     .single();

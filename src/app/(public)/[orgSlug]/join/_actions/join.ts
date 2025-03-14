@@ -25,6 +25,9 @@ export async function join(prevState: State, formData: FormData): Promise<State>
     const membershipTierId = formData.get('membershipTierId') as string;
     const userId = formData.get('userId') as string;
     const formSubmissionData = formData.get('formData') as string;
+    // Organization-specific data for organization-type tiers
+    const organizationId = formData.get('organizationId') as string;
+    const organizationName = formData.get('organizationName') as string;
 
     if (!groupId || !membershipTierId || !userId) {
       return {
@@ -43,41 +46,91 @@ export async function join(prevState: State, formData: FormData): Promise<State>
         }
       };
     }
+    
+    // Check if this is an organization-type tier
+    const isOrganizationTier = membershipTier.membership_tier.type === 'organization';
+    
+    if (isOrganizationTier && (!organizationId && !organizationName)) {
+      return {
+        errors: {
+          form: ['Missing organization information']
+        }
+      };
+    }
 
     // Create group user if not exists
     let groupUser = await getGroupUser({userId, groupId});
 
     if (!groupUser) {
-      groupUser = await createGroupUser(groupId, userId);
-      if (!groupUser) {
-        return {
-          errors: {
-            form: ['Failed to create group user']
-          }
-        };
-      }
-    } 
-
-    // Ensure we have a valid group_user_id before proceeding
-    if (!groupUser.id) {
-      console.error('Missing group_user_id for user', userId, 'in group', groupId);
-      return {
-        errors: {
-          form: ['Failed to retrieve group user information']
-        }
-      };
+      groupUser = await createGroupUser({
+        userId,
+        groupId
+      });
     }
 
-    // Create application with form data if provided
+    // Create application
+    console.log('Creating application for membership tier:', {
+      groupUserId: groupUser.id,
+      tierId: membershipTierId,
+      formData: formSubmissionData ? JSON.parse(formSubmissionData) : null,
+      isOrganizationTier,
+      organizationId: isOrganizationTier ? organizationId : null,
+      organizationName: isOrganizationTier ? organizationName : null
+    });
+
+    // For organization tiers, check if there's already a relationship 
+    // between the two groups in group_organization table
+    if (isOrganizationTier && organizationId) {
+      const supabase = await createClient();
+      const { data: existingRelation, error: relError } = await supabase
+        .from('group_organization')
+        .select('id, is_active, tier_id')
+        .eq('parent_group_id', groupId)
+        .eq('child_group_id', organizationId)
+        .maybeSingle();
+        
+      if (relError) {
+        console.error('Error checking existing group_organization relationship:', relError);
+        // Continue with creating the application
+      } else if (existingRelation) {
+        // If there's already an active relationship with this tier, inform the user
+        if (existingRelation.is_active && existingRelation.tier_id === membershipTierId) {
+          return {
+            message: 'This organization is already affiliated with this membership tier.',
+            redirect: `/${organizationName.toLowerCase().replace(/\s+/g, '-')}`
+          };
+        }
+      }
+      
+      // Make sure the organization is active
+      const { error: activateOrgError } = await supabase
+        .from('group')
+        .update({ is_active: true })
+        .eq('id', organizationId);
+        
+      if (activateOrgError) {
+        console.error('Error activating organization:', activateOrgError);
+        // Continue with creating the application
+      }
+    }
+
+    // Create the application with metadata for organization tiers
+    const metadata = isOrganizationTier ? {
+      organizationId,
+      organizationName
+    } : undefined;
+    
+    // Pass the form data and metadata to the application service
     const application = await createMembershipApplication(
-      groupUser.id, 
+      groupUser.id,
       membershipTierId,
-      formSubmissionData ? JSON.parse(formSubmissionData) : undefined
+      formSubmissionData ? JSON.parse(formSubmissionData) : undefined,
+      metadata
     );
 
     // For automatic activation types, process the application immediately
-    if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.AUTOMATIC ||
-        membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_REQUIRED) {
+    if (membershipTier.membership_tier.activation_type === MembershipActivationType.AUTOMATIC ||
+        membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_REQUIRED) {
       try {
         console.log('Processing application with automatic activation:', application.id);
         await MembershipActivationService.processApplication(application.id);
@@ -89,10 +142,10 @@ export async function join(prevState: State, formData: FormData): Promise<State>
 
     // For paid memberships that require payment, add to cart
     if (membershipTier.price > 0 && (
-      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.PAYMENT_REQUIRED ||
-      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT ||
-      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW ||
-      membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
+      membershipTier.membership_tier.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
+      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT ||
+      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW ||
+      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     )) {
       await addItem({
         productId: membershipTierId,
@@ -116,47 +169,30 @@ export async function join(prevState: State, formData: FormData): Promise<State>
 
     if (orgError) throw orgError;
 
-    // For form_then_payment, redirect to application status after form submission
-    if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_PAYMENT ||
-        membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) {
-      return {
-        message: 'Your membership application has been submitted.',
-        redirect: `/@${org.slug}/applications/${application.id}`
-      };
-    }
-
-    // For free memberships or those not requiring immediate payment, process immediately
-    if (membershipTier.price === 0 || (
-      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.PAYMENT_REQUIRED &&
-      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW &&
-      membershipTier.membership_tier.activation_type as MembershipActivationType !== MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
+    // For tiers that require payment, redirect to checkout
+    if (membershipTier.price > 0 && (
+      membershipTier.membership_tier.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
+      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT ||
+      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW ||
+      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
     )) {
-      // For automatic activation or form_required, redirect to membership page instead of application page
-      if (membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.AUTOMATIC ||
-          membershipTier.membership_tier.activation_type as MembershipActivationType === MembershipActivationType.FORM_REQUIRED) {
-        return {
-          message: 'Your membership has been activated.',
-          redirect: `/@${org.slug}/membership`
-        };
-      }
-      
       return {
-        message: 'Your membership application has been submitted.',
-        redirect: `/@${org.slug}/applications/${application.id}`
+        message: 'Redirecting to payment...',
+        redirect: `/${org.slug}/join/payment`
       };
     }
 
-    // For paid memberships, redirect to checkout
+    // For tiers that don't require payment, redirect to thank you page
+    revalidatePath(`/${org.slug}/join`);
     return {
-      message: 'Please complete your payment to submit your application.',
-      redirect: `/@${org.slug}/checkout`
+      message: 'Your membership application was submitted successfully!',
+      redirect: `/${org.slug}/join?status=success&app=${application.id}`
     };
-
-  } catch (error: any) {
-    console.error('Failed to join:', error);
+  } catch (error) {
+    console.error('Error during join flow:', error);
     return {
       errors: {
-        form: ['Failed to process your membership application. Please try again.']
+        form: [(error as Error).message || 'An error occurred during the join process']
       }
     };
   }

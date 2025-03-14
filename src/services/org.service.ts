@@ -251,7 +251,7 @@ export async function createOrgMember({
 
   // For joiners, check membership tiers
   const { data: tiers } = await supabase
-    .from("membership_tier")
+    .from("membership_tiers")
     .select("*")
     .eq("group_id", groupId);
 

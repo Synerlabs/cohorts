@@ -370,7 +370,17 @@ export async function getOrgSlug(groupId: string): Promise<{ slug: string }> {
   return data;
 }
 
-export async function createGroupUser(groupId: string, userId: string, isActive: boolean = false) {
+export async function createGroupUser({
+  userId,
+  groupId,
+  isActive = false
+}: {
+  userId: string;
+  groupId: string;
+  isActive?: boolean;
+}) {
+  console.log('Creating group user:', { userId, groupId, isActive });
+  
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -383,7 +393,15 @@ export async function createGroupUser(groupId: string, userId: string, isActive:
     .select('id')
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error('Error creating group user:', error);
+    throw error;
+  }
+
+  if (!data) {
+    throw new Error('Failed to create group user');
+  }
+
   return data;
 }
 

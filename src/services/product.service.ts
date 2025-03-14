@@ -28,6 +28,7 @@ export class ProductService {
           has_fixed_dates, fixed_start_date, fixed_end_date,
           is_fiscal_period, fiscal_start_month, fiscal_start_day,
           has_monthly_cycle, monthly_start_day, monthly_end_day_type, monthly_end_day,
+          type, 
           membership_tier_settings(member_id_format), 
           membership_tier_roles!left(id, deleted_at, group_roles(id, role_name, permissions))
         )
@@ -164,6 +165,7 @@ export class ProductService {
           has_fixed_dates, fixed_start_date, fixed_end_date,
           is_fiscal_period, fiscal_start_month, fiscal_start_day,
           has_monthly_cycle, monthly_start_day, monthly_end_day_type, monthly_end_day,
+          type, 
           membership_tier_settings(member_id_format), 
           membership_tier_roles!left(id, deleted_at, group_roles(id, role_name, permissions))
         )`;
