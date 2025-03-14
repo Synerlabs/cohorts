@@ -15,9 +15,11 @@ import { join } from "../_actions/join";
 import { IMembershipTierProduct } from "@/lib/types/product";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
-import { Check, Loader2, Sparkles } from "lucide-react";
+import { Check, Loader2, Sparkles, ShieldCheck, CreditCard, ClipboardCheck, Clock, ZapIcon, X } from "lucide-react";
 import { Currency, MembershipActivationType } from "@/lib/types/membership";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 const currencySymbols: Record<Currency, string> = {
   USD: '$',
@@ -37,6 +39,7 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
   const [isPending, startTransition] = useTransition();
   const [state, action] = useToastActionState(join);
   const router = useRouter();
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
 
   // Filter out organization-type tiers (they should be handled by OrganizationSelection)
   const individualMemberships = memberships.filter(
@@ -90,53 +93,100 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
     });
   };
 
+  // Extract common features to create a comparison table
+  const getActivationLabel = (activationType?: string) => {
+    switch (activationType) {
+      case MembershipActivationType.AUTOMATIC:
+        return {
+          label: "Instant Activation",
+          icon: <ZapIcon className="h-4 w-4 text-emerald-500" />,
+          color: "text-emerald-500"
+        };
+      case MembershipActivationType.REVIEW_REQUIRED:
+        return {
+          label: "Admin Review Required",
+          icon: <ClipboardCheck className="h-4 w-4 text-amber-500" />,
+          color: "text-amber-500"
+        };
+      case MembershipActivationType.PAYMENT_REQUIRED:
+        return {
+          label: "Payment Required",
+          icon: <CreditCard className="h-4 w-4 text-blue-500" />,
+          color: "text-blue-500"
+        };
+      case MembershipActivationType.FORM_REQUIRED:
+        return {
+          label: "Application Form Required",
+          icon: <ClipboardCheck className="h-4 w-4 text-indigo-500" />,
+          color: "text-indigo-500"
+        };
+      default:
+        return {
+          label: "Multiple Steps Required",
+          icon: <Clock className="h-4 w-4 text-purple-500" />,
+          color: "text-purple-500"
+        };
+    }
+  };
+
   return (
-    <div className="space-y-8">
-      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-        {individualMemberships.map((tier) => {
-          const isRecommended = tier.id === recommendedTier?.id;
-          const activationType = tier.membership_tier?.activation_type;
-          
-          return (
-            <Card 
-              key={tier.id} 
-              className={`flex flex-col relative transition-all duration-200 ${
-                isRecommended 
-                  ? 'border-primary/50 shadow-lg shadow-primary/10 scale-105 z-10' 
-                  : 'hover:shadow-md hover:border-primary/20'
-              }`}
-            >
-              {isRecommended && (
-                <div className="absolute -top-3 left-0 right-0 flex justify-center">
-                  <Badge 
-                    variant="default" 
-                    className="bg-primary text-primary-foreground font-medium flex items-center gap-1"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Recommended
-                  </Badge>
-                </div>
-              )}
-              
-              <CardHeader className={`${isRecommended ? 'pt-6' : ''}`}>
-                <CardTitle className="text-xl flex items-center justify-between">
-                  {tier.name}
-                  {tier.price === 0 && (
-                    <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
-                      Free
+    <div className="space-y-6">
+      {individualMemberships.length > 1 && (
+        <div className="flex justify-end mb-4">
+          <Tabs defaultValue="cards" className="w-[250px]" onValueChange={(v) => setViewMode(v as 'cards' | 'table')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="cards">Card View</TabsTrigger>
+              <TabsTrigger value="table">Compare</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+      )}
+
+      {viewMode === 'cards' && (
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {individualMemberships.map((tier) => {
+            const isRecommended = tier.id === recommendedTier?.id;
+            const activation = getActivationLabel(tier.membership_tier?.activation_type);
+            
+            return (
+              <Card 
+                key={tier.id} 
+                className={`flex flex-col relative transition-all duration-300 ${
+                  isRecommended 
+                    ? 'border-primary shadow-lg shadow-primary/20 scale-[1.03] z-10' 
+                    : 'hover:shadow-lg hover:border-primary/30 hover:translate-y-[-4px]'
+                }`}
+              >
+                {isRecommended && (
+                  <div className="absolute -top-3 left-0 right-0 flex justify-center">
+                    <Badge 
+                      variant="default" 
+                      className="bg-primary text-primary-foreground font-semibold py-1 px-3 flex items-center gap-1 shadow-sm"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Recommended
                     </Badge>
-                  )}
-                </CardTitle>
-                {tier.description && (
-                  <CardDescription>{tier.description}</CardDescription>
+                  </div>
                 )}
-              </CardHeader>
-              
-              <CardContent className="flex-1">
-                <div className="space-y-6">
+                
+                <CardHeader className={`${isRecommended ? 'pt-7' : ''}`}>
+                  <CardTitle className="text-xl md:text-2xl flex items-center justify-between">
+                    {tier.name}
+                    {tier.price === 0 && (
+                      <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50 font-medium">
+                        Free
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  {tier.description && (
+                    <CardDescription className="mt-2 text-sm">{tier.description}</CardDescription>
+                  )}
+                </CardHeader>
+                
+                <CardContent className="flex-1 space-y-6">
                   {/* Price section */}
                   <div className="flex items-baseline">
-                    <div className="text-3xl font-bold">
+                    <div className="text-3xl md:text-4xl font-bold">
                       {tier.price === 0 ? (
                         <span className="text-emerald-600">Free</span>
                       ) : (
@@ -156,85 +206,190 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
                   </div>
                   
                   {/* Activation process section */}
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-medium border-b pb-1">Activation Process</h4>
-                    <div className="text-sm text-muted-foreground space-y-2">
-                      {activationType === 'automatic' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-emerald-500 mr-2" />
-                          <span>Instant activation</span>
-                        </div>
+                  <div className="bg-muted/50 p-3 rounded-lg border border-muted">
+                    <div className="flex items-center gap-2 mb-2 pb-2 border-b">
+                      {activation.icon}
+                      <span className={`font-medium text-sm ${activation.color}`}>
+                        {activation.label}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {tier.membership_tier?.activation_type === MembershipActivationType.AUTOMATIC && (
+                        <span>Your membership will be active immediately after joining.</span>
                       )}
-                      {activationType === 'review_required' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-amber-500 mr-2" />
-                          <span>Admin review required</span>
-                        </div>
+                      {tier.membership_tier?.activation_type === MembershipActivationType.REVIEW_REQUIRED && (
+                        <span>An administrator will review your application before approval.</span>
                       )}
-                      {activationType === 'payment_required' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-blue-500 mr-2" />
-                          <span>Payment required</span>
-                        </div>
+                      {tier.membership_tier?.activation_type === MembershipActivationType.PAYMENT_REQUIRED && (
+                        <span>Payment is required to activate your membership.</span>
                       )}
-                      {activationType === 'review_then_payment' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-purple-500 mr-2" />
-                          <span>Admin review followed by payment</span>
-                        </div>
+                      {tier.membership_tier?.activation_type === MembershipActivationType.FORM_REQUIRED && (
+                        <span>You'll need to complete an application form before membership is activated.</span>
                       )}
-                      {activationType === 'form_required' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-indigo-500 mr-2" />
-                          <span>Application form required</span>
-                        </div>
-                      )}
-                      {activationType === 'form_then_payment' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-indigo-500 mr-2" />
-                          <span>Application form followed by payment</span>
-                        </div>
-                      )}
-                      {activationType === 'form_then_review' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-indigo-500 mr-2" />
-                          <span>Application form followed by admin review</span>
-                        </div>
-                      )}
-                      {activationType === 'form_then_payment_then_review' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-indigo-500 mr-2" />
-                          <span>Application form, payment, and admin review required</span>
-                        </div>
-                      )}
-                      {activationType === 'form_then_review_then_payment' && (
-                        <div className="flex items-center">
-                          <Check className="h-4 w-4 text-indigo-500 mr-2" />
-                          <span>Application form, admin review, and payment required</span>
-                        </div>
+                      {(tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_PAYMENT || 
+                        tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_REVIEW ||
+                        tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW ||
+                        tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT) && (
+                        <span>This membership requires multiple steps including form completion and possibly payment or admin review.</span>
                       )}
                     </div>
                   </div>
-                </div>
-              </CardContent>
-              
-              <CardFooter className="pt-6">
-                <Button
-                  className={`w-full ${isRecommended ? 'bg-primary hover:bg-primary/90' : ''}`}
-                  onClick={() => handleSubmit(tier)}
-                  disabled={isPending}
-                  size={isRecommended ? "lg" : "default"}
-                >
-                  {isPending ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : null}
-                  {tier.price === 0 ? "Join Now" : "Apply Now"}
-                </Button>
-              </CardFooter>
-            </Card>
-          );
-        })}
-      </div>
+                  
+                  {/* Features section - replace with actual tier features if available */}
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Features</h4>
+                    <ul className="space-y-2 text-sm">
+                      <li className="flex items-start">
+                        <Check className="h-4 w-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                        <span>Access to member resources</span>
+                      </li>
+                      <li className="flex items-start">
+                        <Check className="h-4 w-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                        <span>Community participation</span>
+                      </li>
+                      {tier.price > 0 && (
+                        <li className="flex items-start">
+                          <Check className="h-4 w-4 text-primary mr-2 mt-0.5 flex-shrink-0" />
+                          <span>Premium support</span>
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                </CardContent>
+                
+                <CardFooter className="pt-4">
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          className={`w-full transition-all ${isRecommended ? 'bg-primary hover:bg-primary/90 text-lg py-6' : ''}`}
+                          onClick={() => handleSubmit(tier)}
+                          disabled={isPending}
+                          size={isRecommended ? "lg" : "default"}
+                        >
+                          {isPending ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : null}
+                          {tier.price === 0 ? "Join Now" : "Apply Now"}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {tier.membership_tier?.activation_type === MembershipActivationType.AUTOMATIC
+                          ? "Instant access upon joining"
+                          : tier.membership_tier?.activation_type === MembershipActivationType.FORM_REQUIRED
+                          ? "Complete an application form to join"
+                          : "Start your application process"}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {viewMode === 'table' && individualMemberships.length > 1 && (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="bg-muted/50">
+                <th className="p-4 text-left font-medium text-muted-foreground">Features</th>
+                {individualMemberships.map(tier => (
+                  <th key={tier.id} className="p-4 text-center">
+                    <div className="flex flex-col items-center">
+                      <span className="font-bold text-lg mb-1">{tier.name}</span>
+                      <span className="font-medium text-xl mb-2">
+                        {tier.price === 0 ? (
+                          <span className="text-emerald-600">Free</span>
+                        ) : (
+                          <span>
+                            {currencySymbols[tier.currency as Currency]}
+                            {(tier.price / 100).toFixed(2)}
+                          </span>
+                        )}
+                      </span>
+                      {tier.id === recommendedTier?.id && (
+                        <Badge variant="default" className="bg-primary text-xs">
+                          Recommended
+                        </Badge>
+                      )}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              <tr className="border-t">
+                <td className="p-4 font-medium">Activation</td>
+                {individualMemberships.map(tier => {
+                  const activation = getActivationLabel(tier.membership_tier?.activation_type);
+                  return (
+                    <td key={`${tier.id}-activation`} className="p-4 text-center">
+                      <div className="flex flex-col items-center gap-1">
+                        <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
+                          {activation.icon}
+                        </div>
+                        <span className={`text-xs ${activation.color}`}>{activation.label}</span>
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+              <tr className="border-t">
+                <td className="p-4 font-medium">Duration</td>
+                {individualMemberships.map(tier => (
+                  <td key={`${tier.id}-duration`} className="p-4 text-center">
+                    {tier.membership_tier?.duration_months 
+                      ? `${tier.membership_tier.duration_months} months` 
+                      : "Unlimited"}
+                  </td>
+                ))}
+              </tr>
+              <tr className="border-t">
+                <td className="p-4 font-medium">Benefits</td>
+                {individualMemberships.map(tier => (
+                  <td key={`${tier.id}-benefits`} className="p-4 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="flex items-center gap-1">
+                        <Check className="h-4 w-4 text-emerald-500" />
+                        <span className="text-sm">Member Resources</span>
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Check className="h-4 w-4 text-emerald-500" />
+                        <span className="text-sm">Community Access</span>
+                      </span>
+                      {tier.price > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Check className="h-4 w-4 text-emerald-500" />
+                          <span className="text-sm">Premium Support</span>
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                ))}
+              </tr>
+              <tr className="border-t">
+                <td className="p-4"></td>
+                {individualMemberships.map(tier => (
+                  <td key={`${tier.id}-action`} className="p-4 text-center">
+                    <Button
+                      className={tier.id === recommendedTier?.id ? 'bg-primary hover:bg-primary/90 w-full' : 'w-full'}
+                      onClick={() => handleSubmit(tier)}
+                      disabled={isPending}
+                    >
+                      {isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : null}
+                      {tier.price === 0 ? "Join Now" : "Apply Now"}
+                    </Button>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 } 
