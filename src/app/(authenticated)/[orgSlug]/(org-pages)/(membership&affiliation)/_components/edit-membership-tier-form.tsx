@@ -128,6 +128,7 @@ export function EditMembershipTierForm({
     form_template_id: tier.membership_tier?.form_template_id || null,
     roles: tier.membership_tier?.roles?.map(role => role.id) || [],
     is_active: tier.is_active,
+    type: tier.membership_tier?.type || 'membership',
     has_fixed_dates: tier.membership_tier?.has_fixed_dates || false,
     fixed_start_date: tier.membership_tier?.fixed_start_date || '',
     fixed_end_date: tier.membership_tier?.fixed_end_date || '',
@@ -214,6 +215,7 @@ export function EditMembershipTierForm({
     formDataToSubmit.append('duration_months', String(newData.duration_months));
     formDataToSubmit.append('duration_unit', newData.duration_unit || 'month');
     formDataToSubmit.append('is_active', String(newData.is_active));
+    formDataToSubmit.append('type', newData.type || 'membership');
 
     // Add duration settings - properly handle date fields
     formDataToSubmit.append('has_fixed_dates', String(!!newData.has_fixed_dates));
@@ -288,6 +290,14 @@ export function EditMembershipTierForm({
       formDataToSubmit.append('current_roles', JSON.stringify(formData.roles));
     }
 
+    // Log the form data for debugging
+    console.log('Submitting membership tier update with data:', {
+      id: tier.id,
+      type: newData.type,
+      name: newData.name,
+      // Add other relevant fields
+    });
+
     await action(formDataToSubmit);
     setEditingSections({
       basicInfo: false,
@@ -352,6 +362,7 @@ export function EditMembershipTierForm({
           onStatusChange={async (active) => {
             await handleUpdate({ is_active: active });
           }}
+          type={formData.type}
         />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
           {/* Main Content - Col 1-2 */}
@@ -363,6 +374,7 @@ export function EditMembershipTierForm({
               price={formData.price}
               memberIdFormat={formData.member_id_format}
               onEditMemberId={scrollToMemberIdFormat}
+              type={formData.type}
             />
 
             <ActivationProcess
@@ -500,6 +512,7 @@ export function EditMembershipTierForm({
               requiresReview={activationState.requiresReview}
               reviewBeforePayment={activationState.reviewBeforePayment}
               price={formData.price}
+              type={formData.type}
             />
           </div>
         </div>

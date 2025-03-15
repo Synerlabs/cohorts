@@ -7,18 +7,20 @@ interface ActivationFlowProps {
   requiresReview: boolean;
   reviewBeforePayment: boolean;
   price: number;
+  type: 'membership' | 'organization';
 }
 
 export function ActivationFlow({
   requiresForm,
   requiresReview,
   reviewBeforePayment,
-  price
+  price,
+  type
 }: ActivationFlowProps) {
   return (
     <Card className="p-6">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div>
           <div className="space-y-1">
             <h2 className="text-lg font-semibold">Activation Flow</h2>
             <p className="text-sm text-muted-foreground">

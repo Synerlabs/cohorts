@@ -24,6 +24,7 @@ interface HeaderProps {
   onCancel: () => void;
   onSave: (values: z.infer<typeof formSchema>) => Promise<void>;
   onStatusChange: (active: boolean) => void;
+  type?: 'membership' | 'organization';
 }
 
 export function Header({ 
@@ -35,7 +36,8 @@ export function Header({
   onEdit,
   onCancel,
   onSave,
-  onStatusChange
+  onStatusChange,
+  type
 }: HeaderProps) {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),

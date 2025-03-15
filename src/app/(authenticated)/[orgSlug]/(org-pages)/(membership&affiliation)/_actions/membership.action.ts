@@ -452,6 +452,14 @@ export async function updateMembershipTierAction(
         const rolesToAdd = newRoles.filter((roleId: string) => !currentRoles.includes(roleId));
         const rolesToRemove = currentRoles.filter((roleId: string) => !newRoles.includes(roleId));
 
+        // Log the parsed form data for debugging
+        console.log('Parsed form data for membership tier update:', {
+          id: parsedFormData.data.id,
+          type: parsedFormData.data.type,
+          name: parsedFormData.data.name,
+          // Add other relevant fields
+        });
+
         const product = await ProductService.updateMembershipTier(
           parsedFormData.data.id,
           {

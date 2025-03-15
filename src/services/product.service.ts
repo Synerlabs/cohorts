@@ -522,7 +522,8 @@ export class ProductService {
       if (tier.duration_months !== undefined) tierData.duration_months = tier.duration_months;
       if (tier.activation_type) tierData.activation_type = tier.activation_type;
       if (tier.form_template_id !== undefined) tierData.form_template_id = tier.form_template_id;
-      if (tier.type) tierData.type = tier.type;
+      // Always include the type field to ensure it's preserved during updates
+      tierData.type = tier.type || 'membership';
       if (tier.duration_unit) tierData.duration_unit = tier.duration_unit;
       
       // Add enhanced duration fields
@@ -540,6 +541,7 @@ export class ProductService {
       if (tier.monthly_end_day !== undefined) tierData.monthly_end_day = tier.monthly_end_day;
 
       if (Object.keys(tierData).length > 0) {
+        console.log('Updating membership tier with data:', tierData);
         const { error: tierError } = await supabase
           .from('membership_tiers')
           .update(tierData)
