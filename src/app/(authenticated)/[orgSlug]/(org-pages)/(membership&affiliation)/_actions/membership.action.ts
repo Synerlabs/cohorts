@@ -622,6 +622,31 @@ export async function updateMembershipStatusAction(
   return handler(prevState, { formData });
 }
 
+export async function getMembershipTierStatsAction(tierId: string): Promise<{
+  total_members: number;
+  active_members: number;
+  expiring_soon: number;
+  pending_applications: number;
+  pending_reviews: number;
+  pending_payments: number;
+  payments_pending_review: number;
+}> {
+  try {
+    return await ProductService.getMembershipTierStats(tierId);
+  } catch (error) {
+    console.error('Error fetching membership tier stats:', error);
+    return {
+      total_members: 0,
+      active_members: 0,
+      expiring_soon: 0,
+      pending_applications: 0,
+      pending_reviews: 0,
+      pending_payments: 0,
+      payments_pending_review: 0
+    };
+  }
+}
+
 export async function updateMembershipDatesAction(
   prevState: PrevState,
   formData: FormData

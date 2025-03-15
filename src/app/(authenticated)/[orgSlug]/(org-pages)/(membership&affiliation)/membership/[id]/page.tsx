@@ -6,6 +6,7 @@ import { Database } from '@/lib/types/database.types';
 import { getRolesAction, GroupRole } from '../../_actions/roles.action';
 import { getFormTemplateById } from '../../../forms/_actions/form-template.action';
 import { EditMembershipTierForm } from '../../_components/edit-membership-tier-form';
+import { getMembershipTierStatsAction } from '../../_actions/membership.action';
 
 interface Props {
   params: {
@@ -14,11 +15,15 @@ interface Props {
   };
 }
 
-type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
-
 export default async function EditMembershipTierPage({ params: _params }: Props) {
   const params = await _params;
   try {
+    // Debug: Log the requested tier ID
+    const isDebugTier = params.id === '47f300bb-1268-4ba5-a31e-7b97f49fd442';
+    if (isDebugTier) {
+      console.log('DEBUG: Page fetching tier with ID:', params.id);
+    }
+    
     // Fetch the membership tier
     const tier = await ProductService.getMembershipTier(params.id);
     
@@ -26,8 +31,16 @@ export default async function EditMembershipTierPage({ params: _params }: Props)
       notFound();
     }
 
+    // Fetch tier statistics
+    const tierStats = await getMembershipTierStatsAction(params.id);
+    
+    if (isDebugTier) {
+      console.log('DEBUG: Page fetched tier stats:', tierStats);
+      console.log('DEBUG: Tier type:', tier.membership_tier?.type);
+    }
+
     // Fetch the form template if it exists
-    let formTemplate: FormTemplate | null = null;
+    let formTemplate = null;
     if (tier.membership_tier.form_template_id) {
       const { data: template, error } = await getFormTemplateById(tier.membership_tier.form_template_id);
       if (!error && template) {
@@ -43,52 +56,27 @@ export default async function EditMembershipTierPage({ params: _params }: Props)
     }
 
     // Ensure we only pass serializable data to the client component
-    const serializedTier: IMembershipTierProduct = {
-      id: tier.id,
-      type: tier.type,
-      name: tier.name,
-      description: tier.description,
-      price: tier.price,
-      currency: tier.currency,
-      group_id: tier.group_id,
-      is_active: tier.is_active,
-      created_at: tier.created_at,
-      updated_at: tier.updated_at,
-      form_template_id: tier.membership_tier.form_template_id || '',
+    const serializedTier = {
+      ...tier,
       membership_tier: {
-        product_id: tier.id,
-        activation_type: tier.membership_tier.activation_type,
-        duration_months: tier.membership_tier.duration_months,
-        duration_unit: tier.membership_tier.duration_unit || 'month',
-        form_template_id: tier.membership_tier.form_template_id,
-        member_id_format: tier.membership_tier.member_id_format,
-        type: tier.membership_tier.type || 'membership',
+        ...tier.membership_tier,
         roles: tier.membership_tier.roles?.map(role => ({
           id: role.id,
-          role_name: role.role_name,
+          role_name: role.role_name || '',
           permissions: role.permissions || []
-        })) || [],
-        has_fixed_dates: tier.membership_tier.has_fixed_dates || false,
-        fixed_start_date: tier.membership_tier.fixed_start_date || null,
-        fixed_end_date: tier.membership_tier.fixed_end_date || null,
-        is_fiscal_period: tier.membership_tier.is_fiscal_period || false,
-        fiscal_start_month: tier.membership_tier.fiscal_start_month || null,
-        fiscal_start_day: tier.membership_tier.fiscal_start_day || null,
-        has_monthly_cycle: tier.membership_tier.has_monthly_cycle || false,
-        monthly_start_day: tier.membership_tier.monthly_start_day || null,
-        monthly_end_day_type: tier.membership_tier.monthly_end_day_type || 'specific',
-        monthly_end_day: tier.membership_tier.monthly_end_day || null
+        })) || []
       }
-    };
+    } as IMembershipTierProduct;
 
     return (
       <div className="space-y-6">
-
         <EditMembershipTierForm 
           tier={serializedTier} 
           groupId={serializedTier.group_id}
           initialFormTemplate={formTemplate}
           initialRoles={roles}
+          stats={tierStats}
+          orgSlug={params.orgSlug}
         />
       </div>
     );

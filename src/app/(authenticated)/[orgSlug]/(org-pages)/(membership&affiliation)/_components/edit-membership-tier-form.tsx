@@ -29,7 +29,9 @@ interface EditMembershipTierFormProps {
     pending_reviews: number;
     pending_payments: number;
     expiring_soon: number;
+    payments_pending_review: number;
   };
+  orgSlug?: string;
 }
 
 // Helper function to convert step configuration to MembershipActivationType
@@ -89,8 +91,10 @@ export function EditMembershipTierForm({
     pending_applications: 0,
     pending_reviews: 0,
     pending_payments: 0,
-    expiring_soon: 0
-  }
+    expiring_soon: 0,
+    payments_pending_review: 0
+  },
+  orgSlug
 }: EditMembershipTierFormProps) {
   const [state, action, pending] = useToastActionState(
     updateMembershipTierAction,
@@ -161,7 +165,12 @@ export function EditMembershipTierForm({
       monthly_end_day_type: tier.membership_tier?.monthly_end_day_type,
       monthly_end_day: tier.membership_tier?.monthly_end_day
     });
-  }, [tier]);
+    
+    // Debug stats data, especially for the organization tier
+    if (tier.id === '47f300bb-1268-4ba5-a31e-7b97f49fd442') {
+      console.log('DEBUG: Stats received by EditMembershipTierForm for org tier:', stats);
+    }
+  }, [tier, stats]);
 
   const [formTemplates, setFormTemplates] = useState<FormTemplate[]>(
     initialFormTemplate ? [initialFormTemplate] : []
@@ -375,6 +384,8 @@ export function EditMembershipTierForm({
               memberIdFormat={formData.member_id_format}
               onEditMemberId={scrollToMemberIdFormat}
               type={formData.type}
+              tierId={tier.id}
+              orgSlug={orgSlug}
             />
 
             <ActivationProcess

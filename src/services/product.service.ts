@@ -633,6 +633,268 @@ export class ProductService {
     return { exists: true, group_id: tier.group_id };
   }
 
+  static async getMembershipTierStats(id: string): Promise<{
+    total_members: number;
+    active_members: number;
+    expiring_soon: number;
+    pending_applications: number;
+    pending_reviews: number;
+    pending_payments: number;
+    payments_pending_review: number;
+  }> {
+    const supabase = await createClient();
+    
+    // Debug: Log the tier ID being checked
+    const isDebugTier = id === '47f300bb-1268-4ba5-a31e-7b97f49fd442';
+    if (isDebugTier) {
+      console.log('DEBUG: Fetching stats for tier:', id);
+    }
+    
+    try {
+      // First, check if this is an organization tier
+      let isTierOrg = false;
+      try {
+        const { data: tierData } = await supabase
+          .from('products')
+          .select(`
+            id,
+            membership_tiers!inner(type)
+          `)
+          .eq('id', id)
+          .single();
+          
+        isTierOrg = tierData?.membership_tiers?.[0]?.type === 'organization';
+        
+        if (isDebugTier) {
+          console.log('DEBUG: Tier type:', isTierOrg ? 'organization' : 'membership');
+        }
+      } catch (error) {
+        // If there's an error determining tier type, assume it's not an org tier
+        if (isDebugTier) {
+          console.log('DEBUG: Error determining tier type, assuming regular membership tier');
+        }
+      }
+      
+      // Get active members count
+      let activeMembers = 0;
+      try {
+        const { count, error } = await supabase
+          .from('memberships')
+          .select('*', { count: 'exact', head: true })
+          .eq('product_id', id)
+          .eq('status', 'active');
+          
+        if (!error && count !== null) {
+          activeMembers = count;
+        }
+      } catch (error) {
+        // Silently handle the error and use the default value
+      }
+      
+      // Get total members count (regardless of status)
+      let totalMembers = 0;
+      try {
+        const { count, error } = await supabase
+          .from('memberships')
+          .select('*', { count: 'exact', head: true })
+          .eq('product_id', id);
+          
+        if (!error && count !== null) {
+          totalMembers = count;
+        }
+      } catch (error) {
+        // Silently handle the error and use the default value
+      }
+      
+      // Get expiring soon members (within next 30 days)
+      let expiringSoonCount = 0;
+      try {
+        const thirtyDaysFromNow = new Date();
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+        
+        const { count, error } = await supabase
+          .from('memberships')
+          .select('*', { count: 'exact', head: true })
+          .eq('product_id', id)
+          .eq('status', 'active')
+          .lt('end_date', thirtyDaysFromNow.toISOString())
+          .gt('end_date', new Date().toISOString());
+          
+        if (!error && count !== null) {
+          expiringSoonCount = count;
+        }
+      } catch (error) {
+        // Silently handle the error and use the default value
+      }
+      
+      // Get pending applications count - include 'pending' status for organization tiers
+      let pendingApplicationsCount = 0;
+      let pendingReviewsCount = 0;
+      let pendingPaymentsCount = 0;
+      let paymentsPendingReviewCount = 0;
+      
+      if (isTierOrg) {
+        // For organization tiers, we need to check for 'pending' status as well
+        try {
+          const { count, error } = await supabase
+            .from('membership_applications_view')
+            .select('*', { count: 'exact', head: true })
+            .eq('product_id', id)
+            .eq('status', 'pending');
+            
+          if (!error && count !== null) {
+            pendingApplicationsCount = count;
+          }
+          
+          if (isDebugTier) {
+            console.log('DEBUG: Found organization pending applications:', pendingApplicationsCount);
+          }
+        } catch (error) {
+          // Silently handle the error and use the default value
+        }
+        
+        // NEW: Get payments pending review (payment made but still needs review)
+        try {
+          const { count, error } = await supabase
+            .from('membership_applications_view')
+            .select('*', { count: 'exact', head: true })
+            .eq('product_id', id)
+            .eq('status', 'pending')
+            .not('payment_completed_at', 'is', null);
+            
+          if (!error && count !== null) {
+            paymentsPendingReviewCount = count;
+          }
+          
+          if (isDebugTier) {
+            console.log('DEBUG: Found organization payments pending review:', paymentsPendingReviewCount);
+          }
+        } catch (error) {
+          // Silently handle the error and use the default value
+        }
+      } else {
+        // For regular membership tiers, continue with the existing logic
+        try {
+          const { count, error } = await supabase
+            .from('membership_applications_view')
+            .select('*', { count: 'exact', head: true })
+            .eq('product_id', id)
+            .eq('status', 'pending');
+            
+          if (!error && count !== null) {
+            pendingApplicationsCount = count;
+          }
+        } catch (error) {
+          // Silently handle the error and use the default value
+        }
+        
+        // Get pending reviews count
+        try {
+          const { count, error } = await supabase
+            .from('membership_applications_view')
+            .select('*', { count: 'exact', head: true })
+            .eq('product_id', id)
+            .eq('status', 'pending_review');
+            
+          if (!error && count !== null) {
+            pendingReviewsCount = count;
+          }
+        } catch (error) {
+          // Silently handle the error and use the default value
+        }
+        
+        // Get pending payments count
+        try {
+          const { count, error } = await supabase
+            .from('membership_applications_view')
+            .select('*', { count: 'exact', head: true })
+            .eq('product_id', id)
+            .eq('status', 'pending_payment');
+            
+          if (!error && count !== null) {
+            pendingPaymentsCount = count;
+          }
+        } catch (error) {
+          // Silently handle the error and use the default value
+        }
+        
+        // IMPORTANT: For all tier types, check for payments pending review
+        // This handles the specific use case for payments with status 'pending_approval'
+        try {
+          // First get applications for this tier to find their order IDs
+          const { data: applications } = await supabase
+            .from('applications')
+            .select('order_id')
+            .eq('tier_id', id);
+            
+          if (applications && applications.length > 0) {
+            // Extract the order IDs
+            const orderIds = applications
+              .map(app => app.order_id)
+              .filter(Boolean);
+              
+            if (orderIds.length > 0) {
+              // Count payments with 'pending_approval' status for these orders
+              const { count, error } = await supabase
+                .from('payments')
+                .select('*', { count: 'exact', head: true })
+                .in('order_id', orderIds)
+                .eq('status', 'pending_approval');
+                
+              if (!error && count !== null) {
+                paymentsPendingReviewCount = count;
+              }
+            }
+          }
+          
+          if (isDebugTier) {
+            console.log('DEBUG: Found payments pending review count:', paymentsPendingReviewCount);
+            console.log('DEBUG: Query was executed for tier:', id);
+          }
+        } catch (error) {
+          console.error('Error counting payments pending review:', error);
+        }
+      }
+      
+      if (isDebugTier) {
+        console.log('DEBUG: Final stats for tier', id, {
+          total_members: totalMembers,
+          active_members: activeMembers,
+          expiring_soon: expiringSoonCount,
+          pending_applications: pendingApplicationsCount,
+          pending_reviews: pendingReviewsCount,
+          pending_payments: pendingPaymentsCount,
+          payments_pending_review: paymentsPendingReviewCount
+        });
+      }
+      
+      return {
+        total_members: totalMembers,
+        active_members: activeMembers,
+        expiring_soon: expiringSoonCount,
+        pending_applications: pendingApplicationsCount,
+        pending_reviews: pendingReviewsCount,
+        pending_payments: pendingPaymentsCount,
+        payments_pending_review: paymentsPendingReviewCount
+      };
+    } catch (error) {
+      // Handle any unexpected errors in the main try/catch block
+      if (isDebugTier) {
+        console.log('DEBUG: Error fetching membership tier stats:', error);
+      }
+      
+      return {
+        total_members: 0,
+        active_members: 0,
+        expiring_soon: 0,
+        pending_applications: 0,
+        pending_reviews: 0,
+        pending_payments: 0,
+        payments_pending_review: 0
+      };
+    }
+  }
+
   static async deleteMembershipTier(id: string): Promise<void> {
     const supabase = await createClient();
     
