@@ -90,72 +90,62 @@ async function PaymentsPage(params: OrgAccessHOCProps & { searchParams: SearchPa
 
   if (tierId) {
     try {
-      // Step 1: Find products associated with this tier
-      const { data: tierProducts } = await supabase
-        .from('products')
-        .select('id')
-        .eq('membership_tier_id', tierId);
+      // The tier ID is actually the product ID for membership_tier products
+      console.log(`Searching for payments related to tier/product ID: ${tierId}`);
       
-      if (!tierProducts || tierProducts.length === 0) {
-        console.log('No products found for tier ID:', tierId);
-        // Return empty results rather than error
+      // Directly find orders with this product ID through suborders
+      const { data: suborders } = await supabase
+        .from('suborders')
+        .select('order_id')
+        .eq('product_id', tierId);
+      
+      if (!suborders || suborders.length === 0) {
+        console.log('No orders found for tier/product ID:', tierId);
+        // Return empty results
         payments = [];
         count = 0;
-      } else {
-        // Step 2: Find orders with these products through suborders
-        const productIds = tierProducts.map(product => product.id);
-        
-        const { data: suborders } = await supabase
-          .from('suborders')
-          .select('order_id')
-          .in('product_id', productIds);
-        
-        if (!suborders || suborders.length === 0) {
-          console.log('No orders found for tier products');
-          // Return empty results rather than error
-          payments = [];
-          count = 0;
-        } else {
-          // Step 3: Get unique order IDs
-          const orderIds = [...new Set(suborders.map(so => so.order_id))];
-          
-          // Step 4: Finally get payments for these orders
-          let query = supabase
-            .from('payments')
-            .select(`
-              *,
-              stripe_payments(*),
-              manual_payments(*),
-              payment_uploads(
-                upload:uploads(*)
-              ),
-              orders(*)
-            `, { count: 'exact' })
-            .eq('group_id', org.id)
-            .in('order_id', orderIds);
-          
-          // Add search if provided
-          if (search) {
-            query = query.or(`
-              id.ilike.%${search}%,
-              amount::text.ilike.%${search}%,
-              currency.ilike.%${search}%,
-              status.ilike.%${search}%
-            `);
-          }
-          
-          // Add sorting and pagination
-          query = query
-            .order(sortBy, { ascending: sortOrder === 'asc' })
-            .range(from, to);
-            
-          const { data: tierPayments, error: tierError, count: tierCount } = await query;
-          
-          payments = tierPayments || [];
-          count = tierCount || 0;
-          error = tierError;
-        }
+        return;
       }
+      
+      // Get unique order IDs
+      const orderIds = [...new Set(suborders.map(so => so.order_id))];
+      console.log(`Found ${orderIds.length} orders related to tier/product ID: ${tierId}`);
+      
+      // Get payments for these orders
+      let query = supabase
+        .from('payments')
+        .select(`
+          *,
+          stripe_payments(*),
+          manual_payments(*),
+          payment_uploads(
+            upload:uploads(*)
+          ),
+          orders(*)
+        `, { count: 'exact' })
+        .eq('group_id', org.id)
+        .in('order_id', orderIds);
+      
+      // Add search if provided
+      if (search) {
+        query = query.or(`
+          id.ilike.%${search}%,
+          amount::text.ilike.%${search}%,
+          currency.ilike.%${search}%,
+          status.ilike.%${search}%
+        `);
+      }
+      
+      // Add sorting and pagination
+      query = query
+        .order(sortBy, { ascending: sortOrder === 'asc' })
+        .range(from, to);
+        
+      const { data: tierPayments, error: tierError, count: tierCount } = await query;
+      
+      payments = tierPayments || [];
+      count = tierCount || 0;
+      error = tierError;
     } catch (err) {
       console.error('Error fetching tier payments:', err);
       error = err as any;
