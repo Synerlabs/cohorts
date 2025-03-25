@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileIcon, ImageIcon, ExternalLinkIcon, CheckCircle, XCircle, Clock, User, DollarSign, Calendar, CreditCard, ShoppingBag, Eye, Download, ChevronRight, Shield, ReceiptText } from "lucide-react";
+import { ArrowLeft, FileIcon, ImageIcon, ExternalLinkIcon, CheckCircle, XCircle, Clock, User, DollarSign, Calendar, CreditCard, ShoppingBag, Eye, Download, ChevronRight, Shield, ReceiptText, Copy, ClipboardCopy, Map, MapPin, Mail, Phone, Building, Info } from "lucide-react";
 import Link from "next/link";
 import { Payment } from "@/services/payment/types";
 import { approvePaymentAction, rejectPaymentAction, type PaymentFormState } from "../../actions/payment.action";
@@ -23,6 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 type Organization = OrgAccessHOCProps['org'];
 
@@ -275,6 +276,52 @@ function Timeline({ payment }: { payment: any }) {
   );
 }
 
+// New helper function to copy text to clipboard
+function CopyButton({ text, label = "Copy" }: { text: string; label?: string }) {
+  const { toast } = useToast();
+  const [copying, setCopying] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      setCopying(true);
+      await navigator.clipboard.writeText(text);
+      toast({
+        description: "Copied to clipboard",
+        duration: 2000,
+      });
+    } catch (err) {
+      toast({
+        description: "Failed to copy",
+        variant: "destructive",
+        duration: 2000,
+      });
+    } finally {
+      setCopying(false);
+    }
+  };
+
+  return (
+    <Button 
+      variant="ghost" 
+      size="icon" 
+      className="h-6 w-6 text-muted-foreground hover:text-foreground"
+      onClick={handleCopy}
+      disabled={copying}
+    >
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <ClipboardCopy className="h-3.5 w-3.5" />
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{label}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    </Button>
+  );
+}
+
 export default function PaymentDetails({ payment, org, user, userPermissions }: PaymentDetailsProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -397,29 +444,51 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Payment Summary */}
+        {/* Payment Summary - Enhanced with better visual design */}
         <div className="md:col-span-2 space-y-6">
           <Card className="overflow-hidden border-none shadow-md">
-            <div className="bg-primary/10 p-6">
+            <div className={`p-6 ${payment.status === 'paid' ? 'bg-green-50' : payment.status === 'rejected' ? 'bg-red-50' : 'bg-primary/10'}`}>
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm text-primary font-medium uppercase tracking-wide">Payment ID</div>
-                  <div className="text-lg font-mono mt-1">{payment.id.substring(0, 8)}...</div>
+                  <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide">
+                    <span className={payment.status === 'paid' ? 'text-green-700' : payment.status === 'rejected' ? 'text-red-700' : 'text-primary'}>
+                      Payment ID
+                    </span>
+                    <div className="flex items-center">
+                      <code className="font-mono text-sm px-1.5 py-0.5 rounded bg-muted">
+                        {payment.id.substring(0, 12)}
+                      </code>
+                      <CopyButton text={payment.id} label="Copy payment ID" />
+                    </div>
+                  </div>
+                  <div className="text-2xl font-bold mt-3">
+                    {formatCurrency(payment.amount, payment.currency)}
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {formatDate(payment.created_at)}
+                  </div>
                 </div>
-                <StatusBadge status={payment.status} />
-              </div>
-              <div className="mt-6">
-                <div className="text-2xl font-bold">
-                  {formatCurrency(payment.amount, payment.currency)}
-                </div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  {formatDate(payment.created_at)}
+                <div className="flex flex-col items-end gap-2">
+                  <StatusBadge status={payment.status} />
+                  {payment.type === 'stripe' && (
+                    <Badge variant="outline" className="bg-white/80">
+                      <CreditCard className="h-3 w-3 mr-1" />
+                      Stripe
+                    </Badge>
+                  )}
+                  {payment.type === 'manual' && (
+                    <Badge variant="outline" className="bg-white/80">
+                      <ReceiptText className="h-3 w-3 mr-1" />
+                      Manual
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
-            <CardContent className="p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
+            <CardContent className="p-0">
+              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-muted">
+                <div className="p-4">
                   <div className="text-sm text-muted-foreground">Payment Method</div>
                   <div className="mt-1 flex items-center gap-2">
                     {paymentMethod.icon}
@@ -428,11 +497,13 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                 </div>
                 
                 {payment.orders && (
-                  <div>
+                  <div className="p-4">
                     <div className="text-sm text-muted-foreground">Order Reference</div>
                     <div className="mt-1 flex items-center gap-2">
                       <ShoppingBag className="h-5 w-5 text-primary" />
-                      <span className="font-medium font-mono">{payment.orders.id.substring(0, 8)}...</span>
+                      <Link href={`/@${org.slug}/orders/${payment.orders.id}`} className="font-medium font-mono hover:text-primary hover:underline">
+                        {payment.orders.id.substring(0, 8)}...
+                      </Link>
                     </div>
                   </div>
                 )}
@@ -452,28 +523,80 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
               {/* Payment Type Specific Details */}
               {payment.type === 'stripe' && payment.stripe_payments && (
                 <Card>
-                  <CardHeader className="pb-2">
+                  <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-primary" />
                       Stripe Payment Details
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-xs text-muted-foreground">Payment Intent ID</label>
-                          <div className="text-sm font-mono mt-1 break-all">
+                  <CardContent className="pt-0">
+                    {/* Payment Intent */}
+                    <div className="border-b pb-4 mb-4">
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">Payment Intent</h4>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="flex items-center">
+                          <code className="text-xs px-2 py-1 bg-muted rounded font-mono block overflow-x-auto whitespace-nowrap max-w-full">
                             {payment.stripe_payments.stripe_payment_intent_id}
-                          </div>
+                          </code>
+                          <CopyButton text={payment.stripe_payments.stripe_payment_intent_id} label="Copy payment intent ID" />
                         </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">Stripe Status</label>
-                          <div className="mt-1">
-                            <StatusBadge status={payment.stripe_payments.stripe_status} />
-                          </div>
-                        </div>
+                        {payment.stripe_payments.stripe_account_id && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs w-fit" asChild>
+                            <a 
+                              href={`https://dashboard.stripe.com/${payment.stripe_payments.stripe_account_id}/payments/${payment.stripe_payments.stripe_payment_intent_id}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLinkIcon className="h-3 w-3 mr-1" />
+                              View in Stripe
+                            </a>
+                          </Button>
+                        )}
                       </div>
+                    </div>
+                    
+                    {/* Payment Details - Improved grid layout */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Status</h4>
+                        <StatusBadge status={payment.stripe_payments.stripe_status || 'pending'} />
+                      </div>
+                      
+                      {payment.stripe_payments.stripe_payment_method && (
+                        <div>
+                          <h4 className="text-sm font-medium text-muted-foreground mb-2">Payment Method</h4>
+                          <Badge variant="outline" className="bg-white">
+                            {payment.stripe_payments.stripe_payment_method}
+                          </Badge>
+                        </div>
+                      )}
+                      
+                      {payment.stripe_payments.stripe_account_id && (
+                        <div>
+                          <h4 className="text-sm font-medium text-muted-foreground mb-2">Account</h4>
+                          <span className="text-sm text-foreground">
+                            {payment.stripe_payments.stripe_account_id.startsWith('acct_') 
+                              ? payment.stripe_payments.stripe_account_id.substring(0, 8) + '...' 
+                              : payment.stripe_payments.stripe_account_id}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Client Secret - Keep existing code */}
+                    {payment.stripe_payments.stripe_payment_intent_client_secret && (
+                      <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Client Secret</h4>
+                        <code className="text-xs px-2 py-1 bg-muted rounded font-mono block overflow-x-auto">
+                          {`${payment.stripe_payments.stripe_payment_intent_client_secret.substring(0, 10)}...${payment.stripe_payments.stripe_payment_intent_client_secret.substring(payment.stripe_payments.stripe_payment_intent_client_secret.length - 10)}`}
+                        </code>
+                      </div>
+                    )}
+                    
+                    {/* Security Info - Keep existing code */}
+                    <div className="flex items-center gap-2 mt-4 pt-4 border-t text-xs text-muted-foreground">
+                      <Shield className="h-3.5 w-3.5 text-primary" />
+                      <span>Processed securely through Stripe's payment gateway</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -558,65 +681,299 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
             
             <TabsContent value="order" className="mt-4">
               {payment.orders && (
-                <Card>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <ShoppingBag className="h-4 w-4 text-primary" />
-                      Order Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-6">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                          <label className="text-xs text-muted-foreground">Order ID</label>
-                          <div className="text-sm font-mono mt-1 break-all">{payment.orders.id}</div>
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">Order Status</label>
-                          <div className="mt-1">
-                            <StatusBadge status={payment.orders.status} />
+                <>
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <ShoppingBag className="h-4 w-4 text-primary" />
+                        Order Information
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Order ID</label>
+                            <div className="text-sm font-mono mt-1 break-all">
+                              <Link href={`/@${org.slug}/orders/${payment.orders.id}`} className="hover:text-primary hover:underline">
+                                {payment.orders.id}
+                              </Link>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Order Status</label>
+                            <div className="mt-1">
+                              <StatusBadge status={payment.orders.status} />
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      
-                      {payment.orders.suborders && payment.orders.suborders.length > 0 && (
-                        <div>
-                          <label className="text-xs text-muted-foreground block mb-2">Products</label>
-                          <div className="space-y-2">
-                            {payment.orders.suborders.map((suborder: any, index: number) => (
-                              suborder.product && (
-                                <div key={index} className="rounded-lg border border-gray-200 p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
-                                  <div className="flex flex-col md:flex-row justify-between">
-                                    <div className="space-y-1">
-                                      <div className="font-medium">{suborder.product.name}</div>
-                                      {suborder.product.description && (
-                                        <div className="text-sm text-gray-500 line-clamp-2">
-                                          {suborder.product.description}
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {payment.orders.created_at && (
+                            <div>
+                              <label className="text-xs text-muted-foreground">Order Date</label>
+                              <div className="text-sm mt-1">
+                                {formatDate(payment.orders.created_at)}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {payment.orders.total && (
+                            <div>
+                              <label className="text-xs text-muted-foreground">Order Total</label>
+                              <div className="text-sm font-semibold mt-1">
+                                {formatCurrency(payment.orders.total, payment.orders.currency || payment.currency)}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {payment.orders.payments && payment.orders.payments.length > 0 && (
+                          <div>
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="text-xs text-muted-foreground">Payment History</label>
+                              <Badge variant="outline" className="text-xs">
+                                {payment.orders.payments.length} payment{payment.orders.payments.length !== 1 ? 's' : ''}
+                              </Badge>
+                            </div>
+                            
+                            <div className="text-sm text-muted-foreground rounded-md border bg-slate-50 p-3">
+                              <div className="flex justify-between items-center">
+                                <span>This is {payment.id === payment.orders.payments[0]?.id ? 'the first' : 'one of multiple'} payments for this order.</span>
+                                <Button variant="outline" size="sm" asChild className="ml-2">
+                                  <Link href={`/@${org.slug}/orders/${payment.orders.id}`}>
+                                    View All Payments
+                                  </Link>
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {payment.orders.suborders && payment.orders.suborders.length > 0 && (
+                          <div>
+                            <label className="text-xs text-muted-foreground block mb-2">Products</label>
+                            <div className="space-y-2">
+                              {payment.orders.suborders.map((suborder: any, index: number) => (
+                                suborder.product && (
+                                  <div key={index} className="rounded-lg border border-gray-200 p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
+                                    <div className="flex flex-col md:flex-row justify-between">
+                                      <div className="space-y-2 flex-1">
+                                        <div className="flex items-center gap-2">
+                                          <div className="font-medium">
+                                            {suborder.product.id ? (
+                                              <Link 
+                                                href={`/@${org.slug}/products/${suborder.product.id}`}
+                                                className="hover:text-primary hover:underline"
+                                              >
+                                                {suborder.product.name}
+                                              </Link>
+                                            ) : (
+                                              suborder.product.name
+                                            )}
+                                          </div>
                                         </div>
-                                      )}
-                                    </div>
-                                    <div className="text-right mt-2 md:mt-0">
-                                      <div className="font-semibold">
-                                        {formatCurrency(
-                                          suborder.product.price,
-                                          suborder.product.currency || payment.currency
+                                        
+                                        <div className="flex flex-wrap gap-2">
+                                          {suborder.product.type && (
+                                            <Badge variant="outline" className="text-xs">
+                                              {suborder.product.type}
+                                            </Badge>
+                                          )}
+                                          
+                                          {suborder.product.id && (
+                                            <Badge variant="secondary" className="text-xs font-mono">
+                                              ID: {suborder.product.id.substring(0, 6)}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        
+                                        {suborder.product.description && (
+                                          <div className="text-sm text-gray-500 line-clamp-2">
+                                            {suborder.product.description}
+                                          </div>
                                         )}
                                       </div>
-                                      <div className="text-xs text-gray-500">
-                                        Quantity: {suborder.quantity || 1}
+                                      
+                                      <div className="text-right mt-3 md:mt-0 md:ml-4 md:min-w-[120px]">
+                                        <div className="font-semibold">
+                                          {formatCurrency(
+                                            suborder.product.price,
+                                            suborder.product.currency || payment.currency
+                                          )}
+                                        </div>
+                                        <div className="text-xs space-y-1 mt-1">
+                                          <div className="text-gray-500">
+                                            Quantity: {suborder.quantity || 1}
+                                          </div>
+                                          
+                                          {suborder.product.price_structure && (
+                                            <div className="text-gray-500">
+                                              {suborder.product.price_structure}
+                                            </div>
+                                          )}
+                                          
+                                          {suborder.product.billing_period && (
+                                            <div className="text-gray-500">
+                                              {suborder.product.billing_period}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
-                              )
-                            ))}
+                                )
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Billing Details Section - Moved to bottom */}
+                  <Card className="mt-4">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <User className="h-4 w-4 text-primary" />
+                        Billing Details
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0">
+                      {(() => {
+                        console.log("Payment object for debugging:", payment);
+                        console.log("Billing details:", payment.billing_details);
+                        
+                        // Safeguard with extra error handling
+                        try {
+                          if (payment.billing_details) {
+                            return (
+                              <div className="space-y-4">
+                                {/* Customer Info */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  {payment.billing_details.name && (
+                                    <div>
+                                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Customer Name</h4>
+                                      <div className="text-sm">{payment.billing_details.name}</div>
+                                    </div>
+                                  )}
+                                  
+                                  {payment.billing_details.email && (
+                                    <div>
+                                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Email</h4>
+                                      <div className="text-sm flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <a href={`mailto:${payment.billing_details.email}`} className="hover:underline hover:text-primary">
+                                          {payment.billing_details.email}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {payment.billing_details.phone && (
+                                    <div>
+                                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Phone</h4>
+                                      <div className="text-sm flex items-center gap-1.5">
+                                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <a href={`tel:${payment.billing_details.phone}`} className="hover:underline hover:text-primary">
+                                          {payment.billing_details.phone}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* Address if available */}
+                                {payment.billing_details.address && (
+                                  <div>
+                                    <h4 className="text-sm font-medium text-muted-foreground mb-1">Billing Address</h4>
+                                    <div className="text-sm space-y-1">
+                                      <div className="flex items-center gap-1.5">
+                                        <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                        <div>
+                                          {payment.billing_details.address.line1 || ''}
+                                          {payment.billing_details.address.line2 && `, ${payment.billing_details.address.line2}`}
+                                        </div>
+                                      </div>
+                                      {(payment.billing_details.address.city || payment.billing_details.address.state || payment.billing_details.address.postal_code) && (
+                                        <div className="ml-5">
+                                          {payment.billing_details.address.city || ''}
+                                          {payment.billing_details.address.state && payment.billing_details.address.city ? `, ${payment.billing_details.address.state}` : payment.billing_details.address.state || ''}
+                                          {payment.billing_details.address.postal_code && ` ${payment.billing_details.address.postal_code}`}
+                                        </div>
+                                      )}
+                                      {payment.billing_details.address.country && (
+                                        <div className="ml-5">
+                                          {payment.billing_details.address.country}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          } else if (payment.user) {
+                            return (
+                              <div className="space-y-4">
+                                {/* Show basic user info from payment.user if no billing details */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  {payment.user.name && (
+                                    <div>
+                                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Customer Name</h4>
+                                      <div className="text-sm font-medium flex items-center gap-2">
+                                        <Avatar className="h-6 w-6">
+                                          <AvatarFallback className="text-xs bg-primary/10">
+                                            {payment.user.name ? payment.user.name.split(' ').map((n: string) => n[0]).join('') : '?'}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        {payment.user.name}
+                                      </div>
+                                    </div>
+                                  )}
+                                  
+                                  {payment.user.email && (
+                                    <div>
+                                      <h4 className="text-sm font-medium text-muted-foreground mb-1">Email</h4>
+                                      <div className="text-sm flex items-center gap-1.5">
+                                        <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                        <a href={`mailto:${payment.user.email}`} className="hover:underline hover:text-primary">
+                                          {payment.user.email}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                
+                                {/* User Account Link */}
+                                <div className="pt-2">
+                                  <Button variant="outline" size="sm" asChild className="text-xs h-7">
+                                    <Link href={`/@${org.slug}/customers/${payment.user.id}`}>
+                                      <User className="h-3.5 w-3.5 mr-1" />
+                                      View Customer Profile
+                                    </Link>
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="text-sm text-muted-foreground italic">
+                                No billing details available for this payment.
+                              </div>
+                            );
+                          }
+                        } catch (error) {
+                          console.error("Error rendering billing details section:", error);
+                          return (
+                            <div className="text-sm text-red-500">
+                              Error displaying billing details. Please check the console for more information.
+                            </div>
+                          );
+                        }
+                      })()}
+                    </CardContent>
+                  </Card>
+                </>
               )}
             </TabsContent>
             
