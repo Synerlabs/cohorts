@@ -3,9 +3,9 @@
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { StorageConfig, StorageProvider } from './storage-provider.interface';
 import * as googleDriveProvider from './google-drive.provider';
-import * as supabaseProvider from './supabase.provider';
+import supabaseProvider from './supabase.provider';
 
-export async function createStorageProvider(orgId: string): Promise<StorageProvider | null> {
+export async function createStorageProvider(orgId: string): Promise<StorageProvider> {
   const supabase = await createServiceRoleClient();
   
   console.log('Fetching storage settings for org:', orgId);
@@ -18,20 +18,12 @@ export async function createStorageProvider(orgId: string): Promise<StorageProvi
 
   if (error) {
     console.log('No storage settings found, using Supabase as default provider');
-    return {
-      initialize: supabaseProvider.initialize,
-      upload: supabaseProvider.upload,
-      delete: supabaseProvider.deleteFile
-    };
+    return supabaseProvider;
   }
 
   if (!settings) {
     console.log('No storage settings found, using Supabase as default provider');
-    return {
-      initialize: supabaseProvider.initialize,
-      upload: supabaseProvider.upload,
-      delete: supabaseProvider.deleteFile
-    };
+    return supabaseProvider;
   }
 
   console.log('Found storage settings:', {
@@ -53,25 +45,19 @@ export async function createStorageProvider(orgId: string): Promise<StorageProvi
       await googleDriveProvider.initialize(config);
       console.log('Google Drive provider initialized successfully');
       return {
-        initialize: googleDriveProvider.initialize,
+        initialize: (conf?: StorageConfig) => googleDriveProvider.initialize(conf as StorageConfig),
         upload: googleDriveProvider.upload,
-        delete: googleDriveProvider.deleteFile
+        delete: googleDriveProvider.deleteFile,
+        providerType: 'google-drive',
+        generatePath: (module: string, filename: string) => `${module}/${filename}`
       };
     } catch (error) {
       console.error('Error initializing Google Drive provider:', error);
       console.log('Falling back to Supabase storage provider');
-      return {
-        initialize: supabaseProvider.initialize,
-        upload: supabaseProvider.upload,
-        delete: supabaseProvider.deleteFile
-      };
+      return supabaseProvider;
     }
   }
 
   console.log('No supported provider found, using Supabase as default provider');
-  return {
-    initialize: supabaseProvider.initialize,
-    upload: supabaseProvider.upload,
-    delete: supabaseProvider.deleteFile
-  };
+  return supabaseProvider;
 } 

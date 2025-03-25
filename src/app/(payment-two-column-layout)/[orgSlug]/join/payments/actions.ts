@@ -369,12 +369,11 @@ export async function createManualPayment(
               .from('uploads')
               .insert({
                 original_filename: proofFile.name,
-                file_path: uploadResult.path,
+                storage_path: uploadResult.path,
                 storage_provider: 'supabase',
-                content_type: proofFile.type,
                 module: 'payments',
-                size_bytes: buffer.length,
-                url: uploadResult.url
+                file_url: uploadResult.url,
+                file_id: uploadResult.path
               })
               .select()
               .single();
