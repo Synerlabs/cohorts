@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { FileIcon, ImageIcon, ExternalLinkIcon, ArrowUpDown, Trash2Icon, FileTextIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, CheckIcon, XIcon, Eye } from 'lucide-react';
+import { FileIcon, ImageIcon, ExternalLinkIcon, ArrowUpDown, Trash2Icon, FileTextIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, CheckIcon, XIcon, Eye, ClockIcon } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -81,6 +81,25 @@ export interface PaymentManagementProps {
     sortOrder: 'asc' | 'desc';
   };
   search?: string;
+  tierId?: string;
+  tierName?: string;
+  tierInfo?: {
+    id: string;
+    name: string;
+    type: string;
+    description?: string;
+    requiresReview: boolean;
+    requiresForm: boolean;
+    products: Array<{
+      id: string;
+      name: string;
+      price: number;
+      currency: string;
+      isActive: boolean;
+    }>;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
 }
 
 function PaginationControls({ pagination, onPageChange }: { 
@@ -122,6 +141,35 @@ function formatCurrency(amount: number, currency: string) {
   }).format(amount / 100);
 }
 
+// Payment status badge component
+function PaymentStatusBadge({ status }: { status: string }) {
+  if (status === 'paid') {
+    return (
+      <Badge className="bg-green-100 text-green-800 hover:bg-green-200 border-green-200">
+        <CheckIcon className="h-3 w-3 mr-1" /> Paid
+      </Badge>
+    );
+  } else if (status === 'rejected') {
+    return (
+      <Badge className="bg-red-100 text-red-800 hover:bg-red-200 border-red-200">
+        <XIcon className="h-3 w-3 mr-1" /> Rejected
+      </Badge>
+    );
+  } else if (status === 'pending_approval') {
+    return (
+      <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-200 border-blue-200">
+        <ClockIcon className="h-3 w-3 mr-1" /> Pending Review
+      </Badge>
+    );
+  } else {
+    return (
+      <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200 border-amber-200">
+        <ClockIcon className="h-3 w-3 mr-1" /> Pending
+      </Badge>
+    );
+  }
+}
+
 // Format date from PostgreSQL timestamp or ISO string
 function formatPaymentDate(date: string) {
   try {
@@ -129,7 +177,7 @@ function formatPaymentDate(date: string) {
     const dateStr = date.includes('+') 
       ? date.split('+')[0].trim() // PostgreSQL format
       : date; // ISO format
-    return format(new Date(dateStr), "MMM d, yyyy 'at' HH:mm 'UTC'");
+    return format(parseISO(dateStr), "MMM d, yyyy 'at' HH:mm 'UTC'");
   } catch (error) {
     console.error('Error formatting date:', error, date);
     return date; // Return original if parsing fails
@@ -143,7 +191,10 @@ export function PaymentManagement({
   initialPayments,
   pagination,
   sorting,
-  search
+  search,
+  tierId,
+  tierName,
+  tierInfo
 }: PaymentManagementProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -270,16 +321,23 @@ export function PaymentManagement({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <form onSubmit={handleSearch} className="flex items-center gap-2">
-          <Input
-            type="search"
-            placeholder="Search payments..."
-            className="w-[300px]"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <Button type="submit" variant="secondary">Search</Button>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <form onSubmit={handleSearch} className="flex w-full sm:w-auto items-center gap-2">
+          <div className="relative flex-1 sm:flex-initial">
+            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder={tierId 
+                ? `Search ${tierName || 'tier'} payments...`
+                : "Search payments..."}
+              className="w-full sm:w-[300px] pl-9 pr-4"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <Button type="submit" variant="secondary" size="sm" className="shrink-0">
+            Search
+          </Button>
         </form>
         {pagination && (
           <PaginationControls 
@@ -289,97 +347,128 @@ export function PaymentManagement({
         )}
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead 
-                className="w-[180px] cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('createdAt')}
-              >
-                <div className="flex items-center">
-                  Date
-                  {getSortIcon('createdAt')}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('type')}
-              >
-                <div className="flex items-center">
-                  Type
-                  {getSortIcon('type')}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('amount')}
-              >
-                <div className="flex items-center">
-                  Amount
-                  {getSortIcon('amount')}
-                </div>
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => handleSort('status')}
-              >
-                <div className="flex items-center">
-                  Status
-                  {getSortIcon('status')}
-                </div>
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {initialPayments.length === 0 ? (
+      <Card className={`border-muted/60 overflow-hidden ${tierId ? 'border-primary/10 bg-primary/[0.01]' : ''}`}>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader className={`${tierId ? 'bg-primary/5' : 'bg-muted/50'}`}>
               <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  No payments found.
-                </TableCell>
-              </TableRow>
-            ) : (
-              initialPayments.map((payment) => (
-                <TableRow 
-                  key={payment.id} 
-                  className="group hover:bg-muted/50"
-                  onClick={() => router.push(`/@${orgSlug}/payments/${payment.id}`)}
-                  style={{ cursor: 'pointer' }}
+                <TableHead 
+                  className="w-[180px] cursor-pointer hover:bg-muted/70 transition-colors"
+                  onClick={() => handleSort('createdAt')}
                 >
-                  <TableCell className="font-medium">
-                    {formatPaymentDate(payment.createdAt || payment.created_at)}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="capitalize">{payment.type}</span>
-                      {payment.order?.product && (
-                        <span className="text-sm text-muted-foreground">
-                          {payment.order.product.name} - {formatCurrency(
-                            payment.order.product.price,
-                            payment.order.product.currency || payment.currency
-                          )}
-                        </span>
-                      )}
+                  <div className="flex items-center">
+                    Date
+                    {getSortIcon('createdAt')}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/70 transition-colors"
+                  onClick={() => handleSort('type')}
+                >
+                  <div className="flex items-center">
+                    Payment Details
+                    {getSortIcon('type')}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/70 transition-colors"
+                  onClick={() => handleSort('amount')}
+                >
+                  <div className="flex items-center">
+                    Amount
+                    {getSortIcon('amount')}
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/70 transition-colors w-[140px]"
+                  onClick={() => handleSort('status')}
+                >
+                  <div className="flex items-center">
+                    Status
+                    {getSortIcon('status')}
+                  </div>
+                </TableHead>
+                <TableHead className="w-[70px] text-right">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {initialPayments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center text-muted-foreground">
+                      <FileIcon className="h-10 w-10 mb-2 text-muted-foreground/50" />
+                      <p>No payments found</p>
+                      <p className="text-sm">
+                        {tierId 
+                          ? `No payments found for this membership tier${tierName ? `: ${tierName}` : ''}`
+                          : "Try adjusting your search or filters"}
+                      </p>
                     </div>
                   </TableCell>
-                  <TableCell className="font-medium tabular-nums">
-                    {formatCurrency(payment.amount, payment.currency)}
-                  </TableCell>
-                  <TableCell>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      payment.status === 'paid' ? 'bg-green-50 text-green-700 ring-1 ring-inset ring-green-600/20' :
-                      payment.status === 'rejected' ? 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/20' :
-                      'bg-yellow-50 text-yellow-700 ring-1 ring-inset ring-yellow-600/20'
-                    }`}>
-                      {payment.status}
-                    </span>
-                  </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              ) : (
+                initialPayments.map((payment) => (
+                  <TableRow 
+                    key={payment.id} 
+                    className="group hover:bg-muted/30 transition-colors"
+                    onClick={() => router.push(`/@${orgSlug}/payments/${payment.id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <TableCell className="font-medium">
+                      <div className="flex flex-col">
+                        <span>{formatPaymentDate(payment.createdAt || (payment as any).created_at || '').split(' at ')[0]}</span>
+                        <span className="text-xs text-muted-foreground">{formatPaymentDate(payment.createdAt || (payment as any).created_at || '').split(' at ')[1]}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <div className="flex items-center gap-1.5">
+                          <span className="capitalize font-medium">{payment.type}</span>
+                          {payment.id && (
+                            <span className="text-xs text-muted-foreground font-mono">
+                              {payment.id.split('-')[0]}...
+                            </span>
+                          )}
+                        </div>
+                        {payment.order?.product && (
+                          <span className="text-sm text-muted-foreground truncate max-w-[220px] block">
+                            {payment.order.product.name}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium tabular-nums">
+                      <div className="flex flex-col">
+                        <span>{formatCurrency(payment.amount, payment.currency)}</span>
+                        <span className="text-xs text-muted-foreground uppercase">{payment.currency}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <PaymentStatusBadge status={payment.status} />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenReview(payment);
+                        }}
+                        aria-label="View payment details"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </Card>
 
       {pagination && (
         <div className="flex justify-end">

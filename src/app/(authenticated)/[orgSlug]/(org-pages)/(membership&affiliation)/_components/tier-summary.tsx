@@ -1,3 +1,5 @@
+'use client';
+
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +27,7 @@ interface TierSummaryProps {
   type: 'membership' | 'organization';
   tierId?: string;
   orgSlug?: string;
+  paymentId?: string;
 }
 
 export function TierSummary({
@@ -36,7 +39,8 @@ export function TierSummary({
   onEditMemberId,
   type,
   tierId,
-  orgSlug
+  orgSlug,
+  paymentId = "pending-payments"
 }: TierSummaryProps) {
   const router = useRouter();
   const [hoveredAction, setHoveredAction] = useState<string | null>(null);
@@ -48,11 +52,17 @@ export function TierSummary({
     console.log('TierSummary - tier ID:', tierId);
   }, [stats, type, tierId]);
 
-  // Function to navigate to applications with filtered view
-  const viewPaymentsForReview = () => {
-    if (orgSlug && tierId) {
-      router.push(`/${orgSlug}/applications?filter=pending_approval&tierId=${tierId}`);
+  // Construct the payments URL
+  const getPaymentsUrl = () => {
+    if (!orgSlug) return "#";
+
+    // If specific payment ID is provided, go to that payment directly
+    if (paymentId && paymentId !== "pending-payments") {
+      return `/@${orgSlug}/payments/${paymentId}`;
     }
+    
+    // Otherwise go to the tier's pending payments list
+    return `/@${orgSlug}/payments?status=pending_approval${tierId ? `&tierId=${tierId}` : ''}`;
   };
 
   return (
@@ -229,63 +239,79 @@ export function TierSummary({
 
               {/* Payments for Review section for all tier types */}
               {stats.payments_pending_review !== undefined && (
-                <div 
-                  className={cn(
-                    "flex items-center justify-between rounded-md border px-3 sm:px-4 py-2 bg-background",
-                    "transition-all duration-200",
-                    stats.payments_pending_review > 0 ? "relative" : "",
-                    hoveredAction === 'payments' 
-                      ? "border-emerald-300 bg-emerald-50/50 shadow-sm" 
-                      : stats.payments_pending_review > 0
-                        ? "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/50"
-                        : "hover:border-emerald-200 hover:bg-emerald-50/30"
-                  )}
-                  onMouseEnter={() => setHoveredAction('payments')}
-                  onMouseLeave={() => setHoveredAction(null)}
-                  onClick={stats.payments_pending_review > 0 ? viewPaymentsForReview : undefined}
-                  style={{ cursor: stats.payments_pending_review > 0 ? 'pointer' : 'default' }}
-                >
-                  {/* Attention indicator dot */}
-                  {stats.payments_pending_review > 0 && (
-                    <span className="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 h-2.5 w-2.5 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse" />
-                  )}
-                  
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className={cn(
-                      "p-1 rounded-full transition-colors",
-                      hoveredAction === 'payments' ? "bg-emerald-100" : "bg-emerald-50"
-                    )}>
-                      <CreditCard className={cn(
-                        "h-4 w-4 transition-colors",
-                        hoveredAction === 'payments' ? "text-emerald-600" : "text-emerald-500"
-                      )} />
-                    </div>
-                    <span className="text-sm font-medium text-slate-700">Payments for Review</span>
-                  </div>
-                  
-                  <div className="flex items-center gap-1">
-                    {stats.payments_pending_review > 0 ? (
-                      <>
-                        <Badge 
-                          variant="secondary" 
-                          className={cn(
-                            "font-mono transition-colors",
-                            hoveredAction === 'payments' 
-                              ? "bg-emerald-100 text-emerald-800" 
-                              : "bg-emerald-50 text-emerald-700"
-                          )}
-                        >
-                          {stats.payments_pending_review}
-                        </Badge>
-                        {hoveredAction === 'payments' && (
-                          <ChevronRight className="h-4 w-4 text-emerald-500 ml-1 animate-bounce-x" />
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">None</span>
+                stats.payments_pending_review > 0 ? (
+                  <Link 
+                    href={getPaymentsUrl()}
+                    className={cn(
+                      "flex items-center justify-between rounded-md border px-3 sm:px-4 py-2 bg-background",
+                      "transition-all duration-200 relative",
+                      hoveredAction === 'payments' 
+                        ? "border-emerald-300 bg-emerald-50/50 shadow-sm" 
+                        : "border-emerald-200 bg-emerald-50/30 hover:border-emerald-300 hover:bg-emerald-50/50"
                     )}
+                    onMouseEnter={() => setHoveredAction('payments')}
+                    onMouseLeave={() => setHoveredAction(null)}
+                  >
+                    {/* Attention indicator dot */}
+                    <span className="absolute top-0 right-0 transform translate-x-1/3 -translate-y-1/3 h-2.5 w-2.5 bg-emerald-500 rounded-full ring-2 ring-white animate-pulse" />
+                    
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className={cn(
+                        "p-1 rounded-full transition-colors",
+                        hoveredAction === 'payments' ? "bg-emerald-100" : "bg-emerald-50"
+                      )}>
+                        <CreditCard className={cn(
+                          "h-4 w-4 transition-colors",
+                          hoveredAction === 'payments' ? "text-emerald-600" : "text-emerald-500"
+                        )} />
+                      </div>
+                      <span className="text-sm font-medium text-slate-700">Payments for Review</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <Badge 
+                        variant="secondary" 
+                        className={cn(
+                          "font-mono transition-colors",
+                          hoveredAction === 'payments' 
+                            ? "bg-emerald-100 text-emerald-800" 
+                            : "bg-emerald-50 text-emerald-700"
+                        )}
+                      >
+                        {stats.payments_pending_review}
+                      </Badge>
+                      {hoveredAction === 'payments' && (
+                        <ChevronRight className="h-4 w-4 text-emerald-500 ml-1 animate-bounce-x" />
+                      )}
+                    </div>
+                  </Link>
+                ) : (
+                  <div 
+                    className={cn(
+                      "flex items-center justify-between rounded-md border px-3 sm:px-4 py-2 bg-background",
+                      "transition-all duration-200",
+                      hoveredAction === 'payments' 
+                        ? "border-emerald-300 bg-emerald-50/50 shadow-sm" 
+                        : "hover:border-emerald-200 hover:bg-emerald-50/30"
+                    )}
+                    onMouseEnter={() => setHoveredAction('payments')}
+                    onMouseLeave={() => setHoveredAction(null)}
+                  >
+                    <div className="flex items-center gap-2 sm:gap-3">
+                      <div className={cn(
+                        "p-1 rounded-full transition-colors",
+                        hoveredAction === 'payments' ? "bg-emerald-100" : "bg-emerald-50"
+                      )}>
+                        <CreditCard className={cn(
+                          "h-4 w-4 transition-colors",
+                          hoveredAction === 'payments' ? "text-emerald-600" : "text-emerald-500"
+                        )} />
+                      </div>
+                      <span className="text-sm font-medium text-slate-700">Payments for Review</span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">None</span>
                   </div>
-                </div>
+                )
               )}
 
               {!requiresForm && !requiresReview && price === 0 && type !== 'organization' && stats.payments_pending_review === 0 && (
