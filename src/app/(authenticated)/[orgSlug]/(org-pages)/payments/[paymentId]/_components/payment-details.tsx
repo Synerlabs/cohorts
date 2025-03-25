@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardFooter, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileIcon, ImageIcon, ExternalLinkIcon, CheckCircle, XCircle, Clock, User, DollarSign, Calendar, CreditCard, ShoppingBag, Eye, Download, ChevronRight, Shield, ReceiptText, Copy, ClipboardCopy, Map, MapPin, Mail, Phone, Building, Info } from "lucide-react";
+import { ArrowLeft, FileIcon, ImageIcon, ExternalLinkIcon, CheckCircle, XCircle, Clock, User, DollarSign, Calendar, CreditCard, ShoppingBag, Eye, Download, ChevronRight, Shield, ReceiptText, Copy, ClipboardCopy, Map, MapPin, Mail, Phone, Building, Info, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { Payment } from "@/services/payment/types";
 import { approvePaymentAction, rejectPaymentAction, type PaymentFormState } from "../../actions/payment.action";
@@ -91,7 +91,7 @@ function FilePreview({ file }: { file: { originalFilename: string; fileUrl: stri
           </p>
         </div>
         <div className="flex gap-1">
-          {isImage ? (
+      {isImage ? (
             <Button variant="ghost" size="icon" onClick={() => setIsPreviewOpen(true)} className="h-8 w-8">
               <Eye className="h-4 w-4" />
             </Button>
@@ -107,7 +107,7 @@ function FilePreview({ file }: { file: { originalFilename: string; fileUrl: stri
               <Download className="h-4 w-4" />
             </a>
           </Button>
-        </div>
+    </div>
       </div>
 
       {isImage && (
@@ -185,6 +185,8 @@ function StatusBadge({ status }: { status: string }) {
       case 'rejected':
       case 'failed':
         return { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200', icon: <XCircle className="h-3.5 w-3.5 mr-1" /> };
+      case 'pending_approval':
+        return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: <AlertCircle className="h-3.5 w-3.5 mr-1" /> };
       case 'pending':
       default:
         return { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: <Clock className="h-3.5 w-3.5 mr-1" /> };
@@ -196,7 +198,7 @@ function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${config.bg} ${config.text} ${config.border}`}>
       {config.icon}
-      <span className="capitalize">{status}</span>
+      <span className="capitalize">{status.replace('_', ' ')}</span>
     </span>
   );
 }
@@ -417,30 +419,6 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
             <span>Back to Payments</span>
           </Link>
         </Button>
-        
-        <div className="flex gap-2">
-          {payment.status === 'pending' && canProcess ? (
-            <>
-              <Button
-                variant="outline"
-                onClick={handleRejectClick}
-                disabled={isRejecting}
-                className="border-red-200 bg-red-50 text-red-600 hover:bg-red-100 hover:text-red-700"
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                Reject Payment
-              </Button>
-              <Button
-                onClick={handleApproveClick}
-                disabled={isApproving}
-                className="bg-green-600 text-white hover:bg-green-700"
-              >
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Approve Payment
-              </Button>
-            </>
-          ) : null}
-        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -509,7 +487,7 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                 )}
               </div>
             </CardContent>
-          </Card>
+        </Card>
 
           {/* Tabs for different payment details */}
           <Tabs defaultValue="details" className="w-full">
@@ -520,15 +498,15 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
             </TabsList>
             
             <TabsContent value="details" className="mt-4 space-y-4">
-              {/* Payment Type Specific Details */}
-              {payment.type === 'stripe' && payment.stripe_payments && (
-                <Card>
+        {/* Payment Type Specific Details */}
+        {payment.type === 'stripe' && payment.stripe_payments && (
+          <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base flex items-center gap-2">
                       <CreditCard className="h-4 w-4 text-primary" />
                       Stripe Payment Details
                     </CardTitle>
-                  </CardHeader>
+            </CardHeader>
                   <CardContent className="pt-0">
                     {/* Payment Intent */}
                     <div className="border-b pb-4 mb-4">
@@ -536,10 +514,10 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                       <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                         <div className="flex items-center">
                           <code className="text-xs px-2 py-1 bg-muted rounded font-mono block overflow-x-auto whitespace-nowrap max-w-full">
-                            {payment.stripe_payments.stripe_payment_intent_id}
+                    {payment.stripe_payments.stripe_payment_intent_id}
                           </code>
                           <CopyButton text={payment.stripe_payments.stripe_payment_intent_id} label="Copy payment intent ID" />
-                        </div>
+                  </div>
                         {payment.stripe_payments.stripe_account_id && (
                           <Button size="sm" variant="outline" className="h-7 text-xs w-fit" asChild>
                             <a 
@@ -552,14 +530,18 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                             </a>
                           </Button>
                         )}
-                      </div>
+                </div>
                     </div>
                     
                     {/* Payment Details - Improved grid layout */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
-                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Status</h4>
-                        <StatusBadge status={payment.stripe_payments.stripe_status || 'pending'} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                        <h4 className="text-sm font-medium text-muted-foreground mb-2">Account</h4>
+                        <span className="text-sm text-foreground">
+                          {payment.stripe_payments.stripe_account_id.startsWith('acct_') 
+                            ? payment.stripe_payments.stripe_account_id.substring(0, 8) + '...' 
+                            : payment.stripe_payments.stripe_account_id}
+                        </span>
                       </div>
                       
                       {payment.stripe_payments.stripe_payment_method && (
@@ -570,18 +552,7 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                           </Badge>
                         </div>
                       )}
-                      
-                      {payment.stripe_payments.stripe_account_id && (
-                        <div>
-                          <h4 className="text-sm font-medium text-muted-foreground mb-2">Account</h4>
-                          <span className="text-sm text-foreground">
-                            {payment.stripe_payments.stripe_account_id.startsWith('acct_') 
-                              ? payment.stripe_payments.stripe_account_id.substring(0, 8) + '...' 
-                              : payment.stripe_payments.stripe_account_id}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                </div>
                     
                     {/* Client Secret - Keep existing code */}
                     {payment.stripe_payments.stripe_payment_intent_client_secret && (
@@ -597,13 +568,13 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                     <div className="flex items-center gap-2 mt-4 pt-4 border-t text-xs text-muted-foreground">
                       <Shield className="h-3.5 w-3.5 text-primary" />
                       <span>Processed securely through Stripe's payment gateway</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-              {payment.type === 'manual' && (
-                <Card>
+        {payment.type === 'manual' && (
+          <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex items-center gap-2">
                       <ReceiptText className="h-4 w-4 text-primary" />
@@ -612,11 +583,11 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                     <CardDescription>
                       Details of the manually recorded payment and uploaded proof
                     </CardDescription>
-                  </CardHeader>
+            </CardHeader>
                   <CardContent>
-                    <div className="space-y-6">
+              <div className="space-y-6">
                       {/* Files Section */}
-                      <div>
+                  <div>
                         <div className="flex items-center justify-between mb-3">
                           <label className="text-sm font-medium">Proof of Payment</label>
                           <Badge variant="outline" className="text-xs">
@@ -626,16 +597,16 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                         
                         {payment.payment_uploads && payment.payment_uploads.length > 0 ? (
                           <div className="space-y-2">
-                            {payment.payment_uploads.map((pu: any) => (
-                              <FilePreview 
-                                key={pu.upload.id} 
-                                file={{
+                      {payment.payment_uploads.map((pu: any) => (
+                        <FilePreview 
+                          key={pu.upload.id} 
+                          file={{
                                   originalFilename: pu.upload.original_filename || 'Unnamed file',
                                   fileUrl: pu.upload.file_url || '#',
                                   fileSize: pu.upload.file_size
-                                }} 
-                              />
-                            ))}
+                          }} 
+                        />
+                      ))}
                           </div>
                         ) : (
                           <div className="rounded-md bg-amber-50 border border-amber-200 p-4">
@@ -652,65 +623,65 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                                   These can be receipts, screenshots, or any documentation showing the payment was made.
                                 </p>
                               </div>
-                            </div>
-                          </div>
-                        )}
+                    </div>
+                  </div>
+                )}
                       </div>
                       
                       {/* Payment Notes */}
-                      <div>
+                  <div>
                         <div className="flex items-center justify-between mb-3">
                           <label className="text-sm font-medium">Payment Notes</label>
                         </div>
                         
                         {payment.manual_payments?.notes ? (
                           <div className="p-4 rounded-md bg-gray-50 border border-gray-200 text-sm text-gray-700 whitespace-pre-wrap">
-                            {payment.manual_payments.notes}
-                          </div>
+                      {payment.manual_payments.notes}
+                    </div>
                         ) : (
                           <div className="text-sm text-gray-500 italic p-4 border border-dashed border-gray-200 rounded-md">
                             No notes provided with this payment.
-                          </div>
-                        )}
+                  </div>
+                )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
             </TabsContent>
-            
+
             <TabsContent value="order" className="mt-4">
-              {payment.orders && (
+        {payment.orders && (
                 <>
-                  <Card>
+          <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-base flex items-center gap-2">
                         <ShoppingBag className="h-4 w-4 text-primary" />
                         Order Information
                       </CardTitle>
-                    </CardHeader>
+            </CardHeader>
                     <CardContent>
                       <div className="space-y-6">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div>
+                <div>
                             <label className="text-xs text-muted-foreground">Order ID</label>
                             <div className="text-sm font-mono mt-1 break-all">
                               <Link href={`/@${org.slug}/orders/${payment.orders.id}`} className="hover:text-primary hover:underline">
                                 {payment.orders.id}
                               </Link>
                             </div>
-                          </div>
-                          <div>
+                </div>
+                <div>
                             <label className="text-xs text-muted-foreground">Order Status</label>
-                            <div className="mt-1">
+                  <div className="mt-1">
                               <StatusBadge status={payment.orders.status} />
-                            </div>
-                          </div>
+                  </div>
+                </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           {payment.orders.created_at && (
-                            <div>
+                  <div>
                               <label className="text-xs text-muted-foreground">Order Date</label>
                               <div className="text-sm mt-1">
                                 {formatDate(payment.orders.created_at)}
@@ -760,7 +731,7 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                                     <div className="flex flex-col md:flex-row justify-between">
                                       <div className="space-y-2 flex-1">
                                         <div className="flex items-center gap-2">
-                                          <div className="font-medium">
+                        <div className="font-medium">
                                             {suborder.product.id ? (
                                               <Link 
                                                 href={`/@${org.slug}/products/${suborder.product.id}`}
@@ -771,7 +742,7 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                                             ) : (
                                               suborder.product.name
                                             )}
-                                          </div>
+                        </div>
                                         </div>
                                         
                                         <div className="flex flex-wrap gap-2">
@@ -797,11 +768,11 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                                       
                                       <div className="text-right mt-3 md:mt-0 md:ml-4 md:min-w-[120px]">
                                         <div className="font-semibold">
-                                          {formatCurrency(
+                          {formatCurrency(
                                             suborder.product.price,
                                             suborder.product.currency || payment.currency
-                                          )}
-                                        </div>
+                          )}
+                        </div>
                                         <div className="text-xs space-y-1 mt-1">
                                           <div className="text-gray-500">
                                             Quantity: {suborder.quantity || 1}
@@ -810,13 +781,13 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                                           {suborder.product.price_structure && (
                                             <div className="text-gray-500">
                                               {suborder.product.price_structure}
-                                            </div>
-                                          )}
+                          </div>
+                        )}
                                           
                                           {suborder.product.billing_period && (
                                             <div className="text-gray-500">
                                               {suborder.product.billing_period}
-                                            </div>
+                      </div>
                                           )}
                                         </div>
                                       </div>
@@ -824,12 +795,12 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                                   </div>
                                 )
                               ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
                   
                   {/* Billing Details Section - Moved to bottom */}
                   <Card className="mt-4">
@@ -995,88 +966,99 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
         
         {/* Status/Sidebar */}
         <div className="space-y-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Payment Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm">Current Status</span>
-                  <StatusBadge status={payment.status} />
+          {payment.status === 'pending' && canProcess && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-primary" />
+                  Pending Review
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">This payment is awaiting your approval.</p>
+                <div className="space-y-2 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleRejectClick}
+                    disabled={isRejecting}
+                    className="w-full justify-center"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Reject
+                  </Button>
+                  <Button
+                    onClick={handleApproveClick}
+                    disabled={isApproving}
+                    className="w-full justify-center"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Approve
+                  </Button>
                 </div>
-                
-                {payment.status === 'pending' && canProcess && (
-                  <div className="rounded-md bg-amber-50 p-4 border border-amber-200">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0">
-                        <Clock className="h-5 w-5 text-amber-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-amber-800">Pending Review</h3>
-                        <div className="mt-2 text-sm text-amber-700">
-                          <p>This payment is awaiting your approval.</p>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={handleRejectClick}
-                            disabled={isRejecting}
-                            className="border-red-200 bg-white text-red-600 hover:bg-red-50 hover:text-red-700"
-                            size="sm"
-                          >
-                            <X className="h-3.5 w-3.5 mr-1" />
-                            Reject
-                          </Button>
-                          <Button
-                            onClick={handleApproveClick}
-                            disabled={isApproving}
-                            className="bg-amber-600 text-white hover:bg-amber-700"
-                            size="sm"
-                          >
-                            <Check className="h-3.5 w-3.5 mr-1" />
-                            Approve
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {payment.status === 'paid' && (
-                  <div className="rounded-md bg-green-50 p-4 border border-green-200">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <CheckCircle className="h-5 w-5 text-green-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-green-800">Payment Approved</h3>
-                        <div className="mt-2 text-sm text-green-700">
-                          <p>This payment has been approved and marked as paid.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {payment.status === 'rejected' && (
-                  <div className="rounded-md bg-red-50 p-4 border border-red-200">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <XCircle className="h-5 w-5 text-red-600" />
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-red-800">Payment Rejected</h3>
-                        <div className="mt-2 text-sm text-red-700">
-                          <p>This payment has been rejected.</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
+          
+          {payment.status === 'pending_approval' && canProcess && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-primary" />
+                  Pending Approval
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">This payment is awaiting your approval.</p>
+                <div className="space-y-2 mt-4">
+                  <Button
+                    variant="outline"
+                    onClick={handleRejectClick}
+                    disabled={isRejecting}
+                    className="w-full justify-center"
+                  >
+                    <X className="h-4 w-4 mr-2" />
+                    Reject
+                  </Button>
+                  <Button
+                    onClick={handleApproveClick}
+                    disabled={isApproving}
+                    className="w-full justify-center"
+                  >
+                    <Check className="h-4 w-4 mr-2" />
+                    Approve
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {payment.status === 'paid' && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-primary" />
+                  Payment Approved
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">This payment has been approved and marked as paid.</p>
+              </CardContent>
+            </Card>
+          )}
+          
+          {payment.status === 'rejected' && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <XCircle className="h-4 w-4 text-primary" />
+                  Payment Rejected
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">This payment has been rejected.</p>
+              </CardContent>
+            </Card>
+          )}
           
           <Card>
             <CardHeader className="pb-2">
