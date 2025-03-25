@@ -427,7 +427,7 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
           <Card className="overflow-hidden border-none shadow-md">
             <div className={`p-6 ${payment.status === 'paid' ? 'bg-green-50' : payment.status === 'rejected' ? 'bg-red-50' : 'bg-primary/10'}`}>
               <div className="flex items-center justify-between">
-                <div>
+              <div>
                   <div className="flex items-center gap-2 text-sm font-medium uppercase tracking-wide">
                     <span className={payment.status === 'paid' ? 'text-green-700' : payment.status === 'rejected' ? 'text-red-700' : 'text-primary'}>
                       Payment ID
@@ -440,7 +440,7 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                     </div>
                   </div>
                   <div className="text-2xl font-bold mt-3">
-                    {formatCurrency(payment.amount, payment.currency)}
+                  {formatCurrency(payment.amount, payment.currency)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5">
                     <Calendar className="h-3.5 w-3.5" />
@@ -482,11 +482,11 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                       <Link href={`/@${org.slug}/orders/${payment.orders.id}`} className="font-medium font-mono hover:text-primary hover:underline">
                         {payment.orders.id.substring(0, 8)}...
                       </Link>
-                    </div>
-                  </div>
-                )}
+                </div>
               </div>
-            </CardContent>
+                )}
+            </div>
+          </CardContent>
         </Card>
 
           {/* Tabs for different payment details */}
@@ -541,8 +541,8 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                           {payment.stripe_payments.stripe_account_id.startsWith('acct_') 
                             ? payment.stripe_payments.stripe_account_id.substring(0, 8) + '...' 
                             : payment.stripe_payments.stripe_account_id}
-                        </span>
-                      </div>
+                    </span>
+                  </div>
                       
                       {payment.stripe_payments.stripe_payment_method && (
                         <div>
