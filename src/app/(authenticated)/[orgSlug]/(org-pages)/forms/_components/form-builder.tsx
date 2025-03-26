@@ -78,21 +78,7 @@ function ensureValidUUIDs(field: FormFieldType): FormFieldType {
   return updatedField;
 }
 
-// Add a small insert button component
-const InsertSectionButton = ({ onClick }: { onClick: () => void }) => (
-  <div className="flex justify-center h-0">
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={onClick}
-      className="h-7 w-7 p-0 rounded-full bg-muted hover:bg-primary/20 hover:text-primary translate-y-[-50%] border-dashed border-primary/40 opacity-0 group-hover/section:opacity-60 hover:opacity-100 transition-all"
-      title="Add section here"
-    >
-      <PlusCircle className="h-4 w-4" />
-    </Button>
-  </div>
-);
-
+// Add state for insert position
 export function FormBuilder({ org, template, mode = 'create', userPermissions }: FormBuilderProps) {
   const orgId = org.id;
   const sectionsContainerRef = useRef<HTMLDivElement>(null);
@@ -119,6 +105,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
   const [isSaving, setIsSaving] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(mode === 'create');
   const [editingHeader, setEditingHeader] = useState(mode === 'create');
+  const [insertSectionPosition, setInsertSectionPosition] = useState<number | null>(null);
   const router = useRouter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -285,6 +272,21 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
       setIsSaving(false);
     }
   };
+
+  // Update the InsertSectionButton to use the insert position
+  const InsertSectionButton = ({ onClick, position }: { onClick?: () => void, position: number }) => (
+    <div className="flex justify-center h-0">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => handleInsertSection(position)}
+        className="h-7 w-7 p-0 rounded-full bg-muted hover:bg-primary/20 hover:text-primary translate-y-[-50%] border-dashed border-primary/40 opacity-0 group-hover/section:opacity-60 hover:opacity-100 transition-all"
+        title="Add section here"
+      >
+        <PlusCircle className="h-4 w-4" />
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -455,7 +457,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                           {/* Add a button to insert at the top */}
                           <div className="group/section mb-3">
                             <div className="h-3 hover:bg-muted/10 rounded-md transition-colors"></div>
-                            <InsertSectionButton onClick={() => handleInsertSection(0)} />
+                            <InsertSectionButton position={0} />
                           </div>
                           
                           {sections.map((section, index) => (
@@ -488,7 +490,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                               </Draggable>
                               
                               {/* Add insert button after each section */}
-                              <InsertSectionButton onClick={() => handleInsertSection(index + 1)} />
+                              <InsertSectionButton position={index + 1} />
                             </div>
                           ))}
                         </>

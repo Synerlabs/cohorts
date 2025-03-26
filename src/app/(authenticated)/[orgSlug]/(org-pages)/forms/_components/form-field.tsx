@@ -131,6 +131,7 @@ export function FormField({
   const cardRef = useRef<HTMLDivElement>(null);
   const fieldsContainerRef = useRef<HTMLDivElement>(null);
   const [isAddingField, setIsAddingField] = useState(false);
+  const [insertPosition, setInsertPosition] = useState<number | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
@@ -278,42 +279,88 @@ export function FormField({
         field.sectionConfig.fields = [];
       }
       
-      onUpdate({
-        ...field,
-        sectionConfig: {
-          ...field.sectionConfig,
-          fields: [...field.sectionConfig.fields, fieldWithUUID],
-        },
-      });
+      if (insertPosition !== null) {
+        // Insert at specific position
+        const updatedFields = [...field.sectionConfig.fields];
+        updatedFields.splice(insertPosition, 0, fieldWithUUID);
+        
+        onUpdate({
+          ...field,
+          sectionConfig: {
+            ...field.sectionConfig,
+            fields: updatedFields,
+          },
+        });
+      } else {
+        // Add to the end
+        onUpdate({
+          ...field,
+          sectionConfig: {
+            ...field.sectionConfig,
+            fields: [...field.sectionConfig.fields, fieldWithUUID],
+          },
+        });
+      }
       scrollToBottom();
     } else if (field.repeatableConfig) {
       if (!field.repeatableConfig.fields) {
         field.repeatableConfig.fields = [];
       }
 
-      onUpdate({
-        ...field,
-        repeatableConfig: {
-          ...field.repeatableConfig,
-          fields: [...field.repeatableConfig.fields, fieldWithUUID],
-        },
-      });
+      if (insertPosition !== null) {
+        // Insert at specific position
+        const updatedFields = [...field.repeatableConfig.fields];
+        updatedFields.splice(insertPosition, 0, fieldWithUUID);
+        
+        onUpdate({
+          ...field,
+          repeatableConfig: {
+            ...field.repeatableConfig,
+            fields: updatedFields,
+          },
+        });
+      } else {
+        // Add to the end
+        onUpdate({
+          ...field,
+          repeatableConfig: {
+            ...field.repeatableConfig,
+            fields: [...field.repeatableConfig.fields, fieldWithUUID],
+          },
+        });
+      }
       scrollToBottom();
     } else if (field.groupConfig) {
       if (!field.groupConfig.fields) {
         field.groupConfig.fields = [];
       }
       
-      onUpdate({
-        ...field,
-        groupConfig: {
-          ...field.groupConfig,
-          fields: [...field.groupConfig.fields, fieldWithUUID],
-        },
-      });
+      if (insertPosition !== null) {
+        // Insert at specific position
+        const updatedFields = [...field.groupConfig.fields];
+        updatedFields.splice(insertPosition, 0, fieldWithUUID);
+        
+        onUpdate({
+          ...field,
+          groupConfig: {
+            ...field.groupConfig,
+            fields: updatedFields,
+          },
+        });
+      } else {
+        // Add to the end
+        onUpdate({
+          ...field,
+          groupConfig: {
+            ...field.groupConfig,
+            fields: [...field.groupConfig.fields, fieldWithUUID],
+          },
+        });
+      }
       scrollToBottom();
     }
     setIsAddingField(false);
+    setInsertPosition(null); // Reset insert position
   };
 
   const renderFieldSettings = (field: FormField, onUpdate: (field: FormField) => void) => {
@@ -326,12 +373,15 @@ export function FormField({
   };
 
   // Update the InsertFieldButton implementation
-  const InsertFieldButton = ({ onClick }: { onClick: () => void }) => (
+  const InsertFieldButton = ({ position, onClick }: { position: number, onClick: () => void }) => (
     <div className="flex justify-center h-0">
       <Button
         variant="outline"
         size="sm"
-        onClick={onClick}
+        onClick={() => {
+          setInsertPosition(position);
+          setIsAddingField(true);
+        }}
         className="h-6 w-6 p-0 rounded-full bg-muted hover:bg-primary/20 hover:text-primary translate-y-[-50%] border-dashed border-primary/40 opacity-0 group-hover/field:opacity-60 hover:opacity-100 transition-all"
         title="Add field here"
       >
@@ -434,20 +484,8 @@ export function FormField({
                       {/* Add a button to insert at the top if there are fields */}
                       {field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
                         <InsertFieldButton
-                          onClick={() => {
-                            const newField = createEmptyField('text', 'New Field');
-                            const updatedFields = [
-                              newField,
-                              ...field.sectionConfig!.fields
-                            ];
-                            onUpdate({
-                              ...field,
-                              sectionConfig: {
-                                ...field.sectionConfig!,
-                                fields: updatedFields
-                              }
-                            });
-                          }}
+                          position={0}
+                          onClick={() => {}}
                         />
                       )}
                       
@@ -482,18 +520,8 @@ export function FormField({
                           
                           {/* Add insert button after each field */}
                           <InsertFieldButton
-                            onClick={() => {
-                              const newField = createEmptyField('text', 'New Field');
-                              const updatedFields = [...field.sectionConfig!.fields];
-                              updatedFields.splice(index + 1, 0, newField);
-                              onUpdate({
-                                ...field,
-                                sectionConfig: {
-                                  ...field.sectionConfig!,
-                                  fields: updatedFields
-                                }
-                              });
-                            }}
+                            position={index + 1}
+                            onClick={() => {}}
                           />
                         </div>
                       ))}
@@ -623,20 +651,8 @@ export function FormField({
                       {/* Add a button to insert at the top if there are fields */}
                       {field.repeatableConfig?.fields && field.repeatableConfig.fields.length > 0 && (
                         <InsertFieldButton
-                          onClick={() => {
-                            const newField = createEmptyField('text', 'New Field');
-                            const updatedFields = [
-                              newField,
-                              ...field.repeatableConfig!.fields
-                            ];
-                            onUpdate({
-                              ...field,
-                              repeatableConfig: {
-                                ...field.repeatableConfig!,
-                                fields: updatedFields
-                              }
-                            });
-                          }}
+                          position={0}
+                          onClick={() => {}}
                         />
                       )}
                       
@@ -671,18 +687,8 @@ export function FormField({
                           
                           {/* Add insert button after each field */}
                           <InsertFieldButton
-                            onClick={() => {
-                              const newField = createEmptyField('text', 'New Field');
-                              const updatedFields = [...field.repeatableConfig!.fields];
-                              updatedFields.splice(index + 1, 0, newField);
-                              onUpdate({
-                                ...field,
-                                repeatableConfig: {
-                                  ...field.repeatableConfig!,
-                                  fields: updatedFields
-                                }
-                              });
-                            }}
+                            position={index + 1}
+                            onClick={() => {}}
                           />
                         </div>
                       ))}
@@ -812,20 +818,8 @@ export function FormField({
                       {/* Add a button to insert at the top if there are fields */}
                       {field.groupConfig?.fields && field.groupConfig.fields.length > 0 && (
                         <InsertFieldButton
-                          onClick={() => {
-                            const newField = createEmptyField('text', 'New Field');
-                            const updatedFields = [
-                              newField,
-                              ...field.groupConfig!.fields
-                            ];
-                            onUpdate({
-                              ...field,
-                              groupConfig: {
-                                ...field.groupConfig!,
-                                fields: updatedFields
-                              }
-                            });
-                          }}
+                          position={0}
+                          onClick={() => {}}
                         />
                       )}
                       
@@ -860,18 +854,8 @@ export function FormField({
                           
                           {/* Add insert button after each field */}
                           <InsertFieldButton
-                            onClick={() => {
-                              const newField = createEmptyField('text', 'New Field');
-                              const updatedFields = [...field.groupConfig!.fields];
-                              updatedFields.splice(index + 1, 0, newField);
-                              onUpdate({
-                                ...field,
-                                groupConfig: {
-                                  ...field.groupConfig!,
-                                  fields: updatedFields
-                                }
-                              });
-                            }}
+                            position={index + 1}
+                            onClick={() => {}}
                           />
                         </div>
                       ))}
@@ -1173,6 +1157,12 @@ export function FormField({
           <span className="text-xs">Delete</span>
         </Button>
       </div>
+      
+      <AddFieldDialog
+        open={isAddingField}
+        onOpenChange={setIsAddingField}
+        onAdd={handleAddField}
+      />
     </div>
   );
 }
