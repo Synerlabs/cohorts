@@ -6,7 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { GripVertical, Trash2, Plus, PlusCircle, ChevronDown, ChevronRight, Settings2, Type, AlignLeft, Mail, Hash, Phone, Calendar, Clock, CircleDot, CheckSquare, ChevronsUpDown, Upload, Files, LayoutGrid, Folder } from 'lucide-react';
+import { GripVertical, Trash2, Plus, PlusCircle, ChevronDown, ChevronRight, Settings2, Pencil, X, Copy, LayoutGrid, Files, Folder, FolderClosed, CheckSquare } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
 import { useToast } from '@/components/ui/use-toast';
 import { FileUploadResult } from '@/services/file-upload.service';
@@ -14,6 +15,8 @@ import { cn } from '@/lib/utils';
 import { useRef, useState } from 'react';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { AddFieldDialog } from './add-field-dialog';
+import { FieldSettingsRenderer } from './field-settings-renderer';
+import { createEmptyField, FIELD_TYPES } from './field-settings-utils';
 
 export interface FormField {
   id: string;
@@ -95,6 +98,7 @@ interface FormFieldProps {
   field: FormField;
   onUpdate: (field: FormField) => void;
   onDelete: () => void;
+  onDuplicate?: (field: FormField) => void;
   onDragStart?: (e: React.DragEvent, field: FormField) => void;
   onDragEnd?: (e: React.DragEvent) => void;
   onDragOver?: (e: React.DragEvent) => void;
@@ -107,27 +111,11 @@ interface FormFieldProps {
   isPreview?: boolean;
 }
 
-const FIELD_ICONS = {
-  text: Type,
-  textarea: AlignLeft,
-  email: Mail,
-  number: Hash,
-  phone: Phone,
-  date: Calendar,
-  time: Clock,
-  radio: CircleDot,
-  checkbox: CheckSquare,
-  select: ChevronsUpDown,
-  file: Upload,
-  repeatable: Files,
-  section: LayoutGrid,
-  group: Folder,
-} as const;
-
 export function FormField({
   field,
   onUpdate,
   onDelete,
+  onDuplicate,
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -141,8 +129,24 @@ export function FormField({
 }: FormFieldProps) {
   const { toast } = useToast();
   const cardRef = useRef<HTMLDivElement>(null);
+  const fieldsContainerRef = useRef<HTMLDivElement>(null);
   const [isAddingField, setIsAddingField] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [isSectionCollapsed, setIsSectionCollapsed] = useState(true);
+  const [isGroupCollapsed, setIsGroupCollapsed] = useState(true);
+  const [isRepeatableCollapsed, setIsRepeatableCollapsed] = useState(true);
+
+  // Function to scroll to the bottom of the fields container
+  const scrollToBottom = () => {
+    if (fieldsContainerRef.current) {
+      const container = fieldsContainerRef.current;
+      setTimeout(() => {
+        container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 100); // Small delay to ensure the new field is rendered
+    }
+  };
 
   const handleDragStart = (e: React.DragEvent) => {
     e.stopPropagation();
@@ -180,30 +184,77 @@ export function FormField({
   };
 
   const handleUpdateField = (index: number, updatedField: FormField) => {
-    if (!field.sectionConfig) return;
+    if (field.sectionConfig) {
+      const newFields = [...field.sectionConfig.fields];
+      newFields[index] = updatedField;
 
-    const newFields = [...field.sectionConfig.fields];
-    newFields[index] = updatedField;
+      onUpdate({
+        ...field,
+        sectionConfig: {
+          ...field.sectionConfig,
+          fields: newFields,
+        },
+      });
+    } else if (field.repeatableConfig) {
+      const newFields = [...field.repeatableConfig.fields];
+      newFields[index] = updatedField;
 
-    onUpdate({
-      ...field,
-      sectionConfig: {
-        ...field.sectionConfig,
-        fields: newFields,
-      },
-    });
+      onUpdate({
+        ...field,
+        repeatableConfig: {
+          ...field.repeatableConfig,
+          fields: newFields,
+        },
+      });
+    } else if (field.groupConfig) {
+      const newFields = [...field.groupConfig.fields];
+      newFields[index] = updatedField;
+
+      onUpdate({
+        ...field,
+        groupConfig: {
+          ...field.groupConfig,
+          fields: newFields,
+        },
+      });
+    }
   };
 
   const handleDeleteField = (index: number) => {
-    if (!field.sectionConfig) return;
+    if (field.sectionConfig) {
+      const newFields = [...field.sectionConfig.fields];
+      newFields.splice(index, 1);
 
-    onUpdate({
-      ...field,
-      sectionConfig: {
-        ...field.sectionConfig,
-        fields: field.sectionConfig.fields.filter((f, i) => i !== index),
-      },
-    });
+      onUpdate({
+        ...field,
+        sectionConfig: {
+          ...field.sectionConfig,
+          fields: newFields,
+        },
+      });
+    } else if (field.repeatableConfig) {
+      const newFields = [...field.repeatableConfig.fields];
+      newFields.splice(index, 1);
+
+      onUpdate({
+        ...field,
+        repeatableConfig: {
+          ...field.repeatableConfig,
+          fields: newFields,
+        },
+      });
+    } else if (field.groupConfig) {
+      const newFields = [...field.groupConfig.fields];
+      newFields.splice(index, 1);
+
+      onUpdate({
+        ...field,
+        groupConfig: {
+          ...field.groupConfig,
+          fields: newFields,
+        },
+      });
+    }
   };
 
   const handleAddField = (newField: FormField) => {
@@ -234,6 +285,7 @@ export function FormField({
           fields: [...field.sectionConfig.fields, fieldWithUUID],
         },
       });
+      scrollToBottom();
     } else if (field.repeatableConfig) {
       if (!field.repeatableConfig.fields) {
         field.repeatableConfig.fields = [];
@@ -246,496 +298,228 @@ export function FormField({
           fields: [...field.repeatableConfig.fields, fieldWithUUID],
         },
       });
+      scrollToBottom();
+    } else if (field.groupConfig) {
+      if (!field.groupConfig.fields) {
+        field.groupConfig.fields = [];
+      }
+      
+      onUpdate({
+        ...field,
+        groupConfig: {
+          ...field.groupConfig,
+          fields: [...field.groupConfig.fields, fieldWithUUID],
+        },
+      });
+      scrollToBottom();
     }
     setIsAddingField(false);
   };
 
   const renderFieldSettings = (field: FormField, onUpdate: (field: FormField) => void) => {
-    switch (field.type) {
-      case 'text':
-      case 'textarea':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label>Text Settings</Label>
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                <div>
-                  <Label htmlFor="minLength">Min Length</Label>
-                  <Input
-                    id="minLength"
-                    type="number"
-                    min={0}
-                    value={field.textConfig?.minLength || 0}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      textConfig: {
-                        ...field.textConfig,
-                        minLength: parseInt(e.target.value) || 0,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxLength">Max Length</Label>
-                  <Input
-                    id="maxLength"
-                    type="number"
-                    min={0}
-                    value={field.textConfig?.maxLength || ''}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      textConfig: {
-                        ...field.textConfig,
-                        maxLength: e.target.value ? parseInt(e.target.value) : undefined,
-                      },
-                    })}
-                  />
-                </div>
-              </div>
-              <div className="mt-2">
-                <Label htmlFor="placeholder">Placeholder</Label>
-                <Input
-                  id="placeholder"
-                  value={field.textConfig?.placeholder || ''}
-                  onChange={(e) => onUpdate({
-                    ...field,
-                    textConfig: {
-                      ...field.textConfig,
-                      placeholder: e.target.value,
-                    },
-                  })}
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'number':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label>Number Settings</Label>
-              <div className="grid grid-cols-3 gap-4 mt-2">
-                <div>
-                  <Label htmlFor="min">Min Value</Label>
-                  <Input
-                    id="min"
-                    type="number"
-                    value={field.numberConfig?.min || ''}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      numberConfig: {
-                        ...field.numberConfig,
-                        min: e.target.value ? parseInt(e.target.value) : undefined,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="max">Max Value</Label>
-                  <Input
-                    id="max"
-                    type="number"
-                    value={field.numberConfig?.max || ''}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      numberConfig: {
-                        ...field.numberConfig,
-                        max: e.target.value ? parseInt(e.target.value) : undefined,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="step">Step</Label>
-                  <Input
-                    id="step"
-                    type="number"
-                    min={0}
-                    step={0.1}
-                    value={field.numberConfig?.step || 1}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      numberConfig: {
-                        ...field.numberConfig,
-                        step: parseFloat(e.target.value) || 1,
-                      },
-                    })}
-                  />
-                </div>
-              </div>
-              <div className="mt-2">
-                <Label htmlFor="placeholder">Placeholder</Label>
-                <Input
-                  id="placeholder"
-                  value={field.numberConfig?.placeholder || ''}
-                  onChange={(e) => onUpdate({
-                    ...field,
-                    numberConfig: {
-                      ...field.numberConfig,
-                      placeholder: e.target.value,
-                    },
-                  })}
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'email':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label>Email Settings</Label>
-              <div className="mt-2">
-                <Label htmlFor="placeholder">Placeholder</Label>
-                <Input
-                  id="placeholder"
-                  value={field.emailConfig?.placeholder || ''}
-                  onChange={(e) => onUpdate({
-                    ...field,
-                    emailConfig: {
-                      ...field.emailConfig,
-                      placeholder: e.target.value,
-                    },
-                  })}
-                />
-              </div>
-              <div className="mt-2">
-                <Label>Allowed Domains (Optional)</Label>
-                <Textarea
-                  value={field.emailConfig?.allowedDomains?.join('\n') || ''}
-                  onChange={(e) => onUpdate({
-                    ...field,
-                    emailConfig: {
-                      ...field.emailConfig,
-                      allowedDomains: e.target.value ? e.target.value.split('\n').map(d => d.trim()) : [],
-                    },
-                  })}
-                  placeholder="Enter one domain per line"
-                />
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'radio':
-      case 'checkbox':
-      case 'select':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label>Choice Settings</Label>
-              <div className="mt-2">
-                <Label>Options</Label>
-                <div className="space-y-2">
-                  {field.options?.map((option, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <Input
-                        value={option.label}
-                        onChange={(e) => {
-                          const newOptions = [...(field.options || [])];
-                          newOptions[index] = { ...option, label: e.target.value, value: e.target.value.toLowerCase() };
-                          onUpdate({
-                            ...field,
-                            options: newOptions,
-                          });
-                        }}
-                        placeholder="Option label"
-                      />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          const newOptions = field.options?.filter((_, i) => i !== index);
-                          onUpdate({
-                            ...field,
-                            options: newOptions,
-                          });
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const newOptions = [...(field.options || [])];
-                      newOptions.push({ label: '', value: '' });
-                      onUpdate({
-                        ...field,
-                        options: newOptions,
-                      });
-                    }}
-                  >
-                    Add Option
-                  </Button>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center gap-2">
-                <Switch
-                  id="allowOther"
-                  checked={field.choiceConfig?.allowOther || false}
-                  onCheckedChange={(checked) => onUpdate({
-                    ...field,
-                    choiceConfig: {
-                      ...field.choiceConfig,
-                      allowOther: checked,
-                    },
-                  })}
-                />
-                <Label htmlFor="allowOther">Allow "Other" option</Label>
-              </div>
-            </div>
-          </div>
-        );
-
-      case 'file':
-        return (
-          <div className="space-y-4">
-            <div>
-              <Label>File Upload Settings</Label>
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                <div>
-                  <Label htmlFor="maxSize">Max Size (MB)</Label>
-                  <Input
-                    id="maxSize"
-                    type="number"
-                    min={0}
-                    value={(field.fileConfig?.maxSize || 0) / (1024 * 1024)}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      fileConfig: {
-                        ...field.fileConfig,
-                        maxSize: parseInt(e.target.value) * 1024 * 1024,
-                      },
-                    })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="maxFiles">Max Files</Label>
-                  <Input
-                    id="maxFiles"
-                    type="number"
-                    min={1}
-                    value={field.fileConfig?.maxFiles || 1}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      fileConfig: {
-                        ...field.fileConfig,
-                        maxFiles: parseInt(e.target.value) || 1,
-                      },
-                    })}
-                  />
-                </div>
-              </div>
-              <div className="mt-2">
-                <Label>Allowed File Types</Label>
-                <Input
-                  value={field.fileConfig?.accept || ''}
-                  onChange={(e) => onUpdate({
-                    ...field,
-                    fileConfig: {
-                      ...field.fileConfig,
-                      accept: e.target.value,
-                    },
-                  })}
-                  placeholder=".pdf,.doc,.docx"
-                />
-                <div className="text-xs text-muted-foreground mt-1">
-                  Enter file extensions separated by commas (e.g., .pdf,.doc,.docx)
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
+    return (
+      <FieldSettingsRenderer 
+        field={field} 
+        onUpdate={onUpdate} 
+      />
+    );
   };
 
-  if (field.type === 'section') {
-    const content = (dragHandleProps?: any) => (
-      <div
-        ref={cardRef}
-        className={cn(
-          "border-2 p-4 transition-all rounded-lg bg-card",
-          isDragging && "opacity-50 border-dashed",
-          isValidDropTarget && "border-primary/30 bg-primary/5"
-        )}
+  // Update the InsertFieldButton implementation
+  const InsertFieldButton = ({ onClick }: { onClick: () => void }) => (
+    <div className="flex justify-center h-0">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onClick}
+        className="h-6 w-6 p-0 rounded-full bg-muted hover:bg-primary/20 hover:text-primary translate-y-[-50%] border-dashed border-primary/40 opacity-0 group-hover/field:opacity-60 hover:opacity-100 transition-all"
+        title="Add field here"
       >
+        <PlusCircle className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+
+  if (field.type === 'section') {
+    return (
+      <div className="p-6 border rounded-lg bg-card hover:border-primary/50 transition-colors relative overflow-hidden group/section">
+        <div className="absolute top-0 left-0 w-full h-1 bg-primary/20"></div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 flex-1">
-              <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing">
-                <GripVertical className="h-5 w-5 text-muted-foreground/60" />
-              </div>
-              
-              <button
-                type="button"
-                onClick={() => setIsExpanded(!isExpanded)}
-                className="text-muted-foreground/70 hover:text-foreground transition-colors"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="h-5 w-5" />
-                ) : (
-                  <ChevronRight className="h-5 w-5" />
-                )}
-              </button>
-              
-              <div className="flex-1">
-                <Input
-                  value={field.label}
-                  onChange={(e) => onUpdate({ ...field, label: e.target.value })}
-                  placeholder="Section Title"
-                  className="font-medium text-base border-0 border-b focus-visible:ring-0 focus-visible:border-primary rounded-none px-0 h-auto py-1 bg-transparent"
-                />
-              </div>
-              
-              <div className="flex items-center ml-auto gap-2">
-                <div className="flex items-center space-x-2 mr-2">
-                  <Label htmlFor={`required-${field.id}`} className="text-xs text-muted-foreground">
-                    Required
-                  </Label>
-                  <Switch
-                    id={`required-${field.id}`}
-                    checked={field.required}
-                    onCheckedChange={(checked) =>
-                      onUpdate({ ...field, required: checked })
-                    }
-                  />
-                </div>
-                
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center">
                 <Button
-                  type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-8 w-8 p-0 text-muted-foreground"
-                  onClick={() => {
-                    if (totalSections <= 1) {
-                      toast({
-                        title: 'Error',
-                        description: 'Forms must have at least one section',
-                        variant: 'destructive',
-                      });
-                      return;
-                    }
-                    onDelete();
-                  }}
+                  className="h-6 w-6 p-0 mr-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  {isSectionCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
                 </Button>
+                <LayoutGrid className="h-4 w-4 text-primary/80 mr-2" />
+                <div className="relative flex-1 group/title">
+                  <Input
+                    value={field.label}
+                    onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                    className="font-semibold border-0 px-0 focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none bg-transparent peer pr-8"
+                    placeholder="Section Title"
+                  />
+                  <Pencil className="h-3.5 w-3.5 text-primary/60 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
+                </div>
+                
+                {isSectionCollapsed && field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
+                  <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
+                    {field.sectionConfig.fields.length} {field.sectionConfig.fields.length === 1 ? 'field' : 'fields'}
+                  </div>
+                )}
               </div>
             </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
+                className={cn(
+                  "h-8 px-2 rounded-md border transition-all duration-200",
+                  !isSectionCollapsed 
+                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
+                    : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
+                )}
+              >
+                <Settings2 className="h-4 w-4 mr-1.5" />
+                <span className="text-xs font-medium">{!isSectionCollapsed ? "Close" : "Settings"}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onDelete}
+                className="h-8 w-8 text-destructive/70 hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          
-          <div>
-            <Textarea
-              value={field.sectionConfig?.description || ''}
-              onChange={(e) =>
-                onUpdate({
-                  ...field,
-                  sectionConfig: {
-                    ...field.sectionConfig!,
-                    description: e.target.value,
-                  },
-                })
-              }
-              placeholder="Section description (optional)"
-              className="min-h-[60px] text-sm resize-none"
-            />
-          </div>
-          
-          {isExpanded && (
+
+          {!isSectionCollapsed && (
             <>
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId={`section-${field.id}`} type={`section-${field.id}`}>
-                  {(provided) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className={cn(
-                        "space-y-4 border-l-2 border-muted pl-4",
-                        field.sectionConfig?.fields && field.sectionConfig?.fields.length > 0 
-                          ? "mt-4 py-2" 
-                          : ""
-                      )}
-                    >
-                      {field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 ? (
-                        field.sectionConfig.fields.map((subfield, index) => (
-                          <Draggable
-                            key={subfield.id}
-                            draggableId={subfield.id}
-                            index={index}
-                          >
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                className={cn(
-                                  snapshot.isDragging ? "opacity-70" : ""
-                                )}
-                              >
-                                <FormField
-                                  field={subfield}
-                                  onUpdate={(updatedField: FormField) =>
-                                    handleUpdateField(index, updatedField)
-                                  }
-                                  onDelete={() => handleDeleteField(index)}
-                                  onDragStart={onDragStart}
-                                  onDragEnd={onDragEnd}
-                                  onDragOver={onDragOver}
-                                  onDrop={onDrop}
-                                  isDragging={isDragging}
-                                  isValidDropTarget={isValidDropTarget}
-                                  path={[...path, field.id]}
-                                  level={level + 1}
-                                  isPreview={isPreview}
-                                  {...provided.dragHandleProps}
-                                />
-                              </div>
-                            )}
-                          </Draggable>
-                        ))
-                      ) : (
-                        <div className="flex flex-col items-center justify-center py-6 bg-muted/20 rounded-md border border-dashed">
-                          <p className="text-sm text-muted-foreground mb-2">No fields in this section</p>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-1"
-                            onClick={() => setIsAddingField(true)}
-                          >
-                            <Plus className="h-3 w-3" />
-                            Add Field
-                          </Button>
-                        </div>
-                      )}
-                      {provided.placeholder}
-                    </div>
-                  )}
-                </Droppable>
-              </DragDropContext>
-              
-              <div className="flex justify-center mt-2">
+              <div className="flex items-center justify-between border-t pt-4">
+                <h3 className="text-sm font-medium">Section Fields</h3>
                 <Button
-                  type="button"
-                  variant="outline"
+                  variant="default"
                   size="sm"
-                  className="flex items-center gap-2"
                   onClick={() => setIsAddingField(true)}
+                  className="flex items-center gap-2"
                 >
                   <PlusCircle className="h-4 w-4" />
                   Add Field
                 </Button>
               </div>
+
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId={`section-${field.id}`}>
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={(el) => {
+                        provided.innerRef(el);
+                        // @ts-ignore - This is fine since we're combining refs
+                        fieldsContainerRef.current = el;
+                      }}
+                      className="space-y-2"
+                    >
+                      {/* Add a button to insert at the top if there are fields */}
+                      {field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
+                        <InsertFieldButton
+                          onClick={() => {
+                            const newField = createEmptyField('text', 'New Field');
+                            const updatedFields = [
+                              newField,
+                              ...field.sectionConfig!.fields
+                            ];
+                            onUpdate({
+                              ...field,
+                              sectionConfig: {
+                                ...field.sectionConfig!,
+                                fields: updatedFields
+                              }
+                            });
+                          }}
+                        />
+                      )}
+                      
+                      {field.sectionConfig?.fields.map((subfield, index) => (
+                        <div key={subfield.id} className="group/field space-y-0">
+                          <Draggable
+                            draggableId={subfield.id}
+                            index={index}
+                          >
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div {...provided.dragHandleProps} className="cursor-grab hover:bg-muted/60 active:cursor-grabbing p-1 rounded transition-colors">
+                                    <GripVertical className="h-5 w-5 text-muted-foreground/60 group-hover/field:text-muted-foreground/80 transition-colors" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <FormField
+                                      field={subfield}
+                                      onUpdate={(updatedField) =>
+                                        handleUpdateField(index, updatedField)
+                                      }
+                                      onDelete={() => handleDeleteField(index)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                          
+                          {/* Add insert button after each field */}
+                          <InsertFieldButton
+                            onClick={() => {
+                              const newField = createEmptyField('text', 'New Field');
+                              const updatedFields = [...field.sectionConfig!.fields];
+                              updatedFields.splice(index + 1, 0, newField);
+                              onUpdate({
+                                ...field,
+                                sectionConfig: {
+                                  ...field.sectionConfig!,
+                                  fields: updatedFields
+                                }
+                              });
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+
+              {(!field.sectionConfig?.fields || field.sectionConfig.fields.length === 0) && (
+                <div className="flex flex-col items-center justify-center py-8 border border-dashed rounded-md bg-muted/20 transition-all hover:bg-muted/30 hover:border-primary/30">
+                  <LayoutGrid className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">No fields added yet</p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setIsAddingField(true)}
+                    className="mt-2"
+                  >
+                    Add First Field
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </div>
-        
+
         <AddFieldDialog
           open={isAddingField}
           onOpenChange={setIsAddingField}
@@ -743,138 +527,185 @@ export function FormField({
         />
       </div>
     );
-
-    return content(onDragStart ? { onDragStart } : undefined);
   }
 
   if (field.type === 'repeatable') {
     return (
-      <div className="p-6 border rounded-lg bg-card">
+      <div className="p-6 border rounded-lg bg-card hover:border-primary/50 transition-colors relative overflow-hidden group/repeatable">
+        <div className="absolute top-0 left-0 w-full h-1 bg-blue-500/30"></div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="space-y-2">
-              <Input
-                value={field.label}
-                onChange={(e) => onUpdate({ ...field, label: e.target.value })}
-                className="font-semibold"
-                placeholder="Repeatable Group Title"
-              />
-              <Textarea
-                value={field.helpText || ''}
-                onChange={(e) => onUpdate({ ...field, helpText: e.target.value })}
-                placeholder="Help text (optional)"
-                className="mt-1"
-              />
-              <div className="flex items-center gap-4">
-                <div>
-                  <Label htmlFor={`${field.id}-min`}>Minimum Items</Label>
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 mr-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsRepeatableCollapsed(!isRepeatableCollapsed)}
+                >
+                  {isRepeatableCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+                <Files className="h-4 w-4 text-primary/80 mr-2" />
+                <div className="relative flex-1 group/title">
                   <Input
-                    id={`${field.id}-min`}
-                    type="number"
-                    min={0}
-                    value={field.repeatableConfig?.minItems || 0}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      repeatableConfig: {
-                        ...field.repeatableConfig!,
-                        minItems: parseInt(e.target.value) || 0,
-                        fields: field.repeatableConfig?.fields || [],
-                      },
-                    })}
-                    className="mt-1 w-24"
+                    value={field.label}
+                    onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                    className="font-semibold border-0 px-0 focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none bg-transparent peer"
+                    placeholder="Repeatable Group Title"
                   />
+                  <Pencil className="h-3.5 w-3.5 text-primary/60 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
                 </div>
-                <div>
-                  <Label htmlFor={`${field.id}-max`}>Maximum Items</Label>
-                  <Input
-                    id={`${field.id}-max`}
-                    type="number"
-                    min={0}
-                    value={field.repeatableConfig?.maxItems || ''}
-                    onChange={(e) => onUpdate({
-                      ...field,
-                      repeatableConfig: {
-                        ...field.repeatableConfig!,
-                        maxItems: e.target.value ? parseInt(e.target.value) : undefined,
-                        fields: field.repeatableConfig?.fields || [],
-                      },
-                    })}
-                    className="mt-1 w-24"
-                    placeholder="No limit"
-                  />
-                </div>
+                
+                {isRepeatableCollapsed && field.repeatableConfig?.fields && field.repeatableConfig.fields.length > 0 && (
+                  <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
+                    {field.repeatableConfig.fields.length} {field.repeatableConfig.fields.length === 1 ? 'field' : 'fields'}
+                  </div>
+                )}
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onDelete}
-              className="h-8 w-8 text-destructive"
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRepeatableCollapsed(!isRepeatableCollapsed)}
+                className={cn(
+                  "h-8 px-2 rounded-md border transition-all duration-200",
+                  !isRepeatableCollapsed 
+                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
+                    : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
+                )}
+              >
+                <Settings2 className="h-4 w-4 mr-1.5" />
+                <span className="text-xs font-medium">{!isRepeatableCollapsed ? "Close" : "Settings"}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onDelete}
+                className="h-8 w-8 text-destructive/70 hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">Repeatable Fields</h3>
-            <Button
-              variant="outline"
-              onClick={() => setIsAddingField(true)}
-              className="flex items-center gap-2"
-            >
-              <PlusCircle className="h-4 w-4" />
-              Add Field
-            </Button>
-          </div>
-
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId={`repeatable-${field.id}`}>
-              {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="space-y-4"
+          {!isRepeatableCollapsed && (
+            <>
+              <div className="flex items-center justify-between border-t pt-4">
+                <h3 className="text-sm font-medium">Repeatable Fields</h3>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setIsAddingField(true)}
+                  className="flex items-center gap-2"
                 >
-                  {field.repeatableConfig?.fields.map((subfield, index) => (
-                    <Draggable
-                      key={subfield.id}
-                      draggableId={subfield.id}
-                      index={index}
+                  <PlusCircle className="h-4 w-4" />
+                  Add Field
+                </Button>
+              </div>
+
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId={`repeatable-${field.id}`}>
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={(el) => {
+                        provided.innerRef(el);
+                        // @ts-ignore - This is fine since we're combining refs
+                        fieldsContainerRef.current = el;
+                      }}
+                      className="space-y-2"
                     >
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div {...provided.dragHandleProps}>
-                              <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
-                            </div>
-                            <div className="flex-1">
-                              <FormField
-                                field={subfield}
-                                onUpdate={(updatedField) =>
-                                  handleUpdateField(index, updatedField)
-                                }
-                                onDelete={() => handleDeleteField(index)}
-                              />
-                            </div>
-                          </div>
-                        </div>
+                      {/* Add a button to insert at the top if there are fields */}
+                      {field.repeatableConfig?.fields && field.repeatableConfig.fields.length > 0 && (
+                        <InsertFieldButton
+                          onClick={() => {
+                            const newField = createEmptyField('text', 'New Field');
+                            const updatedFields = [
+                              newField,
+                              ...field.repeatableConfig!.fields
+                            ];
+                            onUpdate({
+                              ...field,
+                              repeatableConfig: {
+                                ...field.repeatableConfig!,
+                                fields: updatedFields
+                              }
+                            });
+                          }}
+                        />
                       )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
+                      
+                      {field.repeatableConfig?.fields.map((subfield, index) => (
+                        <div key={subfield.id} className="group/field space-y-0">
+                          <Draggable
+                            draggableId={subfield.id}
+                            index={index}
+                          >
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div {...provided.dragHandleProps} className="cursor-grab hover:bg-muted/60 active:cursor-grabbing p-1 rounded transition-colors">
+                                    <GripVertical className="h-5 w-5 text-muted-foreground/60 group-hover/field:text-muted-foreground/80 transition-colors" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <FormField
+                                      field={subfield}
+                                      onUpdate={(updatedField) =>
+                                        handleUpdateField(index, updatedField)
+                                      }
+                                      onDelete={() => handleDeleteField(index)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                          
+                          {/* Add insert button after each field */}
+                          <InsertFieldButton
+                            onClick={() => {
+                              const newField = createEmptyField('text', 'New Field');
+                              const updatedFields = [...field.repeatableConfig!.fields];
+                              updatedFields.splice(index + 1, 0, newField);
+                              onUpdate({
+                                ...field,
+                                repeatableConfig: {
+                                  ...field.repeatableConfig!,
+                                  fields: updatedFields
+                                }
+                              });
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+
+              {(!field.repeatableConfig?.fields || field.repeatableConfig.fields.length === 0) && (
+                <div className="flex flex-col items-center justify-center py-8 border border-dashed rounded-md bg-muted/20 transition-all hover:bg-muted/30 hover:border-primary/30">
+                  <Files className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">No fields added yet</p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setIsAddingField(true)}
+                    className="mt-2"
+                  >
+                    Add First Field
+                  </Button>
                 </div>
               )}
-            </Droppable>
-          </DragDropContext>
-
-          {(!field.repeatableConfig?.fields || field.repeatableConfig.fields.length === 0) && (
-            <div className="text-center text-muted-foreground py-8">
-              No fields added yet. Click &quot;Add Field&quot; to define the structure
-              of repeatable items.
-            </div>
+            </>
           )}
         </div>
 
@@ -888,84 +719,192 @@ export function FormField({
   }
 
   if (field.type === 'group') {
-    const content = (dragHandleProps?: any) => (
-      <div className="p-4 border rounded-lg bg-card">
+    return (
+      <div className="p-6 border rounded-lg bg-card hover:border-primary/50 transition-colors relative overflow-hidden group/group">
+        <div className="absolute top-0 left-0 w-full h-1 bg-amber-500/30"></div>
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {!isPreview && dragHandleProps && (
-                <div {...dragHandleProps}>
-                  <GripVertical className="h-5 w-5 text-gray-400" />
-                </div>
-              )}
-              <div className="space-y-1">
-                <Input
-                  value={field.label}
-                  onChange={(e) => handleLabelChange(e.target.value)}
-                  className="font-medium"
-                  placeholder="Group Title"
-                />
-                {field.groupConfig?.description && (
-                  <Textarea
-                    value={field.groupConfig.description}
-                    onChange={(e) =>
-                      onUpdate({
-                        ...field,
-                        groupConfig: {
-                          ...field.groupConfig,
-                          description: e.target.value,
-                          fields: field.groupConfig?.fields || [],
-                        },
-                      })
-                    }
-                    placeholder="Group description (optional)"
-                    className="mt-1"
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 mr-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsGroupCollapsed(!isGroupCollapsed)}
+                >
+                  {isGroupCollapsed ? (
+                    <ChevronRight className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
+                <FolderClosed className="h-4 w-4 text-primary/80 mr-2" />
+                <div className="relative flex-1 group/title">
+                  <Input
+                    value={field.label}
+                    onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                    className="font-semibold border-0 px-0 focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none bg-transparent peer pr-8"
+                    placeholder="Group Title"
                   />
+                  <Pencil className="h-3.5 w-3.5 text-primary/60 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
+                </div>
+                
+                {isGroupCollapsed && field.groupConfig?.fields && field.groupConfig.fields.length > 0 && (
+                  <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
+                    {field.groupConfig.fields.length} {field.groupConfig.fields.length === 1 ? 'field' : 'fields'}
+                  </div>
                 )}
               </div>
             </div>
-            {!isPreview && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsAddingField(true)}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onDelete}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsGroupCollapsed(!isGroupCollapsed)}
+                className={cn(
+                  "h-8 px-2 rounded-md border transition-all duration-200",
+                  !isGroupCollapsed 
+                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
+                    : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
+                )}
+              >
+                <Settings2 className="h-4 w-4 mr-1.5" />
+                <span className="text-xs font-medium">{!isGroupCollapsed ? "Close" : "Settings"}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onDelete}
+                className="h-8 w-8 text-destructive/70 hover:text-destructive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
-          {field.groupConfig?.fields && field.groupConfig.fields.length > 0 && (
-            <div className="space-y-3 pl-6">
-              {field.groupConfig.fields.map((subfield, index) => (
-                <FormField
-                  key={subfield.id}
-                  field={subfield}
-                  onUpdate={(updatedField) =>
-                    handleUpdateSubfield(index, updatedField)
-                  }
-                  onDelete={() => handleDeleteSubfield(index)}
-                  path={[...path, field.id]}
-                  level={index}
-                  isPreview={isPreview}
-                />
-              ))}
-            </div>
+          {!isGroupCollapsed && (
+            <>
+              <div className="flex items-center justify-between border-t pt-4">
+                <h3 className="text-sm font-medium">Group Fields</h3>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => setIsAddingField(true)}
+                  className="flex items-center gap-2"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Add Field
+                </Button>
+              </div>
+
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId={`group-${field.id}`}>
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={(el) => {
+                        provided.innerRef(el);
+                        // @ts-ignore - This is fine since we're combining refs
+                        fieldsContainerRef.current = el;
+                      }}
+                      className="space-y-2"
+                    >
+                      {/* Add a button to insert at the top if there are fields */}
+                      {field.groupConfig?.fields && field.groupConfig.fields.length > 0 && (
+                        <InsertFieldButton
+                          onClick={() => {
+                            const newField = createEmptyField('text', 'New Field');
+                            const updatedFields = [
+                              newField,
+                              ...field.groupConfig!.fields
+                            ];
+                            onUpdate({
+                              ...field,
+                              groupConfig: {
+                                ...field.groupConfig!,
+                                fields: updatedFields
+                              }
+                            });
+                          }}
+                        />
+                      )}
+                      
+                      {field.groupConfig?.fields.map((subfield, index) => (
+                        <div key={subfield.id} className="group/field space-y-0">
+                          <Draggable
+                            draggableId={subfield.id}
+                            index={index}
+                          >
+                            {(provided) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <div {...provided.dragHandleProps} className="cursor-grab hover:bg-muted/60 active:cursor-grabbing p-1 rounded transition-colors">
+                                    <GripVertical className="h-5 w-5 text-muted-foreground/60 group-hover/field:text-muted-foreground/80 transition-colors" />
+                                  </div>
+                                  <div className="flex-1">
+                                    <FormField
+                                      field={subfield}
+                                      onUpdate={(updatedField) =>
+                                        handleUpdateField(index, updatedField)
+                                      }
+                                      onDelete={() => handleDeleteField(index)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                          
+                          {/* Add insert button after each field */}
+                          <InsertFieldButton
+                            onClick={() => {
+                              const newField = createEmptyField('text', 'New Field');
+                              const updatedFields = [...field.groupConfig!.fields];
+                              updatedFields.splice(index + 1, 0, newField);
+                              onUpdate({
+                                ...field,
+                                groupConfig: {
+                                  ...field.groupConfig!,
+                                  fields: updatedFields
+                                }
+                              });
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+
+              {(!field.groupConfig?.fields || field.groupConfig.fields.length === 0) && (
+                <div className="flex flex-col items-center justify-center py-8 border border-dashed rounded-md bg-muted/20 transition-all hover:bg-muted/30 hover:border-primary/30">
+                  <FolderClosed className="h-8 w-8 text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">No fields added yet</p>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setIsAddingField(true)}
+                    className="mt-2"
+                  >
+                    Add First Field
+                  </Button>
+                </div>
+              )}
+            </>
           )}
         </div>
+
+        <AddFieldDialog
+          open={isAddingField}
+          onOpenChange={setIsAddingField}
+          onAdd={handleAddField}
+        />
       </div>
     );
-
-    return content();
   }
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -1152,125 +1091,87 @@ export function FormField({
     </div>
   );
 
+  const fieldTypeData = FIELD_TYPES.find(t => t.type === field.type);
+  const FieldIcon = fieldTypeData?.icon;
+
+  // Standard fields (text, textarea, email, etc)
   return (
-    <div
-      ref={cardRef}
-      className={cn('p-4 border rounded-lg bg-card', {
-        'opacity-50': isDragging,
-        'border-primary': isValidDropTarget,
-      })}
-      draggable={!isPreview}
-      onDragStart={handleDragStart}
-      onDragEnd={onDragEnd}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      <div className="flex items-start gap-4">
-        <div className="flex-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => setIsExpanded(!isExpanded)}
-              >
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </Button>
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const Icon = FIELD_ICONS[field.type as keyof typeof FIELD_ICONS];
-                  return Icon ? <Icon className="h-4 w-4 text-muted-foreground shrink-0" /> : null;
-                })()}
-                <div>
-                  <div className="font-medium">{field.label || 'Untitled Field'}</div>
-                  <div className="text-sm text-muted-foreground flex items-center gap-2">
-                    <span className="capitalize">{field.type}</span>
-                    {field.required && (
-                      <span className="text-xs text-red-500">Required</span>
-                    )}
-                  </div>
-                </div>
+    <div className={cn(
+      "group/field flex border rounded-lg overflow-hidden transition-all duration-200",
+      isDragging ? "opacity-70 border-dashed border-primary/50 shadow-sm" : "hover:border-primary/50 border-solid shadow-sm hover:shadow-md",
+      isExpanded && "border-primary shadow-md",
+      isValidDropTarget && "ring-2 ring-primary/30"
+    )}>
+      <div className="flex-1 p-4">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between h-8">
+            <div className="flex items-center flex-1">
+              {FieldIcon && <FieldIcon className="h-4 w-4 text-primary/80 mr-2 shrink-0" />}
+              <div className="relative flex-1 group/title">
+                <Input
+                  value={field.label}
+                  onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                  className="font-medium border-0 px-0 focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none bg-transparent peer pr-8 h-8"
+                  placeholder={`${field.type.charAt(0).toUpperCase() + field.type.slice(1)} field`}
+                />
+                <Pencil className="h-3.5 w-3.5 text-primary/60 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
               </div>
             </div>
-            {!isPreview && (
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="h-8 w-8"
-                >
-                  <Settings2 className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onDelete}
-                  className="h-8 w-8 text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className={cn(
+                  "h-8 px-2 rounded-md border transition-all duration-200",
+                  isExpanded 
+                    ? "bg-background border-muted-foreground/20 text-muted-foreground hover:border-primary/50 hover:text-primary" 
+                    : "bg-background border-muted-foreground/20 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                )}
+                title={isExpanded ? "Close settings" : "Open settings"}
+              >
+                <Settings2 className={cn("h-4 w-4 mr-1.5", !isExpanded && "opacity-70")} />
+                <span className="text-xs font-medium">{isExpanded ? "Close" : "Settings"}</span>
+              </Button>
+            </div>
           </div>
 
           {isExpanded && (
-            <div className="mt-4 space-y-4 border-t pt-4">
-              <div>
-                <Label htmlFor={`${field.id}-label`}>Field Label</Label>
-                <Input
-                  id={`${field.id}-label`}
-                  value={field.label}
-                  onChange={(e) => handleLabelChange(e.target.value)}
-                  className="mt-1"
-                />
+            <div className="mt-4 pt-4 border-t">
+              <div className="bg-muted/20 rounded-lg p-3 transition-all hover:bg-muted/30">
+                {renderFieldSettings(field, onUpdate)}
               </div>
-
-              <div>
-                <Label htmlFor={`${field.id}-help`}>Help Text</Label>
-                <Textarea
-                  id={`${field.id}-help`}
-                  value={field.helpText || ''}
-                  onChange={(e) => handleHelpTextChange(e.target.value)}
-                  className="mt-1"
-                  placeholder="Optional help text"
-                />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id={`${field.id}-required`}
-                  checked={field.required}
-                  onCheckedChange={(checked) => handleRequiredChange(checked)}
-                />
-                <Label htmlFor={`${field.id}-required`}>Required field</Label>
-              </div>
-
-              {renderFieldSettings(field, onUpdate)}
-
-              {field.type === 'file' && !isPreview && (
-                <div>
-                  <Label>Preview</Label>
-                  <div className="mt-1">
-                    <FileUpload
-                      accept={field.fileConfig?.accept}
-                      maxSize={field.fileConfig?.maxSize}
-                      onUpload={(file) => handleFileUpload(file)}
-                      onError={(error) => handleFileError(error)}
-                      value={field.value}
-                      onRemove={handleFileRemove}
-                    />
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
+      </div>
+      <div className="flex flex-col border-l bg-muted/10 divide-y divide-border/30">
+        <Button
+          variant="ghost"
+          className="h-10 px-3 rounded-none hover:bg-primary/10 transition-colors text-muted-foreground hover:text-primary flex items-center gap-1.5"
+          onClick={() => {
+            onUpdate({
+              ...field,
+              required: !field.required,
+            });
+          }}
+          title={field.required ? "Make optional" : "Make required"}
+        >
+          <CheckSquare className={cn(
+            "h-4 w-4", 
+            field.required ? "text-primary" : "text-muted-foreground/60"
+          )} />
+          <span className="text-xs">{field.required ? "Required" : "Optional"}</span>
+        </Button>
+        <Button
+          variant="ghost"
+          className="h-10 px-3 rounded-none hover:bg-destructive/10 transition-colors text-muted-foreground hover:text-destructive flex items-center gap-1.5"
+          onClick={onDelete}
+          title="Delete field"
+        >
+          <Trash2 className="h-4 w-4" />
+          <span className="text-xs">Delete</span>
+        </Button>
       </div>
     </div>
   );

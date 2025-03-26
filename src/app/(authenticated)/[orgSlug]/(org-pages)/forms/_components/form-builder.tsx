@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Card } from '@/components/ui/card';
@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { PlusCircle, LayoutTemplate, Send, Edit, Eye, X, Save } from 'lucide-react';
+import { PlusCircle, LayoutTemplate, Send, Edit, Eye, X, Save, Pencil, Check } from 'lucide-react';
 import { FormField, type FormField as FormFieldType } from './form-field';
 import { AddFieldDialog } from './add-field-dialog';
 import { useToast } from '@/components/ui/use-toast';
@@ -78,8 +78,24 @@ function ensureValidUUIDs(field: FormFieldType): FormFieldType {
   return updatedField;
 }
 
+// Add a small insert button component
+const InsertSectionButton = ({ onClick }: { onClick: () => void }) => (
+  <div className="flex justify-center h-0">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onClick}
+      className="h-7 w-7 p-0 rounded-full bg-muted hover:bg-primary/20 hover:text-primary translate-y-[-50%] border-dashed border-primary/40 opacity-0 group-hover/section:opacity-60 hover:opacity-100 transition-all"
+      title="Add section here"
+    >
+      <PlusCircle className="h-4 w-4" />
+    </Button>
+  </div>
+);
+
 export function FormBuilder({ org, template, mode = 'create', userPermissions }: FormBuilderProps) {
   const orgId = org.id;
+  const sectionsContainerRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState(template?.title || '');
   const [description, setDescription] = useState(template?.description || '');
   const [status, setStatus] = useState<'draft' | 'published'>((template?.status === 'published' ? 'published' : 'draft'));
@@ -102,6 +118,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
   const [isAddingField, setIsAddingField] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showTemplateDialog, setShowTemplateDialog] = useState(mode === 'create');
+  const [editingHeader, setEditingHeader] = useState(mode === 'create');
   const router = useRouter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
@@ -133,6 +150,15 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     setSections(items);
   };
 
+  const scrollToBottom = () => {
+    if (sectionsContainerRef.current) {
+      const container = sectionsContainerRef.current;
+      setTimeout(() => {
+        container.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 100); // Small delay to ensure the new section is rendered
+    }
+  };
+
   const handleAddSection = () => {
     const newSection: FormFieldType = {
       id: crypto.randomUUID(),
@@ -145,6 +171,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
       },
     };
     setSections([...sections, newSection]);
+    scrollToBottom();
   };
 
   const handleUpdateSection = (index: number, section: FormFieldType) => {
@@ -165,6 +192,31 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     const newSections = [...sections];
     newSections.splice(index, 1);
     setSections(newSections);
+  };
+
+  const handleInsertSection = (index: number) => {
+    const newSection: FormFieldType = {
+      id: crypto.randomUUID(),
+      type: 'section',
+      label: 'New Section',
+      required: false,
+      sectionConfig: {
+        description: '',
+        fields: [],
+      },
+    };
+    
+    const newSections = [...sections];
+    newSections.splice(index, 0, newSection);
+    setSections(newSections);
+    
+    // Scroll to the new section
+    setTimeout(() => {
+      const sectionElements = sectionsContainerRef.current?.querySelectorAll('[data-section-id]');
+      if (sectionElements && sectionElements[index]) {
+        sectionElements[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
   };
 
   const handleSave = async (shouldPublish: boolean = false) => {
@@ -249,25 +301,90 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
       )}
 
       <div className="p-6 border rounded-lg border-l-4 border-l-primary bg-card space-y-4">
-        <div>
-          <Label htmlFor="title" className="text-base font-medium">Form Title</Label>
-          <Input
-            id="title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Enter form title"
-            className="mt-1"
-          />
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            {editingHeader ? (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="title" className="text-base font-medium">Form Title</Label>
+                  <Input
+                    id="title"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder="Enter form title"
+                    className="mt-1"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="description" className="text-base font-medium">Form Description</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Enter form description (optional)"
+                    className="mt-1 min-h-[80px]"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div 
+                  className="text-xl font-semibold py-1 px-2 rounded hover:bg-muted/50 cursor-pointer flex items-center group/title"
+                  onClick={() => setEditingHeader(true)}
+                >
+                  {title || "Untitled Form"}
+                  <Pencil className="ml-2 h-4 w-4 text-primary/60 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
+                </div>
+                <div 
+                  className="text-muted-foreground py-1 px-2 rounded hover:bg-muted/50 cursor-pointer flex items-start group/desc"
+                  onClick={() => setEditingHeader(true)}
+                >
+                  <div className="flex-1 max-h-10 overflow-hidden">
+                    {description ? description : <span className="italic text-muted-foreground/70">Add form description...</span>}
+                  </div>
+                  <Pencil className="ml-2 h-4 w-4 text-primary/60 opacity-0 group-hover/desc:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded mt-1" />
+                </div>
+                {status === 'published' && (
+                  <Badge className="bg-green-500 mt-2">Published</Badge>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {editingHeader ? (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={() => setEditingHeader(false)}
+              >
+                <Check className="h-4 w-4 mr-1" />
+                Save Settings
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingHeader(true)}
+                className="flex items-center gap-1"
+              >
+                <LayoutTemplate className="h-4 w-4" />
+                Form Settings
+              </Button>
+            )}
+          </div>
         </div>
+        
         <div>
-          <Label htmlFor="description" className="text-base font-medium">Description</Label>
-          <Textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter form description"
-            className="mt-1 min-h-[80px]"
-          />
+          {editingHeader ? (
+            null
+          ) : (
+            <div className="text-muted-foreground py-1 px-2 rounded hover:bg-muted/50 cursor-pointer group border border-transparent hover:border-muted/30"
+              onClick={() => setEditingHeader(true)}
+            >
+              {description || "Add form description..."}
+            </div>
+          )}
         </div>
       </div>
 
@@ -314,8 +431,12 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                   {(provided) => (
                     <div
                       {...provided.droppableProps}
-                      ref={provided.innerRef}
-                      className="space-y-6"
+                      ref={(el) => {
+                        provided.innerRef(el);
+                        // @ts-ignore - This is fine since we're combining refs
+                        sectionsContainerRef.current = el;
+                      }}
+                      className="space-y-3"
                     >
                       {sections.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-md bg-muted/40">
@@ -330,34 +451,47 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                           </Button>
                         </div>
                       ) : (
-                        sections.map((section, index) => (
-                          <Draggable
-                            key={section.id}
-                            draggableId={section.id}
-                            index={index}
-                          >
-                            {(provided, snapshot) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                                {...provided.dragHandleProps}
-                                className={cn(
-                                  "transition-all",
-                                  snapshot.isDragging ? "opacity-70 scale-[1.02] shadow-md" : ""
-                                )}
+                        <>
+                          {/* Add a button to insert at the top */}
+                          <div className="group/section mb-3">
+                            <div className="h-3 hover:bg-muted/10 rounded-md transition-colors"></div>
+                            <InsertSectionButton onClick={() => handleInsertSection(0)} />
+                          </div>
+                          
+                          {sections.map((section, index) => (
+                            <div key={section.id} className="space-y-0 mb-3 group/section">
+                              <Draggable
+                                draggableId={section.id}
+                                index={index}
                               >
-                                <FormField
-                                  field={section}
-                                  onUpdate={(updatedSection: FormFieldType) =>
-                                    handleUpdateSection(index, updatedSection)
-                                  }
-                                  onDelete={() => handleDeleteSection(index)}
-                                  totalSections={sections.length}
-                                />
-                              </div>
-                            )}
-                          </Draggable>
-                        ))
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    className={cn(
+                                      "transition-all",
+                                      snapshot.isDragging ? "opacity-70 scale-[1.02] shadow-md" : ""
+                                    )}
+                                    data-section-id={section.id}
+                                  >
+                                    <FormField
+                                      field={section}
+                                      onUpdate={(updatedSection: FormFieldType) =>
+                                        handleUpdateSection(index, updatedSection)
+                                      }
+                                      onDelete={() => handleDeleteSection(index)}
+                                      totalSections={sections.length}
+                                    />
+                                  </div>
+                                )}
+                              </Draggable>
+                              
+                              {/* Add insert button after each section */}
+                              <InsertSectionButton onClick={() => handleInsertSection(index + 1)} />
+                            </div>
+                          ))}
+                        </>
                       )}
                       {provided.placeholder}
                     </div>
