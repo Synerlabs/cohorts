@@ -20,7 +20,7 @@ import { createEmptyField, FIELD_TYPES } from './field-settings-utils';
 
 export interface FormField {
   id: string;
-  type: 'text' | 'textarea' | 'email' | 'phone' | 'date' | 'select' | 'file' | 'repeatable' | 'section' | 'group' | 'checkbox' | 'number' | 'radio';
+  type: 'text' | 'textarea' | 'email' | 'phone' | 'date' | 'select' | 'file' | 'repeatable' | 'section' | 'group' | 'checkbox' | 'number' | 'radio' | 'signature';
   label: string;
   required?: boolean;
   helpText?: string;

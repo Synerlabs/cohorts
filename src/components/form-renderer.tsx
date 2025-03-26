@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Database } from '@/lib/types/database.types';
 import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
 import { FileUpload } from '@/components/ui/file-upload';
+import { SignaturePad } from '@/components/ui/signature-pad';
 import { cn } from '@/lib/utils';
 import { uploadFileAction } from '@/app/actions/upload.action';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
@@ -792,6 +793,24 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
             >
               {field.repeatableConfig?.addLabel || 'Add Item'}
             </Button>
+          </div>
+        );
+
+      case 'signature':
+        return (
+          <div className="space-y-2">
+            <Label htmlFor={field.id}>
+              {field.label}
+              {field.required && <span className="text-destructive ml-1">*</span>}
+            </Label>
+            
+            <SignaturePad
+              onSignatureChange={(dataUrl) => handleFieldChange(field.id, dataUrl)}
+              initialSignature={formData[field.id] || null}
+            />
+            {field.helpText && (
+              <p className="text-sm text-muted-foreground">{field.helpText}</p>
+            )}
           </div>
         );
 

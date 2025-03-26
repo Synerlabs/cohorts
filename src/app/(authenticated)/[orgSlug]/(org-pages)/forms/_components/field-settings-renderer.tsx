@@ -415,12 +415,21 @@ export function FieldSettingsRenderer({ field, onUpdate, compact = false }: Fiel
         </div>
       );
 
-    default:
+    case 'signature':
       return (
-        <div className="text-center py-2 text-muted-foreground">
-          <p>No additional settings available for this field type.</p>
+        <div className={compact ? "space-y-3" : "space-y-4"}>
+          <div>
+            <Label>Signature Settings</Label>
+            <p className="text-xs text-muted-foreground mt-1">
+              Signature fields allow users to draw their signature using mouse or touch.
+              Signatures are saved as images that can be reviewed later.
+            </p>
+          </div>
           {renderCommonSettings()}
         </div>
       );
+
+    default:
+      return renderCommonSettings();
   }
 } 

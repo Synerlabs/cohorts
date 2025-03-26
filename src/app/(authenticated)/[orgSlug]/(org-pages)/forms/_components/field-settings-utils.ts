@@ -12,7 +12,8 @@ import {
   Upload, 
   Copy, 
   Layers,
-  Folder
+  Folder,
+  Pen
 } from 'lucide-react';
 
 // Base field settings that are consistent across all field types
@@ -31,42 +32,39 @@ export const getDefaultFieldConfig = (type: string): Partial<FormField> => {
 
   switch (type) {
     case 'text':
+      return {
+        ...baseConfig,
+        textConfig: {
+          placeholder: 'Enter text...',
+        },
+      };
     case 'textarea':
       return {
         ...baseConfig,
         textConfig: {
-          placeholder: '',
-          minLength: undefined,
-          maxLength: undefined,
-          helpText: '',
+          placeholder: 'Enter text...',
         },
       };
     case 'number':
       return {
         ...baseConfig,
         numberConfig: {
-          placeholder: '',
-          min: undefined,
-          max: undefined,
+          placeholder: 'Enter a number',
           step: 1,
-          helpText: '',
         },
       };
     case 'email':
       return {
         ...baseConfig,
         emailConfig: {
-          placeholder: '',
-          helpText: '',
-          allowedDomains: [],
+          placeholder: 'Enter email address',
         },
       };
     case 'phone':
       return {
         ...baseConfig,
         phoneConfig: {
-          placeholder: '',
-          helpText: '',
+          placeholder: 'Enter phone number',
         },
       };
     case 'date':
@@ -74,27 +72,28 @@ export const getDefaultFieldConfig = (type: string): Partial<FormField> => {
         ...baseConfig,
         dateConfig: {
           placeholder: '',
-          helpText: '',
         },
       };
     case 'select':
       return {
         ...baseConfig,
-        selectConfig: {
-          options: [],
-          placeholder: '',
-          helpText: '',
-        },
+        options: [
+          { label: 'Option 1', value: 'option_1' },
+          { label: 'Option 2', value: 'option_2' },
+          { label: 'Option 3', value: 'option_3' }
+        ],
+      };
+    case 'signature':
+      return {
+        ...baseConfig,
+        helpText: 'Please sign using mouse or touch',
       };
     case 'file':
       return {
         ...baseConfig,
         fileConfig: {
-          maxSize: 10 * 1024 * 1024, // 10MB default
-          maxFiles: 1,
-          accept: '',
-          allowedTypes: [],
-          helpText: '',
+          accept: '*/*',
+          maxSize: 5 * 1024 * 1024, // 5MB
         },
       };
     case 'repeatable':
@@ -223,6 +222,12 @@ export const FIELD_TYPES = [
     label: 'Select',
     description: 'Dropdown selection from a list of options',
     icon: List,
+  },
+  {
+    type: 'signature',
+    label: 'Signature',
+    description: 'Handwritten signature input',
+    icon: Pen,
   },
   {
     type: 'file',
