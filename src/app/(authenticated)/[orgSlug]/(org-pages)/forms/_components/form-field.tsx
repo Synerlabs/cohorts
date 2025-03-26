@@ -135,7 +135,7 @@ export function FormField({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDescription, setIsEditingDescription] = useState(false);
-  const [isSectionCollapsed, setIsSectionCollapsed] = useState(true);
+  const [isSectionCollapsed, setIsSectionCollapsed] = useState(totalSections > 1);
   const [isGroupCollapsed, setIsGroupCollapsed] = useState(true);
   const [isRepeatableCollapsed, setIsRepeatableCollapsed] = useState(true);
 
@@ -265,7 +265,7 @@ export function FormField({
       id: newField.id || crypto.randomUUID()
     };
 
-    if (field.sectionConfig) {
+    if (field.type === 'section') {
       if (fieldWithUUID.type === 'section') {
         toast({
           title: 'Error',
@@ -274,76 +274,71 @@ export function FormField({
         });
         return;
       }
-      
-      if (!field.sectionConfig.fields) {
-        field.sectionConfig.fields = [];
-      }
-      
-      if (insertPosition !== null) {
-        // Insert at specific position
-        const updatedFields = [...field.sectionConfig.fields];
-        updatedFields.splice(insertPosition, 0, fieldWithUUID);
-        
-        onUpdate({
-          ...field,
-          sectionConfig: {
-            ...field.sectionConfig,
-            fields: updatedFields,
-          },
-        });
-      } else {
-        // Add to the end
-        onUpdate({
-          ...field,
-          sectionConfig: {
-            ...field.sectionConfig,
-            fields: [...field.sectionConfig.fields, fieldWithUUID],
-          },
-        });
-      }
-      scrollToBottom();
-    } else if (field.repeatableConfig) {
-      if (!field.repeatableConfig.fields) {
-        field.repeatableConfig.fields = [];
-      }
 
-      if (insertPosition !== null) {
-        // Insert at specific position
-        const updatedFields = [...field.repeatableConfig.fields];
-        updatedFields.splice(insertPosition, 0, fieldWithUUID);
-        
-        onUpdate({
-          ...field,
-          repeatableConfig: {
-            ...field.repeatableConfig,
-            fields: updatedFields,
-          },
-        });
-      } else {
-        // Add to the end
-        onUpdate({
-          ...field,
-          repeatableConfig: {
-            ...field.repeatableConfig,
-            fields: [...field.repeatableConfig.fields, fieldWithUUID],
-          },
-        });
-      }
-      scrollToBottom();
-    } else if (field.groupConfig) {
-      if (!field.groupConfig.fields) {
-        field.groupConfig.fields = [];
-      }
+      // Ensure fields array exists
+      const currentFields = field.sectionConfig?.fields || [];
       
       if (insertPosition !== null) {
         // Insert at specific position
-        const updatedFields = [...field.groupConfig.fields];
+        const updatedFields = [...currentFields];
+        updatedFields.splice(insertPosition, 0, fieldWithUUID);
+        
+        onUpdate({
+          ...field,
+          sectionConfig: {
+            ...field.sectionConfig || {},
+            fields: updatedFields,
+          },
+        });
+      } else {
+        // Add to the end
+        onUpdate({
+          ...field,
+          sectionConfig: {
+            ...field.sectionConfig || {},
+            fields: [...currentFields, fieldWithUUID],
+          },
+        });
+      }
+    } else if (field.type === 'repeatable') {
+      // Handle repeatable fields similarly
+      const currentFields = field.repeatableConfig?.fields || [];
+      
+      if (insertPosition !== null) {
+        // Insert at specific position
+        const updatedFields = [...currentFields];
+        updatedFields.splice(insertPosition, 0, fieldWithUUID);
+        
+        onUpdate({
+          ...field,
+          repeatableConfig: {
+            ...field.repeatableConfig || {},
+            fields: updatedFields,
+          },
+        });
+      } else {
+        // Add to the end
+        onUpdate({
+          ...field,
+          repeatableConfig: {
+            ...field.repeatableConfig || {},
+            fields: [...currentFields, fieldWithUUID],
+          },
+        });
+      }
+    } else if (field.type === 'group') {
+      // Handle group fields similarly
+      const currentFields = field.groupConfig?.fields || [];
+      
+      if (insertPosition !== null) {
+        // Insert at specific position
+        const updatedFields = [...currentFields];
         updatedFields.splice(insertPosition, 0, fieldWithUUID);
         
         onUpdate({
           ...field,
           groupConfig: {
-            ...field.groupConfig,
+            ...field.groupConfig || {},
             fields: updatedFields,
           },
         });
@@ -352,13 +347,14 @@ export function FormField({
         onUpdate({
           ...field,
           groupConfig: {
-            ...field.groupConfig,
-            fields: [...field.groupConfig.fields, fieldWithUUID],
+            ...field.groupConfig || {},
+            fields: [...currentFields, fieldWithUUID],
           },
         });
       }
-      scrollToBottom();
     }
+    
+    scrollToBottom();
     setIsAddingField(false);
     setInsertPosition(null); // Reset insert position
   };
@@ -391,6 +387,9 @@ export function FormField({
   );
 
   if (field.type === 'section') {
+    // Check if this is the only section
+    const isSingleSection = totalSections === 1;
+    
     return (
       <div className="relative">
         <div className="relative overflow-hidden group/section">
@@ -398,18 +397,20 @@ export function FormField({
             <div className="flex items-center justify-between">
               <div className="space-y-2 flex-1">
                 <div className="flex items-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 mr-1 text-muted-foreground hover:text-foreground"
-                    onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
-                  >
-                    {isSectionCollapsed ? (
-                      <ChevronRight className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </Button>
+                  {!isSingleSection && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 w-6 p-0 mr-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
+                    >
+                      {isSectionCollapsed ? (
+                        <ChevronRight className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  )}
                   <LayoutGrid className="h-4 w-4 text-primary/80 mr-2" />
                   <div className="relative flex-1 group/title">
                     <Input
@@ -422,42 +423,57 @@ export function FormField({
                   </div>
                   
                   {isSectionCollapsed && field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
-                    <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
+                    <div className="ml-2 text-xs px-2 py-0.5 bg-muted/30 rounded-full text-muted-foreground flex items-center">
                       {field.sectionConfig.fields.length} {field.sectionConfig.fields.length === 1 ? 'field' : 'fields'}
                     </div>
                   )}
                 </div>
+                {field.sectionConfig?.description && isSectionCollapsed && (
+                  <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{field.sectionConfig.description}</p>
+                )}
               </div>
               <div className="flex items-center gap-1">
                 <Button
-                  variant="outline"
+                  variant={!isSectionCollapsed ? "secondary" : "outline"}
                   size="sm"
                   onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
                   className={cn(
-                    "h-8 px-2 rounded-md border transition-all duration-200",
+                    "h-8 px-2 rounded-md transition-all duration-200",
                     !isSectionCollapsed 
-                      ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
-                      : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
+                      ? "text-muted-foreground hover:text-foreground" 
+                      : "border-muted-foreground/30 hover:border-primary hover:text-primary"
                   )}
                 >
                   <Settings2 className="h-4 w-4 mr-1.5" />
-                  <span className="text-xs font-medium">{!isSectionCollapsed ? "Close" : "Settings"}</span>
+                  <span className="text-xs font-medium">
+                    {!isSectionCollapsed 
+                      ? "Close" 
+                      : isSingleSection 
+                        ? "Form Settings" 
+                        : "Settings"
+                    }
+                  </span>
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={onDelete}
-                  className="h-8 w-8 text-destructive/70 hover:text-destructive"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                {/* Only show delete button if there's more than one section */}
+                {totalSections > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={onDelete}
+                    className="h-8 w-8 text-destructive/70 hover:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
               </div>
             </div>
 
             {!isSectionCollapsed && (
               <>
                 <div className="flex items-center justify-between border-t pt-4">
-                  <h3 className="text-sm font-medium">Section Fields</h3>
+                  <h3 className="text-sm font-medium">
+                    {isSingleSection ? "Form Fields" : "Section Fields"}
+                  </h3>
                   <Button
                     variant="default"
                     size="sm"
@@ -467,6 +483,29 @@ export function FormField({
                     <PlusCircle className="h-4 w-4" />
                     Add Field
                   </Button>
+                </div>
+                
+                {/* Show section description field for all sections */}
+                <div className="space-y-4 pt-4">
+                  <div>
+                    <Label htmlFor="section-description" className="text-sm font-medium mb-1.5 block">
+                      {isSingleSection ? "Form Description" : "Section Description"}
+                    </Label>
+                    <Textarea
+                      id="section-description"
+                      value={field.sectionConfig?.description || ''}
+                      onChange={(e) => onUpdate({
+                        ...field,
+                        sectionConfig: {
+                          ...field.sectionConfig,
+                          fields: field.sectionConfig?.fields || [],
+                          description: e.target.value
+                        }
+                      })}
+                      placeholder={`Add a description for this ${isSingleSection ? 'form' : 'section'} (optional)`}
+                      className="resize-none h-20"
+                    />
+                  </div>
                 </div>
 
                 <DragDropContext onDragEnd={handleDragEnd}>
@@ -533,7 +572,11 @@ export function FormField({
                 {(!field.sectionConfig?.fields || field.sectionConfig.fields.length === 0) && (
                   <div className="flex flex-col items-center justify-center py-8 border border-dashed rounded-md bg-muted/20 transition-all hover:bg-muted/30 hover:border-primary/30">
                     <LayoutGrid className="h-8 w-8 text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground mb-2">No fields added yet</p>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      {isSingleSection 
+                        ? "Your form is empty. Add your first field to get started."
+                        : "No fields added yet in this section."}
+                    </p>
                     <Button
                       variant="default"
                       size="sm"
@@ -589,22 +632,27 @@ export function FormField({
                 </div>
                 
                 {isRepeatableCollapsed && field.repeatableConfig?.fields && field.repeatableConfig.fields.length > 0 && (
-                  <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
+                  <div className="ml-2 text-xs px-2 py-0.5 bg-muted/30 rounded-full text-muted-foreground flex items-center">
                     {field.repeatableConfig.fields.length} {field.repeatableConfig.fields.length === 1 ? 'field' : 'fields'}
                   </div>
                 )}
               </div>
+
+              {/* Show description in collapsed state */}
+              {isRepeatableCollapsed && field.repeatableConfig?.description && (
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-1 ml-8">{field.repeatableConfig.description}</p>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <Button
-                variant="outline"
+                variant={!isRepeatableCollapsed ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setIsRepeatableCollapsed(!isRepeatableCollapsed)}
                 className={cn(
-                  "h-8 px-2 rounded-md border transition-all duration-200",
+                  "h-8 px-2 rounded-md transition-all duration-200",
                   !isRepeatableCollapsed 
-                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
-                    : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
+                    ? "text-muted-foreground hover:text-foreground" 
+                    : "border-muted-foreground/30 hover:border-primary hover:text-primary"
                 )}
               >
                 <Settings2 className="h-4 w-4 mr-1.5" />
@@ -634,6 +682,29 @@ export function FormField({
                   <PlusCircle className="h-4 w-4" />
                   Add Field
                 </Button>
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <div>
+                  <Label htmlFor="repeatable-description" className="text-sm font-medium mb-1.5 block">Repeatable Description</Label>
+                  <Textarea
+                    id="repeatable-description"
+                    value={field.repeatableConfig?.description || ''}
+                    onChange={(e) => onUpdate({
+                      ...field,
+                      repeatableConfig: {
+                        ...field.repeatableConfig,
+                        fields: field.repeatableConfig?.fields || [],
+                        description: e.target.value
+                      }
+                    })}
+                    placeholder="Add a description for this repeatable group (optional)"
+                    className="resize-none h-20"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Repeatable Fields</h3>
+                </div>
               </div>
 
               <DragDropContext onDragEnd={handleDragEnd}>
@@ -755,22 +826,25 @@ export function FormField({
                 </div>
                 
                 {isGroupCollapsed && field.groupConfig?.fields && field.groupConfig.fields.length > 0 && (
-                  <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
+                  <div className="ml-2 text-xs px-2 py-0.5 bg-muted/30 rounded-full text-muted-foreground flex items-center">
                     {field.groupConfig.fields.length} {field.groupConfig.fields.length === 1 ? 'field' : 'fields'}
                   </div>
                 )}
               </div>
+              {isGroupCollapsed && field.groupConfig?.description && (
+                <p className="text-sm text-muted-foreground mt-1 line-clamp-1">{field.groupConfig.description}</p>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <Button
-                variant="outline"
+                variant={!isGroupCollapsed ? "secondary" : "outline"}
                 size="sm"
                 onClick={() => setIsGroupCollapsed(!isGroupCollapsed)}
                 className={cn(
-                  "h-8 px-2 rounded-md border transition-all duration-200",
+                  "h-8 px-2 rounded-md transition-all duration-200",
                   !isGroupCollapsed 
-                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
-                    : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
+                    ? "text-muted-foreground hover:text-foreground" 
+                    : "border-muted-foreground/30 hover:border-primary hover:text-primary"
                 )}
               >
                 <Settings2 className="h-4 w-4 mr-1.5" />
@@ -800,6 +874,29 @@ export function FormField({
                   <PlusCircle className="h-4 w-4" />
                   Add Field
                 </Button>
+              </div>
+
+              <div className="space-y-4 border-t pt-4">
+                <div>
+                  <Label htmlFor="group-description" className="text-sm font-medium mb-1.5 block">Group Description</Label>
+                  <Textarea
+                    id="group-description"
+                    value={field.groupConfig?.description || ''}
+                    onChange={(e) => onUpdate({
+                      ...field,
+                      groupConfig: {
+                        ...field.groupConfig,
+                        fields: field.groupConfig?.fields || [],
+                        description: e.target.value
+                      }
+                    })}
+                    placeholder="Add a description for this group (optional)"
+                    className="resize-none h-20"
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-medium">Group Fields</h3>
+                </div>
               </div>
 
               <DragDropContext onDragEnd={handleDragEnd}>

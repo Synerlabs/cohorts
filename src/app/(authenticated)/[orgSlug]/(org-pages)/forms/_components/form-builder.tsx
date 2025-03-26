@@ -198,8 +198,18 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
       });
       return;
     }
+    
     const newSections = [...sections];
     newSections.splice(index, 1);
+    
+    // If we're down to one section, make sure it has a proper label
+    if (newSections.length === 1 && (!newSections[0].label || newSections[0].label === '')) {
+      newSections[0] = {
+        ...newSections[0],
+        label: 'Default Section',
+      };
+    }
+    
     setSections(newSections);
   };
 
@@ -310,6 +320,22 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     </div>
   );
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value as 'edit' | 'preview');
+    
+    // Ensure we have at least one section
+    if (sections.length === 0) {
+      setSections([createDefaultSection()]);
+    } else if (sections.length === 1 && (!sections[0].label || sections[0].label === '')) {
+      // If we have a section but it's blank (might happen after add/remove operations), fix it
+      const updatedSection = {
+        ...sections[0],
+        label: 'Default Section'
+      };
+      setSections([updatedSection]);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {mode === 'create' && (
@@ -399,7 +425,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
       <Tabs 
         defaultValue={activeTab} 
         value={activeTab} 
-        onValueChange={(value) => setActiveTab(value as 'edit' | 'preview')}
+        onValueChange={handleTabChange}
         className="mb-10"
       >
         <div className="flex justify-between items-center mb-6">
@@ -422,31 +448,45 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         <div>
           <TabsContent value="edit" className="m-0 p-0">
             <div className="space-y-6">
-              <div className="rounded-lg border bg-muted/20 p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <LayoutTemplate className="h-4 w-4 text-primary" />
+              {sections.length > 1 ? (
+                <div className="rounded-lg border bg-muted/20 p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                      <LayoutTemplate className="h-4 w-4 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="font-medium text-sm">Form Sections</h3>
+                      <p className="text-xs text-muted-foreground">{sections.length} sections in this form</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="font-medium text-sm">Form Sections</h3>
-                    <p className="text-xs text-muted-foreground">{sections.length} {sections.length === 1 ? 'section' : 'sections'} in this form</p>
+                  <div className="flex items-center gap-4">
+                    <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-3 w-3 rounded-full bg-card border border-primary/20"></div>
+                        <span>Saved</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-3 w-3 rounded-full bg-amber-50 border border-amber-300"></div>
+                        <span>Modified</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="h-3 w-3 rounded-full bg-blue-50 border border-blue-300"></div>
+                        <span>New</span>
+                      </div>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={handleAddSection}
+                      className="gap-1.5"
+                      size="sm"
+                    >
+                      <PlusCircle className="h-3.5 w-3.5" />
+                      Add Section
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-4">
-                  <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-3 w-3 rounded-full bg-card border border-primary/20"></div>
-                      <span>Saved</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-3 w-3 rounded-full bg-amber-50 border border-amber-300"></div>
-                      <span>Modified</span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <div className="h-3 w-3 rounded-full bg-blue-50 border border-blue-300"></div>
-                      <span>New</span>
-                    </div>
-                  </div>
+              ) : (
+                <div className="flex justify-end mb-4">
                   <Button
                     variant="outline"
                     onClick={handleAddSection}
@@ -457,7 +497,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                     Add Section
                   </Button>
                 </div>
-              </div>
+              )}
 
               <DragDropContext onDragEnd={handleDragEnd}>
                 <Droppable droppableId="sections">
