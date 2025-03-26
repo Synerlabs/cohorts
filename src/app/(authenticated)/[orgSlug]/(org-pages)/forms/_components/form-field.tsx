@@ -558,150 +558,198 @@ export function FormField({
 
   if (field.type === 'section') {
     const content = (dragHandleProps?: any) => (
-      <Card className="p-6">
+      <div
+        ref={cardRef}
+        className={cn(
+          "border-2 p-4 transition-all rounded-lg bg-card",
+          isDragging && "opacity-50 border-dashed",
+          isValidDropTarget && "border-primary/30 bg-primary/5"
+        )}
+      >
         <div className="space-y-4">
-          {totalSections > 1 && (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                {dragHandleProps && (
-                  <div {...dragHandleProps}>
-                    <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
-                  </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 flex-1">
+              <div {...dragHandleProps} className="cursor-grab active:cursor-grabbing">
+                <GripVertical className="h-5 w-5 text-muted-foreground/60" />
+              </div>
+              
+              <button
+                type="button"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="text-muted-foreground/70 hover:text-foreground transition-colors"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-5 w-5" />
+                ) : (
+                  <ChevronRight className="h-5 w-5" />
                 )}
-                <div className="flex-1">
-                  <Input
-                    value={field.label}
-                    onChange={(e) => onUpdate({ ...field, label: e.target.value })}
-                    className="font-semibold text-lg"
-                    placeholder="Section Title"
-                    required={totalSections > 1}
-                  />
-                  <Textarea
-                    value={field.sectionConfig?.description || ''}
-                    onChange={(e) =>
-                      onUpdate({
-                        ...field,
-                        sectionConfig: {
-                          ...field.sectionConfig!,
-                          description: e.target.value,
-                        },
-                      })
+              </button>
+              
+              <div className="flex-1">
+                <Input
+                  value={field.label}
+                  onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                  placeholder="Section Title"
+                  className="font-medium text-base border-0 border-b focus-visible:ring-0 focus-visible:border-primary rounded-none px-0 h-auto py-1 bg-transparent"
+                />
+              </div>
+              
+              <div className="flex items-center ml-auto gap-2">
+                <div className="flex items-center space-x-2 mr-2">
+                  <Label htmlFor={`required-${field.id}`} className="text-xs text-muted-foreground">
+                    Required
+                  </Label>
+                  <Switch
+                    id={`required-${field.id}`}
+                    checked={field.required}
+                    onCheckedChange={(checked) =>
+                      onUpdate({ ...field, required: checked })
                     }
-                    className="mt-2"
-                    placeholder="Section Description (optional)"
                   />
                 </div>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onDelete}
-                className="h-8 w-8 text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium">
-              {totalSections === 1 ? 'Form Fields' : 'Section Fields'}
-            </h3>
-            <Button
-              variant="outline"
-              onClick={() => setIsAddingField(true)}
-              className="flex items-center gap-2"
-            >
-              <PlusCircle className="h-4 w-4" />
-              Add Field
-            </Button>
-          </div>
-
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId={`section-${field.id}`}>
-              {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="space-y-4"
+                
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0 text-muted-foreground"
+                  onClick={() => {
+                    if (totalSections <= 1) {
+                      toast({
+                        title: 'Error',
+                        description: 'Forms must have at least one section',
+                        variant: 'destructive',
+                      });
+                      return;
+                    }
+                    onDelete();
+                  }}
                 >
-                  {field.sectionConfig?.fields?.map((subfield, index) => (
-                    <Draggable
-                      key={subfield.id}
-                      draggableId={subfield.id}
-                      index={index}
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <Textarea
+              value={field.sectionConfig?.description || ''}
+              onChange={(e) =>
+                onUpdate({
+                  ...field,
+                  sectionConfig: {
+                    ...field.sectionConfig!,
+                    description: e.target.value,
+                  },
+                })
+              }
+              placeholder="Section description (optional)"
+              className="min-h-[60px] text-sm resize-none"
+            />
+          </div>
+          
+          {isExpanded && (
+            <>
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId={`section-${field.id}`} type={`section-${field.id}`}>
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className={cn(
+                        "space-y-4 border-l-2 border-muted pl-4",
+                        field.sectionConfig?.fields && field.sectionConfig?.fields.length > 0 
+                          ? "mt-4 py-2" 
+                          : ""
+                      )}
                     >
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                        >
-                          <div className="flex items-center gap-2">
-                            <div {...provided.dragHandleProps}>
-                              <GripVertical className="h-5 w-5 text-muted-foreground cursor-move" />
-                            </div>
-                            <div className="flex-1">
-                              <FormField
-                                field={subfield}
-                                onUpdate={(updatedField) =>
-                                  handleUpdateField(index, updatedField)
-                                }
-                                onDelete={() => handleDeleteField(index)}
-                              />
-                            </div>
-                          </div>
+                      {field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 ? (
+                        field.sectionConfig.fields.map((subfield, index) => (
+                          <Draggable
+                            key={subfield.id}
+                            draggableId={subfield.id}
+                            index={index}
+                          >
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={cn(
+                                  snapshot.isDragging ? "opacity-70" : ""
+                                )}
+                              >
+                                <FormField
+                                  field={subfield}
+                                  onUpdate={(updatedField: FormField) =>
+                                    handleUpdateField(index, updatedField)
+                                  }
+                                  onDelete={() => handleDeleteField(index)}
+                                  onDragStart={onDragStart}
+                                  onDragEnd={onDragEnd}
+                                  onDragOver={onDragOver}
+                                  onDrop={onDrop}
+                                  isDragging={isDragging}
+                                  isValidDropTarget={isValidDropTarget}
+                                  path={[...path, field.id]}
+                                  level={level + 1}
+                                  isPreview={isPreview}
+                                  {...provided.dragHandleProps}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        ))
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-6 bg-muted/20 rounded-md border border-dashed">
+                          <p className="text-sm text-muted-foreground mb-2">No fields in this section</p>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-1"
+                            onClick={() => setIsAddingField(true)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            Add Field
+                          </Button>
                         </div>
                       )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-
-          {(!field.sectionConfig?.fields || field.sectionConfig.fields.length === 0) && (
-            <div className="text-center text-muted-foreground py-8">
-              No fields added yet. Click &quot;Add Field&quot; to start building
-              this section.
-            </div>
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+              
+              <div className="flex justify-center mt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => setIsAddingField(true)}
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Add Field
+                </Button>
+              </div>
+            </>
           )}
         </div>
-
+        
         <AddFieldDialog
           open={isAddingField}
           onOpenChange={setIsAddingField}
-          onAdd={(newField) => {
-            handleAddField(newField);
-            setIsAddingField(false);
-          }}
+          onAdd={handleAddField}
         />
-      </Card>
+      </div>
     );
 
-    return (
-      <>
-        {totalSections > 1 ? (
-          <Draggable draggableId={field.id} index={level}>
-            {(provided) => (
-              <div
-                ref={provided.innerRef}
-                {...provided.draggableProps}
-              >
-                {content(provided.dragHandleProps)}
-              </div>
-            )}
-          </Draggable>
-        ) : (
-          content()
-        )}
-      </>
-    );
+    return content(onDragStart ? { onDragStart } : undefined);
   }
 
   if (field.type === 'repeatable') {
     return (
-      <Card className="p-6">
+      <div className="p-6 border rounded-lg bg-card">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-2">
@@ -835,13 +883,13 @@ export function FormField({
           onOpenChange={setIsAddingField}
           onAdd={handleAddField}
         />
-      </Card>
+      </div>
     );
   }
 
   if (field.type === 'group') {
     const content = (dragHandleProps?: any) => (
-      <Card className="p-4">
+      <div className="p-4 border rounded-lg bg-card">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -914,7 +962,7 @@ export function FormField({
             </div>
           )}
         </div>
-      </Card>
+      </div>
     );
 
     return content();
@@ -944,8 +992,16 @@ export function FormField({
     onUpdate({ ...field, required: checked });
   };
 
-  const handleFileUpload = (file: FileUploadResult) => {
-    onUpdate({ ...field, value: file });
+  const handleFileUpload = (file: File) => {
+    // Create a temporary FileUploadResult-like object
+    const fileResult = {
+      path: '',
+      url: URL.createObjectURL(file),
+      name: file.name,
+      size: file.size,
+      type: file.type
+    };
+    onUpdate({ ...field, value: fileResult });
   };
 
   const handleFileRemove = () => {
@@ -1097,9 +1153,9 @@ export function FormField({
   );
 
   return (
-    <Card
+    <div
       ref={cardRef}
-      className={cn('p-4', {
+      className={cn('p-4 border rounded-lg bg-card', {
         'opacity-50': isDragging,
         'border-primary': isValidDropTarget,
       })}
@@ -1216,6 +1272,6 @@ export function FormField({
           )}
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

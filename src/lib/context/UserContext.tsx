@@ -1,31 +1,44 @@
 'use client'
 
-import { User } from '@supabase/supabase-js'
 import { createContext, useContext, useEffect, useState } from 'react'
 import { createClient } from '../utils/supabase/client'
-import { getUserRoles } from '@/services/user.service'
-import { Database } from '@/lib/types/database.types'
+import { getUserPermissions } from '@/actions/user.actions'
 
-type GroupRole = Database['public']['Tables']['group_roles']['Row']
-type UserRole = Database['public']['Tables']['user_roles']['Row'] & {
-  group_roles: GroupRole | null
+type SerializableUser = {
+  id: string
+  email?: string | undefined
+  user_metadata: Record<string, any>
+  app_metadata: Record<string, any>
 }
 
-type GroupPermissions = {
+// Serializable version of a role (without circular references)
+type SerializableRole = {
+  id: string
+  is_active: boolean
+  role_name: string
+  is_super_admin: boolean
+}
+
+type SerializableGroupPermissions = {
   [groupId: string]: {
     permissions: string[]
-    roles: UserRole[]
+    roleIds: string[]
+    roles: SerializableRole[] // Include serializable role info
   }
 }
 
 type UserContextType = {
-  user: User | null
-  groupPermissions: GroupPermissions
+  user: SerializableUser | null
+  groupPermissions: SerializableGroupPermissions
+  isLoading: boolean
+  refreshPermissions: () => Promise<void>
 }
 
 export const UserContext = createContext<UserContextType>({ 
   user: null,
-  groupPermissions: {}
+  groupPermissions: {},
+  isLoading: true,
+  refreshPermissions: async () => {}
 })
 
 export const useUser = () => {
@@ -39,43 +52,15 @@ export const useUser = () => {
 export function UserProvider({
   children,
   initialUser,
-  initialRoles,
-  initialPermissions,
+  initialGroupPermissions,
 }: {
   children: React.ReactNode
-  initialUser: User | null
-  initialRoles: UserRole[]
-  initialPermissions: string[]
+  initialUser: SerializableUser | null
+  initialGroupPermissions: SerializableGroupPermissions
 }) {
-  const [user, setUser] = useState<User | null>(initialUser)
-  const [groupPermissions, setGroupPermissions] = useState<GroupPermissions>(() => {
-    // Group initial roles and permissions by group ID
-    return initialRoles.reduce((acc, role) => {
-      if (!role.group_roles?.group_id) return acc;
-      
-      const groupId = role.group_roles.group_id;
-      if (!acc[groupId]) {
-        acc[groupId] = {
-          permissions: [],
-          roles: []
-        };
-      }
-
-      // Add role to group
-      acc[groupId].roles.push(role);
-
-      // Add permissions if role is active
-      if (role.is_active) {
-        if (role.group_roles.is_super_admin) {
-          acc[groupId].permissions.push('*');
-        } else if (role.group_roles.permissions) {
-          acc[groupId].permissions.push(...role.group_roles.permissions);
-        }
-      }
-
-      return acc;
-    }, {} as GroupPermissions);
-  })
+  const [user, setUser] = useState<SerializableUser | null>(initialUser)
+  const [groupPermissions, setGroupPermissions] = useState<SerializableGroupPermissions>(initialGroupPermissions)
+  const [isLoading, setIsLoading] = useState(false)
 
   const supabase = createClient()
 
@@ -84,7 +69,23 @@ export function UserProvider({
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const { data: { user } } = await supabase.auth.getUser()
-      setUser(user)
+      
+      if (user) {
+        // Convert to serializable format
+        const serializableUser: SerializableUser = {
+          id: user.id,
+          email: user.email,
+          user_metadata: user.user_metadata,
+          app_metadata: user.app_metadata,
+        }
+        setUser(serializableUser)
+        
+        // Refresh permissions when auth state changes
+        refreshPermissions()
+      } else {
+        setUser(null)
+        setGroupPermissions({})
+      }
     })
 
     return () => {
@@ -92,57 +93,26 @@ export function UserProvider({
     }
   }, [supabase])
 
-  // Fetch roles and permissions when user changes
-  useEffect(() => {
-    async function fetchUserRolesAndPermissions() {
-      if (!user) {
-        setGroupPermissions({})
-        return
-      }
-
-      try {
-        // Get all roles for all groups the user belongs to
-        const userRoles = await getUserRoles({ id: user.id, groupId: '*' })
-        
-        // Group roles and permissions by group ID
-        const newGroupPermissions = userRoles.reduce((acc, role) => {
-          if (!role.group_roles?.group_id) return acc;
-          
-          const groupId = role.group_roles.group_id;
-          if (!acc[groupId]) {
-            acc[groupId] = {
-              permissions: [],
-              roles: []
-            };
-          }
-
-          // Add role to group
-          acc[groupId].roles.push(role);
-
-          // Add permissions if role is active
-          if (role.is_active) {
-            if (role.group_roles.is_super_admin) {
-              acc[groupId].permissions.push('*');
-            } else if (role.group_roles.permissions) {
-              acc[groupId].permissions.push(...role.group_roles.permissions);
-            }
-          }
-
-          return acc;
-        }, {} as GroupPermissions);
-
-        setGroupPermissions(newGroupPermissions)
-      } catch (error) {
-        console.error('Error fetching user roles:', error)
-        setGroupPermissions({})
-      }
+  // Function to refresh permissions
+  const refreshPermissions = async () => {
+    if (!user) {
+      setGroupPermissions({})
+      return
     }
 
-    fetchUserRolesAndPermissions()
-  }, [user])
+    setIsLoading(true)
+    try {
+      const { groupPermissions: newPermissions } = await getUserPermissions(user.id)
+      setGroupPermissions(newPermissions)
+    } catch (error) {
+      console.error('Error refreshing user permissions:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
-    <UserContext.Provider value={{ user, groupPermissions }}>
+    <UserContext.Provider value={{ user, groupPermissions, isLoading, refreshPermissions }}>
       {children}
     </UserContext.Provider>
   )

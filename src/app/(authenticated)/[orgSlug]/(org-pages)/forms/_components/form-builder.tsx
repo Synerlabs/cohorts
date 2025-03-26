@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { PlusCircle, LayoutTemplate, Send } from 'lucide-react';
+import { PlusCircle, LayoutTemplate, Send, Edit, Eye, X, Save } from 'lucide-react';
 import { FormField, type FormField as FormFieldType } from './form-field';
 import { AddFieldDialog } from './add-field-dialog';
 import { useToast } from '@/components/ui/use-toast';
@@ -23,6 +23,8 @@ import { Org } from '@/lib/types/org.type';
 import { permissions } from '@/lib/types/permissions';
 import { usePermissions } from '@/lib/hooks/use-permissions';
 import { ClientComponentPermission } from '@/components/ClientComponentPermission';
+import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -80,6 +82,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
   const orgId = org.id;
   const [title, setTitle] = useState(template?.title || '');
   const [description, setDescription] = useState(template?.description || '');
+  const [status, setStatus] = useState<'draft' | 'published'>((template?.status === 'published' ? 'published' : 'draft'));
   const [sections, setSections] = useState<FormFieldType[]>(() => {
     if (!template?.schema) return [createDefaultSection()];
     try {
@@ -102,7 +105,10 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
   const router = useRouter();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
-  const { hasPermission } = usePermissions(userPermissions);
+  const { hasPermission } = usePermissions();
+
+  // Check permission manually here instead of in the hook
+  const hasPublishPermission = userPermissions.includes(permissions.forms.publish);
 
   function createDefaultSection(): FormFieldType {
     return {
@@ -171,7 +177,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
       return;
     }
 
-    if (!sections.some(section => section.sectionConfig?.fields.length > 0)) {
+    if (!sections.some(section => section.sectionConfig?.fields && section.sectionConfig.fields.length > 0)) {
       toast({
         title: 'Error',
         description: 'Please add at least one field to a section',
@@ -201,6 +207,9 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
       let publishResult = result.data?.id;
       if (shouldPublish) {
         publishResult = await publishFormTemplate(result.data.id);
+        setStatus('published');
+      } else {
+        setStatus('draft');
       }
 
       if (publishResult.error) {
@@ -239,121 +248,180 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         />
       )}
 
-      <Card className="p-6">
-        <div className="space-y-4">
-          <div>
-            <Label htmlFor="title">Form Title</Label>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter form title"
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="description">Description</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Enter form description"
-              className="mt-1"
-            />
-          </div>
+      <div className="p-6 border rounded-lg border-l-4 border-l-primary bg-card space-y-4">
+        <div>
+          <Label htmlFor="title" className="text-base font-medium">Form Title</Label>
+          <Input
+            id="title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Enter form title"
+            className="mt-1"
+          />
         </div>
-      </Card>
+        <div>
+          <Label htmlFor="description" className="text-base font-medium">Description</Label>
+          <Textarea
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Enter form description"
+            className="mt-1 min-h-[80px]"
+          />
+        </div>
+      </div>
 
-      <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'edit' | 'preview')}>
-        <TabsList className="grid w-[400px] grid-cols-2">
-          <TabsTrigger value="edit">Edit Form</TabsTrigger>
-          <TabsTrigger value="preview">Preview Form</TabsTrigger>
+      <Tabs 
+        defaultValue={activeTab} 
+        value={activeTab} 
+        onValueChange={(value) => setActiveTab(value as 'edit' | 'preview')}
+      >
+        <TabsList className="grid w-full max-w-md grid-cols-2 mb-4">
+          <TabsTrigger value="edit" className="text-base">
+            <span className="flex items-center gap-2">
+              <Edit className="h-4 w-4" />
+              Edit Form
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="text-base">
+            <span className="flex items-center gap-2">
+              <Eye className="h-4 w-4" />
+              Preview Form
+            </span>
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="edit" className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Sections</h2>
-            <Button
-              variant="outline"
-              onClick={handleAddSection}
-              className="flex items-center gap-2"
-            >
-              <LayoutTemplate className="h-4 w-4" />
-              Add Section
-            </Button>
-          </div>
-
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <Droppable droppableId="sections">
-              {(provided) => (
-                <div
-                  {...provided.droppableProps}
-                  ref={provided.innerRef}
-                  className="space-y-4"
+        <div className="border rounded-lg overflow-hidden bg-card">
+          <TabsContent value="edit" className="m-0">
+            <div className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
+                  Form Sections
+                </h2>
+                <Button
+                  variant="outline"
+                  onClick={handleAddSection}
+                  className="flex items-center gap-2"
                 >
-                  {sections.map((section, index) => (
-                    <Draggable
-                      key={section.id}
-                      draggableId={section.id}
-                      index={index}
-                    >
-                      {(provided) => (
-                        <div
-                          ref={provided.innerRef}
-                          {...provided.draggableProps}
-                          {...provided.dragHandleProps}
-                        >
-                          <FormField
-                            field={section}
-                            onUpdate={(updatedSection: FormFieldType) =>
-                              handleUpdateSection(index, updatedSection)
-                            }
-                            onDelete={() => handleDeleteSection(index)}
-                            totalSections={sections.length}
-                          />
-                        </div>
-                      )}
-                    </Draggable>
-                  ))}
-                  {provided.placeholder}
-                </div>
-              )}
-            </Droppable>
-          </DragDropContext>
-        </TabsContent>
+                  <PlusCircle className="h-4 w-4" />
+                  Add Section
+                </Button>
+              </div>
 
-        <TabsContent value="preview">
-          <FormPreview
-            title={title}
-            description={description}
-            fields={sections}
-          />
-        </TabsContent>
+              <DragDropContext onDragEnd={handleDragEnd}>
+                <Droppable droppableId="sections">
+                  {(provided) => (
+                    <div
+                      {...provided.droppableProps}
+                      ref={provided.innerRef}
+                      className="space-y-6"
+                    >
+                      {sections.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed rounded-md bg-muted/40">
+                          <LayoutTemplate className="h-10 w-10 text-muted-foreground mb-2" />
+                          <p className="text-muted-foreground">No sections yet. Add your first section to get started.</p>
+                          <Button 
+                            variant="outline" 
+                            className="mt-4" 
+                            onClick={handleAddSection}
+                          >
+                            Add Section
+                          </Button>
+                        </div>
+                      ) : (
+                        sections.map((section, index) => (
+                          <Draggable
+                            key={section.id}
+                            draggableId={section.id}
+                            index={index}
+                          >
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className={cn(
+                                  "transition-all",
+                                  snapshot.isDragging ? "opacity-70 scale-[1.02] shadow-md" : ""
+                                )}
+                              >
+                                <FormField
+                                  field={section}
+                                  onUpdate={(updatedSection: FormFieldType) =>
+                                    handleUpdateSection(index, updatedSection)
+                                  }
+                                  onDelete={() => handleDeleteSection(index)}
+                                  totalSections={sections.length}
+                                />
+                              </div>
+                            )}
+                          </Draggable>
+                        ))
+                      )}
+                      {provided.placeholder}
+                    </div>
+                  )}
+                </Droppable>
+              </DragDropContext>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="preview" className="m-0">
+            <div className="p-6 border-t">
+              <FormPreview
+                title={title}
+                description={description}
+                fields={sections}
+              />
+            </div>
+          </TabsContent>
+        </div>
       </Tabs>
 
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => router.back()}>
-          Cancel
-        </Button>
-        <ClientComponentPermission
-          requiredPermissions={[permissions.forms.publish]}
-        >
+      <div className="p-4 flex items-center justify-between gap-3 border rounded-lg bg-muted/30">
+        <div className="flex items-center space-x-2">
+          <span className="text-sm text-muted-foreground">Status:</span>
+          <Badge variant={status === 'published' ? "default" : "secondary"} className={cn(status === 'published' ? "bg-green-500" : "")}>
+            {status === 'published' ? "Published" : "Draft"}
+          </Badge>
+          {status === 'published' && (
+            <span className="text-xs text-muted-foreground">
+              {template?.updated_at ? `Last updated: ${new Date(template.updated_at).toLocaleDateString()}` : ''}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => router.back()} className="gap-2">
+            <X className="h-4 w-4" />
+            Cancel
+          </Button>
+          {hasPublishPermission && (
             <Button 
               variant="outline"
               onClick={() => handleSave(true)}
               disabled={isSaving}
               className="flex items-center gap-2"
+            >
+              <Send className="h-4 w-4" />
+              {isSaving ? 'Publishing...' : 'Save & Publish'}
+            </Button>
+          )}
+          <Button 
+            onClick={() => handleSave(false)} 
+            disabled={isSaving}
+            className="gap-2"
           >
-            <Send className="h-4 w-4" />
-            {isSaving ? 'Publishing...' : 'Save & Publish'}
+            <Save className="h-4 w-4" />
+            {isSaving 
+              ? 'Saving...' 
+              : mode === 'create' 
+                ? 'Save as Draft'
+                : status === 'published' 
+                  ? 'Save Changes' 
+                  : 'Update Draft'}
           </Button>
-          </ClientComponentPermission>
-        <Button 
-          onClick={() => handleSave(false)} 
-          disabled={isSaving}
-        >
-          {isSaving ? 'Saving...' : mode === 'create' ? 'Save as Draft' : 'Update Draft'}
-        </Button>
+        </div>
       </div>
     </div>
   );
