@@ -339,7 +339,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                   className="gap-1.5"
                 >
                   <Check className="h-4 w-4" />
-                  Save Details
+                  Apply Changes
                 </Button>
               </div>
             </div>
@@ -448,13 +448,13 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                       ) : (
                         <>
                           {/* Add a button to insert at the top */}
-                          <div className="group/section mb-3">
+                          <div className="group/section">
                             <div className="h-3 hover:bg-muted/10 rounded-md transition-colors"></div>
                             <InsertSectionButton position={0} />
                           </div>
                           
                           {sections.map((section, index) => (
-                            <div key={section.id} className="space-y-0 mb-3 group/section">
+                            <div key={section.id} className="space-y-0 group/section">
                               <Draggable
                                 draggableId={section.id}
                                 index={index}
@@ -524,8 +524,8 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         </div>
       </Tabs>
 
-      <div className="sticky bottom-0 pt-6 pb-4 bg-background bg-opacity-75 backdrop-blur-sm z-10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border bg-card p-5 shadow-md">
+      <div className="sticky bottom-0 pt-6 z-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border bg-card/95 backdrop-blur-sm p-5 shadow-md">
           <div className="flex items-center gap-4">
             <div className="flex flex-col">
               <div className="flex items-center gap-2 mb-1">
@@ -562,7 +562,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
               Cancel
             </Button>
             
-            {hasPublishPermission && (
+            {hasPublishPermission && status !== 'published' && (
               <Button 
                 variant="outline"
                 onClick={() => handleSave(true)}
@@ -571,7 +571,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                 size="sm"
               >
                 <Send className="h-3.5 w-3.5" />
-                {isSaving ? 'Publishing...' : 'Save & Publish'}
+                {isSaving ? 'Publishing...' : 'Publish'}
               </Button>
             )}
             
@@ -584,11 +584,9 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
               <Save className="h-3.5 w-3.5" />
               {isSaving 
                 ? 'Saving...' 
-                : mode === 'create' 
-                  ? 'Save as Draft'
-                  : status === 'published' 
-                    ? 'Save Changes' 
-                    : 'Update Draft'}
+                : status === 'published' 
+                  ? 'Save Changes' 
+                  : 'Save as Draft'}
             </Button>
           </div>
         </div>
