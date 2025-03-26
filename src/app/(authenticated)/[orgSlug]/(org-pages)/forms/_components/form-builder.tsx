@@ -302,128 +302,121 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
         />
       )}
 
-      <div className="p-6 border rounded-lg border-l-4 border-l-primary bg-card space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            {editingHeader ? (
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="title" className="text-base font-medium">Form Title</Label>
-                  <Input
-                    id="title"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Enter form title"
-                    className="mt-1"
-                    autoFocus
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="description" className="text-base font-medium">Form Description</Label>
-                  <Textarea
-                    id="description"
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Enter form description (optional)"
-                    className="mt-1 min-h-[80px]"
-                  />
-                </div>
+      <div className="rounded-lg border bg-card shadow-sm mb-8">
+        {editingHeader ? (
+          <div className="p-6 space-y-5">
+            <h2 className="text-lg font-medium mb-2 flex items-center gap-2 text-primary">
+              <Edit className="h-5 w-5" />
+              Form Settings
+            </h2>
+            
+            <div className="grid gap-5">
+              <div>
+                <Label htmlFor="title" className="text-sm font-medium">Form Title</Label>
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Enter form title"
+                  className="mt-1.5"
+                  autoFocus
+                />
               </div>
-            ) : (
-              <div className="space-y-2">
-                <div 
-                  className="text-xl font-semibold py-1 px-2 rounded hover:bg-muted/50 cursor-pointer flex items-center group/title"
-                  onClick={() => setEditingHeader(true)}
+              <div>
+                <Label htmlFor="description" className="text-sm font-medium">Form Description</Label>
+                <Textarea
+                  id="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Enter form description (optional)"
+                  className="mt-1.5 min-h-[100px] resize-y"
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button
+                  variant="default"
+                  onClick={() => setEditingHeader(false)}
+                  className="gap-1.5"
                 >
-                  {title || "Untitled Form"}
-                  <Pencil className="ml-2 h-4 w-4 text-primary/60 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
-                </div>
-                <div 
-                  className="text-muted-foreground py-1 px-2 rounded hover:bg-muted/50 cursor-pointer flex items-start group/desc"
-                  onClick={() => setEditingHeader(true)}
-                >
-                  <div className="flex-1 max-h-10 overflow-hidden">
-                    {description ? description : <span className="italic text-muted-foreground/70">Add form description...</span>}
-                  </div>
-                  <Pencil className="ml-2 h-4 w-4 text-primary/60 opacity-0 group-hover/desc:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded mt-1" />
-                </div>
-                {status === 'published' && (
-                  <Badge className="bg-green-500 mt-2">Published</Badge>
+                  <Check className="h-4 w-4" />
+                  Save Details
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div 
+            className="p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-muted/5 transition-colors group cursor-pointer"
+            onClick={() => setEditingHeader(true)}
+          >
+            <div className="space-y-2 max-w-2xl">
+              
+              <div className="space-y-1">
+                <div className="font-medium">{title || "Untitled Form"}</div>
+                
+                {description ? (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{description}</p>
+                ) : (
+                  <p className="text-sm text-muted-foreground/70 italic">Add a description for this form...</p>
                 )}
               </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {editingHeader ? (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => setEditingHeader(false)}
-              >
-                <Check className="h-4 w-4 mr-1" />
-                Save Settings
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setEditingHeader(true)}
-                className="flex items-center gap-1"
-              >
-                <LayoutTemplate className="h-4 w-4" />
-                Form Settings
-              </Button>
-            )}
-          </div>
-        </div>
-        
-        <div>
-          {editingHeader ? (
-            null
-          ) : (
-            <div className="text-muted-foreground py-1 px-2 rounded hover:bg-muted/50 cursor-pointer group border border-transparent hover:border-muted/30"
-              onClick={() => setEditingHeader(true)}
-            >
-              {description || "Add form description..."}
             </div>
-          )}
-        </div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              className="self-start md:self-center"
+            >
+              <Edit className="h-3.5 w-3.5 mr-1.5" />
+              Edit Details
+            </Button>
+          </div>
+        )}
       </div>
 
       <Tabs 
         defaultValue={activeTab} 
         value={activeTab} 
         onValueChange={(value) => setActiveTab(value as 'edit' | 'preview')}
+        className="mb-10"
       >
-        <TabsList className="grid w-full max-w-md grid-cols-2 mb-4">
-          <TabsTrigger value="edit" className="text-base">
-            <span className="flex items-center gap-2">
-              <Edit className="h-4 w-4" />
-              Edit Form
-            </span>
-          </TabsTrigger>
-          <TabsTrigger value="preview" className="text-base">
-            <span className="flex items-center gap-2">
-              <Eye className="h-4 w-4" />
-              Preview Form
-            </span>
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-lg font-medium flex items-center gap-2">
+            <LayoutTemplate className="h-5 w-5 text-primary/70" />
+            Form Builder
+          </h2>
+          <TabsList className="bg-muted/50 p-1 rounded-lg">
+            <TabsTrigger value="edit" className="rounded-md text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Edit className="h-3.5 w-3.5 mr-1.5" />
+              Edit
+            </TabsTrigger>
+            <TabsTrigger value="preview" className="rounded-md text-sm data-[state=active]:bg-white data-[state=active]:shadow-sm">
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
+              Preview
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
-        <div className="border rounded-lg overflow-hidden bg-card">
-          <TabsContent value="edit" className="m-0">
-            <div className="p-6 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <LayoutTemplate className="h-5 w-5 text-muted-foreground" />
-                  Form Sections
-                </h2>
+        <div>
+          <TabsContent value="edit" className="m-0 p-0">
+            <div className="space-y-6">
+              <div className="rounded-lg border bg-muted/20 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <LayoutTemplate className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-sm">Form Sections</h3>
+                    <p className="text-xs text-muted-foreground">{sections.length} {sections.length === 1 ? 'section' : 'sections'} in this form</p>
+                  </div>
+                </div>
                 <Button
                   variant="outline"
                   onClick={handleAddSection}
-                  className="flex items-center gap-2"
+                  className="gap-1.5"
+                  size="sm"
                 >
-                  <PlusCircle className="h-4 w-4" />
+                  <PlusCircle className="h-3.5 w-3.5" />
                   Add Section
                 </Button>
               </div>
@@ -504,59 +497,100 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
           </TabsContent>
 
           <TabsContent value="preview" className="m-0">
-            <div className="p-6 border-t">
-              <FormPreview
-                title={title}
-                description={description}
-                fields={sections}
-              />
+            <div className="rounded-lg border shadow-sm bg-white overflow-hidden">
+              <div className="p-3 bg-muted/40 border-b flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="flex space-x-1.5">
+                    <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                    <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                    <div className="w-3 h-3 rounded-full bg-green-400"></div>
+                  </div>
+                  <div className="text-xs text-muted-foreground">Form Preview</div>
+                </div>
+                <Badge variant="outline" className="h-5 px-2 text-xs bg-muted/50 hover:bg-muted">
+                  <Eye className="h-3 w-3 mr-1" />
+                  Preview Mode
+                </Badge>
+              </div>
+              <div className="p-6">
+                <FormPreview
+                  title={title}
+                  description={description}
+                  fields={sections}
+                />
+              </div>
             </div>
           </TabsContent>
         </div>
       </Tabs>
 
-      <div className="p-4 flex items-center justify-between gap-3 border rounded-lg bg-muted/30">
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-muted-foreground">Status:</span>
-          <Badge variant={status === 'published' ? "default" : "secondary"} className={cn(status === 'published' ? "bg-green-500" : "")}>
-            {status === 'published' ? "Published" : "Draft"}
-          </Badge>
-          {status === 'published' && (
-            <span className="text-xs text-muted-foreground">
-              {template?.updated_at ? `Last updated: ${new Date(template.updated_at).toLocaleDateString()}` : ''}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={() => router.back()} className="gap-2">
-            <X className="h-4 w-4" />
-            Cancel
-          </Button>
-          {hasPublishPermission && (
+      <div className="sticky bottom-0 pt-6 pb-4 bg-background bg-opacity-75 backdrop-blur-sm z-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-lg border bg-card p-5 shadow-md">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-sm font-medium">Status</span>
+                <Badge 
+                  variant={status === 'published' ? "default" : "secondary"} 
+                  className={cn(
+                    "rounded-full px-3", 
+                    status === 'published' 
+                      ? "bg-green-500 hover:bg-green-600" 
+                      : "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                  )}
+                >
+                  {status === 'published' ? "Published" : "Draft"}
+                </Badge>
+              </div>
+              
+              {status === 'published' && template?.updated_at && (
+                <span className="text-xs text-muted-foreground">
+                  Last updated: {new Date(template.updated_at).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
             <Button 
-              variant="outline"
-              onClick={() => handleSave(true)}
-              disabled={isSaving}
-              className="flex items-center gap-2"
+              variant="outline" 
+              onClick={() => router.back()} 
+              className="gap-2 min-w-20"
+              size="sm"
             >
-              <Send className="h-4 w-4" />
-              {isSaving ? 'Publishing...' : 'Save & Publish'}
+              <X className="h-3.5 w-3.5" />
+              Cancel
             </Button>
-          )}
-          <Button 
-            onClick={() => handleSave(false)} 
-            disabled={isSaving}
-            className="gap-2"
-          >
-            <Save className="h-4 w-4" />
-            {isSaving 
-              ? 'Saving...' 
-              : mode === 'create' 
-                ? 'Save as Draft'
-                : status === 'published' 
-                  ? 'Save Changes' 
-                  : 'Update Draft'}
-          </Button>
+            
+            {hasPublishPermission && (
+              <Button 
+                variant="outline"
+                onClick={() => handleSave(true)}
+                disabled={isSaving}
+                className="gap-2 min-w-32 border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800 hover:border-green-300"
+                size="sm"
+              >
+                <Send className="h-3.5 w-3.5" />
+                {isSaving ? 'Publishing...' : 'Save & Publish'}
+              </Button>
+            )}
+            
+            <Button 
+              onClick={() => handleSave(false)} 
+              disabled={isSaving}
+              className="gap-2 min-w-32"
+              size="sm"
+            >
+              <Save className="h-3.5 w-3.5" />
+              {isSaving 
+                ? 'Saving...' 
+                : mode === 'create' 
+                  ? 'Save as Draft'
+                  : status === 'published' 
+                    ? 'Save Changes' 
+                    : 'Update Draft'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

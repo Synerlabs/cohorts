@@ -37,58 +37,16 @@ async function EditFormPage({ org, user, userPermissions, params }: EditFormPage
   const lastUpdated = template.updated_at ? new Date(template.updated_at) : null;
 
   return (
-    <div className="container py-6 space-y-6">
-      <div className="space-y-2">
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
-              <BreadcrumbLink href={`/@${orgSlug}/forms`}>Forms</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{template.title}</BreadcrumbPage>
-            </BreadcrumbItem>
-          </BreadcrumbList>
-        </Breadcrumb>
-        
-        <div className="flex flex-col md:flex-row md:items-center gap-2 md:justify-between">
-          <div className="flex items-center gap-2">
-            <Edit className="h-5 w-5 text-muted-foreground" />
-            <h1 className="text-2xl font-semibold">Edit Form</h1>
-            <Badge variant={isPublished ? "default" : "secondary"} className={cn("ml-2", isPublished ? "bg-green-500" : "")}>
-              {isPublished ? "Published" : "Draft"}
-            </Badge>
-          </div>
-          
-          {lastUpdated && (
-            <div className="flex items-center text-sm text-muted-foreground">
-              <CalendarClock className="mr-1 h-4 w-4" />
-              Last updated: {format(lastUpdated, 'PPP')}
-            </div>
-          )}
-        </div>
-        
-        <p className="text-muted-foreground">
-          Update your form by modifying fields and settings
-        </p>
-      </div>
+    <div className="container max-w-6xl py-10 space-y-10">
+      {/* Page Header with Breadcrumb */}
       
+      {/* Form Builder Component */}
       <FormBuilder
         org={org}
         template={template}
         mode="edit"
         userPermissions={userPermissions || []}
       />
-      
-      <div className="flex justify-start">
-        <Link 
-          href={`/@${orgSlug}/forms`}
-          className="flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <ArrowLeft className="mr-1 h-4 w-4" />
-          Back to Forms
-        </Link>
-      </div>
     </div>
   );
 }
