@@ -114,6 +114,23 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
   // Check permission manually here instead of in the hook
   const hasPublishPermission = hasPermission(permissions.forms.publish);
 
+  // Track the original section IDs to identify new vs. existing sections
+  const [originalSectionIds, setOriginalSectionIds] = useState<Set<string>>(() => {
+    if (!template?.schema) return new Set();
+    try {
+      const schema = typeof template.schema === 'string' 
+        ? JSON.parse(template.schema) 
+        : template.schema;
+      
+      return new Set((schema.fields || []).map((field: FormFieldType) => field.id));
+    } catch (error) {
+      return new Set();
+    }
+  });
+  
+  // Track modified sections
+  const [modifiedSectionIds, setModifiedSectionIds] = useState<Set<string>>(new Set());
+
   function createDefaultSection(): FormFieldType {
     return {
       id: crypto.randomUUID(),
@@ -165,6 +182,11 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
     const newSections = [...sections];
     newSections[index] = section;
     setSections(newSections);
+    
+    // Mark this section as modified
+    if (originalSectionIds.has(section.id)) {
+      setModifiedSectionIds(prev => new Set(prev).add(section.id));
+    }
   };
 
   const handleDeleteSection = (index: number) => {
@@ -410,15 +432,31 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                     <p className="text-xs text-muted-foreground">{sections.length} {sections.length === 1 ? 'section' : 'sections'} in this form</p>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={handleAddSection}
-                  className="gap-1.5"
-                  size="sm"
-                >
-                  <PlusCircle className="h-3.5 w-3.5" />
-                  Add Section
-                </Button>
+                <div className="flex items-center gap-4">
+                  <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-3 w-3 rounded-full bg-card border border-primary/20"></div>
+                      <span>Saved</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-3 w-3 rounded-full bg-amber-50 border border-amber-300"></div>
+                      <span>Modified</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-3 w-3 rounded-full bg-blue-50 border border-blue-300"></div>
+                      <span>New</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleAddSection}
+                    className="gap-1.5"
+                    size="sm"
+                  >
+                    <PlusCircle className="h-3.5 w-3.5" />
+                    Add Section
+                  </Button>
+                </div>
               </div>
 
               <DragDropContext onDragEnd={handleDragEnd}>
@@ -470,14 +508,26 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
                                     )}
                                     data-section-id={section.id}
                                   >
-                                    <FormField
-                                      field={section}
-                                      onUpdate={(updatedSection: FormFieldType) =>
-                                        handleUpdateSection(index, updatedSection)
-                                      }
-                                      onDelete={() => handleDeleteSection(index)}
-                                      totalSections={sections.length}
-                                    />
+                                    <div className={cn(
+                                      "rounded-md px-5 py-6 border-l-4 transition-colors",
+                                      // New section (not in original)
+                                      !originalSectionIds.has(section.id) 
+                                        ? "bg-blue-50/50 border-l-blue-300 hover:border-l-blue-500 shadow-sm" 
+                                        // Modified section (in original but changed)
+                                        : modifiedSectionIds.has(section.id)
+                                          ? "bg-amber-50/50 border-l-amber-300 hover:border-l-amber-500 shadow-sm"
+                                          // Saved/unchanged section
+                                          : "bg-white border-l-primary/20 hover:border-l-primary/40 shadow-sm"
+                                    )}>
+                                      <FormField
+                                        field={section}
+                                        onUpdate={(updatedSection: FormFieldType) =>
+                                          handleUpdateSection(index, updatedSection)
+                                        }
+                                        onDelete={() => handleDeleteSection(index)}
+                                        totalSections={sections.length}
+                                      />
+                                    </div>
                                   </div>
                                 )}
                               </Draggable>

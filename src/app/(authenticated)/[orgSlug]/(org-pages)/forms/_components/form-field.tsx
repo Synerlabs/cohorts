@@ -392,160 +392,161 @@ export function FormField({
 
   if (field.type === 'section') {
     return (
-      <div className="p-6 border rounded-lg bg-card hover:border-primary/50 transition-colors relative overflow-hidden group/section">
-        <div className="absolute top-0 left-0 w-full h-1 bg-primary/20"></div>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-2 flex-1">
-              <div className="flex items-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 w-6 p-0 mr-1 text-muted-foreground hover:text-foreground"
-                  onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
-                >
-                  {isSectionCollapsed ? (
-                    <ChevronRight className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </Button>
-                <LayoutGrid className="h-4 w-4 text-primary/80 mr-2" />
-                <div className="relative flex-1 group/title">
-                  <Input
-                    value={field.label}
-                    onChange={(e) => onUpdate({ ...field, label: e.target.value })}
-                    className="font-semibold border-0 px-0 focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none bg-transparent peer pr-8"
-                    placeholder="Section Title"
-                  />
-                  <Pencil className="h-3.5 w-3.5 text-primary/60 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
-                </div>
-                
-                {isSectionCollapsed && field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
-                  <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
-                    {field.sectionConfig.fields.length} {field.sectionConfig.fields.length === 1 ? 'field' : 'fields'}
+      <div className="relative">
+        <div className="relative overflow-hidden group/section">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2 flex-1">
+                <div className="flex items-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0 mr-1 text-muted-foreground hover:text-foreground"
+                    onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
+                  >
+                    {isSectionCollapsed ? (
+                      <ChevronRight className="h-4 w-4" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4" />
+                    )}
+                  </Button>
+                  <LayoutGrid className="h-4 w-4 text-primary/80 mr-2" />
+                  <div className="relative flex-1 group/title">
+                    <Input
+                      value={field.label}
+                      onChange={(e) => onUpdate({ ...field, label: e.target.value })}
+                      className="font-semibold border-0 px-0 focus-visible:ring-0 focus-visible:border-b focus-visible:border-primary rounded-none bg-transparent peer pr-8"
+                      placeholder="Section Title"
+                    />
+                    <Pencil className="h-3.5 w-3.5 text-primary/60 absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/title:opacity-100 transition-opacity bg-muted/30 p-0.5 rounded" />
                   </div>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
-                className={cn(
-                  "h-8 px-2 rounded-md border transition-all duration-200",
-                  !isSectionCollapsed 
-                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
-                    : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
-                )}
-              >
-                <Settings2 className="h-4 w-4 mr-1.5" />
-                <span className="text-xs font-medium">{!isSectionCollapsed ? "Close" : "Settings"}</span>
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onDelete}
-                className="h-8 w-8 text-destructive/70 hover:text-destructive"
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {!isSectionCollapsed && (
-            <>
-              <div className="flex items-center justify-between border-t pt-4">
-                <h3 className="text-sm font-medium">Section Fields</h3>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setIsAddingField(true)}
-                  className="flex items-center gap-2"
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Add Field
-                </Button>
-              </div>
-
-              <DragDropContext onDragEnd={handleDragEnd}>
-                <Droppable droppableId={`section-${field.id}`}>
-                  {(provided) => (
-                    <div
-                      {...provided.droppableProps}
-                      ref={(el) => {
-                        provided.innerRef(el);
-                        // @ts-ignore - This is fine since we're combining refs
-                        fieldsContainerRef.current = el;
-                      }}
-                      className="space-y-2"
-                    >
-                      {/* Add a button to insert at the top if there are fields */}
-                      {field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
-                        <InsertFieldButton
-                          position={0}
-                          onClick={() => {}}
-                        />
-                      )}
-                      
-                      {field.sectionConfig?.fields.map((subfield, index) => (
-                        <div key={subfield.id} className="group/field space-y-0">
-                          <Draggable
-                            draggableId={subfield.id}
-                            index={index}
-                          >
-                            {(provided) => (
-                              <div
-                                ref={provided.innerRef}
-                                {...provided.draggableProps}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div {...provided.dragHandleProps} className="cursor-grab hover:bg-muted/60 active:cursor-grabbing p-1 rounded transition-colors">
-                                    <GripVertical className="h-5 w-5 text-muted-foreground/60 group-hover/field:text-muted-foreground/80 transition-colors" />
-                                  </div>
-                                  <div className="flex-1">
-                                    <FormField
-                                      field={subfield}
-                                      onUpdate={(updatedField) =>
-                                        handleUpdateField(index, updatedField)
-                                      }
-                                      onDelete={() => handleDeleteField(index)}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </Draggable>
-                          
-                          {/* Add insert button after each field */}
-                          <InsertFieldButton
-                            position={index + 1}
-                            onClick={() => {}}
-                          />
-                        </div>
-                      ))}
+                  
+                  {isSectionCollapsed && field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
+                    <div className="ml-2 text-xs px-2 py-1 bg-muted/30 rounded-full text-muted-foreground">
+                      {field.sectionConfig.fields.length} {field.sectionConfig.fields.length === 1 ? 'field' : 'fields'}
                     </div>
                   )}
-                </Droppable>
-              </DragDropContext>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSectionCollapsed(!isSectionCollapsed)}
+                  className={cn(
+                    "h-8 px-2 rounded-md border transition-all duration-200",
+                    !isSectionCollapsed 
+                      ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90" 
+                      : "bg-background border-muted-foreground/30 hover:border-primary hover:text-primary"
+                  )}
+                >
+                  <Settings2 className="h-4 w-4 mr-1.5" />
+                  <span className="text-xs font-medium">{!isSectionCollapsed ? "Close" : "Settings"}</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onDelete}
+                  className="h-8 w-8 text-destructive/70 hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
 
-              {(!field.sectionConfig?.fields || field.sectionConfig.fields.length === 0) && (
-                <div className="flex flex-col items-center justify-center py-8 border border-dashed rounded-md bg-muted/20 transition-all hover:bg-muted/30 hover:border-primary/30">
-                  <LayoutGrid className="h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground mb-2">No fields added yet</p>
+            {!isSectionCollapsed && (
+              <>
+                <div className="flex items-center justify-between border-t pt-4">
+                  <h3 className="text-sm font-medium">Section Fields</h3>
                   <Button
                     variant="default"
                     size="sm"
                     onClick={() => setIsAddingField(true)}
-                    className="mt-2"
+                    className="flex items-center gap-2"
                   >
-                    Add First Field
+                    <PlusCircle className="h-4 w-4" />
+                    Add Field
                   </Button>
                 </div>
-              )}
-            </>
-          )}
+
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId={`section-${field.id}`}>
+                    {(provided) => (
+                      <div
+                        {...provided.droppableProps}
+                        ref={(el) => {
+                          provided.innerRef(el);
+                          // @ts-ignore - This is fine since we're combining refs
+                          fieldsContainerRef.current = el;
+                        }}
+                        className="space-y-2"
+                      >
+                        {/* Add a button to insert at the top if there are fields */}
+                        {field.sectionConfig?.fields && field.sectionConfig.fields.length > 0 && (
+                          <InsertFieldButton
+                            position={0}
+                            onClick={() => {}}
+                          />
+                        )}
+                        
+                        {field.sectionConfig?.fields.map((subfield, index) => (
+                          <div key={subfield.id} className="group/field space-y-0">
+                            <Draggable
+                              draggableId={subfield.id}
+                              index={index}
+                            >
+                              {(provided) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <div {...provided.dragHandleProps} className="cursor-grab hover:bg-muted/60 active:cursor-grabbing p-1 rounded transition-colors">
+                                      <GripVertical className="h-5 w-5 text-muted-foreground/60 group-hover/field:text-muted-foreground/80 transition-colors" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <FormField
+                                        field={subfield}
+                                        onUpdate={(updatedField) =>
+                                          handleUpdateField(index, updatedField)
+                                        }
+                                        onDelete={() => handleDeleteField(index)}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </Draggable>
+                            
+                            {/* Add insert button after each field */}
+                            <InsertFieldButton
+                              position={index + 1}
+                              onClick={() => {}}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </Droppable>
+                </DragDropContext>
+
+                {(!field.sectionConfig?.fields || field.sectionConfig.fields.length === 0) && (
+                  <div className="flex flex-col items-center justify-center py-8 border border-dashed rounded-md bg-muted/20 transition-all hover:bg-muted/30 hover:border-primary/30">
+                    <LayoutGrid className="h-8 w-8 text-muted-foreground mb-2" />
+                    <p className="text-sm text-muted-foreground mb-2">No fields added yet</p>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setIsAddingField(true)}
+                      className="mt-2"
+                    >
+                      Add First Field
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <AddFieldDialog
@@ -559,8 +560,7 @@ export function FormField({
 
   if (field.type === 'repeatable') {
     return (
-      <div className="p-6 border rounded-lg bg-card hover:border-primary/50 transition-colors relative overflow-hidden group/repeatable">
-        <div className="absolute top-0 left-0 w-full h-1 bg-blue-500/30"></div>
+      <div className="p-6 border rounded-lg bg-white hover:border-primary/50 transition-colors relative overflow-hidden group/repeatable shadow-sm">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-2 flex-1">
@@ -726,8 +726,7 @@ export function FormField({
 
   if (field.type === 'group') {
     return (
-      <div className="p-6 border rounded-lg bg-card hover:border-primary/50 transition-colors relative overflow-hidden group/group">
-        <div className="absolute top-0 left-0 w-full h-1 bg-amber-500/30"></div>
+      <div className="p-6 border rounded-lg bg-white hover:border-primary/50 transition-colors relative overflow-hidden group/group shadow-sm">
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-2 flex-1">
@@ -1081,7 +1080,7 @@ export function FormField({
   // Standard fields (text, textarea, email, etc)
   return (
     <div className={cn(
-      "group/field flex border rounded-lg overflow-hidden transition-all duration-200",
+      "group/field flex border rounded-lg overflow-hidden transition-all duration-200 bg-white",
       isDragging ? "opacity-70 border-dashed border-primary/50 shadow-sm" : "hover:border-primary/50 border-solid shadow-sm hover:shadow-md",
       isExpanded && "border-primary shadow-md",
       isValidDropTarget && "ring-2 ring-primary/30"
@@ -1122,7 +1121,7 @@ export function FormField({
 
           {isExpanded && (
             <div className="mt-4 pt-4 border-t">
-              <div className="bg-muted/20 rounded-lg p-3 transition-all hover:bg-muted/30">
+              <div className="bg-muted/10 rounded-lg p-3 transition-all">
                 {renderFieldSettings(field, onUpdate)}
               </div>
             </div>
