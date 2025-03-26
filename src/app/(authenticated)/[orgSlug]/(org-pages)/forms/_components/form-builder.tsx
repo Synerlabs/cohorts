@@ -108,7 +108,7 @@ export function FormBuilder({ org, template, mode = 'create', userPermissions }:
   const { hasPermission } = usePermissions();
 
   // Check permission manually here instead of in the hook
-  const hasPublishPermission = userPermissions.includes(permissions.forms.publish);
+  const hasPublishPermission = hasPermission(permissions.forms.publish);
 
   function createDefaultSection(): FormFieldType {
     return {
