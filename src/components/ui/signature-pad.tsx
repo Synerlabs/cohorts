@@ -2,7 +2,7 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Eraser, Save, Undo } from 'lucide-react';
+import { Eraser } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SignaturePadProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -20,6 +20,7 @@ export function SignaturePad({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasSignature, setHasSignature] = useState(false);
+  const [localSignature, setLocalSignature] = useState<string | null>(initialSignature);
   const lastPosition = useRef({ x: 0, y: 0 });
 
   // Initialize canvas and load initial signature if provided
@@ -55,21 +56,41 @@ export function SignaturePad({
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // Load initial signature if provided
-    if (initialSignature) {
-      const img = new Image();
-      img.onload = () => {
-        clearCanvas();
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        setHasSignature(true);
-      };
-      img.src = initialSignature;
-    }
-
     return () => {
       window.removeEventListener('resize', resizeCanvas);
     };
-  }, [initialSignature]);
+  }, []);
+
+  // Load signature when local signature changes
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio);
+    
+    // Load signature if available
+    if (localSignature) {
+      const img = new Image();
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio);
+        setHasSignature(true);
+      };
+      img.src = localSignature;
+    } else {
+      setHasSignature(false);
+    }
+  }, [localSignature]);
+
+  // Update external state when local signature changes
+  useEffect(() => {
+    if (onSignatureChange) {
+      onSignatureChange(localSignature);
+    }
+  }, [localSignature, onSignatureChange]);
 
   // Drawing functions
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -105,22 +126,36 @@ export function SignaturePad({
     
     const { x, y } = getCoordinates(e);
     
-    ctx.beginPath();
-    ctx.moveTo(lastPosition.current.x, lastPosition.current.y);
-    ctx.lineTo(x, y);
-    ctx.stroke();
-    
-    lastPosition.current = { x, y };
-    setHasSignature(true);
+    // Only draw if the position has changed
+    if (x !== lastPosition.current.x || y !== lastPosition.current.y) {
+      ctx.beginPath();
+      ctx.moveTo(lastPosition.current.x, lastPosition.current.y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+      
+      lastPosition.current = { x, y };
+      
+      // Set hasSignature to true when there is actual drawing
+      if (!hasSignature) {
+        setHasSignature(true);
+      }
+    }
   };
 
   const stopDrawing = () => {
     if (isDrawing) {
       setIsDrawing(false);
+      
+      // Only update the signature data if something was actually drawn
       const canvas = canvasRef.current;
-      if (canvas && hasSignature && onSignatureChange) {
-        const dataUrl = canvas.toDataURL('image/png');
-        onSignatureChange(dataUrl);
+      if (canvas && hasSignature) {
+        try {
+          // Update local signature state
+          const dataUrl = canvas.toDataURL('image/png');
+          setLocalSignature(dataUrl);
+        } catch (error) {
+          console.error('Error converting signature to image:', error);
+        }
       }
     }
   };
@@ -134,9 +169,7 @@ export function SignaturePad({
     
     ctx.clearRect(0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio);
     setHasSignature(false);
-    if (onSignatureChange) {
-      onSignatureChange(null);
-    }
+    setLocalSignature(null);
   };
 
   const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
