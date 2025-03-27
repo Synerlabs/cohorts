@@ -44,6 +44,12 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       permission: null, // No permission required
     },
     {
+      name: "My Applications",
+      href: `/@${org.slug}/user/applications`,
+      icon: <InboxIcon className="h-4 w-4" />,
+      permission: null, // No permission required - all users can access their applications
+    },
+    {
       name: "Members",
       href: `/@${org.slug}/members`,
       icon: <Users className="h-4 w-4" />,

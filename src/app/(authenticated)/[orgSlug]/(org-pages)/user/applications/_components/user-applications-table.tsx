@@ -1,0 +1,88 @@
+import Link from "next/link";
+import { Application } from "@/services/applications.service";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { formatCurrency, formatDate } from "@/lib/utils/format";
+import { Eye } from "lucide-react";
+
+interface UserApplicationsTableProps {
+  applications: Application[];
+  orgSlug: string;
+}
+
+export function UserApplicationsTable({ applications, orgSlug }: UserApplicationsTableProps) {
+  if (applications.length === 0) {
+    return (
+      <div className="rounded-md border p-8 text-center">
+        <p className="text-muted-foreground">No applications found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Membership</TableHead>
+            <TableHead>Submitted</TableHead>
+            <TableHead>Price</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {applications.map((application) => (
+            <TableRow key={application.id}>
+              <TableCell className="font-medium">{application.product.name}</TableCell>
+              <TableCell>{formatDate(application.created_at)}</TableCell>
+              <TableCell>
+                {application.product.price > 0 
+                  ? formatCurrency(application.product.price, application.product.currency)
+                  : "Free"}
+              </TableCell>
+              <TableCell>
+                <ApplicationStatusBadge status={application.status} />
+              </TableCell>
+              <TableCell className="text-right">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  asChild
+                >
+                  <Link href={`/@${orgSlug}/applications/${application.id}`}>
+                    <Eye className="h-4 w-4 mr-1" />
+                    View
+                  </Link>
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function ApplicationStatusBadge({ status }: { status: Application['status'] }) {
+  switch (status) {
+    case 'pending':
+      return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Pending</Badge>;
+    case 'pending_payment':
+      return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Pending Payment</Badge>;
+    case 'approved':
+      return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Approved</Badge>;
+    case 'rejected':
+      return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Rejected</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
+} 

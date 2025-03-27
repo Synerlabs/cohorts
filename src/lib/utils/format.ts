@@ -1,27 +1,36 @@
+import { format as formatDateFn } from "date-fns";
+
 /**
- * Formats a currency amount with the appropriate currency symbol
- * 
- * @param amount - The amount in minor units (cents)
- * @param currency - The currency code (USD, EUR, etc.)
- * @returns A formatted currency string
+ * Format a date string
+ * @param dateString ISO date string
+ * @param formatStr Optional format string, defaults to 'MMM d, yyyy'
+ * @returns Formatted date string
  */
-export function formatCurrency(amount: number, currency: string): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency.toUpperCase(),
-  }).format(amount / 100);
+export function formatDate(dateString: string | null, formatStr: string = 'MMM d, yyyy'): string {
+  if (!dateString) return 'N/A';
+  
+  try {
+    return formatDateFn(new Date(dateString), formatStr);
+  } catch (error) {
+    console.error('Error formatting date:', error);
+    return 'Invalid date';
+  }
 }
 
 /**
- * Formats a date into a readable string
- * 
- * @param date - Date string to format
- * @returns A formatted date string
+ * Format a currency amount
+ * @param amount Amount as number
+ * @param currency Currency code (e.g., 'USD')
+ * @returns Formatted currency string
  */
-export function formatDate(date: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  }).format(new Date(date));
+export function formatCurrency(amount: number, currency: string = 'USD'): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency,
+    }).format(amount);
+  } catch (error) {
+    console.error('Error formatting currency:', error);
+    return `${amount} ${currency}`;
+  }
 } 

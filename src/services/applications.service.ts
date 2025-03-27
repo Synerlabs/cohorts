@@ -506,6 +506,40 @@ export async function getUserMembershipApplications(userId: string, groupId: str
   return (data as ApplicationView[]).map(mapViewToApplication);
 }
 
+export async function getUserMembershipApplicationsWithPagination(
+  userId: string, 
+  groupId: string,
+  limit: number = 10,
+  offset: number = 0
+): Promise<{applications: Application[], total: number}> {
+  const supabase = await createClient();
+  
+  // First get the count of all user applications
+  const { count, error: countError } = await supabase
+    .from('membership_applications_view')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .eq('group_id', groupId);
+    
+  if (countError) throw countError;
+  
+  // Then get the paginated data
+  const { data, error } = await supabase
+    .from('membership_applications_view')
+    .select()
+    .eq('user_id', userId)
+    .eq('group_id', groupId)
+    .order('submitted_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (error) throw error;
+  
+  return {
+    applications: data ? (data as ApplicationView[]).map(mapViewToApplication) : [],
+    total: count || 0
+  };
+}
+
 function mapViewToApplication(row: ApplicationView): Application {
   return {
     id: row.application_id,
