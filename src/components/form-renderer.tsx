@@ -418,70 +418,42 @@ export function FormRenderer({ formTemplateId, formTemplate: initialTemplate, on
         let localUploadedFiles = 0;
         
         try {
-          // If we have lots of files, use the formDataToSubmit to track state between
-          // uploads for async completion
-          if (filesToUpload > 3) {
-            // Prepare the response data structure but don't submit yet
-            const formSubmitData = {
-              templateId: formTemplateId,
-              responseData: processFormResponse(submissionData)
-            };
+          // For a small number of files, upload them all and then submit directly
+          for (const [fieldId, file] of Object.entries(fileFields)) {
+            console.log(`Uploading file for field ${fieldId}:`, file.name);
             
-            // Store this for the useEffect to pick up and actually submit
-            // after all files are uploaded
-            setFormDataToSubmit(formSubmitData);
-          } else {
-            // For a small number of files, upload them all and then submit directly
-            for (const [fieldId, file] of Object.entries(fileFields)) {
-              console.log(`Uploading file for field ${fieldId}:`, file.name);
+            try {
+              // Create upload form data with correct parameters
+              const uploadFormData = new FormData();
+              uploadFormData.append('file', file);
+              uploadFormData.append('bucket', 'form-uploads');
+              uploadFormData.append('folder', `form-responses/${formTemplateId}`);
               
-              try {
-                const uploadFormData = new FormData();
-                uploadFormData.append('file', file);
-                uploadFormData.append('bucket', 'form-uploads');
-                uploadFormData.append('folder', `form-responses/${formTemplateId}`);
-                
-                // Call handleUpload and wait for it to complete
-                await handleUpload(uploadFormData);
-                
-                // Wait for the next tick to ensure uploadState is updated
-                await new Promise(resolve => setTimeout(resolve, 0));
-                
-                // Now check the upload state - add null check
-                if (uploadState && uploadState.success && uploadState.fileInfo) {
-                  // Store the file info in the submission data
-                  submissionData[fieldId] = uploadState.fileInfo;
-                  localUploadResults[fieldId] = uploadState.fileInfo;
-                  
-                  // Update upload progress UI
-                  localUploadedFiles++;
-                  setUploadedFiles(localUploadedFiles);
-                  setUploadProgress(Math.round((localUploadedFiles / filesToUpload) * 100));
-                  console.log(`Upload progress: ${localUploadedFiles}/${filesToUpload}`);
-                } else if (uploadState && uploadState.error) {
-                  throw new Error(`Failed to upload file: ${uploadState.error}`);
-                } else {
-                  throw new Error(`Upload failed: The upload state is null or incomplete.`);
-                }
-              } catch (error) {
-                console.error(`Error uploading file for field ${fieldId}:`, error);
-                throw error;
-              }
+              // Use the handleUpload function - cannot await this as it uses startTransition
+              handleUpload(uploadFormData);
+              
+              // Wait for the upload to complete before continuing
+              // We're going to rely on the uploadState changes in the useEffect instead
+              // This will track progress via the uploadResults state
+              
+              // Mark this field as being processed to avoid duplicate uploads
+              processedUploads.current[file.name] = false;
+            } catch (error) {
+              console.error(`Error initiating upload for field ${fieldId}:`, error);
+              throw error;
             }
-            
-            // All files uploaded successfully, now submit the form directly
-            console.log('Submitting form with uploaded files:', submissionData);
-            
-            // Use the same method for form submission as in the upload completion handler
-            const formSubmitData = {
-              templateId: formTemplateId,
-              responseData: processFormResponse(submissionData)
-            };
-            
-            // This is a direct submission without relying on the useEffect
-            onSubmit(formSubmitData);
-            setPendingUploads(false);
           }
+          
+          // Store the form data for submission after all uploads complete
+          const formSubmitData = {
+            templateId: formTemplateId,
+            responseData: processFormResponse(submissionData)
+          };
+          
+          // Set this to trigger the useEffect to submit the form when uploads are done
+          setFormDataToSubmit(formSubmitData);
+          
+          // Note: The actual form submission will happen in the useEffect that monitors uploadResults
         } catch (error) {
           console.error('Error during file uploads:', error);
           toast({
