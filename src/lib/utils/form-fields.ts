@@ -66,8 +66,35 @@ export function getRepeatableFields(formResponse: FormResponse | null, repeatabl
   if (!formResponse) return [];
 
   try {
+    console.log(`Getting repeatable fields for ${repeatableId} in section ${sectionId}`);
+    
     // Get all fields that belong to this repeatable field
     const fields = formResponse.response_data.sections[sectionId]?.fields || {};
+    
+    // Check if the repeatable field itself exists and has a value array
+    const repeatableField = fields[repeatableId];
+    
+    // If we have a repeatable field with a direct array value (new format)
+    if (repeatableField && repeatableField.type === 'repeatable' && Array.isArray(repeatableField.value)) {
+      console.log(`Found repeatable field with ${repeatableField.value.length} items`);
+      
+      // Transform the value array into the expected RepeatableField format
+      return repeatableField.value.map((item, index) => {
+        // Convert object to array of {key, value} pairs that match the expected format
+        const fieldEntries = Object.entries(item).map(([key, value]) => ({
+          key: `${repeatableId}.${index}.${key}`,
+          value
+        }));
+        
+        return {
+          index,
+          fields: fieldEntries
+        };
+      });
+    }
+    
+    // Legacy format: look for fields with pattern repeatableId.index.fieldId
+    console.log(`No direct value array found, checking legacy format`);
     const repeatableFields = Object.entries(fields)
       .filter(([key]) => key.startsWith(`${repeatableId}.`))
       .reduce((acc: Record<number, any[]>, [key, value]) => {
@@ -82,6 +109,8 @@ export function getRepeatableFields(formResponse: FormResponse | null, repeatabl
         return acc;
       }, {});
 
+    console.log(`Found legacy entries:`, Object.keys(repeatableFields).length);
+    
     return Object.entries(repeatableFields)
       .map(([index, fields]) => ({
         index: parseInt(index),

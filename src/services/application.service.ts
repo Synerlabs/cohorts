@@ -90,6 +90,9 @@ export class ApplicationService {
     }
 
     try {
+      console.log(`Processing form response ${formResponseId}`);
+      console.log(`Raw response_data:`, JSON.stringify(formResponseData.response_data, null, 2));
+
       // Parse the template schema
       const formTemplate: FormTemplate = {
         id: formResponseData.form_templates.id,
@@ -103,6 +106,21 @@ export class ApplicationService {
       // Ensure response_data has the correct structure
       const rawResponseData = formResponseData.response_data?.responseData || {};
       
+      console.log(`Extract rawResponseData:`, JSON.stringify(rawResponseData, null, 2));
+      console.log(`Fields in raw response:`, Object.keys(rawResponseData.fields || {}));
+      console.log(`Sections in raw response:`, Object.keys(rawResponseData.sections || {}));
+      
+      // Check for repeatable fields
+      Object.entries(rawResponseData.sections || {}).forEach(([sectionId, section]) => {
+        const sectionFields = (section as any).fields || {};
+        Object.entries(sectionFields).forEach(([fieldId, field]) => {
+          if ((field as any).type === 'repeatable') {
+            console.log(`Found repeatable field ${fieldId} in section ${sectionId}`);
+            console.log(`Value:`, (field as any).value);
+          }
+        });
+      });
+
       const validatedResponseData = {
         fields: typeof rawResponseData.fields === 'object' ? rawResponseData.fields : {},
         sections: typeof rawResponseData.sections === 'object' ? rawResponseData.sections : {}
@@ -119,6 +137,7 @@ export class ApplicationService {
         }
       };
 
+      console.log(`Final response_data structure:`, JSON.stringify(formResponse.response_data, null, 2));
       return { formResponse, formTemplate };
     } catch (error) {
       console.error('Error parsing form data:', error);

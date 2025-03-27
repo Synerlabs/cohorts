@@ -53,16 +53,46 @@ export function UserApplicationsTable({ applications, orgSlug }: UserApplication
                 <ApplicationStatusBadge status={application.status} />
               </TableCell>
               <TableCell className="text-right">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  asChild
-                >
-                  <Link href={`/@${orgSlug}/applications/${application.id}`}>
-                    <Eye className="h-4 w-4 mr-1" />
-                    View
-                  </Link>
-                </Button>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    asChild
+                  >
+                    <Link href={`/@${orgSlug}/applications/${application.id}`}>
+                      <Eye className="h-4 w-4 mr-1" />
+                      View
+                    </Link>
+                  </Button>
+                  
+                  {/* Only show edit button for pending applications */}
+                  {application.status === 'pending' && (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      asChild
+                    >
+                      <Link href={`/@${orgSlug}/user/applications/${application.id}/edit`}>
+                        <span className="flex items-center">
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            className="h-4 w-4 mr-1" 
+                            viewBox="0 0 24 24" 
+                            fill="none" 
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round"
+                          >
+                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                            <path d="m15 5 4 4"/>
+                          </svg>
+                          Edit
+                        </span>
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </TableCell>
             </TableRow>
           ))}
