@@ -275,12 +275,11 @@ export async function join(prevState: State, formData: FormData): Promise<State>
 
     if (orgError) throw orgError;
 
-    // For tiers that require payment, redirect to checkout
+    // For tiers that require payment NEXT, redirect to checkout
     if (membershipTier.price > 0 && (
       membershipTier.membership_tier.activation_type === MembershipActivationType.PAYMENT_REQUIRED ||
       membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT ||
-      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW ||
-      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT
+      membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_PAYMENT_THEN_REVIEW
     )) {
       return {
         message: 'Redirecting to payment...',
@@ -288,7 +287,20 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       };
     }
 
-    // For tiers that don't require payment, redirect to thank you page
+    // For tiers that require REVIEW next, redirect to thank you page
+    // This includes FORM_THEN_REVIEW and FORM_THEN_REVIEW_THEN_PAYMENT types
+    if (membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_REVIEW ||
+        membershipTier.membership_tier.activation_type === MembershipActivationType.FORM_THEN_REVIEW_THEN_PAYMENT ||
+        membershipTier.membership_tier.activation_type === MembershipActivationType.REVIEW_REQUIRED) {
+      console.log(`Redirecting to awaiting review page for activation type: ${membershipTier.membership_tier.activation_type}`);
+      revalidatePath(`/${org.slug}/join`);
+      return {
+        message: 'Your membership application was submitted and is awaiting review.',
+        redirect: `/${org.slug}/join?status=pending&app=${application.id}`
+      };
+    }
+
+    // For all other tiers (automatic, etc.), redirect to thank you page
     revalidatePath(`/${org.slug}/join`);
     return {
       message: 'Your membership application was submitted successfully!',

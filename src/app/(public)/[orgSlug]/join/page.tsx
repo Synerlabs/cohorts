@@ -26,16 +26,20 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 type CamelizedGroup = Camelized<Tables<"group">>;
+type SearchParams = { [key: string]: string | string[] | undefined };
 
 async function getMembershipData(orgId: string, isDeleted = false): Promise<IMembershipTierProduct[]> {
   const memberships = await ProductService.getMembershipTiers(orgId);
   return memberships;
 }
 
-async function JoinPage({ org, params }: OrgAccessHOCProps) {
+async function JoinPage({ org, params, searchParams }: OrgAccessHOCProps & { searchParams: SearchParams }) {
   const _params = await params;
   const { data, error } = await getCurrentUser();
   const memberships = await getMembershipData(org.id);
+  
+  // Check for viewAll parameter
+  const viewAll = searchParams?.viewAll === 'true';
 
   if (error || !data?.user) {
     return (
@@ -79,7 +83,8 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
   // First check for active membership
   const userMembership = await getUserMembership({ userId: data.user.id, groupId: org.id });
   
-  if (userMembership && userMembership.status === 'active') {
+  // Show active membership card unless viewAll parameter is present
+  if (userMembership && userMembership.status === 'active' && !viewAll) {
     return (
       <div className="container max-w-4xl py-12 space-y-8">
         <ActiveMembershipDisplay 
@@ -120,11 +125,54 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
           <div className="inline-flex items-center justify-center p-2 bg-primary/10 rounded-full mb-4">
             <Users className="h-6 w-6 text-primary" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight mb-3">Become a Member</h1>
+          <h1 className="text-4xl font-bold tracking-tight mb-3">
+            {userMembership && userMembership.status === 'active' 
+              ? "Explore Memberships" 
+              : "Become a Member"}
+          </h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Choose a membership option below to join {org.name} and access exclusive benefits.
+            {userMembership && userMembership.status === 'active' 
+              ? `Browse available membership options for ${org.name}.` 
+              : `Choose a membership option below to join ${org.name} and access exclusive benefits.`}
           </p>
         </div>
+        
+        {/* Current Membership Alert - Show when viewing all membership options */}
+        {userMembership && userMembership.status === 'active' && viewAll && (
+          <div className="mb-12">
+            <Card className="border-green-200 bg-green-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xl flex items-center gap-2 text-green-800">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  Your Active Membership
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <p className="text-green-700">
+                    You already have an active <strong>{userMembership.product.name}</strong> membership.
+                    If you select a different membership, it will replace your current one.
+                  </p>
+                  
+                  <div className="flex flex-col sm:flex-row gap-2 mt-3">
+                    <Link href={`/@${org.slug}/dashboard`} className="w-full">
+                      <Button variant="outline" className="w-full border-green-300 text-green-700 hover:bg-green-100 hover:text-green-800">
+                        Go to Dashboard
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </Link>
+                    
+                    <Link href={`/@${org.slug}/join`} className="w-full">
+                      <Button className="w-full bg-green-600 hover:bg-green-700">
+                        Manage Current Membership
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
         
         {/* Applications Alert Section */}
         {applications.length > 0 && (
@@ -144,7 +192,7 @@ async function JoinPage({ org, params }: OrgAccessHOCProps) {
                   </p>
                   
                   <div className="flex flex-col sm:flex-row gap-2 mt-3">
-                    <Link href={`/${org.slug}/applications`} className="w-full">
+                    <Link href={`/@${org.slug}/user/applications`} className="w-full">
                       <Button variant="outline" className="w-full border-yellow-300 text-yellow-700 hover:bg-yellow-100 hover:text-yellow-800">
                         View Applications
                         <ChevronRight className="h-4 w-4 ml-1" />
