@@ -107,6 +107,8 @@ export function formatFieldValue(value: any, type: string): string | null {
       if (type === 'file') return value;
       return JSON.stringify(value);
     }
+    // Return raw value for signature fields (should be a data URL)
+    if (type === 'signature') return value;
     return String(value);
   } catch (error) {
     console.error('Error formatting field value:', error);

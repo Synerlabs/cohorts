@@ -90,6 +90,30 @@ export function FormFieldRenderer({ field, sectionId, value, repeatableItems, fo
     );
   }
 
+  if (field.type === 'signature') {
+    if (!value) {
+      return (
+        <div key={field.id} className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">{field.label}</p>
+          <p className="text-sm italic text-muted-foreground">No signature provided</p>
+        </div>
+      );
+    }
+
+    return (
+      <div key={field.id} className="space-y-1">
+        <p className="text-xs font-medium text-muted-foreground">{field.label}</p>
+        <div className="border rounded p-2 bg-white">
+          <img 
+            src={value} 
+            alt="Signature" 
+            className="max-h-24 object-contain"
+          />
+        </div>
+      </div>
+    );
+  }
+
   if (field.type === 'group') {
     return (
       <Card key={field.id} className="overflow-hidden">
