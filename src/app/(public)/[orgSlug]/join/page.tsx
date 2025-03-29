@@ -99,6 +99,11 @@ async function JoinPage({ org, params, searchParams }: OrgAccessHOCProps & { sea
   const applications = await getUserMembershipApplications(data.user.id, org.id);
   const latestApplication = applications[0];
 
+  // Filter to only pending and pending_payment applications
+  const pendingApplications = applications.filter(app => 
+    app.status === 'pending' || app.status === 'pending_payment'
+  );
+
   // Filter membership tiers based on type
   const membershipTiers = memberships.filter(tier => tier.membership_tier?.type !== 'organization');
   const orgTiers = memberships.filter(tier => tier.membership_tier?.type === 'organization');
@@ -175,7 +180,7 @@ async function JoinPage({ org, params, searchParams }: OrgAccessHOCProps & { sea
         )}
         
         {/* Applications Alert Section */}
-        {applications.length > 0 && (
+        {pendingApplications.length > 0 && (
           <div className="mb-12">
             <Card className="border-yellow-200 bg-yellow-50">
               <CardHeader className="pb-2">
@@ -187,7 +192,7 @@ async function JoinPage({ org, params, searchParams }: OrgAccessHOCProps & { sea
               <CardContent>
                 <div className="space-y-3">
                   <p className="text-yellow-700">
-                    You have {applications.length} pending membership application{applications.length > 1 ? 's' : ''}.
+                    You have {pendingApplications.length} pending membership application{pendingApplications.length > 1 ? 's' : ''}.
                     You can track their status or continue with a new application below.
                   </p>
                   
