@@ -12,6 +12,7 @@ type CurrentState = {
     size: number;
     type: string;
   };
+  fieldId?: string;
 } | null;
 
 export const uploadFileAction = async (
@@ -22,6 +23,7 @@ export const uploadFileAction = async (
     const file = formData.get("file") as File;
     const bucket = (formData.get("bucket") as string) || 'form-uploads';
     const folder = (formData.get("folder") as string) || 'files';
+    const fieldId = formData.get("fieldId") as string;
 
     if (!file) {
       return {
@@ -57,6 +59,7 @@ export const uploadFileAction = async (
 
     return {
       success: true,
+      fieldId,
       fileInfo: {
         path: data.path,
         url: publicUrl,
