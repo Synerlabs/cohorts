@@ -33,7 +33,7 @@ export class ApplicationService {
     
     const { data, error } = await supabase
       .from('applications')
-      .select('form_response_id')
+      .select()
       .eq('id', applicationId)
       .single();
 

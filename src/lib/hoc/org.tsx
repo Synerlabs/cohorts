@@ -182,8 +182,9 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     if (!AuthServerContext.org) {
       const { orgSlug } = params || {};
       const slug = decodeURIComponent(orgSlug).replace(/^@/, "");
+      console.log('slug', slug);
       const response = await getCachedOrgBySlug(slug);
-      if (response.error || !response.data) {
+      if (response?.error || !response?.data) {
         console.error(`withOrgAccess - ${slug} not found`, response);
         return notFound();
       }

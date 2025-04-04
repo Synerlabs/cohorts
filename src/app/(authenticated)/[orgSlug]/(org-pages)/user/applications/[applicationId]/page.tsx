@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, Calendar, CreditCard, FileText, User } from "lucide-react";
 import Link from "next/link";
 import { FormResponseCard } from "../../../applications/[applicationId]/_components/form-response-card";
+import { getGroupUser } from "@/services/user.service";
 
 interface UserApplicationDetailsProps extends Omit<OrgAccessHOCProps, 'params'> {
   params: {
@@ -23,14 +24,16 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
 
   // Ensure user is defined
   if (!user) {
+    console.error('user not found');
     notFound();
   }
 
   // Get application base data
   const applicationBase = await ApplicationService.getApplicationBase(params.applicationId);
-
+  const groupUser = await getGroupUser({userId: user.id, groupId: org.id});
   // Verify this application belongs to the current user
-  if (!applicationBase || applicationBase.user_id !== user.id) {
+  if (!applicationBase || applicationBase.group_user_id !== groupUser?.id) {
+    console.error('applicationBase not found');
     notFound();
   }
 
