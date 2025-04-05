@@ -31,8 +31,10 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
   // Get application base data
   const applicationBase = await ApplicationService.getApplicationBase(params.applicationId);
   const groupUser = await getGroupUser({userId: user.id, groupId: org.id});
+  
   // Verify this application belongs to the current user
-  if (!applicationBase || applicationBase.group_user_id !== groupUser?.id) {
+  // Use type assertion to access group_user_id which exists in the database but not in the TypeScript interface
+  if (!applicationBase || (applicationBase as any).group_user_id !== groupUser?.id) {
     console.error('applicationBase not found');
     notFound();
   }
@@ -73,6 +75,25 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
     }
   };
 
+  // Helper to get user-friendly status text
+  const getStatusText = (status: string) => {
+    switch(status) {
+      case 'approved':
+        return 'APPROVED';
+      case 'rejected':
+        return 'REJECTED';
+      case 'pending_payment':
+        return 'PAYMENT REQUIRED';
+      case 'pending':
+        return 'PENDING REVIEW';
+      default:
+        return status.replace('_', ' ').toUpperCase();
+    }
+  };
+
+  // Access order_id using type assertion as it exists in the database but not in the TypeScript interface
+  const orderId = (application as any).order_id;
+
   return (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -102,8 +123,32 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
               <div className="mb-4">
                 <p className="text-sm text-muted-foreground mb-1.5">Application Status</p>
                 <Badge variant="outline" className={`${getStatusBadgeClass(application.status)} px-2.5 py-1`}>
-                  {application.status.replace('_', ' ').toUpperCase()}
+                  {getStatusText(application.status)}
                 </Badge>
+                
+                {application.status === 'pending' && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Your application is being reviewed by the organization.
+                  </p>
+                )}
+                
+                {application.status === 'pending_payment' && (
+                  <p className="mt-2 text-sm text-muted-foreground">
+                    Please complete payment to finalize your application.
+                  </p>
+                )}
+
+                {/* Move payment button here for better visibility */}
+                {application.status === 'pending_payment' && (
+                  <div className="mt-3">
+                    <Button className="w-full" asChild>
+                      <Link href={`/@${org.slug}/join/payments?applicationId=${application.id}`}>
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        {orderId ? 'Complete Payment' : 'Process Payment'}
+                      </Link>
+                    </Button>
+                  </div>
+                )}
               </div>
               
               <Separator className="my-4" />
@@ -138,13 +183,13 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
                   </p>
                 </div>
                 
-                {application.order_id && (
+                {orderId && (
                   <div>
                     <div className="flex items-center gap-2 mb-1.5">
                       <FileText className="h-4 w-4 text-muted-foreground" />
                       <span className="text-sm font-medium">Order ID</span>
                     </div>
-                    <p className="text-sm pl-6">{application.order_id}</p>
+                    <p className="text-sm pl-6">{orderId}</p>
                   </div>
                 )}
               </div>
@@ -158,15 +203,6 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
                   status={application.status}
                   orgSlug={org.slug}
                 />
-                
-                {application.status === 'pending_payment' && application.order_id && (
-                  <Button className="w-full mt-3" asChild>
-                    <Link href={`/${org.slug}/join/payments?applicationId=${application.id}`}>
-                      <CreditCard className="h-4 w-4 mr-2" />
-                      Complete Payment
-                    </Link>
-                  </Button>
-                )}
               </div>
             </CardContent>
           </Card>
