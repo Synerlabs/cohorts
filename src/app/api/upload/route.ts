@@ -1,41 +1,23 @@
-"use server";
-
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/utils/supabase/server';
 
-type CurrentState = {
-  success: boolean;
-  error?: string;
-  fileInfo?: {
-    path: string;
-    url: string;
-    name: string;
-    size: number;
-    type: string;
-  };
-  fieldId?: string;
-  uploadIndex?: string;
-  totalUploads?: string;
-} | null;
-
-export const uploadFileAction = async (
-  currentState: CurrentState,
-  formData: FormData,
-) => {
+export async function POST(request: NextRequest) {
   try {
+    // Get the form data from the request
+    const formData = await request.formData();
     const file = formData.get("file") as File;
     const bucket = (formData.get("bucket") as string) || 'form-uploads';
     const folder = (formData.get("folder") as string) || 'files';
     const fieldId = formData.get("fieldId") as string;
-    const uploadIndex = formData.get("uploadIndex") as string;
-    const totalUploads = formData.get("totalUploads") as string;
 
     if (!file) {
-      return {
+      return NextResponse.json({
         success: false,
-        error: "No file provided",
-      };
+        error: "No file provided"
+      }, { status: 400 });
     }
 
+    // Initialize Supabase client
     const supabase = await createClient();
 
     // Generate a unique file name to avoid collisions
@@ -43,45 +25,49 @@ export const uploadFileAction = async (
     const uniqueFileName = `${timestamp}-${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
     const filePath = `${folder}/${uniqueFileName}`;
 
+    // Get file as ArrayBuffer
+    const fileBuffer = await file.arrayBuffer();
+
+    // Upload to Supabase storage
     const { data, error } = await supabase.storage
       .from(bucket)
-      .upload(filePath, file, {
+      .upload(filePath, fileBuffer, {
         cacheControl: '3600',
         upsert: false,
+        contentType: file.type,
       });
 
     if (error) {
-      return {
+      console.error('Upload error:', error);
+      return NextResponse.json({
         success: false,
         error: error.message,
-        fieldId,
-        uploadIndex,
-        totalUploads
-      };
+        fieldId
+      }, { status: 500 });
     }
 
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from(bucket).getPublicUrl(data.path);
+    // Get the public URL for the uploaded file
+    const { data: { publicUrl } } = supabase.storage
+      .from(bucket)
+      .getPublicUrl(data.path);
 
-    return {
+    // Return the success response
+    return NextResponse.json({
       success: true,
       fieldId,
-      uploadIndex,
-      totalUploads,
       fileInfo: {
         path: data.path,
         url: publicUrl,
         name: file.name,
         size: file.size,
         type: file.type,
-      },
-    };
+      }
+    });
   } catch (error) {
-    console.error(error);
-    return {
+    console.error('Upload handler error:', error);
+    return NextResponse.json({
       success: false,
-      error: "Failed to upload file",
-    };
+      error: "Failed to upload file"
+    }, { status: 500 });
   }
-}; 
+} 
