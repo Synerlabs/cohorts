@@ -7,7 +7,7 @@ import { UserApplicationActions } from "../_components/user-application-actions"
 import { formatDate } from "@/lib/utils/format";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, Calendar, CreditCard, FileText, User } from "lucide-react";
+import { ArrowLeft, Calendar, CreditCard, FileText, User, Building } from "lucide-react";
 import Link from "next/link";
 import { FormResponseCard } from "../../../applications/[applicationId]/_components/form-response-card";
 import { getGroupUser } from "@/services/user.service";
@@ -60,6 +60,10 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
       formTemplate = formData.formTemplate;
     }
   }
+
+  // Extract organization information from metadata
+  const organizationName = applicationBase?.metadata?.organizationName;
+  const organizationId = applicationBase?.metadata?.organizationId;
 
   // Helper to get status badge color
   const getStatusBadgeClass = (status: string) => {
@@ -170,6 +174,17 @@ async function UserApplicationDetailsPage({ org, user, params: _params }: UserAp
                   </div>
                   <p className="text-sm pl-6">{application.product_name}</p>
                 </div>
+                
+                {/* Display Organization info if available */}
+                {organizationName && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Building className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Organization</span>
+                    </div>
+                    <p className="text-sm pl-6">{organizationName}</p>
+                  </div>
+                )}
                 
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">

@@ -84,6 +84,7 @@ export function UserApplicationsTable({ applications, orgSlug }: UserApplication
           <TableHeader>
             <TableRow>
               <TableHead>Membership</TableHead>
+              <TableHead>Organization</TableHead>
               <TableHead>Submitted</TableHead>
               <TableHead>Price</TableHead>
               <TableHead>Status</TableHead>
@@ -94,6 +95,9 @@ export function UserApplicationsTable({ applications, orgSlug }: UserApplication
             {applications.map((application) => (
               <TableRow key={application.id}>
                 <TableCell className="font-medium">{application.product.name}</TableCell>
+                <TableCell>
+                  {(application as any)?.metadata?.organizationName || "-"}
+                </TableCell>
                 <TableCell>{formatDate(application.created_at)}</TableCell>
                 <TableCell>
                   {application.product.price > 0 

@@ -25,6 +25,7 @@ import { Loader2, Check, ArrowLeft, Building, Plus } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { join } from '../_actions/join';
 import useToastActionState from '@/lib/hooks/toast-action-state.hook';
+import { CreateGroupForm } from '../components/CreateGroupForm';
 
 interface Organization {
   id: string;
@@ -208,6 +209,15 @@ export default function SelectOrganizationPage() {
     router.back();
   };
   
+  // Add state for storing additional organization data
+  const [newOrgData, setNewOrgData] = useState<Record<string, any>>({});
+  
+  // Handle organization form data update
+  const handleOrgFormDataChange = (formData: Record<string, any>) => {
+    setNewOrgName(formData.name || '');
+    setNewOrgData(formData);
+  };
+  
   const handleSubmit = async () => {
     // Create a FormData object to pass to the standard join action
     const formData = new FormData();
@@ -230,8 +240,17 @@ export default function SelectOrganizationPage() {
     
     // Add organization-specific information
     if (isCreatingNew) {
-      // For new organizations, pass the name
+      // For new organizations, pass the name and additional fields from the form
       formData.append('organizationName', newOrgName.trim());
+      
+      // Add additional group data if it exists (these will be populated by CreateGroupForm)
+      if (newOrgData) {
+        Object.entries(newOrgData).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            formData.append(`org_${key}`, String(value));
+          }
+        });
+      }
     } else {
       // For existing organizations, pass the ID and look up the name
       formData.append('organizationId', selectedOrgId);
@@ -321,14 +340,10 @@ export default function SelectOrganizationPage() {
           ) : isCreatingNew ? (
             <div className="space-y-4">
               <div className="flex flex-col space-y-1.5">
-                <Label htmlFor="newOrgName">Organization Name</Label>
-                <Input
-                  id="newOrgName"
-                  value={newOrgName}
-                  onChange={(e) => setNewOrgName(e.target.value)}
-                  placeholder="Enter organization name"
-                  autoFocus
+                <CreateGroupForm 
+                  onDataChange={handleOrgFormDataChange}
                   disabled={isProcessing}
+                  minimal={true}
                 />
               </div>
               
