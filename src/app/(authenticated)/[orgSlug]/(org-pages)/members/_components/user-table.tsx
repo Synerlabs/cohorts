@@ -31,11 +31,12 @@ export default function UserTable({
   
   // Filter members based on search query
   const filteredUsers = users.filter(user => {
-    const fullName = `${user.profile?.first_name || ''} ${user.profile?.last_name || ''}`.toLowerCase();
-    const memberId = user.memberId?.toLowerCase() || '';
+    const fullName = `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.toLowerCase();
+    const email = user.profile?.email?.toLowerCase() || '';
+    const memberRecordId = user.id?.toLowerCase() || '';
     const query = searchQuery.toLowerCase();
     
-    return fullName.includes(query) || memberId.includes(query);
+    return fullName.includes(query) || email.includes(query) || memberRecordId.includes(query);
   });
 
   if (isLoading) {
@@ -116,6 +117,7 @@ export default function UserTable({
           <TableHeader className="bg-muted/50">
             <TableRow>
               <TableHead className="w-[40%]">Member</TableHead>
+              <TableHead className="hidden lg:table-cell">Member ID</TableHead>
               <TableHead className="hidden sm:table-cell">Role</TableHead>
               <TableHead className="hidden md:table-cell">Joined</TableHead>
               {membershipStatus === "all" && (
@@ -135,7 +137,7 @@ export default function UserTable({
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={membershipStatus === "all" ? 4 : 3} className="h-24 text-center">
+                <TableCell colSpan={membershipStatus === "all" ? 5 : 4} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center gap-1">
                     <p className="text-sm font-medium">No results found</p>
                     <p className="text-sm text-muted-foreground">

@@ -121,84 +121,65 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
 }
 
 export async function getOrgMembers({ id, isActive }: { id: string; isActive?: boolean }) {
-  const supabase = await createServiceRoleClient();
+  // Use Service Role Client to query the view
+  const supabase = await createServiceRoleClient(); 
   
   try {
-    // First query the group_users table
-    let baseQuery = supabase
-      .from("group_users")
+    let query = supabase
+      .from("group_members_view") // Query the VIEW
       .select(
         `
-          id, 
-          created_at, 
-          user_id,
-          is_active,
-          profile:user_id (
-            first_name,
-            last_name,
-            avatar_url
-          )
+          id,
+          group_id,
+          user_id, 
+          is_active, 
+          created_at,
+          email, 
+          first_name, 
+          last_name, 
+          avatar_url,
+          member_id
         `
       )
       .eq("group_id", id);
     
-    // Only filter by is_active if it's explicitly set
     if (isActive !== undefined) {
-      baseQuery = baseQuery.eq("is_active", isActive);
+      query = query.eq("is_active", isActive);
     }
 
-    const { data: groupUsers, error: usersError } = await baseQuery;
+    const { data: members, error: viewError } = await query;
 
-    if (usersError) {
-      throw usersError;
+    if (viewError) {
+      console.error("Error fetching from group_members_view:", viewError);
+      throw viewError;
     }
-
-    // Get all group_user IDs from the result
-    const groupUserIds = groupUsers.map(user => user.id).filter(Boolean);
     
-    // Specifically target member_id field (not external_id)
-    const { data: memberIds, error: memberIdsError } = await supabase
-      .from("member_ids")
-      .select("id, group_user_id, member_id")
-      .in("group_user_id", groupUserIds);
-      
-    if (memberIdsError) {
-      throw memberIdsError;
-    }
-
-    // Create a map of group_user_id to member IDs for easier lookup
-    const memberIdsMap: Record<string, any> = {};
-    if (memberIds) {
-      memberIds.forEach(item => {
-        if (item.group_user_id) {
-          memberIdsMap[item.group_user_id] = item;
-        }
-      });
-    }
-
-    // Transform the data to match the expected User type structure
-    const transformedData = camelcaseKeys(groupUsers).map((user: any) => {
-      // Check if profile is an array and extract the first item if it is
-      const profileData = Array.isArray(user.profile) && user.profile.length > 0 
-        ? user.profile[0]
-        : user.profile || { first_name: null, last_name: null, avatar_url: null };
-      
-      // Get the member_ids entry for this user
-      const memberIdEntry = memberIdsMap[user.id] || null;
-      
-      return {
-        ...user,
-        // Include the database ID of the member_ids record
-        memberIdsRecordId: memberIdEntry ? memberIdEntry.id : null,
-        // Include the actual member ID that we want to display
-        memberId: memberIdEntry ? memberIdEntry.member_id : null,
-        profile: profileData
-      };
+    // Explicitly type the data from the view query
+    const membersData: any[] = members || [];
+    
+    // Transform the data from the view (apply camelCase)
+    const transformedData = camelcaseKeys(membersData, { deep: true }).map((member: any) => {
+        // Structure the profile object explicitly
+        return {
+            id: member.id, // Use id (from group_users) as the primary ID for the row/user
+            createdAt: member.createdAt, // Map directly from created_at
+            userId: member.userId,
+            isActive: member.isActive,
+            profile: {
+                id: member.userId, // Profile ID is the same as user ID
+                firstName: member.firstName,
+                lastName: member.lastName,
+                avatarUrl: member.avatarUrl,
+                email: member.email
+            },
+            memberId: member.memberId, // Added memberId from the view
+        };
     });
     
     return transformedData;
+
   } catch (error) {
-    console.error("Error fetching org members:", error);
+    console.error("Error in getOrgMembers (view):", error);
     throw error;
   }
 }
