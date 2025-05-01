@@ -49,15 +49,29 @@ export async function addOrInviteMember(
     last_name: lastName
   };
 
+  // Construct the redirect URL
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  if (!siteUrl) {
+    console.error('NEXT_PUBLIC_SITE_URL environment variable is not set. Cannot create specific redirect URL for invite.');
+    // Decide if we should proceed without redirectTo or return an error
+    // Proceeding without it means Supabase uses default redirect (likely Site URL from settings)
+    // return { error: "Application configuration error: Site URL not set." }; 
+  }
+  const redirectUrl = siteUrl ? `${siteUrl}/@${orgSlug}` : undefined;
+  console.log(`Invite redirectTo URL: ${redirectUrl}`); // Log for debugging
+
   try {
     // 1. Find or Invite User - Determine userIdToAdd
     let userIdToAdd: string | null = null;
     let isNewInvite = false;
     
-    // Call inviteUserByEmail first
+    // Call inviteUserByEmail first, including redirectTo
     const { data: inviteResponse, error: inviteError } = await supabaseService.auth.admin.inviteUserByEmail(
       email,
-      { data: inviteMetadata }
+      { 
+        data: inviteMetadata, 
+        redirectTo: redirectUrl // Add the redirect URL here
+      }
     );
     const inviteData = inviteResponse as ({ user: { id: string; [key: string]: any; } | null; [key: string]: any; }) | null;
 
@@ -200,4 +214,133 @@ export async function removeMemberAction(context: RemoveMemberContext, formData:
   revalidatePath(`/@${group.slug}/members`); 
 
   return { success: true };
+}
+
+// Context for resend action
+interface ResendInviteContext {
+  userId: string; 
+  groupId: string;
+}
+
+// Action to resend an invitation (now sends a Magic Link)
+export async function resendInviteAction(context: ResendInviteContext, formData: FormData) {
+  const groupUsersId = formData.get('groupUsersId') as string;
+  const email = formData.get('email') as string;
+
+  if (!groupUsersId || !email) {
+    return { error: 'Missing member details (ID or Email) for resend.' };
+  }
+  if (!context || !context.groupId) {
+      return { error: 'Action context (groupId) is missing.' };
+  }
+
+  const supabaseService = await createServiceRoleClient();
+
+  try {
+    // 1. Verify the current status of the member
+    const { data: memberStatus, error: statusError } = await supabaseService
+      .from('group_users')
+      .select('is_active, is_deleted')
+      .eq('id', groupUsersId)
+      .eq('group_id', context.groupId)
+      .single();
+
+    if (statusError) {
+      console.error("Error fetching member status for resend:", statusError);
+      return { error: 'Could not verify member status.' };
+    }
+
+    if (memberStatus.is_deleted) {
+      return { error: 'Cannot resend invite to a deleted member.' };
+    }
+    if (memberStatus.is_active) {
+      return { error: 'Member is already active.' };
+    }
+
+    // 2. If pending, send a Magic Link email via Supabase Auth
+    console.log(`Sending Magic Link for pending member: ${email}`);
+
+    // Construct the FINAL destination URL (org page)
+    const orgSlug = formData.get('orgSlug') as string;
+    if (!orgSlug) {
+      return { error: "Internal error: Missing orgSlug for redirect URL." };
+    }
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const finalRedirectPath = `/@${orgSlug}`;
+    const callbackUrlBase = siteUrl ? `${siteUrl}/auth/callback` : null;
+
+    if (!callbackUrlBase) {
+      console.error("Cannot generate callback URL: NEXT_PUBLIC_APP_URL not set.");
+      return { error: "Configuration error: Cannot construct callback URL." };
+    }
+
+    // The URL Supabase will redirect *to* after clicking the magic link.
+    // We include the final destination as the 'next' parameter.
+    const emailRedirectToUrl = `${callbackUrlBase}?next=${encodeURIComponent(finalRedirectPath)}`;
+    console.log(`[resendInviteAction] emailRedirectToUrl: '${emailRedirectToUrl}'`);
+
+    const { error: magicLinkError } = await supabaseService.auth.signInWithOtp({
+      email: email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: emailRedirectToUrl // Point to the callback route
+      }
+    });
+
+    if (magicLinkError) {
+      console.error("Error sending magic link:", magicLinkError);
+      return { error: `Failed to send login link: ${magicLinkError.message}` };
+    }
+
+    // Note: signInWithOtp doesn't throw error if user DNE with shouldCreateUser: false
+    // It just doesn't send an email. Our previous checks should ensure user exists.
+
+    return { success: true }; // Success means the attempt to send was made
+
+  } catch (error: any) {
+    console.error("Resend Invite Action Error:", error);
+    return { error: error.message || 'An unexpected error occurred while resending the invite.' };
+  }
+}
+
+/**
+ * Activates any pending memberships for a given user.
+ * Should be called after a user successfully logs in or confirms their account.
+ * @param userId The ID of the user whose memberships should be activated.
+ */
+export async function activatePendingMemberships(userId: string): Promise<{ success?: boolean; error?: string }> {
+  if (!userId) {
+    return { error: "User ID is required." };
+  }
+
+  console.log(`Attempting to activate pending memberships for user: ${userId}`);
+  
+  // Use service role client for potentially broad updates across groups
+  const supabase = await createServiceRoleClient(); 
+
+  try {
+    const { data, error } = await supabase
+      .from('group_users')
+      .update({ is_active: true })
+      .match({ 
+        user_id: userId, 
+        is_active: false, 
+        is_deleted: false 
+      });
+
+    if (error) {
+      console.error("Error activating pending memberships:", error);
+      return { error: `Failed to activate memberships: ${error.message}` };
+    }
+
+    // `data` might be null or an array of updated records depending on `Prefer` header, 
+    // but we mostly care that there was no error.
+    console.log(`Activated pending memberships check complete for user: ${userId}. Result data:`, data);
+
+    return { success: true };
+
+  } catch (error: any) {
+    console.error("Activate Pending Memberships Action Error:", error);
+    return { error: error.message || 'An unexpected error occurred while activating memberships.' };
+  }
 } 

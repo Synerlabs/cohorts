@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { Search } from "lucide-react";
+import MemberDetailsSlideOver from "./member-details-slideover";
 
 interface UserTableProps {
   users: User[];
@@ -20,6 +21,7 @@ interface UserTableProps {
   groupRoleId?: string;
   membershipStatus?: string;
   orgId: string;
+  orgSlug: string;
 }
 
 export default function UserTable({ 
@@ -27,10 +29,18 @@ export default function UserTable({
   isLoading = false, 
   groupRoleId,
   membershipStatus = "active",
-  orgId
+  orgId,
+  orgSlug
 }: UserTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+
+  const handleRowClick = (user: User) => {
+    setSelectedUser(user);
+    setIsSlideOverOpen(true);
+  };
+
   // Filter members based on search query
   const filteredUsers = users.filter(user => {
     const fullName = `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.toLowerCase();
@@ -159,6 +169,8 @@ export default function UserTable({
                   role={user.role || "Member"}
                   showStatus={membershipStatus === "all" || membershipStatus === "deleted"}
                   orgId={orgId}
+                  orgSlug={orgSlug}
+                  onRowClick={handleRowClick}
                 />
               ))
             ) : (
@@ -176,6 +188,13 @@ export default function UserTable({
           </TableBody>
         </Table>
       </div>
+
+      <MemberDetailsSlideOver 
+        user={selectedUser}
+        isOpen={isSlideOverOpen}
+        onOpenChange={setIsSlideOverOpen}
+        orgId={orgId}
+      />
     </div>
   );
 }

@@ -9,6 +9,7 @@ import { User } from "@supabase/auth-helpers-nextjs";
 import { getCachedOrgBySlug, getCachedCurrentUser } from "@/lib/utils/cache";
 import { checkUserAccess } from "@/lib/utils/permissions";
 import { createClient } from "@/lib/utils/supabase/server";
+import { activatePendingMemberships } from "@/actions/member.actions";
 
 type GroupRole = Database["public"]["Tables"]["group_roles"]["Row"];
 type UserRole = Database["public"]["Tables"]["user_roles"]["Row"];
@@ -199,6 +200,17 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
       }
       if (response && response.data && response.data.user) {
         AuthServerContext.user = response.data.user;
+        
+        // ** Call activation action here after confirming user **
+        try {
+          console.log(`Calling activatePendingMemberships for user ${AuthServerContext.user.id}`);
+          await activatePendingMemberships(AuthServerContext.user.id);
+          // We don't necessarily need to handle the result unless we want to show a specific error
+          // The action logs errors internally
+        } catch (activationError) {
+           console.error("Error calling activatePendingMemberships from withOrgAccess:", activationError);
+           // Decide if this error should block page load or just be logged
+        }
       }
     }
 
@@ -208,133 +220,179 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     }
 
     // Check permissions if we have a user
-    const [accessResult, groupUser] = await Promise.all([
-      AuthServerContext.user ? checkUserAccess({
-        userId: AuthServerContext.user.id,
-        groupId: AuthServerContext.org.id,
-        requiredPermissions,
-        allowGuest: true  // Always allow users with membership roles
-      }) : {
-        hasAccess: allowGuest,
-        isGuest: true,
-        userPermissions: [],
-        userRoles: []
-      },
-      AuthServerContext.user
-        ? getGroupUser({ userId: AuthServerContext.user.id, groupId: AuthServerContext.org.id })
-        : null,
-    ]);
-
-    // Check if the user has membership roles
-    const supabase = await createClient();
-    const { data: membershipRoles } = await supabase
-      .from('membership_roles_view')
-      .select('*')
-      .eq('user_id', AuthServerContext.user?.id || '')
-      .eq('group_id', AuthServerContext.org.id)
-      .eq('membership_status', 'active');
-
-    const hasMembershipRoles = !!(membershipRoles && membershipRoles.length > 0);
-    
-    // console.log("DEBUG - withOrgAccess membership check:", {
-    //   hasMembershipRoles,
-    //   membershipRolesCount: membershipRoles?.length || 0
-    // });
-
-    // console.log("DEBUG - withOrgAccess options:", {
-    //   allowGuest,
-    //   requiredPermissions,
-    //   onAccessDenied
-    // });
-
-    // console.log("DEBUG - withOrgAccess permissions check:", {
-    //   requiredPermissions,
-    //   userPermissions: accessResult.userPermissions,
-    //   hasAccess: accessResult.hasAccess,
-    //   isGuest: accessResult.isGuest
-    // });
-
-    // Update AuthServerContext with org-specific roles and permissions
-    AuthServerContext.groupRoles = accessResult.userRoles;
-    AuthServerContext.userPermissions = accessResult.userPermissions;
-
-    // If the user has the required permissions, they should have access
-    // regardless of guest status if they have membership roles
-    const hasRequiredPermissions = accessResult.hasAccess || 
-      (accessResult.userPermissions.some(p => {
-        if (typeof requiredPermissions === 'string') {
-          return p === requiredPermissions;
-        } else if (Array.isArray(requiredPermissions)) {
-          if (requiredPermissions.length === 0) return true;
-          if (!Array.isArray(requiredPermissions[0])) {
-            return (requiredPermissions as string[]).includes(p);
-          }
+    // Make sure activation is also called if user was already in context
+    if (AuthServerContext.user) {
+       // Check if activation was already called above; avoid redundant calls if necessary,
+       // though the action is idempotent. For simplicity, call it again if user exists.
+       try {
+          console.log(`Calling activatePendingMemberships for user ${AuthServerContext.user.id} (already in context)`);
+          await activatePendingMemberships(AuthServerContext.user.id);
+        } catch (activationError) {
+           console.error("Error calling activatePendingMemberships from withOrgAccess (user already in context):", activationError);
         }
-        return false;
-      }));
 
-    // console.log("DEBUG - withOrgAccess additional check:", {
-    //   hasRequiredPermissions,
-    //   userHasPermission: accessResult.userPermissions.some(p => {
-    //     if (typeof requiredPermissions === 'string') {
-    //       return p === requiredPermissions;
-    //     } else if (Array.isArray(requiredPermissions)) {
-    //       if (requiredPermissions.length === 0) return true;
-    //       if (!Array.isArray(requiredPermissions[0])) {
-    //         return (requiredPermissions as string[]).includes(p);
-    //       }
-    //     }
-    //     return false;
-    //   })
-    // });
+      const [accessResult, groupUser] = await Promise.all([
+         checkUserAccess({
+           userId: AuthServerContext.user.id,
+           groupId: AuthServerContext.org.id,
+           requiredPermissions,
+           allowGuest: true 
+         }),
+        getGroupUser({ userId: AuthServerContext.user.id, groupId: AuthServerContext.org.id })
+      ]);
 
-    // Override accessResult.hasAccess if the user has the required permissions
-    // and membership roles
-    if (!accessResult.hasAccess && hasRequiredPermissions && hasMembershipRoles) {
-      accessResult.hasAccess = true;
-      accessResult.isGuest = false; // Users with membership roles are not guests
-      console.log("DEBUG - Overriding hasAccess to true based on membership roles and permissions");
-    }
+      // Check if the user has membership roles
+      const supabase = await createClient();
+      const { data: membershipRoles } = await supabase
+        .from('membership_roles_view')
+        .select('*')
+        .eq('user_id', AuthServerContext.user?.id || '')
+        .eq('group_id', AuthServerContext.org.id)
+        .eq('membership_status', 'active');
 
-    if (!accessResult.hasAccess) {
-      console.warn(
-        `Access denied for org ${AuthServerContext.org.slug}:`,
-        accessResult.isGuest ? 'User is guest' : 'User lacks permissions:',
-        typeof requiredPermissions === 'object' && !Array.isArray(requiredPermissions)
-          ? JSON.stringify(requiredPermissions)
-          : Array.isArray(requiredPermissions)
-            ? requiredPermissions.join(', ')
-            : requiredPermissions
-      );
+      const hasMembershipRoles = !!(membershipRoles && membershipRoles.length > 0);
+      
+      // console.log("DEBUG - withOrgAccess membership check:", {
+      //   hasMembershipRoles,
+      //   membershipRolesCount: membershipRoles?.length || 0
+      // });
 
-      if (onAccessDenied.action === 'redirect') {
-        const redirectPath = typeof onAccessDenied.redirectTo === 'function'
-          ? await onAccessDenied.redirectTo(params)
-          : onAccessDenied.redirectTo || `/@${AuthServerContext.org.slug}`;
-        redirect(redirectPath);
-      } else {
-        const ErrorComponent = onAccessDenied.errorComponent || DefaultAccessDenied;
-        return (
-          <ErrorComponent
-            isGuest={accessResult.isGuest}
-            requiredPermissions={requiredPermissions}
-            userPermissions={accessResult.userPermissions}
-          />
-        );
+      // console.log("DEBUG - withOrgAccess options:", {
+      //   allowGuest,
+      //   requiredPermissions,
+      //   onAccessDenied
+      // });
+
+      // console.log("DEBUG - withOrgAccess permissions check:", {
+      //   requiredPermissions,
+      //   userPermissions: accessResult.userPermissions,
+      //   hasAccess: accessResult.hasAccess,
+      //   isGuest: accessResult.isGuest
+      // });
+
+      // Update AuthServerContext with org-specific roles and permissions
+      AuthServerContext.groupRoles = accessResult.userRoles;
+      AuthServerContext.userPermissions = accessResult.userPermissions;
+
+      // If the user has the required permissions, they should have access
+      // regardless of guest status if they have membership roles
+      const hasRequiredPermissions = accessResult.hasAccess || 
+        (accessResult.userPermissions.some(p => {
+          if (typeof requiredPermissions === 'string') {
+            return p === requiredPermissions;
+          } else if (Array.isArray(requiredPermissions)) {
+            if (requiredPermissions.length === 0) return true;
+            if (!Array.isArray(requiredPermissions[0])) {
+              return (requiredPermissions as string[]).includes(p);
+            }
+          }
+          return false;
+        }));
+
+      // console.log("DEBUG - withOrgAccess additional check:", {
+      //   hasRequiredPermissions,
+      //   userHasPermission: accessResult.userPermissions.some(p => {
+      //     if (typeof requiredPermissions === 'string') {
+      //       return p === requiredPermissions;
+      //     } else if (Array.isArray(requiredPermissions)) {
+      //       if (requiredPermissions.length === 0) return true;
+      //       if (!Array.isArray(requiredPermissions[0])) {
+      //         return (requiredPermissions as string[]).includes(p);
+      //       }
+      //     }
+      //     return false;
+      //   })
+      // });
+
+      // Override accessResult.hasAccess if the user has the required permissions
+      // and membership roles
+      if (!accessResult.hasAccess && hasRequiredPermissions && hasMembershipRoles) {
+        accessResult.hasAccess = true;
+        accessResult.isGuest = false; // Users with membership roles are not guests
+        console.log("DEBUG - Overriding hasAccess to true based on membership roles and permissions");
       }
-    }
 
-    return (
-      <Component
-        user={AuthServerContext.user}
-        org={AuthServerContext.org}
-        isGuest={accessResult.isGuest}
-        userRoles={accessResult.userRoles}
-        groupUser={groupUser}
-        userPermissions={accessResult.userPermissions}
-        params={params}
-        {...props}
-      />
-    );
+      if (!accessResult.hasAccess) {
+        console.warn(
+          `Access denied for org ${AuthServerContext.org.slug}:`,
+          accessResult.isGuest ? 'User is guest' : 'User lacks permissions:',
+          typeof requiredPermissions === 'object' && !Array.isArray(requiredPermissions)
+            ? JSON.stringify(requiredPermissions)
+            : Array.isArray(requiredPermissions)
+              ? requiredPermissions.join(', ')
+              : requiredPermissions
+        );
+
+        if (onAccessDenied.action === 'redirect') {
+          const redirectPath = typeof onAccessDenied.redirectTo === 'function'
+            ? await onAccessDenied.redirectTo(params)
+            : onAccessDenied.redirectTo || `/@${AuthServerContext.org.slug}`;
+          redirect(redirectPath);
+        } else {
+          const ErrorComponent = onAccessDenied.errorComponent || DefaultAccessDenied;
+          return (
+            <ErrorComponent
+              isGuest={accessResult.isGuest}
+              requiredPermissions={requiredPermissions}
+              userPermissions={accessResult.userPermissions}
+            />
+          );
+        }
+      }
+
+      return (
+        <Component
+          user={AuthServerContext.user}
+          org={AuthServerContext.org}
+          isGuest={accessResult.isGuest}
+          userRoles={accessResult.userRoles}
+          groupUser={groupUser}
+          userPermissions={accessResult.userPermissions}
+          params={params}
+          {...props}
+        />
+      );
+    } else {
+       // Handle case where there's no user but guests are allowed (no activation needed)
+       const accessResult = { hasAccess: allowGuest, isGuest: true, userPermissions: [], userRoles: [] };
+       const groupUser = null;
+        
+       // Perform access check for guest based on allowGuest
+       if (!accessResult.hasAccess) {
+          console.warn(
+            `Access denied for guest on org ${AuthServerContext.org.slug}: Guests not allowed.`
+          );
+          // Apply access denied logic (redirect or error component)
+          if (onAccessDenied.action === 'redirect') {
+            const redirectPath = typeof onAccessDenied.redirectTo === 'function'
+              ? await onAccessDenied.redirectTo(params)
+              : onAccessDenied.redirectTo || `/@${AuthServerContext.org.slug}`;
+            redirect(redirectPath);
+          } else {
+            const ErrorComponent = onAccessDenied.errorComponent || DefaultAccessDenied;
+            return (
+              <ErrorComponent
+                isGuest={accessResult.isGuest}
+                requiredPermissions={requiredPermissions}
+                userPermissions={accessResult.userPermissions}
+              />
+            );
+          }
+       } else {
+          // Render component for guest if access is allowed
+          return (
+            <Component
+              user={null} // No user for guest
+              org={AuthServerContext.org}
+              isGuest={accessResult.isGuest}
+              userRoles={accessResult.userRoles}
+              groupUser={groupUser}
+              userPermissions={accessResult.userPermissions}
+              params={params}
+              {...props}
+            />
+          );
+       }
+    }
   };
 }

@@ -75,6 +75,7 @@ async function MembersPage({ org, searchParams, userPermissions }: OrgAccessHOCP
                 users={members} 
                 membershipStatus={membershipStatus}
                 orgId={org.id}
+                orgSlug={org.slug}
               />
             </div>
           )}

@@ -38,6 +38,8 @@ interface UserTableRowProps {
   role: string;
   showStatus?: boolean;
   orgId: string;
+  orgSlug: string;
+  onRowClick: (user: User) => void;
 }
 
 // Helper to get initials
@@ -47,7 +49,7 @@ const getInitials = (firstName?: string | null, lastName?: string | null) => {
   return `${first}${last}`.toUpperCase() || '?';
 };
 
-export default function UserTableRow({ user, role, showStatus = false, orgId }: UserTableRowProps) {
+export default function UserTableRow({ user, role, showStatus = false, orgId, orgSlug, onRowClick }: UserTableRowProps) {
   const joinedDate = user.createdAt ? new Date(user.createdAt) : null;
 
   // Helper to construct display name for the action cell
@@ -74,7 +76,11 @@ export default function UserTableRow({ user, role, showStatus = false, orgId }: 
 
   return (
     <TooltipProvider delayDuration={100}>
-      <TableRow className={user.isDeleted ? 'opacity-60' : ''}>
+      <TableRow 
+        className={`cursor-pointer hover:bg-muted/50 ${user.isDeleted ? 'opacity-60' : ''}`}
+        onClick={() => onRowClick(user)}
+        title="View member details"
+      >
         <TableCell>
           <div className="flex items-center gap-3">
             <Avatar>
@@ -135,6 +141,7 @@ export default function UserTableRow({ user, role, showStatus = false, orgId }: 
         <TableCell>
           <MemberActionsCell 
             orgId={orgId}
+            orgSlug={orgSlug}
             groupUsersId={user.id}
             userEmail={user.profile?.email || null}
             userName={getUserName()}
