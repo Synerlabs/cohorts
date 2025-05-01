@@ -9,7 +9,7 @@ import { removeMemberAction, resendInviteAction } from '@/actions/member.actions
 import { useToast } from '@/components/ui/use-toast'; // Import toast
 import { useRouter } from 'next/navigation'; // Import router
 import { useUser } from '@/lib/context/UserContext'; // Import user context
-import { Send } from "lucide-react"; // Import Send icon
+import { Send } from "lucide-react"; // Removed Pencil icon
 import { Loader2, Trash2 } from "lucide-react"; // Import Loader2 and Trash2 icons
 
 interface MemberActionsCellProps {
@@ -29,7 +29,7 @@ export function MemberActionsCell({
   userEmail,
   userName,
   isActive,
-  isDeleted // Receive isDeleted
+  isDeleted, // Receive isDeleted
 }: MemberActionsCellProps) {
   const [isRemoveConfirmOpen, setIsRemoveConfirmOpen] = useState(false);
   const [isRemovePending, setIsRemovePending] = useState(false);
@@ -158,7 +158,7 @@ export function MemberActionsCell({
         </ClientComponentPermission>
       )}
 
-      {/* Confirmation Dialog (only rendered if needed) */}
+      {/* Confirmation Dialog (Remove Member) */}
       {!isDeleted && (
         <RemoveMemberConfirmationDialog 
           isOpen={isRemoveConfirmOpen}

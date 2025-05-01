@@ -6,6 +6,7 @@ import { permissions } from '@/lib/types/permissions';
 import { Tables } from '@/lib/types/database.types';
 import { checkUserAccess } from '@/lib/utils/permissions';
 import { withPermissions, ActionContext, ActionResult } from '@/lib/utils/action-permissions';
+import { MembershipStatus } from "@/lib/types/membership"; // Import the enum
 
 // Define context for add/invite action
 interface AddOrInviteMemberContext {
@@ -96,7 +97,7 @@ async function handleAddOrInviteMember(
         .select('id, is_active, is_deleted') // Select flags
         .eq('user_id', userIdToAdd)
         .eq('group_id', orgId)
-        .maybeSingle(); // Expect 0 or 1 row
+        .maybeSingle();
 
     if (checkError) {
         console.error("Error checking membership status:", checkError);
@@ -175,16 +176,25 @@ async function handleAddOrInviteMember(
           if (updateError) {
             // If update also fails, log the error
             console.error('Error updating custom member_id after insert failed:', updateError);
-            // Optionally, return a specific warning in ActionResult?
-            // return { success: true, error: "Invite successful, but failed to set custom Member ID." };
+            // Return a specific error if it looks like a unique constraint violation
+            if (updateError.message.includes("member_ids_unique_per_group")) {
+              return { success: false, error: `Member ID '${customMemberId}' is already taken in this organization.` };
+            }
+            // Otherwise, a generic warning that ID wasn't set
+            return { success: true, error: "Invite successful, but failed to set custom Member ID due to an update error." };
           } else {
             console.log(`Successfully updated existing member_id for group_user_id ${groupUserId}`);
           }
         } else {
           console.log(`Successfully inserted new member_id for group_user_id ${groupUserId}`);
         }
-      } catch (e) {
+      } catch (e: any) { // Catch as any to check message
         console.error('Exception during member_id handling:', e);
+        // Check if the exception is the unique constraint error
+        if (e.message?.includes("member_ids_unique_per_group")) {
+           return { success: false, error: `Member ID '${customMemberId}' is already taken in this organization.` };
+        }
+        return { success: true, error: "Invite successful, but failed to set custom Member ID due to an unexpected error." };
       }
     } else if (customMemberId) {
       console.warn('Custom member ID provided, but could not determine groupUserId. Skipping member ID handling.');
@@ -417,4 +427,267 @@ export async function activatePendingMemberships(userId: string): Promise<{ succ
     console.error("Activate Pending Memberships Action Error:", error);
     return { error: error.message || 'An unexpected error occurred while activating memberships.' };
   }
+}
+
+/**
+ * Checks if a specific member ID is already taken within an organization.
+ */
+export async function checkMemberIdAvailability(
+  orgId: string,
+  memberId: string
+): Promise<{ isAvailable: boolean; error?: string }> {
+  // Basic validation
+  if (!orgId || !memberId) {
+    return { isAvailable: false, error: "Organization ID and Member ID are required." };
+  }
+
+  // No auth check needed here - checking availability isn't a protected action itself,
+  // but rely on the calling action (like invite) being protected.
+  const supabase = await createServiceRoleClient(); 
+
+  try {
+    const { count, error } = await supabase
+      .from('member_ids')
+      .select('id', { count: 'exact', head: true })
+      .eq('group_id', orgId)
+      .eq('member_id', memberId);
+
+    if (error) {
+      console.error("Error checking member ID availability:", error);
+      return { isAvailable: false, error: "Database error checking ID availability." };
+    }
+
+    return { isAvailable: count === 0 };
+
+  } catch (err: any) {
+    console.error("Unexpected error checking member ID:", err);
+    return { isAvailable: false, error: "An unexpected error occurred." };
+  }
+}
+
+/**
+ * Updates the member_id for a specific group_user.
+ * Accepts FormData compatible with useFormState.
+ */
+export async function updateGroupUserMemberId(
+  currentState: any, // Previous form state (not heavily used here, but part of signature)
+  formData: FormData
+): Promise<ActionResult<{ updatedId: string }>> {
+  const groupUserId = formData.get('groupUserId') as string;
+  const newMemberId = formData.get('newMemberId') as string; // Might be an empty string
+  const orgId = formData.get('orgId') as string;
+
+  const supabase = await createServerClient(); // Use server client for auth context
+  const serviceRoleSupabase = await createServiceRoleClient(); // For operations
+
+  // --- Permission Check ---
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return { success: false, error: "Authentication failed or user not found." };
+  }
+  const hasPermission = await checkUserAccess({
+    userId: user.id,
+    groupId: orgId,
+    requiredPermissions: [permissions.memberships.edit], // Define required permission
+  });
+  if (!hasPermission) {
+    return { success: false, error: "You don't have permission to edit member IDs." };
+  }
+  // --- End Permission Check ---
+
+  // --- Validation ---
+  if (!groupUserId) {
+    return { success: false, error: "Group User ID is missing from form data." };
+  }
+  if (!orgId) {
+      return { success: false, error: "Organization ID is missing from form data." };
+  }
+  // newMemberId can be empty string IF the intention is to clear it, but our logic below forbids empty strings.
+  if (newMemberId === null || typeof newMemberId !== 'string') { // Check type specifically
+      return { success: false, error: "New Member ID must be provided." };
+  }
+  // Prevent setting an empty Member ID - use Delete action instead
+  if (newMemberId === '') {
+      return { success: false, error: "Member ID cannot be empty. To remove it, use the Delete action." };
+  }
+  // --- End Validation ---
+
+  try {
+    // Check uniqueness before attempting update
+    const { count, error: checkError } = await serviceRoleSupabase
+      .from('member_ids')
+      .select('id', { count: 'exact', head: true })
+      .eq('group_id', orgId)
+      .eq('member_id', newMemberId)
+      .not('group_user_id', 'eq', groupUserId); // Exclude the current user
+
+    if (checkError) {
+      console.error("Error checking member ID uniqueness for update:", checkError);
+      return { success: false, error: "Database error checking ID uniqueness." };
+    }
+    if (count && count > 0) {
+      return { success: false, error: `Member ID '${newMemberId}' is already taken by another user.` };
+    }
+
+    // --- CHANGE: Perform UPDATE instead of UPSERT ---
+    const { data: updateData, error: updateError } = await serviceRoleSupabase
+      .from('member_ids')
+      .update({ member_id: newMemberId }) // Update the member_id field
+      .eq('group_user_id', groupUserId) // Target the row by group_user_id
+      .eq('group_id', orgId) // Also ensure it's within the correct group
+      .select('id'); // Select something to see if a row was updated
+
+    if (updateError) {
+      console.error('Error updating member_id:', updateError);
+      // Check for unique constraint violation on (group_id, member_id) which might still happen
+      // if the pre-check had a race condition (unlikely but possible)
+      if (updateError.message.includes("member_ids_unique_per_group")) {
+         return { success: false, error: `Member ID '${newMemberId}' is already taken.` };
+      }
+      // Handle NOT NULL constraint violation (should be caught by empty check earlier)
+      if (updateError.message.includes('violates not-null constraint')) {
+         return { success: false, error: "Member ID cannot be empty. Use Delete to remove." };
+      }
+      return { success: false, error: "Failed to update Member ID due to database error." };
+    }
+    
+    // Optional: Check if any row was actually updated
+    if (!updateData || updateData.length === 0) {
+        console.warn(`Update attempted for groupUserId ${groupUserId} in org ${orgId}, but no matching record found in member_ids.`);
+        // Decide if this is an error or acceptable scenario.
+        // For now, let's return a specific message, but still count as "success" 
+        // because the desired state (that specific ID assigned) might hold if ID was already correct.
+        // Or, return an error:
+        return { success: false, error: "Could not find the member ID record to update." }; 
+    }
+    // --- END CHANGE ---
+
+    // --- Revalidation ---
+    // Fetch org slug for revalidation (can't rely on it being in formData)
+    const { data: groupData, error: groupError } = await serviceRoleSupabase
+       .from('group')
+       .select('slug')
+       .eq('id', orgId)
+       .single();
+
+    if (!groupError && groupData?.slug) {
+        revalidatePath(`/@${groupData.slug}/members`);
+        // Consider revalidating specific member details page if applicable
+        // revalidatePath(`/@${groupData.slug}/members/${groupUserId}`); // Or similar
+    } else {
+        console.warn(`Could not fetch org slug for orgId ${orgId} during member ID update revalidation.`);
+        // Fallback revalidation if needed
+        revalidatePath('/','layout'); 
+    }
+    // --- End Revalidation ---
+
+    return { success: true, data: { updatedId: newMemberId } };
+
+  } catch (err: any) {
+    console.error("Unexpected error updating member ID:", err);
+    return { success: false, error: "An unexpected server error occurred." };
+  }
+}
+
+/**
+ * Deletes the member_id record for a specific group_user.
+ * Accepts FormData compatible with useFormState.
+ */
+export async function deleteGroupUserMemberId(
+  currentState: any, // Previous form state
+  formData: FormData
+): Promise<ActionResult<{}>> {
+    const groupUserId = formData.get('groupUserId') as string;
+    const orgId = formData.get('orgId') as string;
+
+    const supabase = await createServerClient(); // Use server client for auth context
+    const serviceRoleSupabase = await createServiceRoleClient(); // For operations
+
+    // --- Permission Check ---
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+        return { success: false, error: "Authentication failed or user not found." };
+    }
+    const hasPermission = await checkUserAccess({
+        userId: user.id,
+        groupId: orgId,
+        // Use edit permission for delete as well, or define a specific delete permission
+        requiredPermissions: [permissions.memberships.edit],
+    });
+    if (!hasPermission) {
+        return { success: false, error: "You don't have permission to delete member IDs." };
+    }
+    // --- End Permission Check ---
+
+    // --- Validation ---
+    if (!groupUserId) {
+        return { success: false, error: "Group User ID is missing from form data." };
+    }
+    if (!orgId) {
+        return { success: false, error: "Organization ID is missing from form data." };
+    }
+    // --- End Validation ---
+
+    try {
+        // Check if the record exists before deleting (optional but good practice)
+        const { data: existing, error: checkErr } = await serviceRoleSupabase
+          .from('member_ids')
+          .select('id', { head: true }) // Just need to know if it exists
+          .eq('group_user_id', groupUserId)
+          .eq('group_id', orgId)
+          .maybeSingle();
+
+        if (checkErr) {
+            console.error("Error checking member ID before delete:", checkErr);
+            // Don't necessarily fail, proceed with delete attempt
+        }
+
+        if (!existing && !checkErr) {
+            // No record found, maybe already deleted. Return success.
+            console.log(`Member ID for groupUserId ${groupUserId} in org ${orgId} not found for deletion (already deleted?).`);
+            // Revalidate just in case state was stale
+             const { data: groupDataDel, error: groupErrorDel } = await serviceRoleSupabase
+               .from('group')
+               .select('slug')
+               .eq('id', orgId)
+               .single();
+            if (!groupErrorDel && groupDataDel?.slug) revalidatePath(`/@${groupDataDel.slug}/members`);
+            
+            return { success: true };
+        }
+
+        // Proceed with deletion
+        const { error: deleteError } = await serviceRoleSupabase
+            .from('member_ids')
+            .delete()
+            .eq('group_user_id', groupUserId)
+            .eq('group_id', orgId);
+
+        if (deleteError) {
+            console.error("Error deleting member ID:", deleteError);
+            return { success: false, error: "Failed to delete Member ID due to database error." };
+        }
+
+        // --- Revalidation ---
+        const { data: groupData, error: groupError } = await serviceRoleSupabase
+           .from('group')
+           .select('slug')
+           .eq('id', orgId)
+           .single();
+
+        if (!groupError && groupData?.slug) {
+            revalidatePath(`/@${groupData.slug}/members`);
+            // revalidatePath(`/@${groupData.slug}/members/${groupUserId}`); // Consider specific member page if exists
+        } else {
+            console.warn(`Could not fetch org slug for orgId ${orgId} during member ID delete revalidation.`);
+            revalidatePath('/','layout');
+        }
+        // --- End Revalidation ---
+
+        return { success: true };
+
+    } catch (err: any) {
+        console.error("Unexpected error deleting member ID:", err);
+        return { success: false, error: "An unexpected server error occurred." };
+    }
 } 

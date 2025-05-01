@@ -4,7 +4,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
-import { MailQuestion, Archive } from "lucide-react";
+import { MailQuestion, Archive, Pencil } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -12,6 +12,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { MemberActionsCell } from './member-actions-cell';
+import { EditMemberIdModal } from './edit-member-id-modal';
+import { ClientComponentPermission } from "@/components/ClientComponentPermission";
+import { permissions } from "@/lib/types/permissions";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 
 export interface UserProfile {
   id: string;
@@ -50,7 +55,34 @@ const getInitials = (firstName?: string | null, lastName?: string | null) => {
 };
 
 export default function UserTableRow({ user, role, showStatus = false, orgId, orgSlug, onRowClick }: UserTableRowProps) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const joinedDate = user.createdAt ? new Date(user.createdAt) : null;
+
+  // Check if this row's member ID is being edited
+  const editMemberId = searchParams.get('editMemberId');
+  const isEditing = editMemberId === user.id;
+
+  const handleEditClick = (event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent row click
+    
+    // Create new URLSearchParams with current params plus our edit param
+    const params = new URLSearchParams(searchParams);
+    params.set('editMemberId', user.id);
+    
+    // Update URL to include the edit param
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleModalClose = () => {
+    // Remove the editMemberId param from URL
+    const params = new URLSearchParams(searchParams);
+    params.delete('editMemberId');
+    
+    // Update URL without the edit param
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   // Helper to construct display name for the action cell
   const getUserName = () => {
@@ -75,13 +107,14 @@ export default function UserTableRow({ user, role, showStatus = false, orgId, or
   }
 
   return (
+    <>
     <TooltipProvider delayDuration={100}>
       <TableRow 
         className={`cursor-pointer hover:bg-muted/50 ${user.isDeleted ? 'opacity-60' : ''}`}
         onClick={() => onRowClick(user)}
         title="View member details"
       >
-        <TableCell>
+        <TableCell className="group">
           <div className="flex items-center gap-3">
             <Avatar>
               <AvatarImage src={user.profile?.avatarUrl || undefined} className={user.isDeleted ? 'opacity-50' : ''} />
@@ -124,8 +157,29 @@ export default function UserTableRow({ user, role, showStatus = false, orgId, or
             </div>
           </div>
         </TableCell>
-        <TableCell className="hidden lg:table-cell text-xs font-mono text-muted-foreground">
-          {user.memberId || '-'}
+        <TableCell 
+          className="hidden lg:table-cell text-xs font-mono text-muted-foreground group relative"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ClientComponentPermission requiredPermissions={[permissions.memberships.edit]}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={handleEditClick} 
+                  className="absolute inset-0 flex items-center justify-end pr-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Edit Member ID"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>Edit Member ID</p>
+              </TooltipContent>
+            </Tooltip>
+           </ClientComponentPermission>
+           <span className="pl-1 pr-6">
+             {user.memberId || '-'}
+           </span>
         </TableCell>
         <TableCell className="hidden sm:table-cell">{role}</TableCell>
         <TableCell className="hidden md:table-cell">
@@ -138,7 +192,7 @@ export default function UserTableRow({ user, role, showStatus = false, orgId, or
             </Badge>
           </TableCell>
         )}
-        <TableCell>
+        <TableCell onClick={(e) => e.stopPropagation()}>
           <MemberActionsCell 
             orgId={orgId}
             orgSlug={orgSlug}
@@ -151,6 +205,20 @@ export default function UserTableRow({ user, role, showStatus = false, orgId, or
         </TableCell>
       </TableRow>
     </TooltipProvider>
+
+    {/* Only render modal when this row is being edited */}
+    {isEditing && (
+      <EditMemberIdModal
+        isOpen={true}
+        setIsOpen={(open) => {
+          if (!open) handleModalClose();
+        }}
+        orgId={orgId}
+        groupUserId={user.id}
+        currentMemberId={user.memberId}
+      />
+    )}
+    </>
   );
 }
 

@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition, useCallback, useRef } from 'react';
 import { useFormStatus } from 'react-dom';
 import { findUserByEmail } from '@/actions/find-user.action';
-import { addOrInviteMember } from '@/actions/member.actions'; 
+import { addOrInviteMember, checkMemberIdAvailability } from '@/actions/member.actions';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Loader2, UserCheck, UserPlus, MailWarning } from 'lucide-react';
+import { Loader2, UserCheck, UserPlus, MailWarning, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useUser } from '@/lib/context/UserContext';
 
 // --- State types for findUserByEmail --- 
@@ -68,13 +68,15 @@ function FindUserSubmitButton() {
 
 function AddUserSubmitButton({ 
   isExistingUser, 
-  isPending 
+  isPending, 
+  isDisabled
 }: { 
   isExistingUser: boolean; 
   isPending: boolean; 
+  isDisabled?: boolean;
 }) {
   return (
-    <Button type="submit" disabled={isPending} className="w-full">
+    <Button type="submit" disabled={isPending || isDisabled} className="w-full">
        {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isExistingUser ? <UserCheck className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />)}
       {isPending ? (isExistingUser ? 'Adding...' : 'Inviting...') : (isExistingUser ? 'Add Member' : 'Invite Member')}
     </Button>
@@ -90,6 +92,11 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
   const [isCheckingEmail, startEmailCheckTransition] = useTransition();
   const [isAddingMember, startAddMemberTransition] = useTransition();
   const [emailToCheck, setEmailToCheck] = useState('');
+  const [customMemberId, setCustomMemberId] = useState('');
+  const [memberIdStatus, setMemberIdStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'error'>('idle');
+  const [memberIdError, setMemberIdError] = useState<string | null>(null);
+  const [isMemberIdValid, setIsMemberIdValid] = useState(true);
+  const debounceTimeoutRef = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (addUserState?.error) {
@@ -115,31 +122,74 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
      });
   };
 
+  const checkId = useCallback(async (idToCheck: string, currentOrgId: string) => {
+    if (!idToCheck) {
+      setMemberIdStatus('idle');
+      setIsMemberIdValid(true);
+      setMemberIdError(null);
+      return;
+    }
+    setMemberIdStatus('checking');
+    setMemberIdError(null);
+    try {
+      const result = await checkMemberIdAvailability(currentOrgId, idToCheck);
+      if (result.error) {
+        setMemberIdStatus('error');
+        setMemberIdError(result.error);
+        setIsMemberIdValid(false);
+      } else if (result.isAvailable) {
+        setMemberIdStatus('available');
+        setIsMemberIdValid(true);
+      } else {
+        setMemberIdStatus('taken');
+        setMemberIdError('This Member ID is already in use.');
+        setIsMemberIdValid(false);
+      }
+    } catch (err) {
+      console.error("Frontend checkMemberIdAvailability error:", err);
+      setMemberIdStatus('error');
+      setMemberIdError('Failed to check ID availability.');
+      setIsMemberIdValid(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceTimeoutRef.current) {
+      window.clearTimeout(debounceTimeoutRef.current);
+    }
+    debounceTimeoutRef.current = window.setTimeout(() => {
+      checkId(customMemberId, orgId);
+    }, 500);
+
+    return () => {
+      if (debounceTimeoutRef.current) {
+        window.clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [customMemberId, orgId, checkId]);
+
   const handleAddOrInviteSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    
+    if (customMemberId && !isMemberIdValid && memberIdStatus !== 'checking') {
+       toast({
+         variant: "destructive",
+         title: "Invalid Member ID",
+         description: memberIdError || "Please enter a unique Member ID or leave it blank.",
+       });
+       return;
+    }
+    
     const formData = new FormData(event.currentTarget);
 
-    // Remove the console log and the frontend check for currentUser
-    // console.log('Current User in handleAddOrInviteSubmit:', currentUser);
-    
-    // The check for currentUser will now be handled within the server action
-    // if (!currentUser) {
-    //   toast({ variant: "destructive", title: "Error", description: "You must be logged in to add/invite members." });
-    //   return;
-    // }
-
     startAddMemberTransition(async () => {
-      // Ensure currentUser exists before accessing its id for context
-      // Although the primary check is moved, add a safety check here before creating context
       if (!currentUser) {
         console.error('handleAddOrInviteSubmit: currentUser unexpectedly null before creating context.');
         setAddUserState({ error: "Authentication context is missing. Please ensure you are logged in." });
-        return; // Stop if user is null before creating context
+        return;
       }
       
       try {
-        // Call the action correctly: (currentState, params)
-        // Pass null for currentState, and { formData } for params
         const result = await addOrInviteMember(null, { formData });
         setAddUserState(result);
       } catch (error: any) {
@@ -148,10 +198,23 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
       }
     });
   };
+  
+  const getValidationIndicator = () => {
+    switch (memberIdStatus) {
+      case 'checking':
+        return <Clock className="h-4 w-4 text-muted-foreground animate-spin" />;
+      case 'available':
+        return <CheckCircle className="h-4 w-4 text-green-600" />;
+      case 'taken':
+      case 'error':
+        return <XCircle className="h-4 w-4 text-destructive" />;
+      default:
+        return null;
+    }
+  };
 
   return (
     <div>
-      {/* --- Step 1: Email Input --- */}
       {(findUserState.status === 'idle' || findUserState.status === 'checking' || (findUserState.status === 'error' && findUserState.error === 'Email is required.')) && (
         <form onSubmit={triggerEmailCheck} className="space-y-4">
           <input type="hidden" name="orgId" value={orgId} />
@@ -174,7 +237,6 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
         </form>
       )}
 
-      {/* --- Step 2: User Found --- */}
       {findUserState.status === 'found' && (
         <div className="space-y-4">
           <Alert>
@@ -213,14 +275,17 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
               <p className="text-sm text-muted-foreground">
                  This user already has an account. Adding them will send an invitation to join the organization.
               </p>
-              <AddUserSubmitButton isExistingUser={true} isPending={isAddingMember} />
+              <AddUserSubmitButton 
+                isExistingUser={true} 
+                isPending={isAddingMember}
+                isDisabled={!isMemberIdValid && !!customMemberId && memberIdStatus !== 'checking'} 
+              />
             </form>
           )}
           <Button variant="outline" onClick={() => setFindUserState({ status: 'idle' })} className="w-full">Cancel</Button>
         </div>
       )}
 
-      {/* --- Step 3: Invite New User --- */}
       {findUserState.status === 'not_found' && (
         <div className="space-y-4">
           <Alert>
@@ -236,7 +301,6 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
             <input type="hidden" name="orgSlug" value={orgSlug} />
             <input type="hidden" name="email" value={findUserState.email} />
             
-            {/* Optional Fields */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="firstName">First Name <span className="text-muted-foreground">(Optional)</span></Label>
@@ -248,21 +312,46 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
               </div>
             </div>
             
-            {/* NEW: Optional Member ID */}
             <div>
               <Label htmlFor="memberId">Member ID <span className="text-muted-foreground">(Optional)</span></Label>
-              <Input 
-                id="memberId" 
-                name="memberId" 
-                placeholder="e.g., MEM-2025-001" 
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                If left blank, an ID may be generated later when a membership is assigned.
-              </p>
+              <div className="relative">
+                <Input
+                  id="memberId"
+                  name="memberId"
+                  placeholder="e.g., MEM-2025-001"
+                  className={`font-mono pr-8 ${!isMemberIdValid && customMemberId ? 'border-destructive focus-visible:ring-destructive' : ''}`}
+                  value={customMemberId}
+                  onChange={(e) => {
+                    setCustomMemberId(e.target.value);
+                    setMemberIdStatus('idle');
+                    setIsMemberIdValid(true);
+                    setMemberIdError(null);
+                    if (debounceTimeoutRef.current) {
+                       window.clearTimeout(debounceTimeoutRef.current);
+                    }
+                  }}
+                />
+                <div className="absolute inset-y-0 right-0 flex items-center pr-3">
+                  {customMemberId && memberIdStatus === 'idle' ? 
+                    <Clock className="h-4 w-4 text-muted-foreground" /> : 
+                    getValidationIndicator()
+                  }
+                </div>
+              </div>
+              {memberIdStatus === 'taken' || (memberIdStatus === 'error' && memberIdError) ? (
+                 <p className="text-sm text-destructive mt-1">{memberIdError}</p>
+              ) : (
+                 <p className="text-xs text-muted-foreground mt-1">
+                   If left blank, an ID may be generated later when a membership is assigned.
+                 </p>
+              )}
             </div>
 
-            <AddUserSubmitButton isExistingUser={false} isPending={isAddingMember} />
+            <AddUserSubmitButton 
+              isExistingUser={false} 
+              isPending={isAddingMember}
+              isDisabled={!isMemberIdValid && !!customMemberId && memberIdStatus !== 'checking'}
+            />
           </form>
         </div>
       )}
