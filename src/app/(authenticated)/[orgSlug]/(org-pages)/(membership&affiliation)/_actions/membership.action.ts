@@ -820,13 +820,15 @@ export async function assignMembershipAction(
   userId: string, // This is the target user ID
   orgId: string,
   tierId: string,
-  // TODO: Add actorUserId if needed for permission checks/metadata
+  // Add optional parameters for custom dates and member ID
+  options?: {
+    startDate?: string; // Custom start date (ISO string)
+    endDate?: string;   // Custom end date (ISO string)
+    memberId?: string;  // Custom member ID
+  }
 ): Promise<{ success: boolean; error?: string }> { 
   noStore();
-  // TODO: Add manual permission check here if needed, using actorUserId
-  // const { data: actorPermissions } = await checkPermissions(actorUserId, orgId, [permissions.memberships.edit]);
-  // if (!actorPermissions) return { success: false, error: "Permission denied" };
-
+  
   const supabase = await createSupabaseServiceRoleClient();
 
   try {
@@ -834,7 +836,7 @@ export async function assignMembershipAction(
     const { data: groupUser, error: groupUserError } = await supabase
       .from('group_users')
       .select('id, is_deleted') 
-      .eq('user_id', userId) // Use the passed userId (target user)
+      .eq('user_id', userId)
       .eq('group_id', orgId)
       .maybeSingle(); 
 
@@ -875,12 +877,12 @@ export async function assignMembershipAction(
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .insert({
-        user_id: userId, // Target user ID
+        user_id: userId,
         group_id: orgId,
         amount: 0, 
         currency: tierData.product.currency,
         status: 'completed', 
-        type: 'manual_assignment', 
+        type: 'membership',
       })
       .select('id')
       .single();
@@ -889,34 +891,69 @@ export async function assignMembershipAction(
     if (!order) throw new Error("Failed to create order record.");
     const orderId = order.id;
 
-    // 5. Calculate Membership Dates
-    const { startDate, endDate } = calculateMembershipDates({ 
-      duration_months: tierData.duration_months,
-      duration_unit: tierData.duration_unit as ('month' | 'year'),
-      has_fixed_dates: tierData.has_fixed_dates,
-      fixed_start_date: tierData.fixed_start_date,
-      fixed_end_date: tierData.fixed_end_date,
-      is_fiscal_period: tierData.is_fiscal_period, 
-      fiscal_start_month: tierData.fiscal_start_month,
-      fiscal_start_day: tierData.fiscal_start_day,
-      has_monthly_cycle: tierData.has_monthly_cycle,
-      monthly_start_day: tierData.monthly_start_day,
-      monthly_end_day_type: tierData.monthly_end_day_type as ('specific' | 'last_day'),
-      monthly_end_day: tierData.monthly_end_day,
-    });
+    // 5. Determine dates - use provided dates or calculate them
+    let startDate, endDate;
+    
+    if (options?.startDate) {
+      // Use provided start date
+      startDate = new Date(options.startDate);
+    } else {
+      // Calculate start date using tier settings
+      startDate = calculateMembershipDates({
+        duration_months: tierData.duration_months,
+        duration_unit: tierData.duration_unit as ('month' | 'year'),
+        has_fixed_dates: tierData.has_fixed_dates,
+        fixed_start_date: tierData.fixed_start_date,
+        fixed_end_date: tierData.fixed_end_date,
+        is_fiscal_period: tierData.is_fiscal_period,
+        fiscal_start_month: tierData.fiscal_start_month,
+        fiscal_start_day: tierData.fiscal_start_day,
+        has_monthly_cycle: tierData.has_monthly_cycle,
+        monthly_start_day: tierData.monthly_start_day,
+        monthly_end_day_type: tierData.monthly_end_day_type as ('specific' | 'last_day'),
+        monthly_end_day: tierData.monthly_end_day,
+      }).startDate;
+    }
+    
+    if (options?.endDate) {
+      // Use provided end date
+      endDate = new Date(options.endDate);
+    } else if (startDate) {
+      // Calculate end date using tier settings
+      endDate = calculateMembershipDates({
+        duration_months: tierData.duration_months,
+        duration_unit: tierData.duration_unit as ('month' | 'year'),
+        has_fixed_dates: tierData.has_fixed_dates,
+        fixed_start_date: tierData.fixed_start_date,
+        fixed_end_date: tierData.fixed_end_date,
+        is_fiscal_period: tierData.is_fiscal_period,
+        fiscal_start_month: tierData.fiscal_start_month,
+        fiscal_start_day: tierData.fiscal_start_day,
+        has_monthly_cycle: tierData.has_monthly_cycle,
+        monthly_start_day: tierData.monthly_start_day,
+        monthly_end_day_type: tierData.monthly_end_day_type as ('specific' | 'last_day'),
+        monthly_end_day: tierData.monthly_end_day,
+      }).endDate;
+    }
 
     // 6. Create Membership Record
+    const membershipData: any = {
+      group_user_id: groupUserId,
+      tier_id: tierId,
+      order_id: orderId,
+      start_date: startDate.toISOString(),
+      end_date: endDate ? endDate.toISOString() : null,
+      status: MembershipStatus.ACTIVE,
+    };
+    
+    // Add member_id if provided
+    if (options?.memberId) {
+      membershipData.member_id = options.memberId;
+    }
+
     const { error: membershipError } = await supabase
       .from('memberships')
-      .insert({
-        group_user_id: groupUserId,
-        tier_id: tierId,
-        order_id: orderId,
-        start_date: startDate.toISOString(),
-        end_date: endDate ? endDate.toISOString() : null,
-        status: MembershipStatus.ACTIVE, 
-        metadata: { assigned_at: new Date().toISOString() } // Removed assigned_by until actorUserId is passed
-      });
+      .insert(membershipData);
 
     if (membershipError) {
       // TODO: Rollback order?
@@ -926,11 +963,10 @@ export async function assignMembershipAction(
     // 7. Revalidate relevant paths
     revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page'); 
 
-    return { success: true }; // Explicit success return
+    return { success: true };
 
   } catch (error: any) {
     console.error("Error assigning membership:", error);
-    // Ensure error return matches the expected type
     return { success: false, error: error.message || "An unknown error occurred during assignment." }; 
   }
 }

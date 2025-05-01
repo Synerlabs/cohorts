@@ -60,6 +60,10 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { MembershipStatus } from "@/lib/types/membership"; // Import the enum
 
 // Helper to get initials
 const getInitials = (firstName?: string | null, lastName?: string | null) => {
@@ -90,6 +94,11 @@ export default function MemberDetailsSlideOver({
   const [isAssigning, startAssignTransition] = useTransition(); // Pending state for assignment
   const [showConfirmation, setShowConfirmation] = useState(false); // State for confirmation dialog
   const [mobileTab, setMobileTab] = useState<string>("profile"); // For mobile tab navigation
+  // New states for custom assignment options
+  const [useCustomDates, setUseCustomDates] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState<string>("");
+  const [customEndDate, setCustomEndDate] = useState<string>("");
+  const [customMemberId, setCustomMemberId] = useState<string>("");
   const { toast } = useToast(); // Get toast function from the hook
 
   useEffect(() => {
@@ -167,7 +176,7 @@ export default function MemberDetailsSlideOver({
   const handleAssignMembership = () => {
     if (!selectedTierId || !user) return;
     
-    // Show confirmation dialog instead of immediately assigning
+    // Instead of showing a separate drawer, we'll handle everything in this component
     setShowConfirmation(true);
   };
 
@@ -176,9 +185,26 @@ export default function MemberDetailsSlideOver({
     
     setShowConfirmation(false); // Close confirmation dialog
     
+    // Prepare options object based on user inputs
+    const options: {
+      startDate?: string;
+      endDate?: string;
+      memberId?: string;
+    } = {};
+    
+    // Only include custom values if the checkbox is checked
+    if (useCustomDates) {
+      if (customStartDate) options.startDate = customStartDate;
+      if (customEndDate) options.endDate = customEndDate;
+    }
+    
+    // Include custom member ID if provided
+    if (customMemberId) options.memberId = customMemberId;
+    
     startAssignTransition(async () => {
       try {
-        const result = await assignMembershipAction(user.userId, orgId, selectedTierId);
+        // Pass options to the assignMembershipAction
+        const result = await assignMembershipAction(user.userId, orgId, selectedTierId, options);
         if (!result.success) throw new Error(result.error || "Failed to assign membership");
         
         // Use the imported toast function with standard structure
@@ -187,7 +213,12 @@ export default function MemberDetailsSlideOver({
           description: `Successfully assigned membership to ${userName}.`,
         });
         
-        setSelectedTierId(null); // Reset selection
+        // Reset all form values
+        setSelectedTierId(null);
+        setUseCustomDates(false);
+        setCustomStartDate("");
+        setCustomEndDate("");
+        setCustomMemberId("");
         
         // Re-fetch memberships after successful assignment
         await refreshMemberships();
@@ -318,229 +349,396 @@ export default function MemberDetailsSlideOver({
             {/* Right column - Memberships */}
             <div className="w-full md:w-2/3 overflow-y-auto p-0 pt-10 bg-white">
               {/* Memberships Content */}
-              <div className="p-4 sm:p-6 pt-20 space-y-6">
-                {/* Membership Header with Refresh */}
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-primary" />
-                    <h3 className="font-medium">Memberships</h3>
+              {!showConfirmation ? (
+                <div className="p-4 sm:p-6 pt-20 space-y-6">
+                  {/* Membership Header with Refresh */}
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <Receipt className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold text-lg">Memberships</h3>
+                    </div>
+                    
+                    {!isLoading && !isRefreshing && (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={refreshMemberships}
+                        className="h-8 gap-1 text-xs group hover:bg-primary/10"
+                      >
+                        {isRefreshing ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCcw className="h-3 w-3 group-hover:rotate-180 transition-transform duration-500" />
+                        )}
+                        Refresh
+                      </Button>
+                    )}
                   </div>
                   
-                  {!isLoading && !isRefreshing && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={refreshMemberships}
-                      className="h-8 gap-1 text-xs group"
-                    >
-                      {isRefreshing ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                  {/* Loading State */}
+                  {(isLoading || isRefreshing) && (
+                    <div className="flex items-center justify-center py-10 border rounded-md bg-muted/20 text-sm text-muted-foreground animate-pulse">
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {isLoading ? "Loading memberships..." : "Refreshing memberships..."}
+                    </div>
+                  )}
+                  
+                  {/* Error State */}
+                  {error && !isLoading && (
+                    <div className="p-4 border rounded-md bg-destructive/10 text-destructive text-sm flex items-center gap-2 animate-in slide-in-from-top-2">
+                      <XCircle className="h-4 w-4 flex-shrink-0" />
+                      <p>Error loading data: {error}</p>
+                    </div>
+                  )}
+                  
+                  {/* Memberships List */}
+                  {!isLoading && !isRefreshing && !error && (
+                    <div className="space-y-4">
+                      {userMemberships.length > 0 ? (
+                        <>
+                          <p className="text-sm text-muted-foreground mb-1">
+                            {userMemberships.length} membership{userMemberships.length !== 1 ? 's' : ''} found
+                          </p>
+                          {userMemberships.map((membership, index) => (
+                            <Card 
+                              key={membership.id} 
+                              className={cn(
+                                "shadow-sm transition-all duration-200 overflow-hidden hover:shadow-md focus-within:shadow-md animate-in slide-in-from-left-5",
+                                membership.status === 'active' 
+                                  ? "border-primary/20" 
+                                  : "border-muted"
+                              )}
+                              style={{ animationDelay: `${index * 50}ms` }}
+                              tabIndex={0}
+                            >
+                              <CardHeader className={cn(
+                                "py-3 px-4 flex flex-row justify-between items-center",
+                                membership.status === 'active' ? "bg-primary/5" : "bg-muted/20"
+                              )}>
+                                <div className="flex items-center gap-2">
+                                  <div className={cn(
+                                    "flex h-6 w-6 rounded-full items-center justify-center text-xs font-medium",
+                                    membership.status === 'active' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
+                                  )}>
+                                    {index + 1}
+                                  </div>
+                                  <CardTitle className="text-base font-medium">
+                                    {membership.membership_tier?.product?.name || 'Unknown Tier'}
+                                  </CardTitle>
+                                </div>
+                                <Badge 
+                                  variant={membership.status === 'active' ? 'default' : 'outline'}
+                                  className={cn(
+                                    'capitalize px-2.5 py-0.5',
+                                    membership.status === 'active' ? 'bg-emerald-500 hover:bg-emerald-500 text-white' : '',
+                                    membership.status === 'expired' ? 'bg-amber-100 text-amber-800 border-amber-200' : '',
+                                    membership.status === 'cancelled' ? 'bg-gray-100 text-gray-800 border-gray-200' : '',
+                                    membership.status === 'suspended' ? 'bg-red-100 text-red-800 border-red-200' : '',
+                                    (typeof membership.status === 'string' && membership.status.startsWith('pending')) ? 'bg-blue-100 text-blue-800 border-blue-200' : ''
+                                  )}
+                                >
+                                  {membership.status}
+                                </Badge>
+                              </CardHeader>
+                              <CardContent className="p-4 pt-3 text-sm">
+                                <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
+                                  {membership.member_id && (
+                                    <>
+                                      <span className="text-muted-foreground font-medium">Membership ID:</span>
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-mono text-xs font-medium">{membership.member_id}</span>
+                                        <button 
+                                          className="hover:text-primary transition-colors" 
+                                          onClick={() => copyToClipboard(membership.member_id!, "Membership ID")}
+                                          title="Copy Membership ID"
+                                        >
+                                          <ClipboardCopy className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    </>
+                                  )}
+                                  <span className="text-muted-foreground font-medium">Start Date:</span>
+                                  <span className="font-medium">{membership.start_date ? format(new Date(membership.start_date), 'PP') : '-'}</span>
+                                  <span className="text-muted-foreground font-medium">End Date:</span>
+                                  <span className="font-medium">{membership.end_date ? format(new Date(membership.end_date), 'PP') : '-'}</span>
+                                  <span className="text-muted-foreground font-medium">Created:</span>
+                                  <span className="font-medium">{membership.created_at ? format(new Date(membership.created_at), 'PP') : '-'}</span>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ))}
+                        </>
                       ) : (
-                        <RefreshCcw className="h-3 w-3 group-hover:rotate-180 transition-transform duration-500" />
+                        <div className="flex flex-col items-center text-sm text-muted-foreground py-16 border rounded-md bg-muted/5 text-center gap-3 animate-in fade-in-50">
+                          <div className="bg-primary/5 p-3 rounded-full">
+                            <Info className="h-6 w-6 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-medium">No memberships found</p>
+                            <p className="text-xs text-muted-foreground mt-1">This user doesn't have any memberships in this organization.</p>
+                          </div>
+                        </div>
                       )}
-                      Refresh
-                    </Button>
+                    </div>
+                  )}
+
+                  {/* Assignment Section */}
+                  {!isLoading && !error && (
+                    <div className="mt-8">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <PlusCircle className="h-4 w-4 text-primary" />
+                        <span>Assign New Membership</span>
+                      </h4>
+                      
+                      <Card className="border border-dashed shadow-none hover:border-primary/20 transition-colors group">
+                        <CardContent className="p-4 pt-4">
+                          {availableTiers.length > 0 ? (
+                            <div className="flex flex-col sm:flex-row gap-3">
+                              <div className="flex-grow">
+                                <Label htmlFor="tier-select" className="text-xs mb-1.5 block text-muted-foreground">
+                                  Membership Tier
+                                </Label>
+                                <Select 
+                                  value={selectedTierId || ""} 
+                                  onValueChange={setSelectedTierId}
+                                  disabled={isAssigning}
+                                >
+                                  <SelectTrigger id="tier-select" className="flex-grow bg-background">
+                                    <SelectValue placeholder="Select a tier..." />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {availableTiers.map((tier) => (
+                                      <SelectItem key={tier.id} value={tier.id}>
+                                        <div className="flex justify-between items-center w-full">
+                                          <span>{tier.name}</span>
+                                          <span className="text-xs text-muted-foreground ml-2">
+                                            {tier.currency} {(tier.price / 100).toFixed(2)}
+                                          </span>
+                                        </div>
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="sm:self-end">
+                                <Button 
+                                  onClick={handleAssignMembership}
+                                  disabled={!selectedTierId || isAssigning}
+                                  className="px-4 h-10 sm:w-auto w-full"
+                                >
+                                  {isAssigning ? (
+                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                  ) : (
+                                    <PlusCircle className="h-4 w-4 mr-2" />
+                                  )}
+                                  Assign Membership
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs flex items-center gap-2 text-muted-foreground border rounded-md p-3 bg-muted/10">
+                              <Info className="h-4 w-4" />
+                              <p>No active membership tiers available to assign.</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
                   )}
                 </div>
-                
-                {/* Loading State */}
-                {(isLoading || isRefreshing) && (
-                  <div className="flex items-center justify-center py-10 border rounded-md bg-muted/20 text-sm text-muted-foreground animate-pulse">
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isLoading ? "Loading memberships..." : "Refreshing memberships..."}
+              ) : (
+                <div className="h-full flex flex-col">
+                  <div className="px-6 pb-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setShowConfirmation(false)}
+                        className="hover:bg-transparent p-0 h-auto"
+                      >
+                        <ChevronRight className="h-4 w-4 mr-1 transform rotate-180" />
+                        <span>Back</span>
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <PlusCircle className="h-5 w-5 text-primary" />
+                      <h3 className="font-semibold text-lg">Assign Membership</h3>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Assign a membership to {userName}
+                    </p>
                   </div>
-                )}
-                
-                {/* Error State */}
-                {error && !isLoading && (
-                  <div className="p-4 border rounded-md bg-destructive/10 text-destructive text-sm flex items-center gap-2 animate-in slide-in-from-top-2">
-                    <XCircle className="h-4 w-4 flex-shrink-0" />
-                    <p>Error loading data: {error}</p>
-                  </div>
-                )}
-                
-                {/* Memberships List */}
-                {!isLoading && !isRefreshing && !error && (
-                  <div className="space-y-3">
-                    {userMemberships.length > 0 ? (
-                      userMemberships.map((membership, index) => (
-                        <Card 
-                          key={membership.id} 
-                          className={cn(
-                            "shadow-sm transition-all duration-200 overflow-hidden hover:shadow-md focus-within:shadow-md animate-in slide-in-from-left-5",
-                            membership.status === 'active' 
-                              ? "border-primary/20" 
-                              : "border-muted"
-                          )}
-                          style={{ animationDelay: `${index * 50}ms` }}
-                          tabIndex={0}
-                        >
-                          <CardHeader className={cn(
-                            "py-3 px-4 flex flex-row justify-between items-center",
-                            membership.status === 'active' ? "bg-primary/5" : "bg-muted/20"
-                          )}>
-                            <div className="flex items-center gap-2">
-                              <div className={cn(
-                                "flex h-5 w-5 rounded-full items-center justify-center text-xs font-medium",
-                                membership.status === 'active' ? "bg-primary text-white" : "bg-muted text-muted-foreground"
-                              )}>
-                                {index + 1}
-                              </div>
-                              <CardTitle className="text-sm font-medium">
-                                {membership.membership_tier?.product?.name || 'Unknown Tier'}
-                              </CardTitle>
-                            </div>
-                            <Badge 
-                              variant={membership.status === 'active' ? 'default' : 'outline'}
-                              className={membership.status === 'active' ? 'bg-green-500 text-white' : ''}
-                            >
-                              {membership.status}
-                            </Badge>
+                  
+                  {selectedTier && (
+                    <div className="flex-1 overflow-y-auto px-6">
+                      <div className="py-4">
+                        <Card className="overflow-hidden border border-primary/20">
+                          <CardHeader className="py-3 px-4 bg-primary/5">
+                            <CardTitle className="text-sm font-medium flex justify-between">
+                              <span>{selectedTier.name}</span>
+                              <span className="text-muted-foreground">
+                                {selectedTier.currency} {(selectedTier.price / 100).toFixed(2)}
+                              </span>
+                            </CardTitle>
                           </CardHeader>
-                          <CardContent className="p-4 pt-3 text-sm">
-                            <div className="grid grid-cols-2 gap-y-2 text-xs">
-                              {membership.member_id && (
-                                <>
-                                  <span className="text-muted-foreground">Membership ID:</span>
-                                  <div className="flex items-center gap-1">
-                                    <span className="font-mono text-xs font-medium">{membership.member_id}</span>
-                                    <button 
-                                      className="hover:text-primary transition-colors" 
-                                      onClick={() => copyToClipboard(membership.member_id!, "Membership ID")}
-                                      title="Copy Membership ID"
-                                    >
-                                      <ClipboardCopy className="h-3 w-3" />
-                                    </button>
-                                  </div>
-                                </>
-                              )}
-                              <span className="text-muted-foreground">Start Date:</span>
-                              <span className="font-medium">{membership.start_date ? format(new Date(membership.start_date), 'PP') : '-'}</span>
-                              <span className="text-muted-foreground">End Date:</span>
-                              <span className="font-medium">{membership.end_date ? format(new Date(membership.end_date), 'PP') : '-'}</span>
-                              <span className="text-muted-foreground">Created:</span>
-                              <span className="font-medium">{membership.created_at ? format(new Date(membership.created_at), 'PP') : '-'}</span>
+                          <CardContent className="p-4 text-sm space-y-4">
+                            <div className="flex items-center gap-2">
+                              <div className="bg-muted h-8 w-8 rounded-full flex items-center justify-center">
+                                <UserIcon className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                              <div>
+                                <p className="font-medium">{userName}</p>
+                                {user?.profile?.email && (
+                                  <p className="text-xs text-muted-foreground">{user.profile.email}</p>
+                                )}
+                              </div>
                             </div>
                           </CardContent>
                         </Card>
-                      ))
-                    ) : (
-                      <div className="flex flex-col items-center text-sm text-muted-foreground py-12 border rounded-md bg-muted/10 text-center gap-2 animate-in fade-in-50">
-                        <Info className="h-5 w-5 text-muted-foreground" />
-                        <p>This user has no memberships in this organization.</p>
-                        <p className="text-xs text-muted-foreground mt-1">Use the form below to assign a membership.</p>
                       </div>
-                    )}
+                      
+                      <div className="space-y-5 pb-20">
+                        {/* Custom Member ID field */}
+                        <div>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <Label htmlFor="memberId" className="text-sm">Member ID</Label>
+                            <span className="text-xs text-muted-foreground">Will be auto-generated if empty</span>
+                          </div>
+                          <Input 
+                            id="memberId" 
+                            placeholder="e.g., MEM-2025-001" 
+                            value={customMemberId}
+                            onChange={(e) => setCustomMemberId(e.target.value)}
+                            className="h-9 font-mono text-sm"
+                          />
+                          {!customMemberId && (
+                            <p className="text-xs text-muted-foreground mt-1.5">
+                              Default format: {selectedTier?.membership_tier?.member_id_format || "MEM-{YYYY}-{SEQ:3}"}
+                            </p>
+                          )}
+                        </div>
+                        
+                        {/* Default dates display */}
+                        <div className="bg-muted/10 p-4 rounded-md border">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="text-sm font-medium">Membership Period</h4>
+                            <div className="flex items-center space-x-2">
+                              <Checkbox 
+                                id="custom-dates" 
+                                checked={useCustomDates}
+                                onCheckedChange={(checked) => setUseCustomDates(checked as boolean)}
+                              />
+                              <Label htmlFor="custom-dates" className="text-xs">
+                                Override dates
+                              </Label>
+                            </div>
+                          </div>
+                          
+                          {!useCustomDates ? (
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs text-muted-foreground">Start Date:</p>
+                                <p className="font-medium">{
+                                  selectedTier?.membership_tier?.has_fixed_dates && selectedTier?.membership_tier?.fixed_start_date
+                                    ? format(new Date(selectedTier.membership_tier.fixed_start_date), 'PP')
+                                    : format(new Date(), 'PP')
+                                }</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground">End Date:</p>
+                                <p className="font-medium">{
+                                  selectedTier?.membership_tier?.has_fixed_dates && selectedTier?.membership_tier?.fixed_end_date
+                                    ? format(new Date(selectedTier.membership_tier.fixed_end_date), 'PP')
+                                    : selectedTier?.membership_tier?.duration_months
+                                      ? format(new Date(new Date().setMonth(
+                                          new Date().getMonth() + 
+                                          (selectedTier.membership_tier.duration_unit === 'year' 
+                                            ? selectedTier.membership_tier.duration_months * 12 
+                                            : selectedTier.membership_tier.duration_months)
+                                        )), 'PP')
+                                      : 'No end date'
+                                }</p>
+                              </div>
+                              {selectedTier?.membership_tier?.duration_months && (
+                                <div className="col-span-2 mt-1 text-xs text-muted-foreground">
+                                  Duration: {selectedTier.membership_tier.duration_months} {
+                                    selectedTier.membership_tier.duration_unit === 'year' 
+                                      ? selectedTier.membership_tier.duration_months > 1 ? 'years' : 'year'
+                                      : selectedTier.membership_tier.duration_months > 1 ? 'months' : 'month'
+                                  }
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <div>
+                                <Label htmlFor="start-date" className="text-sm mb-1.5 block">Custom Start Date:</Label>
+                                <Input 
+                                  id="start-date" 
+                                  type="date" 
+                                  value={customStartDate}
+                                  onChange={(e) => setCustomStartDate(e.target.value)}
+                                  className="h-9"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="end-date" className="text-sm mb-1.5 block">Custom End Date:</Label>
+                                <Input 
+                                  id="end-date" 
+                                  type="date" 
+                                  value={customEndDate}
+                                  onChange={(e) => setCustomEndDate(e.target.value)}
+                                  className="h-9"
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground italic">
+                                Note: Custom dates override the membership tier's default duration settings.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="pt-2">
+                          <p className="text-sm text-muted-foreground">
+                            This will create a new membership and assign it to the user immediately.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="border-t p-6 mt-auto bg-background">
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button 
+                        variant="outline" 
+                        className="flex-1" 
+                        onClick={() => setShowConfirmation(false)}
+                        disabled={isAssigning}
+                      >
+                        Cancel
+                      </Button>
+                      <Button 
+                        onClick={confirmAssignMembership} 
+                        className="flex-1 bg-primary hover:bg-primary/90"
+                        disabled={isAssigning}
+                      >
+                        {isAssigning ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Assigning...
+                          </>
+                        ) : (
+                          "Assign Membership"
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                )}
-
-                {/* Assignment Section */}
-                {!isLoading && !error && (
-                  <Card className="mt-4 border border-dashed shadow-none hover:border-primary/20 transition-colors group">
-                    <CardHeader className="py-3 px-4">
-                      <div className="flex items-center gap-2">
-                        <PlusCircle className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-                        <CardTitle className="text-sm font-medium">Assign New Membership</CardTitle>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-4 pt-2">
-                      {availableTiers.length > 0 ? (
-                        <div className="flex flex-col sm:flex-row gap-2">
-                          <Select 
-                            value={selectedTierId || ""} 
-                            onValueChange={setSelectedTierId}
-                            disabled={isAssigning}
-                          >
-                            <SelectTrigger className="flex-grow bg-background">
-                              <SelectValue placeholder="Select a tier..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {availableTiers.map((tier) => (
-                                <SelectItem key={tier.id} value={tier.id}>
-                                  <div className="flex justify-between items-center w-full">
-                                    <span>{tier.name}</span>
-                                    <span className="text-xs text-muted-foreground ml-2">
-                                      {tier.currency} {(tier.price / 100).toFixed(2)}
-                                    </span>
-                                  </div>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <Button 
-                            onClick={handleAssignMembership}
-                            disabled={!selectedTierId || isAssigning}
-                            className="px-4 sm:w-auto w-full"
-                          >
-                            {isAssigning ? (
-                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                            ) : (
-                              <PlusCircle className="h-4 w-4 mr-2" />
-                            )}
-                            Assign
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-xs flex items-center gap-2 text-muted-foreground border rounded-md p-3 bg-muted/10">
-                          <Info className="h-4 w-4" />
-                          <p>No active membership tiers available to assign.</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </SheetContent>
       </Sheet>
-
-      {/* Confirmation Dialog */}
-      <AlertDialog open={showConfirmation} onOpenChange={setShowConfirmation}>
-        <AlertDialogContent className="max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Assign Membership</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selectedTier && (
-                <div className="space-y-2">
-                  <p>
-                    Are you sure you want to assign the <strong>{selectedTier.name}</strong> membership 
-                    to <strong>{userName}</strong>?
-                  </p>
-                  <Card className="mt-2 overflow-hidden border border-primary/20">
-                    <CardHeader className="py-2 px-3 bg-primary/5">
-                      <CardTitle className="text-sm font-medium">{selectedTier.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-3 pt-2 text-sm space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-muted-foreground">Price:</span>
-                        <span className="font-medium">{selectedTier.currency} {(selectedTier.price / 100).toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-muted-foreground">User:</span>
-                        <span className="font-medium truncate max-w-[200px]">{userName}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmAssignMembership}>
-              {isAssigning ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Assigning...
-                </>
-              ) : (
-                "Assign Membership"
-              )}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </TooltipProvider>
   );
 }
