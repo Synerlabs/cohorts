@@ -6,8 +6,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { Suspense } from "react";
 import MembershipStatusFilter from "./_components/membership-status-filter";
+import { ComponentPermission } from "@/components/ComponentPermission";
+import { InviteMemberButton } from "./_components/invite-member-button";
 
-async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
+async function MembersPage({ org, searchParams, userPermissions }: OrgAccessHOCProps) {
   const _searchParams = await searchParams || {};
   const tab = (_searchParams?.tab || "members") as string;
   const membershipStatus = (_searchParams?.status || "active") as string;
@@ -31,11 +33,16 @@ async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col space-y-1.5">
-        <h2 className="text-2xl font-bold tracking-tight">Organization Members</h2>
-        <p className="text-muted-foreground">
-          Manage members and their access to {org.name}
-        </p>
+      <div className="flex justify-between items-center">
+        <div className="flex flex-col space-y-1.5">
+          <h2 className="text-2xl font-bold tracking-tight">Organization Members</h2>
+          <p className="text-muted-foreground">
+            Manage members and their access to {org.name}
+          </p>
+        </div>
+        <ComponentPermission requiredPermissions={[permissions.members.invite]}>
+          <InviteMemberButton orgId={org.id} orgSlug={org.slug} />
+        </ComponentPermission>
       </div>
 
       <div className="rounded-lg border bg-card shadow-sm">

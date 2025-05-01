@@ -120,7 +120,7 @@ export const permissions = {
     // create: "group.members.create",
     // edit: "group.members.edit",
     // delete: "group.members.delete",
-    // invite: "group.members.invite",
+    invite: "group.members.invite",
     // approve: "group.members.approve",
   },
   roles: {
@@ -227,7 +227,7 @@ export const permissionModules = {
     name: "Payment Gateways",
     description: "Manage group payment gateways",
     icon: <CreditCardIcon className="h-5 w-5" />,
-    permissions: permissions.payments.gateways,
+    permissions: permissions.paymentGateways,
   },
   orders: {
     name: "Orders",
