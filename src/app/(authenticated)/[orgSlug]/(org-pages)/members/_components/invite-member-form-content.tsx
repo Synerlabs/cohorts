@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
-import { useFormState, useFormStatus } from 'react-dom';
+import { useFormStatus } from 'react-dom';
 import { findUserByEmail } from '@/actions/find-user.action';
 import { addOrInviteMember } from '@/actions/member.actions'; 
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Loader2, UserCheck, UserPlus, MailWarning } from 'lucide-react';
+import { useUser } from '@/lib/context/UserContext';
 
 // --- State types for findUserByEmail --- 
 interface UserProfile {
@@ -65,12 +66,17 @@ function FindUserSubmitButton() {
   );
 }
 
-function AddUserSubmitButton({ isExistingUser }: { isExistingUser: boolean }) {
-  const { pending } = useFormStatus();
+function AddUserSubmitButton({ 
+  isExistingUser, 
+  isPending 
+}: { 
+  isExistingUser: boolean; 
+  isPending: boolean; 
+}) {
   return (
-    <Button type="submit" disabled={pending} className="w-full">
-       {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isExistingUser ? <UserCheck className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />)}
-      {pending ? (isExistingUser ? 'Adding...' : 'Inviting...') : (isExistingUser ? 'Add Member' : 'Invite Member')}
+    <Button type="submit" disabled={isPending} className="w-full">
+       {isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (isExistingUser ? <UserCheck className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />)}
+      {isPending ? (isExistingUser ? 'Adding...' : 'Inviting...') : (isExistingUser ? 'Add Member' : 'Invite Member')}
     </Button>
   );
 }
@@ -78,30 +84,29 @@ function AddUserSubmitButton({ isExistingUser }: { isExistingUser: boolean }) {
 // --- Main Component --- 
 export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMemberFormContentProps) {
   const { toast } = useToast();
+  const { user: currentUser } = useUser();
   const [findUserState, setFindUserState] = useState<FindUserState>({ status: 'idle' });
-  const [addUserState, addUserAction] = useFormState<AddUserState, FormData>(addOrInviteMember, {});
-  const [isChecking, startCheckingTransition] = useTransition();
+  const [addUserState, setAddUserState] = useState<AddUserState>({});
+  const [isCheckingEmail, startEmailCheckTransition] = useTransition();
+  const [isAddingMember, startAddMemberTransition] = useTransition();
   const [emailToCheck, setEmailToCheck] = useState('');
 
-  // Effect to handle result from addOrInviteMember action
   useEffect(() => {
     if (addUserState?.error) {
       toast({ title: "Error", description: addUserState.error, variant: "destructive" });
+      setAddUserState({});
     } else if (addUserState?.success) {
       toast({ title: "Success", description: "Member added/invited successfully. They need to accept the invitation if new." });
       closeModal();
     }
   }, [addUserState, toast, closeModal]);
 
-  // Renamed handleFindUserSubmit to triggerEmailCheck and adjusted logic
   const triggerEmailCheck = async (event: React.FormEvent<HTMLFormElement>) => {
-     event.preventDefault(); // Prevent default form submission
-     const formData = new FormData(event.currentTarget); // Get form data
-
-     startCheckingTransition(async () => {
+     event.preventDefault();
+     const formData = new FormData(event.currentTarget);
+     startEmailCheckTransition(async () => {
        setFindUserState({ status: 'checking' });
-       // Manually call the server action
-       const result = await findUserByEmail({}, formData); 
+       const result = await findUserByEmail({}, formData);
        if (result.status === 'not_found') {
          setFindUserState({ status: 'not_found', email: formData.get('email') as string });
        } else {
@@ -110,12 +115,32 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
      });
   };
 
+  const handleAddOrInviteSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+
+    if (!currentUser) {
+      toast({ variant: "destructive", title: "Error", description: "You must be logged in to add/invite members." });
+      return;
+    }
+
+    startAddMemberTransition(async () => {
+      const context = { userId: currentUser.id, groupId: orgId };
+      try {
+        const result = await addOrInviteMember(context, formData);
+        setAddUserState(result);
+      } catch (error: any) {
+        console.error("Add/Invite Submit Error:", error);
+        setAddUserState({ error: error.message || "An unexpected error occurred." });
+      }
+    });
+  };
+
   return (
     <div>
       {/* --- Step 1: Email Input --- */}
       {(findUserState.status === 'idle' || findUserState.status === 'checking' || (findUserState.status === 'error' && findUserState.error === 'Email is required.')) && (
         <form onSubmit={triggerEmailCheck} className="space-y-4">
-          {/* Hidden fields needed by findUserByEmail */}
           <input type="hidden" name="orgId" value={orgId} />
           <div>
             <Label htmlFor="email-check">Member Email Address</Label>
@@ -159,7 +184,6 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
             </AlertDescription>
           </Alert>
 
-          {/* --- Conditional Action/Message based on isMember --- */}
           {findUserState.isMember ? (
             <Alert variant="default">
               <UserCheck className="h-4 w-4" />
@@ -169,14 +193,14 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
               </AlertDescription>
             </Alert>
           ) : (
-            <form action={addUserAction} className="space-y-4">
+            <form onSubmit={handleAddOrInviteSubmit} className="space-y-4">
               <input type="hidden" name="orgId" value={orgId} />
               <input type="hidden" name="orgSlug" value={orgSlug} />
               <input type="hidden" name="email" value={findUserState.profile.email} />
               <p className="text-sm text-muted-foreground">
                  This user already has an account. Adding them will send an invitation to join the organization.
               </p>
-              <AddUserSubmitButton isExistingUser={true} />
+              <AddUserSubmitButton isExistingUser={true} isPending={isAddingMember} />
             </form>
           )}
           <Button variant="outline" onClick={() => setFindUserState({ status: 'idle' })} className="w-full">Cancel</Button>
@@ -185,7 +209,7 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
 
       {/* --- Step 3: User Not Found --- */}
       {findUserState.status === 'not_found' && (
-        <form action={addUserAction} className="space-y-4">
+        <form onSubmit={handleAddOrInviteSubmit} className="space-y-4">
           <input type="hidden" name="orgId" value={orgId} />
           <input type="hidden" name="orgSlug" value={orgSlug} />
           <input type="hidden" name="email" value={findUserState.email} />
@@ -208,7 +232,7 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
               <Input id="lastName" name="lastName" placeholder="Doe" />
             </div>
           </div>
-          <AddUserSubmitButton isExistingUser={false} />
+          <AddUserSubmitButton isExistingUser={false} isPending={isAddingMember} />
            <Button variant="outline" onClick={() => setFindUserState({ status: 'idle' })} className="w-full">Cancel</Button>
         </form>
       )}

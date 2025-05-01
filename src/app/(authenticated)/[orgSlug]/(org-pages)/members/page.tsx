@@ -1,7 +1,7 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import UserTable from "@/app/(authenticated)/[orgSlug]/(org-pages)/members/_components/user-table";
 import { permissions } from "@/lib/types/permissions";
-import { getOrgMembers } from "@/services/org.service";
+import { getOrgMembers, type MembershipStatusFilterType } from "@/services/org.service";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -12,23 +12,11 @@ import { InviteMemberButton } from "./_components/invite-member-button";
 async function MembersPage({ org, searchParams, userPermissions }: OrgAccessHOCProps) {
   const _searchParams = await searchParams || {};
   const tab = (_searchParams?.tab || "members") as string;
-  const membershipStatus = (_searchParams?.status || "active") as string;
-  
-  // Handle different membership status filters
-  let isActive;
-  if (membershipStatus === "all") {
-    // Will fetch all members regardless of status
-    isActive = undefined;
-  } else if (membershipStatus === "inactive") {
-    isActive = false;
-  } else {
-    // Default to active
-    isActive = true;
-  }
+  const membershipStatus = (_searchParams?.status || "active") as MembershipStatusFilterType;
   
   const members = await getOrgMembers({ 
     id: org.id,
-    isActive 
+    status: membershipStatus
   });
 
   return (
@@ -85,8 +73,8 @@ async function MembersPage({ org, searchParams, userPermissions }: OrgAccessHOCP
             <div className="px-6 pb-6">
               <UserTable 
                 users={members} 
-                groupRoleId={org.id} 
                 membershipStatus={membershipStatus}
+                orgId={org.id}
               />
             </div>
           )}

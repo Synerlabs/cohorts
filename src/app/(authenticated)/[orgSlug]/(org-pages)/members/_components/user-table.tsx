@@ -19,13 +19,15 @@ interface UserTableProps {
   isLoading?: boolean;
   groupRoleId?: string;
   membershipStatus?: string;
+  orgId: string;
 }
 
 export default function UserTable({ 
   users, 
   isLoading = false, 
   groupRoleId,
-  membershipStatus = "active"
+  membershipStatus = "active",
+  orgId
 }: UserTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -51,6 +53,22 @@ export default function UserTable({
   }
 
   if (!users?.length) {
+    let emptyStateMessage = "There are no members matching the current filter.";
+    switch (membershipStatus) {
+      case "active":
+        emptyStateMessage = "There are no active members in this organization.";
+        break;
+      case "inactive":
+        emptyStateMessage = "There are no pending invites in this organization.";
+        break;
+      case "deleted":
+        emptyStateMessage = "There are no deleted members in this organization.";
+        break;
+      case "all":
+        emptyStateMessage = "There are no active or pending members in this organization.";
+        break;
+    }
+
     return (
       <div className="flex flex-col items-center justify-center p-8 h-64 text-center border rounded-lg bg-muted/10">
         <div className="flex flex-col items-center gap-2">
@@ -75,25 +93,31 @@ export default function UserTable({
           </div>
           <h3 className="font-medium">No members found</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            {membershipStatus === "active" 
-              ? "There are no active members in this organization." 
-              : membershipStatus === "inactive" 
-                ? "There are no inactive members in this organization."
-                : "There are no members in this organization."}
+            {emptyStateMessage}
           </p>
         </div>
       </div>
     );
   }
 
+  // Update the filter badge display logic
+  const getStatusBadgeInfo = () => {
+    switch (membershipStatus) {
+      case 'inactive': return { variant: 'warning', text: 'Pending Invites' }; // Use warning variant
+      case 'deleted': return { variant: 'destructive', text: 'Deleted Members' };
+      case 'all': return { variant: 'outline', text: 'All (Active+Pending)' };
+      // 'active' doesn't show a badge, and default case shouldn't happen
+      default: return null;
+    }
+  };
+  const statusBadgeInfo = getStatusBadgeInfo();
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
-          {membershipStatus !== "active" && (
-            <Badge variant={membershipStatus === "all" ? "outline" : (membershipStatus === "inactive" ? "destructive" : "default")}>
-              {membershipStatus === "all" ? "All Members" : (membershipStatus === "inactive" ? "Inactive Members" : "Active Members")}
-            </Badge>
+          {statusBadgeInfo && (
+            <Badge variant={statusBadgeInfo.variant as any}>{statusBadgeInfo.text}</Badge>
           )}
           <span className="text-sm text-muted-foreground">
             Showing {filteredUsers.length} of {users.length} {users.length === 1 ? "member" : "members"}
@@ -123,6 +147,7 @@ export default function UserTable({
               {membershipStatus === "all" && (
                 <TableHead className="hidden md:table-cell">Status</TableHead>
               )}
+              <TableHead><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -132,16 +157,17 @@ export default function UserTable({
                   key={user.id}
                   user={user}
                   role={user.role || "Member"}
-                  showStatus={membershipStatus === "all"}
+                  showStatus={membershipStatus === "all" || membershipStatus === "deleted"}
+                  orgId={orgId}
                 />
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={membershipStatus === "all" ? 5 : 4} className="h-24 text-center">
+                <TableCell colSpan={membershipStatus === "all" || membershipStatus === "deleted" ? 6 : 5} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center gap-1">
                     <p className="text-sm font-medium">No results found</p>
                     <p className="text-sm text-muted-foreground">
-                      Try adjusting your search query
+                      Try adjusting your filter or search query
                     </p>
                   </div>
                 </TableCell>

@@ -91,19 +91,18 @@ export async function findUserByEmail(
             // Check if user is already a member of this group (using regular client)
             let isAlreadyMember = false;
             try {
-                // Use select without count/head, check if data array has elements
                 const { data: membership, error: membershipError } = await supabase
                     .from('group_users')
-                    .select('id') // Select a minimal column
+                    .select('id') 
                     .eq('user_id', authUserId)
                     .eq('group_id', orgId)
-                    .limit(1); // Only need to know if at least one exists
+                    .eq('is_deleted', false)
+                    .limit(1); 
 
                 if (membershipError) {
                      console.error("findUserByEmail (membership check) Error:", membershipError);
                      return { status: 'error', error: 'Could not verify existing membership.' };
                 }
-                // Check if the returned array is not null and has length > 0
                 isAlreadyMember = !!membership && membership.length > 0;
                 
             } catch (error: any) {

@@ -117,10 +117,11 @@ export const permissions = {
   },
   members: {
     view: "group.members.view",
+    invite: "group.members.invite",
+    remove: "group.members.remove",
     // create: "group.members.create",
     // edit: "group.members.edit",
     // delete: "group.members.delete",
-    invite: "group.members.invite",
     // approve: "group.members.approve",
   },
   roles: {

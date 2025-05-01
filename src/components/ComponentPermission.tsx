@@ -30,11 +30,13 @@ export function ComponentPermission({
   if (hasExplicitPermission) {
     return <>{children}</>;
   }
-
+  console.log("groupRoles", groupRoles);
   // If no explicit permission, check if user is a super admin (more expensive check)
   const isSuperAdmin = groupRoles.some((role: UserRole) => 
     role.is_active && role.group_roles?.is_super_admin
   );
+
+  console.log(isSuperAdmin);
 
   return isSuperAdmin ? <>{children}</> : null;
 }

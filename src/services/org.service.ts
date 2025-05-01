@@ -120,19 +120,22 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
   }
 }
 
-export async function getOrgMembers({ id, isActive }: { id: string; isActive?: boolean }) {
-  // Use Service Role Client to query the view
+// Define the possible status filter values
+export type MembershipStatusFilterType = 'active' | 'inactive' | 'deleted' | 'all';
+
+export async function getOrgMembers({ id, status }: { id: string; status?: MembershipStatusFilterType }) {
   const supabase = await createServiceRoleClient(); 
   
   try {
     let query = supabase
-      .from("group_members_view") // Query the VIEW
+      .from("group_members_view")
       .select(
         `
           id,
           group_id,
           user_id, 
           is_active, 
+          is_deleted,
           created_at,
           email, 
           first_name, 
@@ -143,8 +146,23 @@ export async function getOrgMembers({ id, isActive }: { id: string; isActive?: b
       )
       .eq("group_id", id);
     
-    if (isActive !== undefined) {
-      query = query.eq("is_active", isActive);
+    // Apply filters based on the status parameter
+    switch (status) {
+      case 'active':
+        query = query.eq('is_active', true).eq('is_deleted', false);
+        break;
+      case 'inactive': // Represents Pending invites
+        query = query.eq('is_active', false).eq('is_deleted', false);
+        break;
+      case 'deleted':
+        query = query.eq('is_deleted', true);
+        break;
+      case 'all': // Represents Active + Pending
+        query = query.eq('is_deleted', false);
+        break;
+      default: // Default to active if status is missing or invalid
+        query = query.eq('is_active', true).eq('is_deleted', false);
+        break;
     }
 
     const { data: members, error: viewError } = await query;
@@ -154,25 +172,23 @@ export async function getOrgMembers({ id, isActive }: { id: string; isActive?: b
       throw viewError;
     }
     
-    // Explicitly type the data from the view query
     const membersData: any[] = members || [];
     
-    // Transform the data from the view (apply camelCase)
     const transformedData = camelcaseKeys(membersData, { deep: true }).map((member: any) => {
-        // Structure the profile object explicitly
         return {
-            id: member.id, // Use id (from group_users) as the primary ID for the row/user
-            createdAt: member.createdAt, // Map directly from created_at
+            id: member.id, 
+            createdAt: member.createdAt, 
             userId: member.userId,
             isActive: member.isActive,
+            isDeleted: member.isDeleted,
             profile: {
-                id: member.userId, // Profile ID is the same as user ID
+                id: member.userId,
                 firstName: member.firstName,
                 lastName: member.lastName,
                 avatarUrl: member.avatarUrl,
                 email: member.email
             },
-            memberId: member.memberId, // Added memberId from the view
+            memberId: member.memberId, 
         };
     });
     
