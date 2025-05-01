@@ -974,18 +974,41 @@ export async function assignMembershipAction(
       status: MembershipStatus.ACTIVE,
     };
     
-    // Add member_id if provided
-    if (options?.memberId) {
-      membershipData.member_id = options.memberId;
-    }
+    // Remove member_id from membershipData since it's in a separate table
+    const customMemberId = options?.memberId;
 
-    const { error: membershipError } = await supabase
+    // Insert the membership record
+    const { data: newMembership, error: membershipError } = await supabase
       .from('memberships')
-      .insert(membershipData);
+      .insert(membershipData)
+      .select('id')
+      .single();
 
     if (membershipError) {
       // TODO: Rollback order?
       throw new Error(`Error creating membership: ${membershipError.message}`);
+    }
+
+    // If a custom member ID was provided, update the corresponding record in member_ids
+    // This needs to happen *after* the automatic trigger potentially creates one
+    if (customMemberId && newMembership) {
+      try {
+        // Update the member_id record associated with this group user
+        const { error: updateError } = await supabase
+          .from('member_ids')
+          .update({ member_id: customMemberId })
+          .eq('group_user_id', groupUserId) // Target the record using group_user_id
+          .eq('group_id', orgId); // Add group_id for extra safety/specificity
+
+        if (updateError) {
+          console.error('Error explicitly updating member_id:', updateError);
+          // Log the error, but don't throw. The membership was created.
+          // Consider a specific toast message?
+        }
+      } catch (memberIdError) {
+        console.error('Error handling custom member_id update:', memberIdError);
+        // Don't throw
+      }
     }
 
     // 6. Revalidate relevant paths
@@ -996,5 +1019,75 @@ export async function assignMembershipAction(
   } catch (error: any) {
     console.error("Error assigning membership:", error);
     return { success: false, error: error.message || "An unknown error occurred during assignment." }; 
+  }
+}
+
+/**
+ * Cancel a membership (logical deletion)
+ */
+export async function cancelMembershipAction(
+  membershipId: string,
+  orgId: string,
+  reasonCode?: string,
+  reasonNote?: string
+): Promise<{ success: boolean; error?: string }> {
+  noStore();
+  
+  const supabase = await createSupabaseServiceRoleClient();
+
+  try {
+    // Get the membership to verify it belongs to the org
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select(`
+        id,
+        group_user:group_user_id (
+          group_id
+        )
+      `)
+      .eq('id', membershipId)
+      .single();
+
+    if (membershipError) {
+      throw new Error(`Error fetching membership: ${membershipError.message}`);
+    }
+    
+    if (!membership) {
+      return { success: false, error: "Membership not found" };
+    }
+    
+    // Verify the membership belongs to the org
+    const groupUser = membership.group_user as any;
+    if (groupUser?.group_id !== orgId) {
+      return { success: false, error: "Membership does not belong to this organization" };
+    }
+
+    // Update the membership status to cancelled
+    const { error: updateError } = await supabase
+      .from('memberships')
+      .update({ 
+        status: MembershipStatus.CANCELLED,
+        cancelled_at: new Date().toISOString(),
+        cancelled_reason_code: reasonCode || 'user_cancelled',
+        cancelled_reason_note: reasonNote || ''
+      })
+      .eq('id', membershipId);
+
+    if (updateError) {
+      throw new Error(`Error cancelling membership: ${updateError.message}`);
+    }
+
+    // Revalidate paths
+    revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page');
+
+    return { 
+      success: true 
+    };
+  } catch (error: any) {
+    console.error("Error cancelling membership:", error);
+    return { 
+      success: false, 
+      error: error.message || "An unknown error occurred while cancelling the membership" 
+    };
   }
 }

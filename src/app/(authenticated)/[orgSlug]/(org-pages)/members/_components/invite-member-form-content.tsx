@@ -119,15 +119,28 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
 
-    if (!currentUser) {
-      toast({ variant: "destructive", title: "Error", description: "You must be logged in to add/invite members." });
-      return;
-    }
+    // Remove the console log and the frontend check for currentUser
+    // console.log('Current User in handleAddOrInviteSubmit:', currentUser);
+    
+    // The check for currentUser will now be handled within the server action
+    // if (!currentUser) {
+    //   toast({ variant: "destructive", title: "Error", description: "You must be logged in to add/invite members." });
+    //   return;
+    // }
 
     startAddMemberTransition(async () => {
-      const context = { userId: currentUser.id, groupId: orgId };
+      // Ensure currentUser exists before accessing its id for context
+      // Although the primary check is moved, add a safety check here before creating context
+      if (!currentUser) {
+        console.error('handleAddOrInviteSubmit: currentUser unexpectedly null before creating context.');
+        setAddUserState({ error: "Authentication context is missing. Please ensure you are logged in." });
+        return; // Stop if user is null before creating context
+      }
+      
       try {
-        const result = await addOrInviteMember(context, formData);
+        // Call the action correctly: (currentState, params)
+        // Pass null for currentState, and { formData } for params
+        const result = await addOrInviteMember(null, { formData });
         setAddUserState(result);
       } catch (error: any) {
         console.error("Add/Invite Submit Error:", error);
@@ -207,34 +220,51 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
         </div>
       )}
 
-      {/* --- Step 3: User Not Found --- */}
+      {/* --- Step 3: Invite New User --- */}
       {findUserState.status === 'not_found' && (
-        <form onSubmit={handleAddOrInviteSubmit} className="space-y-4">
-          <input type="hidden" name="orgId" value={orgId} />
-          <input type="hidden" name="orgSlug" value={orgSlug} />
-          <input type="hidden" name="email" value={findUserState.email} />
-          
+        <div className="space-y-4">
           <Alert>
-              <MailWarning className="h-4 w-4" />
-              <AlertTitle>Account Not Found</AlertTitle>
-              <AlertDescription>
-                No existing account found for {findUserState.email}. An invitation will be sent to this address. You can optionally provide their name.
-              </AlertDescription>
+            <MailWarning className="h-4 w-4" />
+            <AlertTitle>Account Not Found</AlertTitle>
+            <AlertDescription>
+              No existing account found for <span className="font-medium">{findUserState.email}</span>. An invitation email will be sent.
+            </AlertDescription>
           </Alert>
-          
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="firstName">First Name (Optional)</Label>
-              <Input id="firstName" name="firstName" placeholder="Jane" />
+
+          <form onSubmit={handleAddOrInviteSubmit} className="space-y-4">
+            <input type="hidden" name="orgId" value={orgId} />
+            <input type="hidden" name="orgSlug" value={orgSlug} />
+            <input type="hidden" name="email" value={findUserState.email} />
+            
+            {/* Optional Fields */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="firstName">First Name <span className="text-muted-foreground">(Optional)</span></Label>
+                <Input id="firstName" name="firstName" placeholder="Jane" />
+              </div>
+              <div>
+                <Label htmlFor="lastName">Last Name <span className="text-muted-foreground">(Optional)</span></Label>
+                <Input id="lastName" name="lastName" placeholder="Doe" />
+              </div>
             </div>
+            
+            {/* NEW: Optional Member ID */}
             <div>
-              <Label htmlFor="lastName">Last Name (Optional)</Label>
-              <Input id="lastName" name="lastName" placeholder="Doe" />
+              <Label htmlFor="memberId">Member ID <span className="text-muted-foreground">(Optional)</span></Label>
+              <Input 
+                id="memberId" 
+                name="memberId" 
+                placeholder="e.g., MEM-2025-001" 
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                If left blank, an ID may be generated later when a membership is assigned.
+              </p>
             </div>
-          </div>
-          <AddUserSubmitButton isExistingUser={false} isPending={isAddingMember} />
-           <Button variant="outline" onClick={() => setFindUserState({ status: 'idle' })} className="w-full">Cancel</Button>
-        </form>
+
+            <AddUserSubmitButton isExistingUser={false} isPending={isAddingMember} />
+          </form>
+        </div>
       )}
     </div>
   );

@@ -4,14 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { createClient as createServerClient, createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { permissions } from '@/lib/types/permissions';
 import { Tables } from '@/lib/types/database.types';
-
-interface ActionResult {
-  success?: boolean;
-  error?: string;
-}
-
-// Assuming createServerClient() can create admin client based on env vars
-// If not, we might need a dedicated admin client creator function
+import { checkUserAccess } from '@/lib/utils/permissions';
+import { withPermissions, ActionContext, ActionResult } from '@/lib/utils/action-permissions';
 
 // Define context for add/invite action
 interface AddOrInviteMemberContext {
@@ -19,18 +13,19 @@ interface AddOrInviteMemberContext {
   groupId: string; // ID of the target group (orgId)
 }
 
-// Refactor addOrInviteMember to be a direct export
-export async function addOrInviteMember(
-  context: AddOrInviteMemberContext, // Expect context from caller
-  formData: FormData
-): Promise<ActionResult> { 
-  // \"use server\" handled by top-level directive
-
+// Define the core logic separately
+async function handleAddOrInviteMember(
+  context: { userId: string; groupId: string }, 
+  params: { formData: FormData }
+): Promise<ActionResult> {
+  const formData = params.formData;
   const email = formData.get('email') as string;
   const orgSlug = formData.get('orgSlug') as string;
   const firstName = formData.get('firstName') as string || undefined;
   const lastName = formData.get('lastName') as string || undefined;
-  const orgId = context.groupId; // Get orgId from context
+  const customMemberId = formData.get('memberId') as string || undefined;
+  const orgId = context.groupId;
+  const actorUserId = context.userId; // User performing the action
 
   const supabaseService = await createServiceRoleClient();
 
@@ -51,14 +46,7 @@ export async function addOrInviteMember(
 
   // Construct the redirect URL
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  if (!siteUrl) {
-    console.error('NEXT_PUBLIC_SITE_URL environment variable is not set. Cannot create specific redirect URL for invite.');
-    // Decide if we should proceed without redirectTo or return an error
-    // Proceeding without it means Supabase uses default redirect (likely Site URL from settings)
-    // return { error: "Application configuration error: Site URL not set." }; 
-  }
-  const redirectUrl = siteUrl ? `${siteUrl}/@${orgSlug}` : undefined;
-  console.log(`Invite redirectTo URL: ${redirectUrl}`); // Log for debugging
+  const redirectUrl = siteUrl && orgSlug ? `${siteUrl}/@${orgSlug}` : undefined;
 
   try {
     // 1. Find or Invite User - Determine userIdToAdd
@@ -70,19 +58,15 @@ export async function addOrInviteMember(
       email,
       { 
         data: inviteMetadata, 
-        redirectTo: redirectUrl // Add the redirect URL here
+        redirectTo: redirectUrl
       }
     );
     const inviteData = inviteResponse as ({ user: { id: string; [key: string]: any; } | null; [key: string]: any; }) | null;
 
     if (inviteError) {
       if (inviteError.message.includes('already registered')) {
-        // If already registered, try to get the user ID from the (potentially null) response data
-        // If that fails, we might need an RPC call like findUserByEmail used
         userIdToAdd = inviteData?.user?.id || null;
         if (!userIdToAdd) {
-          // Fallback: Use RPC to get user ID if invite response didn't provide it
-          console.warn('Invite error for existing user did not return ID, using RPC fallback');
           const { data: rpcUserId, error: rpcError } = await supabaseService
             .rpc('search_auth_user_by_email', { email_param: email });
           if (rpcError || !rpcUserId) {
@@ -102,6 +86,9 @@ export async function addOrInviteMember(
     }
 
     if (!userIdToAdd) return { error: 'Internal error: Could not determine user ID.' };
+
+    let groupUserId: string | null = null;
+    let wasRestored = false;
 
     // 2. Check existing group_users record status (active, deleted, or none)
     const { data: existingMembership, error: checkError } = await supabaseService
@@ -124,45 +111,132 @@ export async function addOrInviteMember(
         } else {
             // Scenario 2: Member exists but is deleted - Restore them
             console.log(`Restoring deleted member ${userIdToAdd} in group ${orgId}`);
-            const { error: restoreError } = await supabaseService
+            const { data: restoredUser, error: restoreError } = await supabaseService
                 .from('group_users')
                 .update({ 
                     is_deleted: false, 
-                    is_active: true // Reactivate upon restore
+                    is_active: false // Keep inactive on restore, let activation handle it
                 })
-                .eq('id', existingMembership.id); // Update by the specific group_users id
+                .eq('id', existingMembership.id)
+                .select('id') // Select the ID after update
+                .single();
 
-            if (restoreError) {
+            if (restoreError || !restoredUser) {
                 console.error("Error restoring member:", restoreError);
-                return { error: restoreError.message || 'Failed to restore member.' };
+                return { error: restoreError?.message || 'Failed to restore member.' };
             }
+            groupUserId = restoredUser.id; // Get the ID of the restored record
+            wasRestored = true;
         }
     } else {
         // Scenario 3: No existing record - Add new pending member
         console.log(`Adding user ${userIdToAdd} to group ${orgId} as new pending member`);
-        const { error: insertError } = await supabaseService
+        const { data: newUser, error: insertError } = await supabaseService
             .from('group_users')
             .insert({ 
                 user_id: userIdToAdd, 
                 group_id: orgId, 
                 is_active: false, // Start as inactive (pending)
                 is_deleted: false 
-            });
+            })
+            .select('id') // Select the ID after insert
+            .single();
 
-        if (insertError) { 
+        if (insertError || !newUser) {
              console.error("Error inserting new member:", insertError);
-            return { error: insertError.message || 'Failed to add user to organization group.' };
+            return { error: insertError?.message || 'Failed to add user to organization group.' };
         }
+        groupUserId = newUser.id; // Get the ID of the newly inserted record
     }
 
+    // --- NEW: Handle Custom Member ID --- 
+    if (customMemberId && groupUserId) {
+      try {
+        console.log(`Attempting to insert member_id '${customMemberId}' for group_user_id '${groupUserId}'`);
+        // Step 1: Attempt direct insert first
+        const { error: insertError } = await supabaseService
+          .from('member_ids')
+          .insert({
+            group_user_id: groupUserId,
+            group_id: orgId,
+            member_id: customMemberId
+          });
+
+        if (insertError) {
+          // If insert fails (e.g., duplicate group_user_id), try updating
+          console.warn(`Insert failed for member_id (likely exists), attempting update: ${insertError.message}`);
+          
+          const { error: updateError } = await supabaseService
+            .from('member_ids')
+            .update({ member_id: customMemberId })
+            .eq('group_user_id', groupUserId)
+            .eq('group_id', orgId);
+
+          if (updateError) {
+            // If update also fails, log the error
+            console.error('Error updating custom member_id after insert failed:', updateError);
+            // Optionally, return a specific warning in ActionResult?
+            // return { success: true, error: "Invite successful, but failed to set custom Member ID." };
+          } else {
+            console.log(`Successfully updated existing member_id for group_user_id ${groupUserId}`);
+          }
+        } else {
+          console.log(`Successfully inserted new member_id for group_user_id ${groupUserId}`);
+        }
+      } catch (e) {
+        console.error('Exception during member_id handling:', e);
+      }
+    } else if (customMemberId) {
+      console.warn('Custom member ID provided, but could not determine groupUserId. Skipping member ID handling.');
+    }
+    // --- END NEW --- 
+
     // 4. Revalidate and return success (applies to restore or new add)
-    revalidatePath(`/@${orgSlug}/members`);
+    if (orgSlug) {
+      revalidatePath(`/@${orgSlug}/members`);
+    } else {
+      console.warn('orgSlug missing, cannot revalidate path after add/invite.');
+    }
     return { success: true };
 
   } catch (error: any) {
     console.error('Add/Invite Member Core Logic Error:', error);
     return { error: error.message || 'An unexpected error occurred during processing.' };
   }
+}
+
+// Create the wrapped action function using withPermissions, awaiting its result
+const protectedAddOrInviteMember = await withPermissions(
+  handleAddOrInviteMember, // The actual logic function
+  // Function to define the context and permissions needed
+  (params: { formData: FormData }): ActionContext => {
+    const orgId = params.formData.get('orgId') as string;
+    const orgSlug = params.formData.get('orgSlug') as string;
+    
+    if (!orgId) {
+      throw new Error("Organization ID (orgId) is missing from form data.");
+    }
+    if (!orgSlug) {
+      // Throw error here as it's needed for revalidation later
+      throw new Error("Organization Slug (orgSlug) is missing from form data.");
+    }
+    
+    return {
+      groupId: orgId,
+      // Cast 'group' to any if ModuleType is strictly local to action-permissions
+      moduleType: 'group' as any, // Or 'members' depending on your permission model
+      requiredPermissions: permissions.members.invite, // Specify the required permission
+      // allowGuest: false, // Default
+      // isCreation: true // This action effectively creates/modifies a group membership
+    };
+  }
+);
+
+// Export an async function that calls the protected action
+export async function addOrInviteMember(currentState: any, params: { formData: FormData }): Promise<ActionResult> {
+  // The HOC handles the auth check, so we call it directly
+  // Note: The HOC expects (currentState, params) signature for useFormState
+  return protectedAddOrInviteMember(currentState, params);
 }
 
 // Context now needs to be provided by the caller

@@ -1,10 +1,10 @@
 "use server";
 import { createClient, createServiceRoleClient } from "@/lib/utils/supabase/server";
 import { checkUserAccess } from "@/lib/utils/permissions";
+import { PermissionModule as ModuleType } from '@/lib/types/permissions';
 
-type ModuleType = 'role' | 'group' | 'form_template' | 'membership' | 'user_role' | 'membership_tier' | 'applications' | 'payments' | 'paymentGateways';
-
-type ActionContext = {
+// Export the types needed by other actions
+export type ActionContext = {
   groupId?: string;
   moduleId?: string;
   moduleType?: ModuleType;
@@ -17,111 +17,114 @@ type ActionContext = {
   isCreation?: boolean;  // Flag to indicate if this is a creation operation
 };
 
-type ActionResult<T> = {
+export interface ActionResult<T = unknown> {
   success?: boolean;
-  error?: string | any;
+  error?: string;
   data?: T;
-};
+}
 
+// Define getModuleGroupId locally if needed
 async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promise<string | null> {
   const supabase = await createServiceRoleClient();
+  let tableName: string;
+  let idColumn: string = 'id';
+  let groupIdColumn: string = 'group_id';
 
   switch (moduleType) {
-    case 'role':
-      const { data: role } = await supabase
-        .from("group_roles")
-        .select("group_id")
-        .eq("id", moduleId)
-        .single();
-      return role?.group_id || null;
+    case 'group': 
+      return moduleId; 
+    case 'roles':
+      tableName = 'group_roles'; 
+      break;
+    case 'forms':
+      tableName = 'form_templates';
+      groupIdColumn = 'org_id';
+      break;
+    case 'memberships':
+      const { data: membershipData, error: membershipError } = await supabase
+        .from('memberships')
+        .select('group_user:group_user_id(group_id)')
+        .eq('id', moduleId)
+        .maybeSingle();
 
-    case 'form_template':
-      const { data: form } = await supabase
-        .from("form_templates")
-        .select("org_id")
-        .eq("id", moduleId)
-        .single();
-      return form?.org_id || null;
-
-    case 'membership':
-      const { data: membership } = await supabase
-        .from("memberships")
-        .select("group_id")
-        .eq("id", moduleId)
-        .single();
-      return membership?.group_id || null;
-
-    case 'applications':
-      // Try to find the application by either id or application_id
-      let { data: application } = await supabase
-        .from("membership_applications_view")
-        .select("group_id")
-        .eq("application_id", moduleId)
-        .single();
-      
-      // If not found by application_id, try with id
-      if (!application) {
-        const { data: appById } = await supabase
-          .from("membership_applications_view")
-          .select("group_id")
-          .eq("id", moduleId)
-          .single();
-        application = appById;
+      if (!membershipError && membershipData?.group_user) {
+        return (membershipData.group_user as any).group_id;
       }
       
-      // Log for debugging
-      console.log("Application group_id lookup:", { moduleId, groupId: application?.group_id });
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .select('group_id')
+        .eq('id', moduleId)
+        .eq('type', 'membership_tier')
+        .maybeSingle();
+        
+      if (!productError && productData?.group_id) {
+         return productData.group_id;
+      }
       
-      return application?.group_id || null;
-
+      console.error(`Error fetching group_id for memberships module ${moduleId}: MembershipErr: ${membershipError?.message}, ProductErr: ${productError?.message}`);
+      return null;
+    
+    case 'applications': 
+      tableName = 'applications';
+      idColumn = 'id';
+      const { data: appData, error: appError } = await supabase
+        .from('applications')
+        .select('group_user:group_user_id(group_id)')
+        .eq('id', moduleId)
+        .single();
+      if (appError || !appData?.group_user) {
+        console.error(`Error fetching group_id for application ${moduleId}:`, appError);
+        return null;
+      }
+      return (appData.group_user as any).group_id;
     case 'payments':
-      console.log("payments", moduleId);
-      const { data: payment, error: paymentError } = await supabase
-        .from("payments")
-        .select("group_id")
-        .eq("id", moduleId)
+      tableName = 'payments';
+      idColumn = 'id';
+      const { data: paymentData, error: paymentError } = await supabase
+        .from('payments')
+        .select('order:order_id(group_id)')
+        .eq('id', moduleId)
         .single();
-      console.log("payment", payment, paymentError);
-      return payment?.group_id || null;
-
+      if (paymentError || !paymentData?.order) {
+        console.error(`Error fetching group_id for payment ${moduleId}:`, paymentError);
+        return null;
+      }
+      return (paymentData.order as any).group_id;
     case 'paymentGateways':
-      const { data: gateway } = await supabase
-        .from("group_payment_gateways")
-        .select("group_id")
-        .eq("id", moduleId)
-        .single();
-      return gateway?.group_id || null;
-
-    case 'membership_tier':
-      const { data: tier } = await supabase
-        .from("products")
-        .select("group_id")
-        .eq("id", moduleId)
-        .eq("type", "membership_tier")
-        .single();
-      return tier?.group_id || null;
-
-    case 'user_role':
-      // First get the group role ID
-      const { data: userRole } = await supabase
-        .from("user_roles")
-        .select("group_role_id")
-        .eq("id", moduleId)
-        .single();
-      console.log("userRole", userRole);
-      if (!userRole?.group_role_id) return null;
-      // Then get the group ID from the role
-      const { data: groupRole } = await supabase
-        .from("group_roles")
-        .select("group_id")
-        .eq("id", userRole.group_role_id)
-        .single();
-
-      return groupRole?.group_id || null;
-
+      tableName = 'stripe_settings';
+      idColumn = 'group_id';
+      groupIdColumn = 'group_id';
+      break;
+    case 'orders':
+      tableName = 'orders';
+      idColumn = 'id';
+      groupIdColumn = 'group_id';
+      break;
+    case 'members':
+      tableName = 'group_users';
+      idColumn = 'id'; // Assuming moduleId is the group_users.id
+      groupIdColumn = 'group_id';
+      break;
     default:
+      const _exhaustiveCheck: never = moduleType;
+      console.error(`Unhandled moduleType: ${_exhaustiveCheck}`);
       return null;
   }
+
+  // Standard query for tables with direct group_id
+  const { data, error } = await supabase
+    .from(tableName)
+    .select(groupIdColumn)
+    .eq(idColumn, moduleId)
+    .single();
+
+  if (error || !data) {
+    console.error(`Error fetching group_id for ${moduleType} ${moduleId}:`, error);
+    return null;
+  }
+
+  return (data as any)[groupIdColumn];
 }
 
 async function checkPermissions(
@@ -235,7 +238,9 @@ export async function withPermissions<T, P>(
       } = await supabase.auth.getUser();
 
       if (!user || userError || !user.id) {
-        return { error: userError || "You must be logged in to perform this action" };
+        // Correctly handle potential AuthError type
+        const errorMessage = userError ? userError.message : "You must be logged in to perform this action";
+        return { success: false, error: errorMessage };
       }
 
       const { groupId, moduleId, moduleType, requiredPermissions, allowGuest = false, isCreation = false } = getActionContext(params);

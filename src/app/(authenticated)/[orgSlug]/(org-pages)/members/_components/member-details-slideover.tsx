@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useEffect, useState, useTransition, useCallback } from "react";
 import { format } from 'date-fns';
-import { getTierAndMembershipDataForUser, assignMembershipAction } from "../../(membership&affiliation)/_actions/membership.action"; // Correctly imports assignMembershipAction now
+import { getTierAndMembershipDataForUser, assignMembershipAction, cancelMembershipAction } from "../../(membership&affiliation)/_actions/membership.action"; // Correctly imports assignMembershipAction now
 import { IMembershipTierProduct } from '@/lib/types/product'; // Import type
 import type { MembershipWithTierAndProductName } from '../../(membership&affiliation)/_actions/membership.action'; // Import the specific type defined in the action file
 import { Loader2, CheckCircle, XCircle, Info, PlusCircle, XIcon, AlignLeft, Calendar, User as UserIcon, Receipt, RefreshCcw, ClipboardCopy, ChevronRight } from "lucide-react"; // Added more icons
@@ -100,6 +100,11 @@ export default function MemberDetailsSlideOver({
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [customMemberId, setCustomMemberId] = useState<string>("");
   const { toast } = useToast(); // Get toast function from the hook
+  // State for cancel membership confirmation
+  const [membershipToCancel, setMembershipToCancel] = useState<string | null>(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCancelling, startCancelTransition] = useTransition();
+  const [cancelReason, setCancelReason] = useState<string>("");
 
   useEffect(() => {
     if (isOpen && user) {
@@ -231,7 +236,9 @@ export default function MemberDetailsSlideOver({
         
         toast({ 
           title: isDateOverlapError ? "Date Overlap Detected" : "Assignment Failed",
-          description: errorMsg,
+          description: errorMsg.includes("member_id") 
+            ? "There was an issue with the custom member ID. The system will generate an ID automatically."
+            : errorMsg,
           variant: "destructive", // Use destructive variant for errors
           action: isDateOverlapError ? (
             <Button 
@@ -264,6 +271,49 @@ export default function MemberDetailsSlideOver({
 
   // Get selected tier details for confirmation dialog
   const selectedTier = availableTiers.find(tier => tier.id === selectedTierId);
+
+  // Handle membership cancellation
+  const handleCancelMembership = (membershipId: string) => {
+    setMembershipToCancel(membershipId);
+    setShowCancelConfirm(true);
+  };
+  
+  const confirmCancelMembership = () => {
+    if (!membershipToCancel) return;
+    
+    startCancelTransition(async () => {
+      try {
+        const result = await cancelMembershipAction(
+          membershipToCancel, 
+          orgId,
+          'admin_cancelled',
+          cancelReason || undefined
+        );
+        
+        if (!result.success) throw new Error(result.error || "Failed to cancel membership");
+        
+        toast({ 
+          title: "Membership Cancelled",
+          description: "The membership has been successfully cancelled.",
+        });
+        
+        // Reset states
+        setMembershipToCancel(null);
+        setShowCancelConfirm(false);
+        setCancelReason("");
+        
+        // Refresh the memberships list
+        await refreshMemberships();
+      } catch (err) {
+        console.error("Failed to cancel membership:", err);
+        toast({ 
+          title: "Cancellation Failed",
+          description: err instanceof Error ? err.message : "An unknown error occurred.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
 
   return (
     <TooltipProvider>
@@ -443,19 +493,44 @@ export default function MemberDetailsSlideOver({
                                     {membership.membership_tier?.product?.name || 'Unknown Tier'}
                                   </CardTitle>
                                 </div>
-                                <Badge 
-                                  variant={membership.status === 'active' ? 'default' : 'outline'}
-                                  className={cn(
-                                    'capitalize px-2.5 py-0.5',
-                                    membership.status === 'active' ? 'bg-emerald-500 hover:bg-emerald-500 text-white' : '',
-                                    membership.status === 'expired' ? 'bg-amber-100 text-amber-800 border-amber-200' : '',
-                                    membership.status === 'cancelled' ? 'bg-gray-100 text-gray-800 border-gray-200' : '',
-                                    membership.status === 'suspended' ? 'bg-red-100 text-red-800 border-red-200' : '',
-                                    (typeof membership.status === 'string' && membership.status.startsWith('pending')) ? 'bg-blue-100 text-blue-800 border-blue-200' : ''
+                                <div className="flex items-center gap-2">
+                                  <Badge 
+                                    variant={membership.status === 'active' ? 'default' : 'outline'}
+                                    className={cn(
+                                      'capitalize px-2.5 py-0.5',
+                                      membership.status === 'active' ? 'bg-emerald-500 hover:bg-emerald-500 text-white' : '',
+                                      membership.status === 'expired' ? 'bg-amber-100 text-amber-800 border-amber-200' : '',
+                                      membership.status === 'cancelled' ? 'bg-gray-100 text-gray-800 border-gray-200' : '',
+                                      membership.status === 'suspended' ? 'bg-red-100 text-red-800 border-red-200' : '',
+                                      (typeof membership.status === 'string' && membership.status.startsWith('pending')) ? 'bg-blue-100 text-blue-800 border-blue-200' : ''
+                                    )}
+                                  >
+                                    {membership.status}
+                                  </Badge>
+                                  
+                                  {/* Only show cancel button for active memberships */}
+                                  {membership.status === 'active' && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-6 w-6 rounded-full opacity-70 hover:opacity-100 hover:bg-red-50 hover:text-red-600"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCancelMembership(membership.id);
+                                          }}
+                                        >
+                                          <XCircle className="h-4 w-4" />
+                                          <span className="sr-only">Cancel Membership</span>
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">Cancel Membership</p>
+                                      </TooltipContent>
+                                    </Tooltip>
                                   )}
-                                >
-                                  {membership.status}
-                                </Badge>
+                                </div>
                               </CardHeader>
                               <CardContent className="p-4 pt-3 text-sm">
                                 <div className="grid grid-cols-2 gap-y-3 gap-x-2 text-xs">
@@ -629,8 +704,9 @@ export default function MemberDetailsSlideOver({
                             className="h-9 font-mono text-sm"
                           />
                           {!customMemberId && (
-                            <p className="text-xs text-muted-foreground mt-1.5">
-                              Default format: {selectedTier?.membership_tier?.member_id_format || "MEM-{YYYY}-{SEQ:3}"}
+                            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                              <Info className="h-3 w-3" />
+                              <span>A unique ID will be automatically generated based on the tier's format settings</span>
                             </p>
                           )}
                         </div>
@@ -719,12 +795,7 @@ export default function MemberDetailsSlideOver({
                           <p className="text-sm text-muted-foreground">
                             This will create a new membership and assign it to the user immediately.
                           </p>
-                          <div className="mt-3 bg-blue-50 p-3 rounded-md border border-blue-100 text-xs text-blue-800">
-                            <p>
-                              <span className="font-medium">Note:</span> You can add multiple memberships of the same tier as long as their dates don't overlap.
-                              This is useful for renewals or scheduling future memberships.
-                            </p>
-                          </div>
+                      
                         </div>
                       </div>
                     </div>
@@ -762,6 +833,53 @@ export default function MemberDetailsSlideOver({
           </div>
         </SheetContent>
       </Sheet>
+      
+      {/* Cancel Membership Confirmation Dialog */}
+      <AlertDialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+              <XCircle className="h-5 w-5" />
+              <span>Cancel Membership</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <p className="mb-4">
+                Are you sure you want to cancel this membership? This action cannot be undone.
+              </p>
+              
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="cancel-reason" className="text-sm">Reason (optional)</Label>
+                  <textarea
+                    id="cancel-reason"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Enter a reason for cancellation..."
+                    className="w-full p-2 border rounded-md text-sm mt-1 h-20 resize-none"
+                  />
+                </div>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isCancelling}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmCancelMembership}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={isCancelling}
+            >
+              {isCancelling ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                "Yes, Cancel Membership"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </TooltipProvider>
   );
 }
