@@ -860,38 +860,7 @@ export async function assignMembershipAction(
     if (!tierData || !tierData.product) throw new Error("Membership tier not found.");
     if (tierData.product.group_id !== orgId) throw new Error("Tier does not belong to this organization."); 
 
-    // 3. Check for existing ACTIVE membership for this tier
-    const { count: existingActiveCount, error: existingCheckError } = await supabase
-      .from('memberships')
-      .select('*', { count: 'exact', head: true })
-      .eq('group_user_id', groupUserId)
-      .eq('tier_id', tierId)
-      .eq('status', MembershipStatus.ACTIVE); 
-
-    if (existingCheckError) throw new Error(`Error checking existing memberships: ${existingCheckError.message}`);
-    if (existingActiveCount && existingActiveCount > 0) {
-      return { success: false, error: "User already has an active membership for this tier." };
-    }
-
-    // 4. Create Order
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        user_id: userId,
-        group_id: orgId,
-        amount: 0, 
-        currency: tierData.product.currency,
-        status: 'completed', 
-        type: 'membership',
-      })
-      .select('id')
-      .single();
-
-    if (orderError) throw new Error(`Error creating order: ${orderError.message}`);
-    if (!order) throw new Error("Failed to create order record.");
-    const orderId = order.id;
-
-    // 5. Determine dates - use provided dates or calculate them
+    // Calculate membership dates early so we can use them for overlap checking
     let startDate, endDate;
     
     if (options?.startDate) {
@@ -936,7 +905,66 @@ export async function assignMembershipAction(
       }).endDate;
     }
 
-    // 6. Create Membership Record
+    // 3. Check for overlapping memberships for this tier
+    const { data: existingMemberships, error: existingCheckError } = await supabase
+      .from('memberships')
+      .select('id, start_date, end_date, status')
+      .eq('group_user_id', groupUserId)
+      .eq('tier_id', tierId)
+      .eq('status', MembershipStatus.ACTIVE);
+
+    if (existingCheckError) throw new Error(`Error checking existing memberships: ${existingCheckError.message}`);
+    
+    // Check for overlapping dates with existing active memberships
+    if (existingMemberships && existingMemberships.length > 0) {
+      // Helper function to check if two date ranges overlap
+      const datesOverlap = (
+        start1: Date, 
+        end1: Date | null, 
+        start2: Date, 
+        end2: Date | null
+      ): boolean => {
+        // If either membership is indefinite (no end date), they overlap if start1 <= end2 (if end2 exists) or vice versa
+        if (!end1) return !end2 || start1 <= end2;
+        if (!end2) return start2 <= end1;
+        
+        // Otherwise standard overlap check: !(end1 < start2 || end2 < start1)
+        return !(end1 < start2 || end2 < start1);
+      };
+      
+      // Check each existing membership for overlap
+      for (const membership of existingMemberships) {
+        const memStartDate = membership.start_date ? new Date(membership.start_date) : null;
+        const memEndDate = membership.end_date ? new Date(membership.end_date) : null;
+        
+        if (memStartDate && datesOverlap(startDate, endDate || null, memStartDate, memEndDate)) {
+          return { 
+            success: false, 
+            error: "An active membership for this tier already exists during the selected dates." 
+          };
+        }
+      }
+    }
+
+    // 4. Create Order
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        user_id: userId,
+        group_id: orgId,
+        amount: 0, 
+        currency: tierData.product.currency,
+        status: 'completed', 
+        type: 'membership',
+      })
+      .select('id')
+      .single();
+
+    if (orderError) throw new Error(`Error creating order: ${orderError.message}`);
+    if (!order) throw new Error("Failed to create order record.");
+    const orderId = order.id;
+
+    // 5. Create Membership Record
     const membershipData: any = {
       group_user_id: groupUserId,
       tier_id: tierId,
@@ -960,7 +988,7 @@ export async function assignMembershipAction(
       throw new Error(`Error creating membership: ${membershipError.message}`);
     }
 
-    // 7. Revalidate relevant paths
+    // 6. Revalidate relevant paths
     revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page'); 
 
     return { success: true };

@@ -224,11 +224,28 @@ export default function MemberDetailsSlideOver({
         await refreshMemberships();
       } catch (err) {
         console.error("Failed to assign membership:", err);
-        // Use the imported toast function for errors
+        
+        // Check for date overlap error and show more helpful message
+        const errorMsg = err instanceof Error ? err.message : "An unknown error occurred.";
+        const isDateOverlapError = errorMsg.includes("during the selected dates");
+        
         toast({ 
-          title: "Assignment Failed",
-          description: err instanceof Error ? err.message : "An unknown error occurred.",
+          title: isDateOverlapError ? "Date Overlap Detected" : "Assignment Failed",
+          description: errorMsg,
           variant: "destructive", // Use destructive variant for errors
+          action: isDateOverlapError ? (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => {
+                setShowConfirmation(true);
+                setUseCustomDates(true);
+              }}
+              className="mt-2"
+            >
+              Adjust Dates
+            </Button>
+          ) : undefined
         });
       }
     });
@@ -702,6 +719,12 @@ export default function MemberDetailsSlideOver({
                           <p className="text-sm text-muted-foreground">
                             This will create a new membership and assign it to the user immediately.
                           </p>
+                          <div className="mt-3 bg-blue-50 p-3 rounded-md border border-blue-100 text-xs text-blue-800">
+                            <p>
+                              <span className="font-medium">Note:</span> You can add multiple memberships of the same tier as long as their dates don't overlap.
+                              This is useful for renewals or scheduling future memberships.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     </div>
