@@ -1607,6 +1607,7 @@ export type Database = {
           is_deleted: boolean | null
           last_name: string | null
           member_id: string | null
+          member_ids_record_id: string | null
           profile_id: string | null
           user_id: string | null
         }

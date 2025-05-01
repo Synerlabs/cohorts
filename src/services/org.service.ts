@@ -141,7 +141,8 @@ export async function getOrgMembers({ id, status }: { id: string; status?: Membe
           first_name, 
           last_name, 
           avatar_url,
-          member_id
+          member_id,
+          member_ids_record_id
         `
       )
       .eq("group_id", id);
@@ -188,7 +189,8 @@ export async function getOrgMembers({ id, status }: { id: string; status?: Membe
                 avatarUrl: member.avatarUrl,
                 email: member.email
             },
-            memberId: member.memberId, 
+            memberId: member.memberId,
+            memberIdsRecordId: member.memberIdsRecordId 
         };
     });
     
