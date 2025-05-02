@@ -1088,3 +1088,73 @@ export async function cancelMembershipAction(
     };
   }
 }
+
+/**
+ * Permanently delete a membership
+ * Only cancelled memberships should be deletable
+ */
+export async function deleteMembershipAction(
+  membershipId: string,
+  orgId: string
+): Promise<{ success: boolean; error?: string }> {
+  noStore();
+  
+  const supabase = await createSupabaseServiceRoleClient();
+
+  try {
+    // Get the membership to verify it belongs to the org and is cancelled
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select(`
+        id,
+        status,
+        group_user:group_user_id (
+          group_id
+        )
+      `)
+      .eq('id', membershipId)
+      .single();
+
+    if (membershipError) {
+      throw new Error(`Error fetching membership: ${membershipError.message}`);
+    }
+    
+    if (!membership) {
+      return { success: false, error: "Membership not found" };
+    }
+    
+    // Verify the membership belongs to the org
+    const groupUser = membership.group_user as any;
+    if (groupUser?.group_id !== orgId) {
+      return { success: false, error: "Membership does not belong to this organization" };
+    }
+
+    // Only allow deletion of cancelled memberships
+    if (membership.status !== MembershipStatus.CANCELLED) {
+      return { success: false, error: "Only cancelled memberships can be deleted" };
+    }
+
+    // Delete the membership
+    const { error: deleteError } = await supabase
+      .from('memberships')
+      .delete()
+      .eq('id', membershipId);
+
+    if (deleteError) {
+      throw new Error(`Error deleting membership: ${deleteError.message}`);
+    }
+
+    // Revalidate paths
+    revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page');
+
+    return { 
+      success: true 
+    };
+  } catch (error: any) {
+    console.error("Error deleting membership:", error);
+    return { 
+      success: false, 
+      error: error.message || "An unknown error occurred while deleting the membership" 
+    };
+  }
+}

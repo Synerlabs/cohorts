@@ -16,7 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useEffect, useState, useTransition, useCallback, useRef } from "react";
 import { format } from 'date-fns';
-import { getTierAndMembershipDataForUser, assignMembershipAction, cancelMembershipAction } from "../../(membership&affiliation)/_actions/membership.action"; // Correctly imports assignMembershipAction now
+import { getTierAndMembershipDataForUser, assignMembershipAction, cancelMembershipAction, deleteMembershipAction } from "../../(membership&affiliation)/_actions/membership.action"; // Correctly imports assignMembershipAction now
 import { IMembershipTierProduct } from '@/lib/types/product'; // Import type
 import type { MembershipWithTierAndProductName } from '../../(membership&affiliation)/_actions/membership.action'; // Import the specific type defined in the action file
 import { Loader2, CheckCircle, XCircle, Info, PlusCircle, XIcon, AlignLeft, Calendar, User as UserIcon, Receipt, RefreshCcw, ClipboardCopy, ChevronRight, Pencil } from "lucide-react"; // Added Pencil icon
@@ -107,6 +107,10 @@ export default function MemberDetailsSlideOver({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, startCancelTransition] = useTransition();
   const [cancelReason, setCancelReason] = useState<string>("");
+  // Add new state for delete functionality
+  const [membershipToDelete, setMembershipToDelete] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, startDeleteTransition] = useTransition();
   // URL-based routing for member ID editing
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -372,6 +376,46 @@ export default function MemberDetailsSlideOver({
     });
   };
 
+  // Handle membership deletion
+  const handleDeleteMembership = (membershipId: string) => {
+    setMembershipToDelete(membershipId);
+    setShowDeleteConfirm(true);
+  };
+  
+  const confirmDeleteMembership = () => {
+    if (!membershipToDelete) return;
+    
+    startDeleteTransition(async () => {
+      try {
+        const result = await deleteMembershipAction(
+          membershipToDelete, 
+          orgId
+        );
+        
+        if (!result.success) throw new Error(result.error || "Failed to delete membership");
+        
+        toast({ 
+          title: "Membership Deleted",
+          description: "The membership has been permanently deleted.",
+        });
+        
+        // Reset states
+        setMembershipToDelete(null);
+        setShowDeleteConfirm(false);
+        
+        // Refresh the memberships list
+        await refreshMemberships();
+      } catch (err) {
+        console.error("Failed to delete membership:", err);
+        toast({ 
+          title: "Deletion Failed",
+          description: err instanceof Error ? err.message : "An unknown error occurred.",
+          variant: "destructive",
+        });
+      }
+    });
+  };
+
   return (
     <TooltipProvider>
       <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -572,7 +616,7 @@ export default function MemberDetailsSlideOver({
                                     {membership.status}
                                   </Badge>
                                   
-                                  {/* Only show cancel button for active memberships */}
+                                  {/* Show cancel button for active memberships */}
                                   {membership.status === 'active' && (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -591,6 +635,29 @@ export default function MemberDetailsSlideOver({
                                       </TooltipTrigger>
                                       <TooltipContent>
                                         <p className="text-xs">Cancel Membership</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  )}
+                                  
+                                  {/* Add delete button for cancelled memberships */}
+                                  {membership.status === 'cancelled' && (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <Button 
+                                          variant="ghost" 
+                                          size="icon" 
+                                          className="h-6 w-6 rounded-full opacity-70 hover:opacity-100 hover:bg-red-50 hover:text-red-600"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteMembership(membership.id);
+                                          }}
+                                        >
+                                          <XIcon className="h-4 w-4" />
+                                          <span className="sr-only">Delete Membership</span>
+                                        </Button>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p className="text-xs">Delete Membership</p>
                                       </TooltipContent>
                                     </Tooltip>
                                   )}
@@ -939,6 +1006,40 @@ export default function MemberDetailsSlideOver({
                 </>
               ) : (
                 "Yes, Cancel Membership"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Membership Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600 flex items-center gap-2">
+              <XIcon className="h-5 w-5" />
+              <span>Delete Membership</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <p className="mb-4">
+                Are you sure you want to permanently delete this membership? This action cannot be undone.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteMembership}
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete Membership"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
