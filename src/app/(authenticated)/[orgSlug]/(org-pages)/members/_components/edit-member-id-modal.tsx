@@ -21,6 +21,8 @@ interface EditMemberIdModalProps {
   groupUserId: string;
   currentMemberId: string | null | undefined;
   memberIdsRecordId?: string | null;
+  userName?: string | null;
+  userEmail?: string | null;
 }
 
 export function EditMemberIdModal({
@@ -30,6 +32,8 @@ export function EditMemberIdModal({
   groupUserId,
   currentMemberId,
   memberIdsRecordId,
+  userName = "Unknown User",
+  userEmail = null,
 }: EditMemberIdModalProps) {
   const { toast } = useToast();
   const formRef = useRef<HTMLFormElement>(null);
@@ -361,7 +365,22 @@ export function EditMemberIdModal({
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{currentMemberId ? "Edit Member ID" : "Assign Member ID"}</DialogTitle>
+            <DialogTitle>
+              {currentMemberId ? "Edit Member ID" : "Assign Member ID"}
+            </DialogTitle>
+            <div className="flex items-center mt-3 mb-2">
+              <div className="bg-muted/60 rounded-md flex items-center">
+                <div className="bg-primary/10 py-1 px-2.5 rounded-l-md border-r border-muted-foreground/20">
+                  <span className="text-xs uppercase tracking-wide text-primary-foreground/70 font-semibold">Member</span>
+                </div>
+                <div className="flex items-center gap-1.5 pl-2.5 pr-3 py-1">
+                  <span className="font-medium">{userName}</span>
+                  {userEmail && (
+                    <span className="text-xs text-muted-foreground overflow-hidden text-ellipsis">&lt;{userEmail}&gt;</span>
+                  )}
+                </div>
+              </div>
+            </div>
             <DialogDescription>
               {currentMemberId 
                 ? "Update the member identification number for this user. This ID must be unique within your organization."
@@ -373,7 +392,7 @@ export function EditMemberIdModal({
             <input type="hidden" name="groupUserId" value={groupUserId} />
             <input type="hidden" name="orgId" value={orgId} />
             
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="edit-memberId" className="text-sm font-medium">
                   Member ID
@@ -395,15 +414,24 @@ export function EditMemberIdModal({
                 </Tooltip>
               </div>
               
-              <div className="relative mt-1">
+              {currentMemberId && (
+                <div className="flex items-center mb-2">
+                  <div className="bg-muted px-2 py-1 rounded flex items-center gap-1.5 text-sm">
+                    <span className="text-xs text-muted-foreground">Current:</span>
+                    <span className="font-mono font-medium">{currentMemberId}</span>
+                  </div>
+                </div>
+              )}
+              
+              <div className="relative">
                 <Input
                   id="edit-memberId"
                   name="newMemberId" 
                   placeholder="Enter unique Member ID (e.g., MEM-2024-001)" 
                   className={cn(
                     "font-mono pr-8 transition-all",
-                    memberIdStatus === 'available' && "border-green-600 focus-visible:ring-green-600",
-                    !isMemberIdValid && memberIdInput ? "border-destructive focus-visible:ring-destructive" : "",
+                    memberIdStatus === 'available' && "border-green-600 focus-visible:ring-green-600 bg-green-50/30",
+                    !isMemberIdValid && memberIdInput ? "border-destructive focus-visible:ring-destructive bg-destructive/5" : "",
                     isPendingUpdate && "opacity-70"
                   )}
                   value={memberIdInput}
@@ -420,67 +448,77 @@ export function EditMemberIdModal({
               
               {getStatusMessage()}
               
-              {!getStatusMessage() && (
+              {!getStatusMessage() && !currentMemberId && (
                 <div className="flex items-start space-x-1 mt-1">
                   <Info className="h-3 w-3 text-muted-foreground mt-0.5" />
                   <p className="text-xs text-muted-foreground">
-                    {currentMemberId 
-                      ? "Current ID: " + currentMemberId + ". You can update it or leave blank to delete."
-                      : "Suggested formats: MEM-2024-001, ORG-001, or any unique identifier."}
+                    Suggested formats: MEM-2024-001, ORG-001, or any unique identifier.
                   </p>
                 </div>
               )}
             </div>
             
-            <DialogFooter className="sm:justify-between gap-2 pt-2">
-              {/* Delete Button & Confirmation */} 
-              {currentMemberId && (
-                <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="destructive"
-                      type="button" 
-                      disabled={isPendingUpdate || isPendingDelete}
-                      className="w-full sm:w-auto order-last sm:order-first"
-                      aria-label="Delete Member ID"
-                    >
-                      {isPendingDelete ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
-                      Delete ID
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will permanently delete the Member ID <span className="font-mono font-medium">{currentMemberId}</span> for this user. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel disabled={isPendingDelete}>Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={(e) => {
-                          e.preventDefault(); // Prevent default button behavior
-                          handleDeleteConfirm();
-                        }}
-                        disabled={isPendingDelete}
-                        className="bg-destructive hover:bg-destructive/90"
+            <DialogFooter className="flex flex-col sm:flex-row gap-3 pt-4 items-stretch justify-between border-t mt-2">
+              {/* Delete Button moved to the left */}
+              <div className="order-2 sm:order-1">
+                {currentMemberId && (
+                  <AlertDialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        type="button" 
+                        disabled={isPendingUpdate || isPendingDelete}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 border-none"
+                        aria-label="Delete Member ID"
+                        size="default"
                       >
-                        {isPendingDelete ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                        Yes, Delete ID
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-              {!currentMemberId && <div className="hidden sm:block"/>}
-
-              {/* Cancel & Save Buttons */}
-              <div className="flex gap-2 w-full sm:w-auto">
+                        {isPendingDelete ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </>
+                        )}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Member ID?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will permanently delete the Member ID <span className="font-mono font-medium">{currentMemberId}</span> for {userName}. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPendingDelete}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={(e) => {
+                            e.preventDefault(); // Prevent default button behavior
+                            handleDeleteConfirm();
+                          }}
+                          disabled={isPendingDelete}
+                          className="bg-destructive hover:bg-destructive/90"
+                        >
+                          {isPendingDelete ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                          Yes, Delete ID
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )}
+                {!currentMemberId && <div className="hidden sm:block" />}
+              </div>
+              
+              {/* Primary Action Buttons */}
+              <div className="order-1 sm:order-2 flex gap-2 justify-end">
                 <Button 
                   type="button" 
                   variant="outline" 
                   onClick={() => setIsOpen(false)}
-                  className="flex-1 sm:flex-initial"
+                  className="px-4"
                   disabled={isPendingUpdate || isPendingDelete}
                 >
                   Cancel
@@ -488,7 +526,7 @@ export function EditMemberIdModal({
                 <Button
                   type="submit" 
                   disabled={isSaveDisabled}
-                  className="flex-1 sm:flex-initial"
+                  className="px-4 min-w-[100px]"
                   aria-label={currentMemberId ? "Save Member ID changes" : "Assign Member ID"}
                 >
                   {isPendingUpdate ? (

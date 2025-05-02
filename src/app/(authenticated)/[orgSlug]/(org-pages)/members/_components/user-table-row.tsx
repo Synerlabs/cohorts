@@ -216,6 +216,9 @@ export default function UserTableRow({ user, role, showStatus = false, orgId, or
         orgId={orgId}
         groupUserId={user.id}
         currentMemberId={user.memberId}
+        memberIdsRecordId={user.memberIdsRecordId}
+        userName={`${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.trim() || "Unknown User"}
+        userEmail={user.profile?.email || null}
       />
     )}
     </>

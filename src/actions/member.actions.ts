@@ -529,7 +529,7 @@ export async function updateGroupUserMemberId(
       return { success: false, error: `Member ID '${newMemberId}' is already taken by another user.` };
     }
 
-    // --- CHANGE: Perform UPDATE instead of UPSERT ---
+    // First try to update an existing record
     const { data: updateData, error: updateError } = await serviceRoleSupabase
       .from('member_ids')
       .update({ member_id: newMemberId }) // Update the member_id field
@@ -551,16 +551,38 @@ export async function updateGroupUserMemberId(
       return { success: false, error: "Failed to update Member ID due to database error." };
     }
     
-    // Optional: Check if any row was actually updated
+    // If no record was updated, insert a new one instead
     if (!updateData || updateData.length === 0) {
-        console.warn(`Update attempted for groupUserId ${groupUserId} in org ${orgId}, but no matching record found in member_ids.`);
-        // Decide if this is an error or acceptable scenario.
-        // For now, let's return a specific message, but still count as "success" 
-        // because the desired state (that specific ID assigned) might hold if ID was already correct.
-        // Or, return an error:
-        return { success: false, error: "Could not find the member ID record to update." }; 
+        console.log(`No existing member_id record found for groupUserId ${groupUserId} in org ${orgId}. Creating new record.`);
+        
+        const { data: insertData, error: insertError } = await serviceRoleSupabase
+          .from('member_ids')
+          .insert({
+            group_user_id: groupUserId,
+            group_id: orgId,
+            member_id: newMemberId
+          })
+          .select('id');
+          
+        if (insertError) {
+          console.error('Error inserting new member_id record:', insertError);
+          
+          // Check for unique constraint violation (could happen in race condition)
+          if (insertError.message.includes("member_ids_unique_per_group")) {
+            return { success: false, error: `Member ID '${newMemberId}' is already taken.` };
+          }
+          
+          return { success: false, error: "Failed to create Member ID record." };
+        }
+        
+        if (!insertData || insertData.length === 0) {
+          return { success: false, error: "Failed to create Member ID record (no data returned)." };
+        }
+        
+        console.log(`Successfully created new member_id record: ${insertData[0].id}`);
+    } else {
+        console.log(`Successfully updated existing member_id record: ${updateData[0].id}`);
     }
-    // --- END CHANGE ---
 
     // --- Revalidation ---
     // Fetch org slug for revalidation (can't rely on it being in formData)
@@ -599,6 +621,12 @@ export async function deleteGroupUserMemberId(
 ): Promise<ActionResult<{}>> {
     const groupUserId = formData.get('groupUserId') as string;
     const orgId = formData.get('orgId') as string;
+    const memberId = formData.get('memberId') as string | null;
+    const recordId = formData.get('recordId') as string | null;
+
+    console.log('Delete Member ID action called with params:', { 
+      groupUserId, orgId, memberId, recordId 
+    });
 
     const supabase = await createServerClient(); // Use server client for auth context
     const serviceRoleSupabase = await createServiceRoleClient(); // For operations
@@ -629,10 +657,63 @@ export async function deleteGroupUserMemberId(
     // --- End Validation ---
 
     try {
-        // Check if the record exists before deleting (optional but good practice)
+        // If we have a direct record ID, attempt to delete by that first
+        if (recordId) {
+            console.log(`Attempting to delete member_ids record directly by ID: ${recordId}`);
+            const { error: directDeleteError } = await serviceRoleSupabase
+                .from('member_ids')
+                .delete()
+                .eq('id', recordId);
+            
+            if (!directDeleteError) {
+                console.log(`Successfully deleted member_ids record by ID: ${recordId}`);
+                await revalidateAfterDelete(serviceRoleSupabase, orgId);
+                return { success: true };
+            } else {
+                console.error(`Failed to delete by record ID: ${recordId}`, directDeleteError);
+                // Fall through to other deletion methods
+            }
+        }
+
+        // If we have the member ID, try looking up and deleting by that
+        if (memberId) {
+            console.log(`Attempting to delete using member_id: ${memberId}`);
+            const { data: foundRecord, error: lookupError } = await serviceRoleSupabase
+                .from('member_ids')
+                .select('id')
+                .eq('group_id', orgId)
+                .eq('group_user_id', groupUserId)
+                .eq('member_id', memberId)
+                .maybeSingle();
+            
+            if (foundRecord && !lookupError) {
+                console.log(`Found record by member_id: ${foundRecord.id}`);
+                const { error: memberIdDeleteError } = await serviceRoleSupabase
+                    .from('member_ids')
+                    .delete()
+                    .eq('id', foundRecord.id);
+                
+                if (!memberIdDeleteError) {
+                    console.log(`Successfully deleted member_ids record by member_id lookup`);
+                    await revalidateAfterDelete(serviceRoleSupabase, orgId);
+                    return { success: true };
+                } else {
+                    console.error('Error deleting by member ID lookup:', memberIdDeleteError);
+                    // Fall through to standard deletion
+                }
+            } else if (lookupError) {
+                console.error('Error looking up by member ID:', lookupError);
+                // Fall through to standard deletion
+            } else {
+                console.log(`No record found by member_id: ${memberId}`);
+                // Fall through to standard deletion
+            }
+        }
+
+        // Standard method - try to find by group_user_id and group_id
         const { data: existing, error: checkErr } = await serviceRoleSupabase
           .from('member_ids')
-          .select('id', { head: true }) // Just need to know if it exists
+          .select('id')
           .eq('group_user_id', groupUserId)
           .eq('group_id', orgId)
           .maybeSingle();
@@ -646,17 +727,12 @@ export async function deleteGroupUserMemberId(
             // No record found, maybe already deleted. Return success.
             console.log(`Member ID for groupUserId ${groupUserId} in org ${orgId} not found for deletion (already deleted?).`);
             // Revalidate just in case state was stale
-             const { data: groupDataDel, error: groupErrorDel } = await serviceRoleSupabase
-               .from('group')
-               .select('slug')
-               .eq('id', orgId)
-               .single();
-            if (!groupErrorDel && groupDataDel?.slug) revalidatePath(`/@${groupDataDel.slug}/members`);
-            
+            await revalidateAfterDelete(serviceRoleSupabase, orgId);
             return { success: true };
         }
 
-        // Proceed with deletion
+        // Proceed with deletion using the standard method
+        console.log(`Attempting standard deletion by group_user_id and group_id`);
         const { error: deleteError } = await serviceRoleSupabase
             .from('member_ids')
             .delete()
@@ -668,26 +744,28 @@ export async function deleteGroupUserMemberId(
             return { success: false, error: "Failed to delete Member ID due to database error." };
         }
 
-        // --- Revalidation ---
-        const { data: groupData, error: groupError } = await serviceRoleSupabase
-           .from('group')
-           .select('slug')
-           .eq('id', orgId)
-           .single();
-
-        if (!groupError && groupData?.slug) {
-            revalidatePath(`/@${groupData.slug}/members`);
-            // revalidatePath(`/@${groupData.slug}/members/${groupUserId}`); // Consider specific member page if exists
-        } else {
-            console.warn(`Could not fetch org slug for orgId ${orgId} during member ID delete revalidation.`);
-            revalidatePath('/','layout');
-        }
-        // --- End Revalidation ---
-
+        // Revalidate paths after successful deletion
+        await revalidateAfterDelete(serviceRoleSupabase, orgId);
         return { success: true };
 
     } catch (err: any) {
         console.error("Unexpected error deleting member ID:", err);
         return { success: false, error: "An unexpected server error occurred." };
+    }
+}
+
+// Helper function to revalidate paths after delete
+async function revalidateAfterDelete(supabase: any, orgId: string) {
+    const { data: groupData, error: groupError } = await supabase
+        .from('group')
+        .select('slug')
+        .eq('id', orgId)
+        .single();
+
+    if (!groupError && groupData?.slug) {
+        revalidatePath(`/@${groupData.slug}/members`);
+    } else {
+        console.warn(`Could not fetch org slug for orgId ${orgId} during member ID delete revalidation.`);
+        revalidatePath('/','layout');
     }
 } 

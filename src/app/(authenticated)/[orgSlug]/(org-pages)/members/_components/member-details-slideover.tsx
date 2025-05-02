@@ -14,12 +14,12 @@ import { type User } from "./user-table-row"; // Assuming User type is exported 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { useEffect, useState, useTransition, useCallback } from "react";
+import { useEffect, useState, useTransition, useCallback, useRef } from "react";
 import { format } from 'date-fns';
 import { getTierAndMembershipDataForUser, assignMembershipAction, cancelMembershipAction } from "../../(membership&affiliation)/_actions/membership.action"; // Correctly imports assignMembershipAction now
 import { IMembershipTierProduct } from '@/lib/types/product'; // Import type
 import type { MembershipWithTierAndProductName } from '../../(membership&affiliation)/_actions/membership.action'; // Import the specific type defined in the action file
-import { Loader2, CheckCircle, XCircle, Info, PlusCircle, XIcon, AlignLeft, Calendar, User as UserIcon, Receipt, RefreshCcw, ClipboardCopy, ChevronRight } from "lucide-react"; // Added more icons
+import { Loader2, CheckCircle, XCircle, Info, PlusCircle, XIcon, AlignLeft, Calendar, User as UserIcon, Receipt, RefreshCcw, ClipboardCopy, ChevronRight, Pencil } from "lucide-react"; // Added Pencil icon
 import { useToast } from "@/components/ui/use-toast"; // IMPORT correct hook
 import { 
   Select, 
@@ -64,6 +64,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MembershipStatus } from "@/lib/types/membership"; // Import the enum
+import { EditMemberIdModal } from "./edit-member-id-modal"; // Import the edit modal component
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'; // Add Next.js router imports
 
 // Helper to get initials
 const getInitials = (firstName?: string | null, lastName?: string | null) => {
@@ -105,7 +107,39 @@ export default function MemberDetailsSlideOver({
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isCancelling, startCancelTransition] = useTransition();
   const [cancelReason, setCancelReason] = useState<string>("");
+  // URL-based routing for member ID editing
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  
+  // Check if this user's member ID is being edited
+  const editMemberId = searchParams.get('editMemberId');
+  const isEditingMemberId = user && editMemberId === user.id;
+  const editMemberIdPrev = useRef<string | null>(null);
+  
+  // Function to open member ID edit modal via URL
+  const handleEditMemberIdClick = () => {
+    if (!user) return;
+    
+    // Create new URLSearchParams with current params plus our edit param
+    const params = new URLSearchParams(searchParams);
+    params.set('editMemberId', user.id);
+    
+    // Update URL to include the edit param
+    router.push(`${pathname}?${params.toString()}`);
+  };
+  
+  // Function to close member ID edit modal via URL
+  const handleMemberIdModalClose = () => {
+    // Remove the editMemberId param from URL
+    const params = new URLSearchParams(searchParams);
+    params.delete('editMemberId');
+    
+    // Update URL without the edit param
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
+  // Main data fetching effect
   useEffect(() => {
     if (isOpen && user) {
       const fetchData = async () => {
@@ -133,6 +167,29 @@ export default function MemberDetailsSlideOver({
       setError(null);
     }
   }, [isOpen, user, orgId]); // Rerun when user or orgId changes, or drawer opens
+
+  // Refresh data when member ID modal is closed (editMemberId changed from user.id to null)
+  useEffect(() => {
+    // If we were editing this user's member ID and now it's not being edited
+    if (editMemberIdPrev.current === user?.id && editMemberId === null && user) {
+      // Refresh memberships to get updated data
+      const timer = setTimeout(async () => {
+        if (user) { // Double-check user is still defined
+          try {
+            const { userMemberships: memberships } = await getTierAndMembershipDataForUser(orgId, user.userId);
+            setUserMemberships(memberships);
+          } catch (err) {
+            console.error("Failed to refresh member data after ID update:", err);
+          }
+        }
+      }, 500);
+      
+      return () => clearTimeout(timer);
+    }
+    
+    // Keep track of previous editMemberId
+    editMemberIdPrev.current = editMemberId;
+  }, [editMemberId, user, orgId]);
 
   if (!user) return null; // Don't render if no user is selected
 
@@ -347,18 +404,25 @@ export default function MemberDetailsSlideOver({
                 </Badge>
                 
                 <div className="flex items-center gap-2 mt-4">
-                  <p className="text-sm text-gray-500">ID:</p>
-                  <p className="text-sm font-medium">
-                    {user.memberId ? `#${user.memberId}` : '#MEM-2025-001'}
+                  <p className="text-sm text-gray-500">Member ID:</p>
+                  <p className="text-sm font-mono font-medium">
+                    {user.memberId || 'Not assigned'}
                   </p>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="h-5 w-5 rounded-full" 
-                    title="Edit ID (coming soon)"
-                  >
-                    <ClipboardCopy className="h-3 w-3 text-gray-400" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-5 w-5 rounded-full hover:bg-primary/10" 
+                        onClick={handleEditMemberIdClick}
+                      >
+                        <Pencil className="h-3 w-3 text-gray-500 hover:text-primary" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      <p>Edit Member ID</p>
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
 
@@ -880,6 +944,22 @@ export default function MemberDetailsSlideOver({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Member ID Modal */}
+      {user && isEditingMemberId && (
+        <EditMemberIdModal
+          isOpen={true}
+          setIsOpen={(open) => {
+            if (!open) handleMemberIdModalClose();
+          }}
+          orgId={orgId}
+          groupUserId={user.id}
+          currentMemberId={user.memberId}
+          memberIdsRecordId={user.memberIdsRecordId}
+          userName={userName}
+          userEmail={user.profile?.email || null}
+        />
+      )}
     </TooltipProvider>
   );
 }
