@@ -8,6 +8,11 @@ import { checkUserAccess } from '@/lib/utils/permissions';
 import { withPermissions, ActionContext, ActionResult } from '@/lib/utils/action-permissions';
 import { MembershipStatus } from "@/lib/types/membership"; // Import the enum
 
+// Define our extended result type that includes message
+interface MemberActionResult extends ActionResult {
+  message?: string;
+}
+
 // Define context for add/invite action
 interface AddOrInviteMemberContext {
   userId: string; // ID of user performing action
@@ -18,7 +23,7 @@ interface AddOrInviteMemberContext {
 async function handleAddOrInviteMember(
   context: { userId: string; groupId: string }, 
   params: { formData: FormData }
-): Promise<ActionResult> {
+): Promise<MemberActionResult> {
   const formData = params.formData;
   const email = formData.get('email') as string;
   const orgSlug = formData.get('orgSlug') as string;
@@ -45,169 +50,260 @@ async function handleAddOrInviteMember(
     last_name: lastName
   };
 
-  // Construct the redirect URL
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  const redirectUrl = siteUrl && orgSlug ? `${siteUrl}/@${orgSlug}` : undefined;
+  // Construct the redirect URL for the callback
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+  
+  // Make sure the org slug is included in the path for context
+  const orgPath = `/@${orgSlug}`;
+  
+  // Use the invitation accepted landing page
+  // This page will handle the auth handoff before redirecting to account setup
+  const finalRedirectUrl = `${siteUrl}/invitation-accepted?orgSlug=${encodeURIComponent(orgSlug || '')}&email=${encodeURIComponent(email)}`;
+  
+  // Log all the URLs for debugging
+  console.log('\n=========== INVITE GENERATION DEBUG ===========');
+  console.log('[Invite Generation Debug]', {
+    siteUrl,
+    orgPath,
+    finalRedirectUrl, // This now points to /invitation-accepted
+    email,
+    orgId,
+    orgSlug
+  });
 
   try {
     // 1. Find or Invite User - Determine userIdToAdd
     let userIdToAdd: string | null = null;
     let isNewInvite = false;
     
-    // Call inviteUserByEmail first, including redirectTo
+    // UPDATED: Use inviteUserByEmail which automatically sends emails, but configure it properly
+    console.log('[Invite API Call]', {
+      email,
+      redirectTo: finalRedirectUrl,
+      metadata: inviteMetadata
+    });
+    
+    // Use inviteUserByEmail to send a magic link invitation
     const { data: inviteResponse, error: inviteError } = await supabaseService.auth.admin.inviteUserByEmail(
       email,
       { 
-        data: inviteMetadata, 
-        redirectTo: redirectUrl
+        data: {
+          ...inviteMetadata,
+          inviteType: 'org_invitation', 
+          orgSlug: orgSlug
+        },
+        redirectTo: finalRedirectUrl
       }
     );
-    const inviteData = inviteResponse as ({ user: { id: string; [key: string]: any; } | null; [key: string]: any; }) | null;
+    
+    console.log('[Invite API Response]', {
+      success: !!inviteResponse && !inviteError,
+      error: inviteError?.message,
+      data: inviteResponse ? 'Response received' : 'No data'
+    });
 
+    const inviteData = inviteResponse as ({ user: { id: string; [key: string]: any; } | null; [key: string]: any; }) | null;
+    
+    // Rest of handling logic for existing users vs new users
     if (inviteError) {
       if (inviteError.message.includes('already registered')) {
+        console.log('[Invite Logic] Handling \'already registered\' error.');
+        // Try getting ID from the invite response data FIRST, even though there's an error
         userIdToAdd = inviteData?.user?.id || null;
+        console.log(`[Invite Logic] User ID from inviteData (despite error): ${userIdToAdd}`);
+
         if (!userIdToAdd) {
-          const { data: rpcUserId, error: rpcError } = await supabaseService
-            .rpc('search_auth_user_by_email', { email_param: email });
-          if (rpcError || !rpcUserId) {
-            console.error('RPC fallback failed:', rpcError);
-            return { error: 'Failed to retrieve existing user ID after invite attempt.' };
-          }
-          userIdToAdd = rpcUserId as string;
+           // If still null, THEN try the RPC fallback
+           console.log('[Invite Logic] inviteData did not contain user ID, trying RPC fallback...');
+           const { data: rpcUserId, error: rpcError } = await supabaseService
+             .rpc('search_auth_user_by_email', { email_param: email });
+
+           if (rpcError || !rpcUserId) {
+               console.error('[Invite Logic] RPC fallback failed:', rpcError);
+               // If RPC fails, we cannot proceed with storing metadata reliably
+               return { error: 'Invite failed: Could not resolve user ID for existing user.' };
+           } else {
+               userIdToAdd = rpcUserId as string;
+               console.log(`[Invite Logic] User ID from RPC fallback: ${userIdToAdd}`);
+           }
         }
-        isNewInvite = false;
+        isNewInvite = false; // Mark as existing user
       } else {
+        // Actual invite error, return it
         return { error: inviteError.message || 'Failed to invite user.' };
       }
     } else {
+      // No inviteError, this means it was a successful NEW invite
       userIdToAdd = inviteData?.user?.id || null;
-      if (!userIdToAdd) return { error: 'Invited user data not returned from Supabase.' };
+      console.log(`[Invite Logic] New user invite successful. User ID from inviteData: ${userIdToAdd}`);
+      if (!userIdToAdd) {
+          // This shouldn't happen if invite succeeded, but good to handle
+          console.error('[Invite Logic] Invite successful but no user ID returned in inviteData!');
+          return { error: 'Invite succeeded but failed to get user data.' };
+      }
       isNewInvite = true;
     }
-
-    if (!userIdToAdd) return { error: 'Internal error: Could not determine user ID.' };
-
-    let groupUserId: string | null = null;
-    let wasRestored = false;
-
-    // 2. Check existing group_users record status (active, deleted, or none)
-    const { data: existingMembership, error: checkError } = await supabaseService
-        .from('group_users')
-        .select('id, is_active, is_deleted') // Select flags
-        .eq('user_id', userIdToAdd)
-        .eq('group_id', orgId)
-        .maybeSingle();
-
-    if (checkError) {
-        console.error("Error checking membership status:", checkError);
-        return { error: checkError.message || 'Error checking existing membership status.' }; 
-    }
-
-    // 3. Handle based on existing record status
-    if (existingMembership) {
-        if (!existingMembership.is_deleted) {
-            // Scenario 1: Already an active or pending member
-            return { error: 'User is already an active or pending member of this organization.' }; 
-        } else {
-            // Scenario 2: Member exists but is deleted - Restore them
-            console.log(`Restoring deleted member ${userIdToAdd} in group ${orgId}`);
-            const { data: restoredUser, error: restoreError } = await supabaseService
-                .from('group_users')
-                .update({ 
-                    is_deleted: false, 
-                    is_active: false // Keep inactive on restore, let activation handle it
-                })
-                .eq('id', existingMembership.id)
-                .select('id') // Select the ID after update
-                .single();
-
-            if (restoreError || !restoredUser) {
-                console.error("Error restoring member:", restoreError);
-                return { error: restoreError?.message || 'Failed to restore member.' };
-            }
-            groupUserId = restoredUser.id; // Get the ID of the restored record
-            wasRestored = true;
-        }
-    } else {
-        // Scenario 3: No existing record - Add new pending member
-        console.log(`Adding user ${userIdToAdd} to group ${orgId} as new pending member`);
-        const { data: newUser, error: insertError } = await supabaseService
-            .from('group_users')
-            .insert({ 
-                user_id: userIdToAdd, 
-                group_id: orgId, 
-                is_active: false, // Start as inactive (pending)
-                is_deleted: false 
-            })
-            .select('id') // Select the ID after insert
-            .single();
-
-        if (insertError || !newUser) {
-             console.error("Error inserting new member:", insertError);
-            return { error: insertError?.message || 'Failed to add user to organization group.' };
-        }
-        groupUserId = newUser.id; // Get the ID of the newly inserted record
-    }
-
-    // --- NEW: Handle Custom Member ID --- 
-    if (customMemberId && groupUserId) {
-      try {
-        console.log(`Attempting to insert member_id '${customMemberId}' for group_user_id '${groupUserId}'`);
-        // Step 1: Attempt direct insert first
-        const { error: insertError } = await supabaseService
-          .from('member_ids')
-          .insert({
-            group_user_id: groupUserId,
-            group_id: orgId,
-            member_id: customMemberId
-          });
-
-        if (insertError) {
-          // If insert fails (e.g., duplicate group_user_id), try updating
-          console.warn(`Insert failed for member_id (likely exists), attempting update: ${insertError.message}`);
-          
-          const { error: updateError } = await supabaseService
-            .from('member_ids')
-            .update({ member_id: customMemberId })
-            .eq('group_user_id', groupUserId)
-            .eq('group_id', orgId);
-
-          if (updateError) {
-            // If update also fails, log the error
-            console.error('Error updating custom member_id after insert failed:', updateError);
-            // Return a specific error if it looks like a unique constraint violation
-            if (updateError.message.includes("member_ids_unique_per_group")) {
-              return { success: false, error: `Member ID '${customMemberId}' is already taken in this organization.` };
-            }
-            // Otherwise, a generic warning that ID wasn't set
-            return { success: true, error: "Invite successful, but failed to set custom Member ID due to an update error." };
-          } else {
-            console.log(`Successfully updated existing member_id for group_user_id ${groupUserId}`);
+    
+    // Continue with storing invitation metadata
+    try {
+      console.log('[Storing Invitation Metadata] Preparing record...');
+        
+      // Calculate expiration (default: 7 days from now)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      
+      // Store in our custom metadata table
+      const { error: metadataError } = await supabaseService
+        .from('invitation_metadata')
+        .insert({
+          group_id: orgId,
+          invited_by: context.userId,
+          email: email,
+          role: 'member', // Default role
+          status: 'pending',
+          custom_message: null,
+          metadata: {
+            firstName: firstName || null,
+            lastName: lastName || null,
+            customMemberId: customMemberId || null,
+            inviteType: 'group_member',
+            created_from: 'member_invitation'
           }
-        } else {
-          console.log(`Successfully inserted new member_id for group_user_id ${groupUserId}`);
-        }
-      } catch (e: any) { // Catch as any to check message
-        console.error('Exception during member_id handling:', e);
-        // Check if the exception is the unique constraint error
-        if (e.message?.includes("member_ids_unique_per_group")) {
-           return { success: false, error: `Member ID '${customMemberId}' is already taken in this organization.` };
-        }
-        return { success: true, error: "Invite successful, but failed to set custom Member ID due to an unexpected error." };
+        });
+          
+      if (metadataError) {
+        console.error('[Invitation Metadata] Error storing:', metadataError);
+        // Log but don't fail the whole process
+      } else {
+        console.log('[Invitation Metadata] Successfully stored invitation metadata');
       }
-    } else if (customMemberId) {
-      console.warn('Custom member ID provided, but could not determine groupUserId. Skipping member ID handling.');
+    } catch (metaErr) {
+      console.error('[Invitation Metadata] Exception during storage:', metaErr);
     }
-    // --- END NEW --- 
+    
+    // For existing users, continue with adding them to the organization
+    if (userIdToAdd) {
+      let groupUserId: string | null = null;
+      let wasRestored = false;
 
-    // 4. Revalidate and return success (applies to restore or new add)
-    if (orgSlug) {
-      revalidatePath(`/@${orgSlug}/members`);
-    } else {
-      console.warn('orgSlug missing, cannot revalidate path after add/invite.');
+      // Check existing group_users record status (active, deleted, or none)
+      const { data: existingMembership, error: checkError } = await supabaseService
+          .from('group_users')
+          .select('id, is_active, is_deleted')
+          .eq('user_id', userIdToAdd)
+          .eq('group_id', orgId)
+          .maybeSingle();
+
+      if (checkError) {
+          console.error("Error checking membership status:", checkError);
+          return { error: checkError.message || 'Error checking existing membership status.' }; 
+      }
+
+      // 3. Handle based on existing record status
+      if (existingMembership) {
+          if (!existingMembership.is_deleted) {
+              // Scenario 1: Already an active or pending member
+              return { error: 'User is already an active or pending member of this organization.' }; 
+          } else {
+              // Scenario 2: Member exists but is deleted - Restore them
+              console.log(`Restoring deleted member ${userIdToAdd} in group ${orgId}`);
+              const { data: restoredUser, error: restoreError } = await supabaseService
+                  .from('group_users')
+                  .update({ 
+                      is_deleted: false, 
+                      is_active: false // Keep inactive on restore, let activation handle it
+                  })
+                  .eq('id', existingMembership.id)
+                  .select('id') // Select the ID after update
+                  .single();
+
+              if (restoreError || !restoredUser) {
+                  console.error("Error restoring member:", restoreError);
+                  return { error: restoreError?.message || 'Failed to restore member.' };
+              }
+              groupUserId = restoredUser.id; // Get the ID of the restored record
+              wasRestored = true;
+          }
+      } else {
+          // Scenario 3: No existing record - Add new pending member
+          console.log(`Adding user ${userIdToAdd} to group ${orgId} as new pending member`);
+          const { data: newUser, error: insertError } = await supabaseService
+              .from('group_users')
+              .insert({ 
+                  user_id: userIdToAdd, 
+                  group_id: orgId, 
+                  is_active: false, // Start as inactive (pending)
+                  is_deleted: false 
+              })
+              .select('id') // Select the ID after insert
+              .single();
+
+          if (insertError || !newUser) {
+               console.error("Error inserting new member:", insertError);
+              return { error: insertError?.message || 'Failed to add user to organization group.' };
+          }
+          groupUserId = newUser.id; // Get the ID of the newly inserted record
+      }
+
+      // --- NEW: Handle Custom Member ID --- 
+      if (customMemberId && groupUserId) {
+        try {
+          console.log(`Attempting to insert member_id '${customMemberId}' for group_user_id '${groupUserId}'`);
+          // Step 1: Attempt direct insert first
+          const { error: insertError } = await supabaseService
+            .from('member_ids')
+            .insert({
+              group_user_id: groupUserId,
+              group_id: orgId,
+              member_id: customMemberId
+            });
+
+          if (insertError) {
+            // If insert fails (e.g., duplicate group_user_id), try updating
+            console.warn(`Insert failed for member_id (likely exists), attempting update: ${insertError.message}`);
+            
+            const { error: updateError } = await supabaseService
+              .from('member_ids')
+              .update({ member_id: customMemberId })
+              .eq('group_user_id', groupUserId)
+              .eq('group_id', orgId);
+
+            if (updateError) {
+              // If update also fails, log the error
+              console.error('Error updating custom member_id after insert failed:', updateError);
+              // Return a specific error if it looks like a unique constraint violation
+              if (updateError.message.includes("member_ids_unique_per_group")) {
+                return { success: false, error: `Member ID '${customMemberId}' is already taken in this organization.` };
+              }
+              // Otherwise, a generic warning that ID wasn't set
+              return { success: true, error: "Invite successful, but failed to set custom Member ID due to an update error." };
+            } else {
+              console.log(`Successfully updated existing member_id for group_user_id ${groupUserId}`);
+            }
+          } else {
+            console.log(`Successfully inserted new member_id for group_user_id ${groupUserId}`);
+          }
+        } catch (e: any) { // Catch as any to check message
+          console.error('Exception during member_id handling:', e);
+          // Check if the exception is the unique constraint error
+          if (e.message?.includes("member_ids_unique_per_group")) {
+             return { success: false, error: `Member ID '${customMemberId}' is already taken in this organization.` };
+          }
+          return { success: true, error: "Invite successful, but failed to set custom Member ID due to an unexpected error." };
+        }
+      } else if (customMemberId) {
+        console.warn('Custom member ID provided, but could not determine groupUserId. Skipping member ID handling.');
+      }
+      // --- END NEW --- 
+
+      // 4. Revalidate and return success (applies to restore or new add)
+      if (orgSlug) {
+        revalidatePath(`/@${orgSlug}/members`);
+      } else {
+        console.warn('orgSlug missing, cannot revalidate path after add/invite.');
+      }
+      return { success: true };
     }
-    return { success: true };
 
   } catch (error: any) {
     console.error('Add/Invite Member Core Logic Error:', error);
@@ -243,7 +339,7 @@ const protectedAddOrInviteMember = await withPermissions(
 );
 
 // Export an async function that calls the protected action
-export async function addOrInviteMember(currentState: any, params: { formData: FormData }): Promise<ActionResult> {
+export async function addOrInviteMember(currentState: any, params: { formData: FormData }): Promise<MemberActionResult> {
   // The HOC handles the auth check, so we call it directly
   // Note: The HOC expects (currentState, params) signature for useFormState
   return protectedAddOrInviteMember(currentState, params);
@@ -307,7 +403,7 @@ interface ResendInviteContext {
 }
 
 // Action to resend an invitation (now sends a Magic Link)
-export async function resendInviteAction(context: ResendInviteContext, formData: FormData) {
+export async function resendInviteAction(context: ResendInviteContext, formData: FormData): Promise<MemberActionResult> {
   const groupUsersId = formData.get('groupUsersId') as string;
   const email = formData.get('email') as string;
 
@@ -349,41 +445,110 @@ export async function resendInviteAction(context: ResendInviteContext, formData:
     if (!orgSlug) {
       return { error: "Internal error: Missing orgSlug for redirect URL." };
     }
-    const siteUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const siteUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
     const finalRedirectPath = `/@${orgSlug}`;
-    const callbackUrlBase = siteUrl ? `${siteUrl}/auth/callback` : null;
-
-    if (!callbackUrlBase) {
-      console.error("Cannot generate callback URL: NEXT_PUBLIC_APP_URL not set.");
-      return { error: "Configuration error: Cannot construct callback URL." };
-    }
-
-    // The URL Supabase will redirect *to* after clicking the magic link.
-    // We include the final destination as the 'next' parameter.
-    const emailRedirectToUrl = `${callbackUrlBase}?next=${encodeURIComponent(finalRedirectPath)}`;
-    console.log(`[resendInviteAction] emailRedirectToUrl: '${emailRedirectToUrl}'`);
-
-    const { error: magicLinkError } = await supabaseService.auth.signInWithOtp({
+    
+    // Use the invitation accepted landing page
+    // Since Supabase local development might override our redirectTo,
+    // we'll handle the redirect to account-setup from our custom page
+    const emailRedirectToUrl = `${siteUrl}/invitation-accepted`;
+    
+    // 3. Send the magic link
+    const { data: otpResponse, error: otpError } = await supabaseService.auth.admin.generateLink({
+      type: 'magiclink',
       email: email,
       options: {
-        shouldCreateUser: false,
-        emailRedirectTo: emailRedirectToUrl // Point to the callback route
+        redirectTo: emailRedirectToUrl,
+        data: {
+          inviteType: 'resend',
+          orgSlug: orgSlug,
+          groupUsersId: groupUsersId
+        }
       }
     });
 
-    if (magicLinkError) {
-      console.error("Error sending magic link:", magicLinkError);
-      return { error: `Failed to send login link: ${magicLinkError.message}` };
+    if (otpError) {
+      console.error("Error generating magic link:", otpError);
+      return { error: `Failed to send invitation email: ${otpError.message}` };
     }
 
-    // Note: signInWithOtp doesn't throw error if user DNE with shouldCreateUser: false
-    // It just doesn't send an email. Our previous checks should ensure user exists.
+    // 4. Update our invitation_metadata table to track this resend
+    try {
+      // Use a type assertion to access properties
+      const otpResponseData = otpResponse as any;
+      // Get the properties from response
+      const token = otpResponseData?.properties?.token || 
+                    otpResponseData?.token || 
+                    otpResponseData?.email_otp?.token_hash;
+      
+      if (token) {
+        // Calculate new expiration (default: 7 days from now)
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+        
+        // Check if we already have an entry with this email and group
+        const { data: existingMetadata } = await supabaseService
+          .from('invitation_metadata')
+          .select('id')
+          .eq('email', email)
+          .eq('group_id', context.groupId)
+          .eq('status', 'pending')
+          .maybeSingle();
+        
+        if (existingMetadata?.id) {
+          // Update existing record
+          await supabaseService
+            .from('invitation_metadata')
+            .update({
+              auth_token: token, // Update with new token
+              status: 'pending',
+              updated_at: new Date().toISOString(),
+              metadata: {
+                resent_count: existingMetadata.metadata?.resent_count ? 
+                  parseInt(existingMetadata.metadata.resent_count) + 1 : 1,
+                last_resent: new Date().toISOString(),
+                resent_by: context.userId
+              }
+            })
+            .eq('id', existingMetadata.id);
+            
+          console.log('[Invitation Metadata] Updated existing record after resend');
+        } else {
+          // Create new record
+          await supabaseService
+            .from('invitation_metadata')
+            .insert({
+              auth_token: token,
+              group_id: context.groupId,
+              invited_by: context.userId,
+              email: email,
+              role: 'member',
+              status: 'pending',
+              metadata: {
+                inviteType: 'resend',
+                resent_count: 1,
+                last_resent: new Date().toISOString(),
+                groupUsersId: groupUsersId,
+                orgSlug: orgSlug
+              }
+            });
+            
+          console.log('[Invitation Metadata] Created new record for resend');
+        }
+      } else {
+        console.warn('[Invitation Metadata] No token found in magic link response');
+      }
+    } catch (metaErr) {
+      console.error('[Invitation Metadata] Exception during resend:', metaErr);
+      // Don't fail the resend process if metadata update fails
+    }
 
-    return { success: true }; // Success means the attempt to send was made
+    // Return success
+    return { success: true, message: `Invitation sent to ${email}` };
 
   } catch (error: any) {
-    console.error("Resend Invite Action Error:", error);
-    return { error: error.message || 'An unexpected error occurred while resending the invite.' };
+    console.error("Error in resendInviteAction:", error);
+    return { error: error.message || 'Failed to resend invitation.' };
   }
 }
 

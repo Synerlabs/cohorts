@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { UserProvider } from '@/lib/context/UserContext'
 import { getCurrentUser, getUserPermissions } from '@/actions/user.actions'
+import { AuthProviderClient } from '@/components/auth-provider-client';
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -30,7 +31,9 @@ export default async function RootLayout({
           initialUser={user}
           initialGroupPermissions={groupPermissions}
         >
-          {children}
+          <AuthProviderClient>
+            {children}
+          </AuthProviderClient>
           <Toaster />
         </UserProvider>
       </body>

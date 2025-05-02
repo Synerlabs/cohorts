@@ -183,11 +183,11 @@ export function InviteMemberFormContent({ orgId, orgSlug, closeModal }: InviteMe
     const formData = new FormData(event.currentTarget);
 
     startAddMemberTransition(async () => {
-      if (!currentUser) {
-        console.error('handleAddOrInviteSubmit: currentUser unexpectedly null before creating context.');
-        setAddUserState({ error: "Authentication context is missing. Please ensure you are logged in." });
-        return;
-      }
+      // if (!currentUser) {
+      //   console.error('handleAddOrInviteSubmit: currentUser unexpectedly null before creating context.');
+      //   setAddUserState({ error: "Authentication context is missing. Please ensure you are logged in." });
+      //   return;
+      // }
       
       try {
         const result = await addOrInviteMember(null, { formData });
