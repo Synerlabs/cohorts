@@ -1066,10 +1066,7 @@ export async function cancelMembershipAction(
     const { error: updateError } = await supabase
       .from('memberships')
       .update({ 
-        status: MembershipStatus.CANCELLED,
-        cancelled_at: new Date().toISOString(),
-        cancelled_reason_code: reasonCode || 'user_cancelled',
-        cancelled_reason_note: reasonNote || ''
+        status: MembershipStatus.CANCELLED
       })
       .eq('id', membershipId);
 

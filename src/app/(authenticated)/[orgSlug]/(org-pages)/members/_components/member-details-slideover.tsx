@@ -532,7 +532,7 @@ export default function MemberDetailsSlideOver({
                           </p>
                           {userMemberships.map((membership, index) => (
                             <Card 
-                              key={membership.id} 
+                              key={`${membership.id}-${index}`}
                               className={cn(
                                 "shadow-sm transition-all duration-200 overflow-hidden hover:shadow-md focus-within:shadow-md animate-in slide-in-from-left-5",
                                 membership.status === 'active' 
