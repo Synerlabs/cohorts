@@ -30,6 +30,11 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
   let idColumn: string = 'id';
   let groupIdColumn: string = 'group_id';
 
+  // Map form_template to forms
+  if (moduleType === 'form_template' as any) {
+    moduleType = 'forms';
+  }
+
   switch (moduleType) {
     case 'group': 
       return moduleId; 
@@ -108,8 +113,15 @@ async function getModuleGroupId(moduleType: ModuleType, moduleId: string): Promi
       break;
     default:
       const _exhaustiveCheck: never = moduleType;
-      console.error(`Unhandled moduleType: ${_exhaustiveCheck}`);
-      return null;
+      
+      // Handle form_template special case
+      if ((moduleType as string) === 'form_template') {
+        tableName = 'form_templates';
+        groupIdColumn = 'org_id';
+      } else {
+        console.error(`Unhandled moduleType: ${_exhaustiveCheck}`);
+        return null;
+      }
   }
 
   // Standard query for tables with direct group_id
