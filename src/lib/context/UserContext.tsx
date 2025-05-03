@@ -5,6 +5,9 @@ import { createClient } from '../utils/supabase/client'
 import { getUserPermissions } from '@/actions/user.actions'
 import type { User } from '@supabase/supabase-js'
 
+// Debug flag - set to false to disable logging
+const DEBUG_MODE = false
+
 type SerializableUser = {
   id: string
   email?: string | undefined
@@ -69,16 +72,16 @@ export function UserProvider({
   const refreshPermissions = useCallback(async (targetUserId?: string) => {
     const userIdToFetch = targetUserId || user?.id
     if (!userIdToFetch) {
-      console.log('[UserProvider] refreshPermissions called with no user ID, clearing permissions.')
+      DEBUG_MODE && console.log('[UserProvider] refreshPermissions called with no user ID, clearing permissions.')
       setGroupPermissions({})
       return
     }
 
-    console.log(`[UserProvider] Refreshing permissions for user: ${userIdToFetch}`)
+    DEBUG_MODE && console.log(`[UserProvider] Refreshing permissions for user: ${userIdToFetch}`)
     setIsRefreshing(true)
     try {
       const { groupPermissions: newPermissions } = await getUserPermissions(userIdToFetch)
-      console.log('[UserProvider] Fetched permissions:', newPermissions)
+      DEBUG_MODE && console.log('[UserProvider] Fetched permissions')
       setGroupPermissions(newPermissions)
     } catch (error) {
       console.error('[UserProvider] Error refreshing user permissions:', error)
@@ -90,18 +93,18 @@ export function UserProvider({
 
   useEffect(() => {
     let isMounted = true
-    console.log('[UserProvider] Setting up onAuthStateChange listener.')
+    DEBUG_MODE && console.log('[UserProvider] Setting up onAuthStateChange listener.')
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return
-        console.log(`[UserProvider] onAuthStateChange event: ${event}, Session: ${!!session}`)
+        DEBUG_MODE && console.log(`[UserProvider] onAuthStateChange event: ${event}`)
         
         const authUser = session?.user
 
         if (authUser) {
           const needsUpdate = user?.id !== authUser.id
-          console.log(`[UserProvider] Auth user found (${authUser.id}). Needs update: ${needsUpdate}`)
+          DEBUG_MODE && console.log(`[UserProvider] Auth user found. Needs update: ${needsUpdate}`)
           
           const serializableUser: SerializableUser = {
             id: authUser.id,
@@ -115,11 +118,11 @@ export function UserProvider({
           if (needsUpdate || user === null) {
             await refreshPermissions(authUser.id)
           } else {
-            console.log('[UserProvider] User ID same as current, skipping permission refresh on this event.')
+            DEBUG_MODE && console.log('[UserProvider] User ID same as current, skipping permission refresh.')
           }
           
         } else {
-          console.log('[UserProvider] No auth user found, clearing state.')
+          DEBUG_MODE && console.log('[UserProvider] No auth user found, clearing state.')
           setUser(null)
           setGroupPermissions({})
         }
@@ -130,7 +133,7 @@ export function UserProvider({
 
     return () => {
       isMounted = false
-      console.log('[UserProvider] Unsubscribing from onAuthStateChange.')
+      DEBUG_MODE && console.log('[UserProvider] Unsubscribing from onAuthStateChange.')
       subscription.unsubscribe()
     }
   }, [supabase, refreshPermissions, user])

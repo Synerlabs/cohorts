@@ -102,33 +102,50 @@ export default function InvitationAcceptedPage() {
     e.preventDefault();
     
     if (!email) {
-      setFormError('Email is required to send a reset link');
+      setFormError('Email is required to send an invitation');
       return;
     }
     
     setIsSubmitting(true);
     setFormError(null);
+    setDebugInfo(prev => [...prev, `Attempting to send new invite to ${email}`]);
     
     try {
       const supabase = createClient();
       
-      // Generate new reset link
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: window.location.origin + window.location.pathname + (searchParams.get('orgSlug') ? `?orgSlug=${searchParams.get('orgSlug')}` : '')
+      // Construct redirect URL
+      const orgSlug = searchParams.get('orgSlug');
+      const baseUrl = window.location.origin + window.location.pathname;
+      const redirectUrl = orgSlug 
+        ? `${baseUrl}?orgSlug=${encodeURIComponent(orgSlug)}`
+        : baseUrl;
+        
+      setDebugInfo(prev => [...prev, `Redirect URL for invitation: ${redirectUrl}`]);
+      
+      // Send invitation using OTP (magic link) - same method used in initial invites
+      const { data, error: inviteError } = await supabase.auth.signInWithOtp({
+        email: email,
+        options: {
+          shouldCreateUser: true,
+          emailRedirectTo: redirectUrl,
+          data: orgSlug ? { orgSlug } : undefined
+        }
       });
       
-      if (resetError) {
-        setFormError(`Could not send password reset email: ${resetError.message}`);
+      if (inviteError) {
+        setDebugInfo(prev => [...prev, `Invite error: ${inviteError.message} (${inviteError.status})`]);
+        setFormError(`Could not send invitation email: ${inviteError.message}`);
         setIsSubmitting(false);
         return;
       }
       
-      // Password reset email sent successfully
-      setDebugInfo(prev => [...prev, `New password reset email sent to ${email}`]);
-      setError(`A new password reset link has been sent to ${email}. Please check your email and click the link to set your password.`);
+      // Invitation email sent successfully
+      setDebugInfo(prev => [...prev, `New invitation magic link sent to ${email}`, `Response data: ${JSON.stringify(data)}`]);
+      setError(`A new invitation link has been sent to ${email}. Please check your email and click the link to complete your account setup.`);
       setIsSubmitting(false);
       setShowManualResetForm(false);
     } catch (e: any) {
+      setDebugInfo(prev => [...prev, `Unexpected error sending invite: ${e.message || e}`]);
       setFormError(`Unexpected error: ${e.message || e}`);
       setIsSubmitting(false);
     }

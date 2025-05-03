@@ -440,25 +440,22 @@ export async function resendInviteAction(context: ResendInviteContext, formData:
     // 2. If pending, send a Magic Link email via Supabase Auth
     console.log(`Sending Magic Link for pending member: ${email}`);
 
-    // Construct the FINAL destination URL (org page)
+    // Construct the redirect URL for the callback
     const orgSlug = formData.get('orgSlug') as string;
     if (!orgSlug) {
       return { error: "Internal error: Missing orgSlug for redirect URL." };
     }
     const siteUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3001';
-    const finalRedirectPath = `/@${orgSlug}`;
     
     // Use the invitation accepted landing page
-    // Since Supabase local development might override our redirectTo,
-    // we'll handle the redirect to account-setup from our custom page
-    const emailRedirectToUrl = `${siteUrl}/invitation-accepted`;
+    const finalRedirectUrl = `${siteUrl}/invitation-accepted?orgSlug=${encodeURIComponent(orgSlug || '')}&email=${encodeURIComponent(email)}`;
     
-    // 3. Send the magic link
-    const { data: otpResponse, error: otpError } = await supabaseService.auth.admin.generateLink({
-      type: 'magiclink',
-      email: email,
+    // 3. For resending, we simply use signInWithOtp rather than inviteUserByEmail
+    // This works for both new and existing users
+    const { error: signInError } = await supabaseService.auth.signInWithOtp({
+      email,
       options: {
-        redirectTo: emailRedirectToUrl,
+        emailRedirectTo: finalRedirectUrl,
         data: {
           inviteType: 'resend',
           orgSlug: orgSlug,
@@ -466,77 +463,70 @@ export async function resendInviteAction(context: ResendInviteContext, formData:
         }
       }
     });
-
-    if (otpError) {
-      console.error("Error generating magic link:", otpError);
-      return { error: `Failed to send invitation email: ${otpError.message}` };
+    
+    if (signInError) {
+      console.error("Error sending magic link:", signInError);
+      return { error: `Failed to send invitation email: ${signInError.message}` };
     }
+    
+    console.log("Magic link email sent successfully");
 
     // 4. Update our invitation_metadata table to track this resend
     try {
-      // Use a type assertion to access properties
-      const otpResponseData = otpResponse as any;
-      // Get the properties from response
-      const token = otpResponseData?.properties?.token || 
-                    otpResponseData?.token || 
-                    otpResponseData?.email_otp?.token_hash;
+      // Calculate new expiration (default: 7 days from now)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
       
-      if (token) {
-        // Calculate new expiration (default: 7 days from now)
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+      // Check if we already have an entry with this email and group
+      const { data: existingMetadata } = await supabaseService
+        .from('invitation_metadata')
+        .select('id, metadata')
+        .eq('email', email)
+        .eq('group_id', context.groupId)
+        .eq('status', 'pending')
+        .maybeSingle();
+      
+      if (existingMetadata?.id) {
+        // Get existing metadata and update resent_count
+        const existingMeta = existingMetadata.metadata || {};
+        const resentCount = existingMeta.resent_count ? parseInt(existingMeta.resent_count) + 1 : 1;
         
-        // Check if we already have an entry with this email and group
-        const { data: existingMetadata } = await supabaseService
+        // Update existing record
+        await supabaseService
           .from('invitation_metadata')
-          .select('id')
-          .eq('email', email)
-          .eq('group_id', context.groupId)
-          .eq('status', 'pending')
-          .maybeSingle();
-        
-        if (existingMetadata?.id) {
-          // Update existing record
-          await supabaseService
-            .from('invitation_metadata')
-            .update({
-              auth_token: token, // Update with new token
-              status: 'pending',
-              updated_at: new Date().toISOString(),
-              metadata: {
-                resent_count: existingMetadata.metadata?.resent_count ? 
-                  parseInt(existingMetadata.metadata.resent_count) + 1 : 1,
-                last_resent: new Date().toISOString(),
-                resent_by: context.userId
-              }
-            })
-            .eq('id', existingMetadata.id);
-            
-          console.log('[Invitation Metadata] Updated existing record after resend');
-        } else {
-          // Create new record
-          await supabaseService
-            .from('invitation_metadata')
-            .insert({
-              auth_token: token,
-              group_id: context.groupId,
-              invited_by: context.userId,
-              email: email,
-              role: 'member',
-              status: 'pending',
-              metadata: {
-                inviteType: 'resend',
-                resent_count: 1,
-                last_resent: new Date().toISOString(),
-                groupUsersId: groupUsersId,
-                orgSlug: orgSlug
-              }
-            });
-            
-          console.log('[Invitation Metadata] Created new record for resend');
-        }
+          .update({
+            status: 'pending',
+            updated_at: new Date().toISOString(),
+            metadata: {
+              ...existingMeta,
+              resent_count: resentCount,
+              last_resent: new Date().toISOString(),
+              resent_by: context.userId
+            }
+          })
+          .eq('id', existingMetadata.id);
+          
+        console.log('[Invitation Metadata] Updated existing record after resend');
       } else {
-        console.warn('[Invitation Metadata] No token found in magic link response');
+        // Create new record
+        await supabaseService
+          .from('invitation_metadata')
+          .insert({
+            group_id: context.groupId,
+            invited_by: context.userId,
+            email: email,
+            role: 'member',
+            status: 'pending',
+            metadata: {
+              inviteType: 'resend',
+              resent_count: 1,
+              last_resent: new Date().toISOString(),
+              groupUsersId: groupUsersId,
+              orgSlug: orgSlug
+            }
+          });
+          
+        console.log('[Invitation Metadata] Created new record for resend');
       }
     } catch (metaErr) {
       console.error('[Invitation Metadata] Exception during resend:', metaErr);
