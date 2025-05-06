@@ -123,19 +123,24 @@ DECLARE
   v_member_id_record uuid;
   v_existing_member_id_record uuid;
   v_group_user_id uuid;
+  v_tier_type text; -- Variable to store the type of the membership tier
 BEGIN
   -- Get the group_id and group_user_id
   SELECT gu.group_id, gu.id INTO v_group_id, v_group_user_id
   FROM group_users gu
   WHERE gu.id = NEW.group_user_id;
 
-  -- Get the member ID format from settings
-  SELECT member_id_format INTO v_member_id_format
-  FROM membership_tier_settings
-  WHERE tier_id = NEW.tier_id;
+  -- Get the tier type from membership_tiers and the member ID format from membership_tier_settings
+  SELECT mt.type, mts.member_id_format
+  INTO v_tier_type, v_member_id_format
+  FROM membership_tiers mt
+  LEFT JOIN membership_tier_settings mts ON mt.product_id = mts.tier_id
+  WHERE mt.product_id = NEW.tier_id;
 
-  -- Skip if no format is defined
-  IF v_member_id_format IS NULL THEN
+  -- If the tier itself is not found (should ideally not happen due to FKs),
+  -- or if the tier type is 'organization' (skip member ID generation for orgs for now),
+  -- or if it's a non-organization tier but has no member_id_format defined.
+  IF NOT FOUND OR v_tier_type = 'organization' OR v_member_id_format IS NULL THEN
     RETURN NEW;
   END IF;
 
