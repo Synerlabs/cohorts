@@ -10,6 +10,7 @@ import {
   InboxIcon,
   CreditCard,
   FormInput,
+  UserPlusIcon,
 } from "lucide-react";
 import { Tables } from "@/lib/types/database.types";
 import { Camelized } from "humps";
@@ -54,6 +55,12 @@ export async function OrgSidebar({ org, user }: SidebarProps) {
       href: `/@${org.slug}/members`,
       icon: <Users className="h-4 w-4" />,
       permission: permissions.members.view,
+    },
+    {
+      name: "Affiliates",
+      href: `/@${org.slug}/affiliates`,
+      icon: <UserPlusIcon className="h-4 w-4" />,
+      permission: permissions.memberships.view,
     },
     {
       name: "Orders",

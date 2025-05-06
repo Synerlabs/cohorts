@@ -826,7 +826,7 @@ export async function assignMembershipAction(
     endDate?: string;   // Custom end date (ISO string)
     memberId?: string;  // Custom member ID
   }
-): Promise<{ success: boolean; error?: string }> { 
+): Promise<{ success: boolean; error?: string; existingMemberId?: string }> { 
   noStore();
   
   const supabase = await createSupabaseServiceRoleClient();
@@ -851,14 +851,43 @@ export async function assignMembershipAction(
       .from('membership_tiers')
       .select(`
         *,
-        product:products!inner(currency, price, group_id) 
+        product:products!inner(currency, price, group_id)
       `)
       .eq('product_id', tierId)
       .single();
       
     if (tierError) throw new Error(`Error fetching tier details: ${tierError.message}`);
     if (!tierData || !tierData.product) throw new Error("Membership tier not found.");
-    if (tierData.product.group_id !== orgId) throw new Error("Tier does not belong to this organization."); 
+    if (tierData.product.group_id !== orgId) throw new Error("Tier does not belong to this organization.");
+    
+    // Get the member ID format for this tier in a separate query
+    const { data: tierSettings, error: settingsError } = await supabase
+      .from('membership_tier_settings')
+      .select('member_id_format')
+      .eq('tier_id', tierId)
+      .single();
+      
+    // Default member ID format if none is found
+    const tierMemberIdFormat = tierSettings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}';
+    
+    // Check if the user already has a member ID with this format
+    const { data: existingMemberId, error: memberIdError } = await supabase
+      .from('member_ids')
+      .select('member_id')
+      .eq('group_user_id', groupUserId)
+      .eq('group_id', orgId)
+      .single();
+    
+    // If user has a custom member ID specified, use that instead
+    const customMemberId = options?.memberId;
+    
+    // If no custom ID provided, but we found an existing ID, use that
+    if (!customMemberId && existingMemberId?.member_id) {
+      options = {
+        ...options,
+        memberId: existingMemberId.member_id
+      };
+    }
 
     // Calculate membership dates early so we can use them for overlap checking
     let startDate, endDate;
@@ -973,9 +1002,6 @@ export async function assignMembershipAction(
       end_date: endDate ? endDate.toISOString() : null,
       status: MembershipStatus.ACTIVE,
     };
-    
-    // Remove member_id from membershipData since it's in a separate table
-    const customMemberId = options?.memberId;
 
     // Insert the membership record
     const { data: newMembership, error: membershipError } = await supabase
@@ -1014,7 +1040,10 @@ export async function assignMembershipAction(
     // 6. Revalidate relevant paths
     revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page'); 
 
-    return { success: true };
+    return { 
+      success: true,
+      existingMemberId: existingMemberId?.member_id 
+    };
 
   } catch (error: any) {
     console.error("Error assigning membership:", error);

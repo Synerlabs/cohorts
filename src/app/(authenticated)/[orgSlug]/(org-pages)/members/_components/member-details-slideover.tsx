@@ -101,6 +101,7 @@ export default function MemberDetailsSlideOver({
   const [customStartDate, setCustomStartDate] = useState<string>("");
   const [customEndDate, setCustomEndDate] = useState<string>("");
   const [customMemberId, setCustomMemberId] = useState<string>("");
+  const [existingMemberId, setExistingMemberId] = useState<string | null>(null); // Track existing member ID
   const { toast } = useToast(); // Get toast function from the hook
   // State for cancel membership confirmation
   const [membershipToCancel, setMembershipToCancel] = useState<string | null>(null);
@@ -239,6 +240,30 @@ export default function MemberDetailsSlideOver({
     }
   };
 
+  // New function to handle tier selection
+  const handleTierSelection = async (tierId: string) => {
+    setSelectedTierId(tierId);
+    setExistingMemberId(null); // Reset existing member ID
+    setCustomMemberId(""); // Clear any custom member ID
+    
+    if (!user) return;
+    
+    // Check if this user already has a membership with this tier format
+    try {
+      // Make a call to assignMembershipAction which will check if the member has an existing ID
+      // that matches the format of the selected tier. We don't need to provide any options
+      // since we're just doing a dry-run check here.
+      const result = await assignMembershipAction(user.userId, orgId, tierId);
+      
+      // If there's an existing member ID, set it in the state
+      if (result.existingMemberId) {
+        setExistingMemberId(result.existingMemberId);
+      }
+    } catch (err) {
+      console.error("Error checking existing member ID:", err);
+    }
+  };
+
   const handleAssignMembership = () => {
     if (!selectedTierId || !user) return;
     
@@ -264,8 +289,8 @@ export default function MemberDetailsSlideOver({
       if (customEndDate) options.endDate = customEndDate;
     }
     
-    // Include custom member ID if provided
-    if (customMemberId) options.memberId = customMemberId;
+    // Include custom member ID if provided and no existing ID was detected
+    if (customMemberId && !existingMemberId) options.memberId = customMemberId;
     
     startAssignTransition(async () => {
       try {
@@ -285,6 +310,7 @@ export default function MemberDetailsSlideOver({
         setCustomStartDate("");
         setCustomEndDate("");
         setCustomMemberId("");
+        setExistingMemberId(null);
         
         // Re-fetch memberships after successful assignment
         await refreshMemberships();
@@ -723,7 +749,7 @@ export default function MemberDetailsSlideOver({
                                 </Label>
                                 <Select 
                                   value={selectedTierId || ""} 
-                                  onValueChange={setSelectedTierId}
+                                  onValueChange={handleTierSelection}
                                   disabled={isAssigning}
                                 >
                                   <SelectTrigger id="tier-select" className="flex-grow bg-background">
@@ -827,18 +853,42 @@ export default function MemberDetailsSlideOver({
                             <Label htmlFor="memberId" className="text-sm">Member ID</Label>
                             <span className="text-xs text-muted-foreground">Will be auto-generated if empty</span>
                           </div>
-                          <Input 
-                            id="memberId" 
-                            placeholder="e.g., MEM-2025-001" 
-                            value={customMemberId}
-                            onChange={(e) => setCustomMemberId(e.target.value)}
-                            className="h-9 font-mono text-sm"
-                          />
-                          {!customMemberId && (
-                            <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
-                              <Info className="h-3 w-3" />
-                              <span>A unique ID will be automatically generated based on the tier's format settings</span>
-                            </p>
+                          {existingMemberId ? (
+                            <div className="space-y-1.5">
+                              <div className="flex items-center gap-2">
+                                <Input 
+                                  id="memberId" 
+                                  value={existingMemberId}
+                                  disabled={true}
+                                  className="h-9 font-mono text-sm bg-muted/30"
+                                />
+                                <div className="shrink-0">
+                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                                    <CheckCircle className="h-3 w-3 mr-1" /> Existing
+                                  </Badge>
+                                </div>
+                              </div>
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <Info className="h-3 w-3" />
+                                <span>This member already has an ID that will be used for this membership</span>
+                              </p>
+                            </div>
+                          ) : (
+                            <>
+                              <Input 
+                                id="memberId" 
+                                placeholder="e.g., MEM-2025-001" 
+                                value={customMemberId}
+                                onChange={(e) => setCustomMemberId(e.target.value)}
+                                className="h-9 font-mono text-sm"
+                              />
+                              {!customMemberId && (
+                                <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
+                                  <Info className="h-3 w-3" />
+                                  <span>A unique ID will be automatically generated based on the tier's format settings</span>
+                                </p>
+                              )}
+                            </>
                           )}
                         </div>
                         
