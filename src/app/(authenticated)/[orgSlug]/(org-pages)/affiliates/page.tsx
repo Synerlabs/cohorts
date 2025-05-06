@@ -4,7 +4,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ComponentPermission } from "@/components/ComponentPermission";
-import { InviteAffiliateButton } from "./_components/invite-affiliate-button";
+// Import commented out to hide the button
+// import { InviteAffiliateButton } from "./_components/invite-affiliate-button";
 import AffiliateTableWrapper from "./_components/affiliate-table-wrapper";
 import AffiliateStatusFilter, { 
   type AffiliateStatusFilterType 
@@ -34,9 +35,12 @@ async function AffiliatesPage({ org, searchParams, userPermissions }: OrgAccessH
             Manage affiliates and their access to {org.name}
           </p>
         </div>
+        {/* Invite Affiliate button commented out as requested */}
+        {/*
         <ComponentPermission requiredPermissions={[permissions.memberships.create]}>
           <InviteAffiliateButton orgId={org.id} orgSlug={org.slug} />
         </ComponentPermission>
+        */}
       </div>
 
       <div className="rounded-lg border bg-card shadow-sm">
