@@ -1,0 +1,188 @@
+import { createServiceRoleClient } from "@/lib/utils/supabase/server";
+import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
+import { OrderType, OrderStatus } from "@/lib/types/order";
+import { permissions } from "@/lib/types/permissions";
+import { ProductService } from "@/services/product.service";
+import { OrderService } from "@/services/order.service";
+import OrderCreateForm from "./_components/order-create-form";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
+
+interface SuborderData {
+  productId: string;
+  amount: number;
+  currency: string;
+}
+
+interface CreateOrderParams {
+  userId: string;
+  type: OrderType;
+  amount: number;
+  currency: string;
+  groupId: string;
+  suborders: SuborderData[];
+}
+
+async function createOrder(params: CreateOrderParams) {
+  "use server";
+  
+  const supabase = await createServiceRoleClient();
+  
+  try {
+    // Create order
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .insert({
+        user_id: params.userId,
+        type: params.type,
+        status: "pending",
+        amount: params.amount,
+        currency: params.currency,
+        group_id: params.groupId
+      })
+      .select()
+      .single();
+
+    if (orderError) throw orderError;
+    
+    // Create all suborders
+    const subordersData = params.suborders.map(suborder => ({
+      order_id: order.id,
+      type: params.type,
+      product_id: suborder.productId,
+      amount: suborder.amount,
+      currency: suborder.currency,
+      status: "pending"
+    }));
+    
+    const { error: suborderError } = await supabase
+      .from("suborders")
+      .insert(subordersData);
+
+    if (suborderError) throw suborderError;
+    
+    revalidatePath("/orders");
+    return { success: true, orderId: order.id };
+  } catch (error) {
+    console.error("Error creating order:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+// Standalone server action to be used by the client component
+async function handleOrderSubmission(formData: FormData, groupId: string) {
+  "use server";
+  
+  const userId = formData.get("userId") as string;
+  const type = formData.get("type") as OrderType;
+  const amount = parseInt(formData.get("amount") as string, 10);
+  const currency = formData.get("currency") as string;
+  const subordersJson = formData.get("subordersData") as string;
+  
+  // Parse the suborders data
+  let suborders: SuborderData[] = [];
+  try {
+    suborders = JSON.parse(subordersJson);
+  } catch (error) {
+    console.error("Error parsing suborders data:", error);
+    return { success: false, error: "Invalid suborders data" };
+  }
+  
+  return await createOrder({
+    userId,
+    type,
+    amount,
+    currency,
+    groupId,
+    suborders
+  });
+}
+
+// Main page component - Use async directly here
+async function OrderCreatePage(params: OrgAccessHOCProps) {
+  const { org, user } = params;
+
+  if (!user) {
+    return <div>Not authenticated</div>;
+  }
+
+  // Get all the products for the org
+  const supabase = await createServiceRoleClient();
+  const { data: products, error } = await supabase
+    .from("products")
+    .select("*")
+    .eq("group_id", org.id)
+    .eq("is_active", true);
+
+  if (error) {
+    console.error("Error fetching products:", error);
+    return <div>Error loading products</div>;
+  }
+
+  // Get all users in the org
+  console.log("Fetching users for org ID:", org.id);
+  const userQuery = supabase
+    .from("group_members_view")
+    .select("id, user_id, first_name, last_name, email")
+    .eq("group_id", org.id)
+    .eq("is_active", true)
+    .eq("is_deleted", false);
+  
+  const { data: groupUsers, error: groupUsersError } = await userQuery;
+  
+  console.log("User query result - count:", groupUsers?.length);
+  console.log("User query error:", groupUsersError);
+  
+  if (groupUsersError) {
+    console.error("Error fetching group users:", groupUsersError);
+    return <div>Error loading users</div>;
+  }
+
+  // Transform the data to match the expected format
+  const transformedUsers = groupUsers?.map((user: any) => ({
+    id: user.id,
+    user_id: user.user_id,
+    user_data: {
+      id: user.user_id,
+      email: user.email,
+      full_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email
+    }
+  })) || [];
+
+  console.log("Transformed users count:", transformedUsers.length);
+  if (transformedUsers.length > 0) {
+    console.log("First user sample:", JSON.stringify(transformedUsers[0]));
+  }
+
+  // Create a bound version of the server action with the org ID already set
+  const createOrderWithGroup = async (formData: FormData) => {
+    "use server";
+    
+    const result = await handleOrderSubmission(formData, org.id);
+    
+    if (result.success) {
+      redirect(`/${org.slug}/orders/${result.orderId}`);
+    }
+    
+    return result;
+  };
+
+  return (
+    <div className="container mx-auto py-10">
+      <h1 className="text-2xl font-bold mb-6">Create Order</h1>
+      <OrderCreateForm 
+        products={products || []} 
+        users={transformedUsers} 
+        createOrder={createOrderWithGroup}
+      />
+    </div>
+  );
+}
+
+// Export the page component wrapped with access control
+export default withOrgAccess(OrderCreatePage, {
+  permissions: [permissions.orders.view],
+  onAccessDenied: {
+    action: "error",
+  }
+}); 
