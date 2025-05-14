@@ -264,10 +264,10 @@ export default function OrderCreateForm({ products, users, createOrder }: OrderC
   return (
     <FormProvider {...form}>
       <Card>
-        <CardHeader className="border-b">
+        {/* <CardHeader className="border-b">
           <CardTitle className="text-xl">Create New Order</CardTitle>
           <CardDescription>Create a new order with one or more products</CardDescription>
-        </CardHeader>
+        </CardHeader> */}
         <CardContent className="p-6">
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -638,6 +638,7 @@ export default function OrderCreateForm({ products, users, createOrder }: OrderC
           isOpen={isMembershipSlideoverOpen}
           onOpenChange={setIsMembershipSlideoverOpen}
           suborderIndex={editingSuborderIndex}
+          products={products}
         />
       </Card>
     </FormProvider>

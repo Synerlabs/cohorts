@@ -1009,4 +1009,27 @@ export class ProductService {
       } as unknown as IMembershipTierProduct;
     });
   }
+
+  // Fetch all products for a group, including membership tier details if present
+  static async getProductsWithMembershipTierDetails(groupId: string) {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("products")
+      .select(`*, membership_tiers:membership_tiers(*)`)
+      .eq("group_id", groupId)
+      .eq("is_active", true);
+
+    if (error) throw error;
+
+    // Map membership_tiers to membership_tier (singular) for each product
+    return (data || []).map((product) => {
+      if (product.type === "membership_tier" && product.membership_tiers) {
+        return {
+          ...product,
+          membership_tier: product.membership_tiers,
+        };
+      }
+      return product;
+    });
+  }
 } 

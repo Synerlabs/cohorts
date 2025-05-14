@@ -148,21 +148,12 @@ async function OrderCreatePage(params: OrgAccessHOCProps) {
     return <div>Not authenticated</div>;
   }
 
-  // Get all the products for the org
-  const supabase = await createServiceRoleClient();
-  const { data: products, error } = await supabase
-    .from("products")
-    .select("*")
-    .eq("group_id", org.id)
-    .eq("is_active", true);
-
-  if (error) {
-    console.error("Error fetching products:", error);
-    return <div>Error loading products</div>;
-  }
+  // Get all the products for the org (with membership tier details)
+  const products = await ProductService.getProductsWithMembershipTierDetails(org.id);
 
   // Get all users in the org
   console.log("Fetching users for org ID:", org.id);
+  const supabase = await createServiceRoleClient();
   const userQuery = supabase
     .from("group_members_view")
     .select("id, user_id, first_name, last_name, email")
