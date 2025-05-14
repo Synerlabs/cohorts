@@ -9,6 +9,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { useRef, useTransition, useState, useEffect } from "react";
+import { updateOrderStatusAction } from "./order-status.actions";
+import { useRouter } from "next/navigation";
+import { Pencil, Loader2, Check, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/use-toast";
 
 interface Payment {
   id: string
@@ -77,6 +83,16 @@ export function OrderDetails({ order }: OrderDetailsProps) {
     paymentVariant = "outline"
   }
 
+  const [editing, setEditing] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (editing) selectRef.current?.focus();
+  }, [editing]);
+
   return (
     <div className="grid gap-6 md:grid-cols-2">
       <Card>
@@ -92,9 +108,67 @@ export function OrderDetails({ order }: OrderDetailsProps) {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Status</p>
-              <Badge variant={statusVariant} className="mt-1 capitalize">
-                {order.status}
-              </Badge>
+              {!editing ? (
+                <div className="flex items-center gap-2">
+                  <Badge variant={statusVariant} className="capitalize">{order.status}</Badge>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setEditing(true)}
+                    aria-label="Edit status"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <form
+                  className="flex items-center gap-2 bg-muted/40 rounded px-2 py-1"
+                  action={async (formData) => {
+                    startTransition(async () => {
+                      try {
+                        await updateOrderStatusAction(formData);
+                        setEditing(false);
+                        router.refresh();
+                        toast({ title: "Status updated", variant: "default" });
+                      } catch {
+                        toast({ title: "Failed to update status", variant: "destructive" });
+                      }
+                    });
+                  }}
+                >
+                  <input type="hidden" name="orderId" value={order.id} />
+                  <select
+                    name="status"
+                    defaultValue={order.status}
+                    ref={selectRef}
+                    className="capitalize border rounded px-2 py-1"
+                    onKeyDown={e => {
+                      if (e.key === "Escape") setEditing(false);
+                    }}
+                    disabled={isPending}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
+                    <option value="completed">Completed</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                  <Button type="submit" size="icon" variant="ghost" disabled={isPending} aria-label="Save status">
+                    {isPending ? <Loader2 className="animate-spin w-4 h-4" /> : <Check className="w-4 h-4" />}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => setEditing(false)}
+                    disabled={isPending}
+                    aria-label="Cancel status edit"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </form>
+              )}
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Type</p>
