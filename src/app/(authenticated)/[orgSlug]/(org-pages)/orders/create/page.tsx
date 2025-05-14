@@ -4,18 +4,25 @@ import { OrderType, OrderStatus } from "@/lib/types/order";
 import { permissions } from "@/lib/types/permissions";
 import { ProductService } from "@/services/product.service";
 import { OrderService } from "@/services/order.service";
+import { getOrgMembers } from "@/services/org.service";
 import OrderCreateForm from "./_components/order-create-form";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import Link from "next/link";
+import { ChevronLeft, Package } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface SuborderData {
   productId: string;
   amount: number;
   currency: string;
+  membershipIdOverride?: string;
+  membershipStartDate?: string;
+  membershipEndDate?: string;
 }
 
 interface CreateOrderParams {
-  userId: string;
+  userId: string; // This is auth.users.id
   type: OrderType;
   amount: number;
   currency: string;
@@ -27,6 +34,23 @@ async function createOrder(params: CreateOrderParams) {
   "use server";
   
   const supabase = await createServiceRoleClient();
+  let groupUserIdToUse: string | undefined = undefined;
+
+  // If it's a membership order, we need to find the group_user.id
+  if (params.type === 'membership') {
+    const { data: groupUserData, error: groupUserError } = await supabase
+      .from('group_users')
+      .select('id')
+      .eq('user_id', params.userId) // params.userId is auth.users.id
+      .eq('group_id', params.groupId)
+      .single();
+
+    if (groupUserError || !groupUserData) {
+      console.error('Error fetching group_user_id for membership order:', groupUserError);
+      return { success: false, error: "Failed to link user to group for membership." };
+    }
+    groupUserIdToUse = groupUserData.id;
+  }
   
   try {
     // Create order
@@ -46,14 +70,32 @@ async function createOrder(params: CreateOrderParams) {
     if (orderError) throw orderError;
     
     // Create all suborders
-    const subordersData = params.suborders.map(suborder => ({
-      order_id: order.id,
-      type: params.type,
-      product_id: suborder.productId,
-      amount: suborder.amount,
-      currency: suborder.currency,
-      status: "pending"
-    }));
+    const subordersData = params.suborders.map(suborder => {
+      let metadata: any = {};
+      if (params.type === 'membership') {
+        metadata.group_user_id = groupUserIdToUse; 
+        
+        if (suborder.membershipIdOverride) {
+          metadata.custom_membership_id = suborder.membershipIdOverride;
+        }
+        if (suborder.membershipStartDate) {
+          metadata.start_date = suborder.membershipStartDate;
+        }
+        if (suborder.membershipEndDate) {
+          metadata.end_date = suborder.membershipEndDate;
+        }
+      }
+
+      return {
+        order_id: order.id,
+        type: params.type, // This should align with the product type for suborders, e.g. 'membership' for membership_tier products
+        product_id: suborder.productId,
+        amount: suborder.amount,
+        currency: suborder.currency,
+        status: "pending",
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
+      };
+    });
     
     const { error: suborderError } = await supabase
       .from("suborders")
@@ -94,7 +136,7 @@ async function handleOrderSubmission(formData: FormData, groupId: string) {
     amount,
     currency,
     groupId,
-    suborders
+    suborders,
   });
 }
 
@@ -168,13 +210,34 @@ async function OrderCreatePage(params: OrgAccessHOCProps) {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-6">Create Order</h1>
-      <OrderCreateForm 
-        products={products || []} 
-        users={transformedUsers} 
-        createOrder={createOrderWithGroup}
-      />
+    <div className="container max-w-5xl mx-auto py-10 px-4">
+      <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center text-sm text-muted-foreground">
+            <Link href={`/${org.slug}/orders`} className="flex items-center hover:text-foreground">
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Back to Orders
+            </Link>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-md bg-primary/10">
+              <Package className="h-6 w-6 text-primary" />
+            </div>
+            <h1 className="text-3xl font-bold">Create New Order</h1>
+          </div>
+          
+          <p className="text-muted-foreground max-w-2xl">
+            Create a new order by selecting a user and adding products. Order details will be automatically calculated based on the selected products.
+          </p>
+        </div>
+
+        <OrderCreateForm 
+          products={products || []} 
+          users={transformedUsers} 
+          createOrder={createOrderWithGroup}
+        />
+      </div>
     </div>
   );
 }
