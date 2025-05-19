@@ -11,6 +11,7 @@ import {
 import { createServiceRoleClient } from '@/lib/utils/supabase/server';
 import { MembershipActivationService } from './membership-activation.service';
 import { Database } from '@/lib/types/database.types';
+import { suborderProcessorRegistry } from "./suborder-processors/registry";
 
 export class SuborderService {
   static async getSubordersForOrder(orderId: string): Promise<Suborder[]> {
@@ -176,15 +177,13 @@ export class SuborderService {
 
     for (const suborder of suborders) {
       try {
-        if (suborder.isFinalized()) {
-          console.log(`⏭️ Skipping finalized suborder ${suborder.toString()}`);
-          results.push(suborder);
-          continue;
+        const handler = suborderProcessorRegistry[suborder.type];
+        if (handler) {
+          await handler(suborder);
+        } else {
+          console.warn(`⚠️ No processor registered for suborder type: ${suborder.type}`);
         }
-
-        console.log(`🔄 Processing suborder ${suborder.toString()}`);
-        const processed = await suborder.process();
-        results.push(processed);
+        results.push(suborder);
       } catch (error) {
         console.error('❌ Failed to process suborder:', {
           orderId,
@@ -216,5 +215,19 @@ export class SuborderService {
     }
 
     return results;
+  }
+
+  static async processSuborderById(suborderId: string): Promise<ISuborder> {
+    const supabase = await createServiceRoleClient();
+    const { data, error } = await supabase
+      .from('suborders')
+      .select('*, product:products(*)')
+      .eq('id', suborderId)
+      .single();
+    if (error || !data) {
+      throw new Error('Suborder not found');
+    }
+    const suborder = SuborderFactory.create(data as ISuborderData, supabase as any);
+    return this.processSuborder(suborder);
   }
 }

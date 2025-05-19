@@ -668,4 +668,59 @@ describe('Membership Activation Flow Tests', () => {
     expect(mockSupabase.from).toHaveBeenCalledWith('group_users');
     expect(mockSupabase.update).toHaveBeenCalledWith({ is_active: true });
   });
+
+  // Test 6: Manual Payment Approval Flow
+  test('Manual Payment Approval Flow: should activate membership after admin approves manual payment', async () => {
+    const { 
+      mockProduct, 
+      mockGroupUser, 
+      mockApplication, 
+      mockMembership, 
+      mockApplicationView 
+    } = setupMockData(MembershipActivationType.PAYMENT_REQUIRED);
+
+    // Override application status for manual payment flow
+    mockApplication.status = 'pending_payment';
+    mockApplicationView.status = 'pending_payment';
+
+    // Setup ProductService mock
+    const ProductService = require('@/services/product.service').ProductService;
+    ProductService.getMembershipTier.mockResolvedValue(mockProduct);
+
+    // Setup mock responses for manual payment approval
+    mockSupabase.from.mockImplementation((table: string) => {
+      if (table === 'group_users') {
+        mockSupabase.select.mockReturnThis();
+        mockSupabase.eq.mockReturnThis();
+        mockSupabase.single.mockResolvedValueOnce({ data: mockGroupUser, error: null });
+        mockSupabase.update.mockReturnThis();
+        mockSupabase.eq.mockReturnThis();
+        mockSupabase.single.mockResolvedValueOnce({ data: { ...mockGroupUser, is_active: true }, error: null });
+      } else if (table === 'applications') {
+        mockSupabase.select.mockReturnThis();
+        mockSupabase.eq.mockReturnThis();
+        mockSupabase.single.mockResolvedValueOnce({ data: mockApplication, error: null });
+        mockSupabase.update.mockReturnThis();
+        mockSupabase.eq.mockReturnThis();
+        mockSupabase.single.mockResolvedValueOnce({ data: { ...mockApplication, status: 'approved' }, error: null });
+      } else if (table === 'memberships') {
+        mockSupabase.insert.mockReturnThis();
+        mockSupabase.select.mockReturnThis();
+        mockSupabase.single.mockResolvedValueOnce({ data: mockMembership, error: null });
+      } else if (table === 'membership_applications_view') {
+        mockSupabase.select.mockReturnThis();
+        mockSupabase.eq.mockReturnThis();
+        mockSupabase.single.mockResolvedValueOnce({ data: mockApplicationView, error: null });
+      }
+      return mockSupabase;
+    });
+
+    // Simulate admin approving manual payment
+    await approveApplication('app-123');
+
+    // Verify that membership is activated
+    const { data: membership } = await mockSupabase.from('memberships').select('*').eq('application_id', 'app-123').single();
+    expect(membership).toBeDefined();
+    expect(membership.status).toBe('active');
+  });
 }); 

@@ -106,7 +106,7 @@ export function MembershipOverridesSlideover({
   
   const renderDefaultDates = () => {
     console.log("selectedProduct", selectedProduct);
-    if (!selectedProduct || selectedProduct.type !== 'membership_tier') {
+    if (!selectedProduct || selectedProduct.type !== 'membership_tier' || !selectedProduct.membership_tier) {
         return (
             <div className="text-sm text-muted-foreground italic">Product is not a membership tier or has no date info.</div>
         );
