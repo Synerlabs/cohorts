@@ -6,6 +6,11 @@ import { Typewriter } from "@/components/ui/typewriter";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
+interface OrgHomePageProps {
+  params: { orgSlug: string };
+  searchParams: { [key: string]: string | string[] | undefined };
+}
+
 async function OrgHomePage({ user, org, isGuest }: OrgAccessHOCProps) {
   return (
     <div className="flex flex-col gap-4 py-4 flex-1 overflow-y-auto w-full max-w-screen-xl mx-auto">
@@ -21,7 +26,7 @@ async function OrgHomePage({ user, org, isGuest }: OrgAccessHOCProps) {
         </div>
         {!user && (
           <div className="w-[369px]">
-            <LoginForm redirect={`/@${org.slug}/dashboard`} orgSlug={org.slug} />
+            <LoginForm redirect={`/@${org.slug}/dashboard`} orgSlug={org.slug.replace(/^@/, "")} forgotPasswordHref={`/@${org.slug}/forgot-password`} />
           </div>
         )}
       </div>

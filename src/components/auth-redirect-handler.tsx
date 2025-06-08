@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 // No longer need createClient here if only using server action
 // import { createClient } from '@/lib/utils/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
@@ -21,11 +21,23 @@ import { checkSession } from '@/actions/auth.actions';
 // Define paths where this handler should NOT run its checks/redirects
 const DISABLED_PATHS = ['/login', '/public-account-setup', '/invitation-accepted'];
 
-interface AuthRedirectHandlerProps {
-  pathname: string; // Accept pathname as a prop
+// List of public org routes (expand as needed)
+function isPublicOrgRoute(pathname: string): boolean {
+  // Matches /@orgslug, /@orgslug/join, /@orgslug/forgot-password, /@orgslug/reset-password
+  return (
+    /^\/@[a-zA-Z0-9-_]+$/.test(pathname) ||
+    /^\/@[a-zA-Z0-9-_]+\/join(\/.*)?$/.test(pathname) ||
+    /^\/@[a-zA-Z0-9-_]+\/forgot-password$/.test(pathname) ||
+    /^\/@[a-zA-Z0-9-_]+\/reset-password$/.test(pathname)
+  );
 }
 
-export function AuthRedirectHandler({ pathname }: AuthRedirectHandlerProps) {
+interface AuthRedirectHandlerProps {
+  pathname: string; // Accept pathname as a prop
+  searchParams?: ReturnType<typeof useSearchParams>;
+}
+
+export function AuthRedirectHandler({ pathname, searchParams }: AuthRedirectHandlerProps) {
   const router = useRouter();
   const { toast } = useToast();
   // Keep state related to the actual check logic, needed for non-disabled paths
@@ -42,15 +54,61 @@ export function AuthRedirectHandler({ pathname }: AuthRedirectHandlerProps) {
     next?: string;
   } | null>(null);
 
+  // Helper to detect if this is a Supabase auth transaction
+  function hasSupabaseAuthParams(): boolean {
+    if (!searchParams) return false;
+    const keys = [
+      'access_token',
+      'refresh_token',
+      'code',
+      'type',
+      'error',
+      'error_code',
+      'error_description',
+    ];
+    return keys.some((key) => searchParams.get(key));
+  }
+
   useEffect(() => {
     let isMounted = true;
 
-    // --- Skip effect if on a disabled path --- 
-    if (DISABLED_PATHS.includes(pathname)) {
-      console.log(`[AuthRedirectHandler] Skipping checks on disabled path: ${pathname}`);
-      // ** DO NOTHING HERE - No state updates needed if checks are skipped **
-      // setIsLoading(false); // REMOVED
-      // setChecked(true);    // REMOVED
+    // If there are Supabase error params, redirect to /login with those params
+    let foundErrorParams = false;
+    let errorParams = new URLSearchParams();
+    if (searchParams) {
+      const error = searchParams.get('error');
+      const error_code = searchParams.get('error_code');
+      const error_description = searchParams.get('error_description');
+      if (error || error_code || error_description) {
+        if (error) errorParams.set('error', error);
+        if (error_code) errorParams.set('error_code', error_code);
+        if (error_description) errorParams.set('error_description', error_description);
+        foundErrorParams = true;
+      }
+    }
+    // If not found in searchParams, check window.location.hash (client-side only)
+    if (!foundErrorParams && typeof window !== 'undefined' && window.location.hash) {
+      // Remove leading # and parse as query string
+      const hash = window.location.hash.substring(1);
+      const hashParams = new URLSearchParams(hash);
+      const error = hashParams.get('error');
+      const error_code = hashParams.get('error_code');
+      const error_description = hashParams.get('error_description');
+      if (error || error_code || error_description) {
+        if (error) errorParams.set('error', error);
+        if (error_code) errorParams.set('error_code', error_code);
+        if (error_description) errorParams.set('error_description', error_description);
+        foundErrorParams = true;
+      }
+    }
+    if (foundErrorParams) {
+      router.replace(`/login?${errorParams.toString()}`);
+      return;
+    }
+
+    // --- Skip effect if on a disabled path or public org route (unless auth params present) --- 
+    if ((DISABLED_PATHS.includes(pathname) || isPublicOrgRoute(pathname)) && !hasSupabaseAuthParams()) {
+      console.log(`[AuthRedirectHandler] Skipping checks on disabled/public path: ${pathname}`);
       return; // Don't run the auth checks
     }
     // --- End Skip --- 

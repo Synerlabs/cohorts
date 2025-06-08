@@ -178,6 +178,7 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
   return async function WithOrgAccess(props: any) {
     const AuthServerContext = getAuthenticatedServerContext();
     const params = await props.params;
+    const searchParams = props.searchParams ? await props.searchParams : {};
 
     // Check org exists first
     if (!AuthServerContext.org) {
@@ -195,7 +196,16 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     // Check authentication after we have the org
     if (!AuthServerContext.user) {
       const response = await getCachedCurrentUser();
-      if ((response.error || !response.data?.user) && !allowGuest) {
+      
+      // Check if this looks like an activation/invite redirect (has relevant search params)
+      const hasActivationParams = searchParams.code || searchParams.token_hash || 
+                                 searchParams.type || searchParams.access_token ||
+                                 searchParams.error_description || searchParams.firstLogin;
+      
+      // Only redirect unauthenticated users if:
+      // 1. Guests are not allowed, OR
+      // 2. This appears to be an activation/invite redirect (has search params suggesting auth flow)
+      if ((response.error || !response.data?.user) && (!allowGuest || hasActivationParams)) {
         redirect(`/@${AuthServerContext.org.slug}`);
       }
       if (response && response.data && response.data.user) {
@@ -215,7 +225,12 @@ export function withOrgAccess(Component: any, options?: OrgAccessOptions) {
     }
 
     // If no authenticated user and guests aren't allowed, redirect
-    if (!AuthServerContext.user && !allowGuest) {
+    // But also check if this looks like an activation/invite redirect
+    const hasActivationParams = searchParams.code || searchParams.token_hash || 
+                               searchParams.type || searchParams.access_token ||
+                               searchParams.error_description || searchParams.firstLogin;
+    
+    if (!AuthServerContext.user && (!allowGuest || hasActivationParams)) {
       redirect(`/@${AuthServerContext.org.slug}`);
     }
 

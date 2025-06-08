@@ -179,5 +179,11 @@
       "features": "docs/features/FEATURES.md",
       "database": "docs/database/SCHEMA.md"
     }
+  },
+  "mcpServers": {
+    "browsermcp": {
+      "command": "npx",
+      "args": ["@browsermcp/mcp@latest"]
+    }
   }
 } 

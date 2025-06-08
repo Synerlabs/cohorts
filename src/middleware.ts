@@ -9,7 +9,7 @@ export async function middleware(request: NextRequest) {
 
   if (isAuthenticatedRoute) {
     // Routes that allow guests
-    const guestRoutes = ['/join'];
+    const guestRoutes = ['/join', '/forgot-password', '/reset-password'];
     const currentPath = '/' + request.nextUrl.pathname.split('/').slice(2).join('/');
     
     // Don't redirect if it's a guest route

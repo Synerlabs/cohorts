@@ -1,0 +1,5 @@
+{
+  "conventions": {
+    "forms": "Always use React.useActionState instead of useFormState for new and updated forms, per React 19/Next.js 15 best practices."
+  }
+} 

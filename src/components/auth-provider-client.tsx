@@ -1,7 +1,7 @@
 'use client';
 
 import { AuthRedirectHandler } from '@/components/auth-redirect-handler';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 
 interface AuthProviderClientProps {
   children: React.ReactNode;
@@ -9,11 +9,12 @@ interface AuthProviderClientProps {
 
 export function AuthProviderClient({ children }: AuthProviderClientProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <>
       {children}
-      <AuthRedirectHandler pathname={pathname} />
+      <AuthRedirectHandler pathname={pathname} searchParams={searchParams} />
     </>
   );
 } 
