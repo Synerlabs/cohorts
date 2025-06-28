@@ -18,9 +18,10 @@ import { startTransition } from "react";
 export type LoginFormProps = {
   redirect?: string;
   orgSlug?: string;
+  forgotPasswordHref?: string;
 };
 
-export function LoginForm({ redirect, orgSlug }: LoginFormProps) {
+export function LoginForm({ redirect, orgSlug, forgotPasswordHref }: LoginFormProps) {
   const [state, action, pending] = useActionState(loginAction, null);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -58,7 +59,7 @@ export function LoginForm({ redirect, orgSlug }: LoginFormProps) {
               <div className="flex items-center">
                 <Label htmlFor="password">Password</Label>
                 <Link
-                  href="#"
+                  href={forgotPasswordHref || "/forgot-password"}
                   className="ml-auto inline-block text-sm underline"
                 >
                   Forgot your password?

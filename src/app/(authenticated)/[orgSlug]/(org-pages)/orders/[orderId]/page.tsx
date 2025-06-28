@@ -7,6 +7,9 @@ import { PaymentsTable } from "./_components/payments-table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ISuborderData } from "@/lib/types/suborder";
 import { permissions } from "@/lib/types/permissions";
+import { processSubordersAction } from "./_components/process-suborders.action";
+import { Button } from "@/components/ui/button";
+import { checkUserAccess } from "@/lib/utils/permissions";
 
 interface OrderDetailsPageProps extends OrgAccessHOCProps {
   params: {
@@ -87,12 +90,29 @@ async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
     payments: orderData.payments || []
   };
 
+  // Restore admin permission check for process button
+  const { hasAccess: canProcess } = await checkUserAccess({
+    userId: user.id,
+    groupId: org.id,
+    requiredPermissions: ["group.orders.edit"],
+  });
+
   return (
     <div className="container mx-auto py-10 space-y-8">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Order Details</h1>
         <div className="flex items-center space-x-4">
           {/* Add action buttons here if needed */}
+          {canProcess && (
+            <form action={processSubordersAction} method="post">
+              <input type="hidden" name="orderId" value={order.id} />
+              <input type="hidden" name="groupId" value={order.group_id} />
+              <input type="hidden" name="userId" value={user.id} />
+              <Button type="submit" variant="default">
+                Process Suborders
+              </Button>
+            </form>
+          )}
         </div>
       </div>
 
@@ -108,7 +128,12 @@ async function OrderDetailsPage({ org, user, params }: OrderDetailsPageProps) {
           </TabsTrigger>
         </TabsList>
         <TabsContent value="suborders" className="mt-6">
-          <SubordersTable suborders={order.suborders} />
+          <SubordersTable
+            suborders={order.suborders}
+            canProcess={canProcess}
+            groupId={order.group_id}
+            userId={user.id}
+          />
         </TabsContent>
         <TabsContent value="payments" className="mt-6">
           <PaymentsTable payments={order.payments} />

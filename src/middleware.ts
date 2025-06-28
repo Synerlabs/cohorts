@@ -9,7 +9,7 @@ export async function middleware(request: NextRequest) {
 
   if (isAuthenticatedRoute) {
     // Routes that allow guests
-    const guestRoutes = ['/join'];
+    const guestRoutes = ['/join', '/forgot-password', '/reset-password'];
     const currentPath = '/' + request.nextUrl.pathname.split('/').slice(2).join('/');
     
     // Don't redirect if it's a guest route
@@ -22,16 +22,31 @@ export async function middleware(request: NextRequest) {
 
     // Check if user is authenticated
     if (!session) {
-      // Redirect to org's public page
-      const redirectResponse = NextResponse.redirect(new URL(`/${orgSlug}`, request.url));
-      // Copy over the cookies to maintain session state
-      supabaseResponse.cookies.getAll().forEach(cookie => {
-        redirectResponse.cookies.set(cookie);
+      // Redirect to org's public page by modifying the existing response
+      const redirectUrl = new URL(`/${orgSlug}`, request.url);
+      console.log(`[Middleware] Unauthenticated access to ${request.nextUrl.pathname}. Redirecting to ${redirectUrl.toString()}`);
+      
+      // Modify the status and headers of the original supabaseResponse for redirect
+      supabaseResponse.headers.set('Location', redirectUrl.toString());
+      // Use 307 Temporary Redirect status code
+      const responseWithRedirect = new NextResponse(null, {
+          status: 307, 
+          headers: supabaseResponse.headers 
       });
-      return redirectResponse;
+      
+      // Ensure cookies from the original response are carried over
+      // Although modifying supabaseResponse headers *should* preserve them,
+      // creating a new NextResponse requires explicit copying.
+      supabaseResponse.cookies.getAll().forEach(cookie => {
+        responseWithRedirect.cookies.set(cookie);
+      });
+
+      return responseWithRedirect; // Return the modified response
     }
   }
 
+  // For all other cases (including /invitation-accepted), return the original response
+  // which allows the Supabase client library to handle hash/cookies.
   return supabaseResponse
 }
 
@@ -42,8 +57,10 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * - auth/ (auth routes)
+     * - public-account-setup
      * Feel free to modify this pattern to include more paths.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|auth/|public-account-setup|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

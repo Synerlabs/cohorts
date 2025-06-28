@@ -172,4 +172,73 @@ Group user activation is triggered by:
 - The `approveApplication` function when an application is manually approved
 - The `completePayment` function when payment is completed for applications requiring payment
 
-When a group user is activated, they gain access to group resources and features based on their membership tier. 
+When a group user is activated, they gain access to group resources and features based on their membership tier.
+
+### Manual Payment Approval & Membership Activation
+
+Some membership tiers require payment before activation. The system supports two types of payment flows:
+
+#### 1. **Automatic Payment (e.g., Stripe)**
+- User completes payment online.
+- System automatically verifies payment.
+- If successful, the application status is set to `approved` and membership is activated immediately.
+
+#### 2. **Manual Payment (e.g., Bank Transfer, Cash, Check)**
+- User selects manual payment and uploads proof (e.g., bank transfer receipt).
+- System creates a payment record with status `pending` and the application remains in `pending_payment`.
+- **Admin Review:**
+  - Admin reviews the uploaded proof in the Payments Dashboard.
+  - If approved:
+    - Payment status is set to `approved`.
+    - Application status is set to `approved`.
+    - Membership is activated (record created, group user set to active).
+  - If rejected:
+    - Payment status is set to `rejected`.
+    - Application remains inactive.
+
+#### **Manual Payment Flowchart**
+
+```mermaid
+flowchart TD
+    A[User submits application] --> B{Tier requires payment?}
+    B -- No --> C[Application processed per tier rules]
+    B -- Yes --> D{Payment Method}
+    D -- Automatic --> E[User pays online]
+    E --> F[System verifies payment]
+    F --> G[Application status: approved]
+    G --> H[Membership activated]
+    D -- Manual --> I[User uploads proof]
+    I --> J[Payment record: pending]
+    J --> K[Admin reviews payment]
+    K -- Approve --> L[Payment status: approved]
+    L --> M[Application status: approved]
+    M --> N[Membership activated]
+    K -- Reject --> O[Payment status: rejected]
+    O --> P[Application remains inactive]
+```
+
+#### **Notes**
+- The admin approval step is required for all manual payments before membership is activated.
+- This applies to all activation types that include a payment step (`payment_required`, `form_then_payment`, `form_then_payment_then_review`, etc.).
+- The rest of the activation flow (e.g., form submission, admin review before payment) remains unchanged.
+
+## Suborder Processing and Membership Activation
+
+With the introduction of suborder processing and the suborder processor registry, the workflow for activating memberships after payment has changed:
+
+- **Payment approval (manual or automatic) now only updates the payment and order status.**
+- **Membership activation is triggered by processing the relevant suborder (type: 'membership') via the suborder processor registry.**
+- If the suborder is not processed, the membership will NOT be activated, even if payment is approved.
+
+### Summary Table
+| Action                | Effect (Old Behavior)         | Effect (With Suborder Registry)         |
+|-----------------------|------------------------------|-----------------------------------------|
+| Approve payment       | May directly activate membership | Only updates payment/order status    |
+| Process suborder      | N/A                          | Activates membership (if type=membership) |
+
+### Important Notes
+- Suborder processors must be implemented for each suborder type (e.g., membership, product, event).
+- If you want membership activation to happen automatically after payment approval, you must ensure the membership suborder is processed at that point.
+- The current registry-based design decouples payment approval from membership activation for greater flexibility and extensibility.
+
+--- 

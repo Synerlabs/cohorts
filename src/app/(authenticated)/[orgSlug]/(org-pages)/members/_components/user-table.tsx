@@ -13,29 +13,42 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { Search } from "lucide-react";
+import MemberDetailsSlideOver from "./member-details-slideover";
 
 interface UserTableProps {
   users: User[];
   isLoading?: boolean;
   groupRoleId?: string;
   membershipStatus?: string;
+  orgId: string;
+  orgSlug: string;
 }
 
 export default function UserTable({ 
   users, 
   isLoading = false, 
   groupRoleId,
-  membershipStatus = "active"
+  membershipStatus = "active",
+  orgId,
+  orgSlug
 }: UserTableProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [isSlideOverOpen, setIsSlideOverOpen] = useState(false);
+
+  const handleRowClick = (user: User) => {
+    setSelectedUser(user);
+    setIsSlideOverOpen(true);
+  };
+
   // Filter members based on search query
   const filteredUsers = users.filter(user => {
-    const fullName = `${user.profile?.first_name || ''} ${user.profile?.last_name || ''}`.toLowerCase();
-    const memberId = user.memberId?.toLowerCase() || '';
+    const fullName = `${user.profile?.firstName || ''} ${user.profile?.lastName || ''}`.toLowerCase();
+    const email = user.profile?.email?.toLowerCase() || '';
+    const memberRecordId = user.id?.toLowerCase() || '';
     const query = searchQuery.toLowerCase();
     
-    return fullName.includes(query) || memberId.includes(query);
+    return fullName.includes(query) || email.includes(query) || memberRecordId.includes(query);
   });
 
   if (isLoading) {
@@ -50,6 +63,22 @@ export default function UserTable({
   }
 
   if (!users?.length) {
+    let emptyStateMessage = "There are no members matching the current filter.";
+    switch (membershipStatus) {
+      case "active":
+        emptyStateMessage = "There are no active members in this organization.";
+        break;
+      case "inactive":
+        emptyStateMessage = "There are no pending invites in this organization.";
+        break;
+      case "deleted":
+        emptyStateMessage = "There are no deleted members in this organization.";
+        break;
+      case "all":
+        emptyStateMessage = "There are no active or pending members in this organization.";
+        break;
+    }
+
     return (
       <div className="flex flex-col items-center justify-center p-8 h-64 text-center border rounded-lg bg-muted/10">
         <div className="flex flex-col items-center gap-2">
@@ -74,25 +103,31 @@ export default function UserTable({
           </div>
           <h3 className="font-medium">No members found</h3>
           <p className="text-sm text-muted-foreground mt-1">
-            {membershipStatus === "active" 
-              ? "There are no active members in this organization." 
-              : membershipStatus === "inactive" 
-                ? "There are no inactive members in this organization."
-                : "There are no members in this organization."}
+            {emptyStateMessage}
           </p>
         </div>
       </div>
     );
   }
 
+  // Update the filter badge display logic
+  const getStatusBadgeInfo = () => {
+    switch (membershipStatus) {
+      case 'inactive': return { variant: 'warning', text: 'Pending Invites' }; // Use warning variant
+      case 'deleted': return { variant: 'destructive', text: 'Deleted Members' };
+      case 'all': return { variant: 'outline', text: 'All (Active+Pending)' };
+      // 'active' doesn't show a badge, and default case shouldn't happen
+      default: return null;
+    }
+  };
+  const statusBadgeInfo = getStatusBadgeInfo();
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center gap-2">
-          {membershipStatus !== "active" && (
-            <Badge variant={membershipStatus === "all" ? "outline" : (membershipStatus === "inactive" ? "destructive" : "default")}>
-              {membershipStatus === "all" ? "All Members" : (membershipStatus === "inactive" ? "Inactive Members" : "Active Members")}
-            </Badge>
+          {statusBadgeInfo && (
+            <Badge variant={statusBadgeInfo.variant as any}>{statusBadgeInfo.text}</Badge>
           )}
           <span className="text-sm text-muted-foreground">
             Showing {filteredUsers.length} of {users.length} {users.length === 1 ? "member" : "members"}
@@ -116,11 +151,13 @@ export default function UserTable({
           <TableHeader className="bg-muted/50">
             <TableRow>
               <TableHead className="w-[40%]">Member</TableHead>
+              <TableHead className="hidden lg:table-cell">Member ID</TableHead>
               <TableHead className="hidden sm:table-cell">Role</TableHead>
               <TableHead className="hidden md:table-cell">Joined</TableHead>
               {membershipStatus === "all" && (
                 <TableHead className="hidden md:table-cell">Status</TableHead>
               )}
+              <TableHead><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -130,16 +167,19 @@ export default function UserTable({
                   key={user.id}
                   user={user}
                   role={user.role || "Member"}
-                  showStatus={membershipStatus === "all"}
+                  showStatus={membershipStatus === "all" || membershipStatus === "deleted"}
+                  orgId={orgId}
+                  orgSlug={orgSlug}
+                  onRowClick={handleRowClick}
                 />
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={membershipStatus === "all" ? 4 : 3} className="h-24 text-center">
+                <TableCell colSpan={membershipStatus === "all" || membershipStatus === "deleted" ? 6 : 5} className="h-24 text-center">
                   <div className="flex flex-col items-center justify-center gap-1">
                     <p className="text-sm font-medium">No results found</p>
                     <p className="text-sm text-muted-foreground">
-                      Try adjusting your search query
+                      Try adjusting your filter or search query
                     </p>
                   </div>
                 </TableCell>
@@ -148,6 +188,13 @@ export default function UserTable({
           </TableBody>
         </Table>
       </div>
+
+      <MemberDetailsSlideOver 
+        user={selectedUser}
+        isOpen={isSlideOverOpen}
+        onOpenChange={setIsSlideOverOpen}
+        orgId={orgId}
+      />
     </div>
   );
 }

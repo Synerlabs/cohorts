@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CheckCircle, XCircle, Users } from "lucide-react";
+import { CheckCircle, XCircle, Users, Archive, Hourglass } from "lucide-react";
 
 interface MembershipStatusFilterProps {
   membershipStatus: string;
@@ -55,19 +55,25 @@ export default function MembershipStatusFilter({
           <SelectItem value="active" className="flex items-center">
             <div className="flex items-center gap-2">
               <CheckCircle className="h-4 w-4 text-primary" />
-              <span>Active Members</span>
+              <span>Active</span>
             </div>
           </SelectItem>
           <SelectItem value="inactive">
             <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-destructive" />
-              <span>Inactive Members</span>
+              <Hourglass className="h-4 w-4 text-orange-500" />
+              <span>Pending Invites</span>
+            </div>
+          </SelectItem>
+          <SelectItem value="deleted">
+            <div className="flex items-center gap-2">
+              <Archive className="h-4 w-4 text-destructive" />
+              <span>Deleted</span>
             </div>
           </SelectItem>
           <SelectItem value="all">
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4 text-muted-foreground" />
-              <span>All Members</span>
+              <span>All (Active+Pending)</span>
             </div>
           </SelectItem>
         </SelectContent>

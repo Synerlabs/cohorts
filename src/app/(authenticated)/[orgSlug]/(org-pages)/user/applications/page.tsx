@@ -13,6 +13,7 @@ import {
   PaginationPrevious 
 } from "@/components/ui/pagination";
 import { notFound } from "next/navigation";
+import { createClient } from "@/lib/utils/supabase/server";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -60,6 +61,33 @@ async function UserApplicationsPage({ org, user, searchParams }: OrgAccessHOCPro
   const filteredApplications = statusFilter 
     ? applications.filter(app => app.status === statusFilter)
     : applications;
+
+  // Enhance applications with metadata
+  if (filteredApplications.length > 0) {
+    const supabase = await createClient();
+    const appIds = filteredApplications.map(app => app.id);
+    
+    const { data, error } = await supabase
+      .from('applications')
+      .select('id, metadata')
+      .in('id', appIds);
+      
+    if (!error && data) {
+      const metadataMap = new Map();
+      data.forEach(item => {
+        if (item.metadata) {
+          metadataMap.set(item.id, item.metadata);
+        }
+      });
+      
+      // Add metadata to applications
+      filteredApplications.forEach(app => {
+        if (metadataMap.has(app.id)) {
+          (app as any).metadata = metadataMap.get(app.id);
+        }
+      });
+    }
+  }
 
   // Calculate pagination details
   const totalPages = Math.ceil(total / limit);

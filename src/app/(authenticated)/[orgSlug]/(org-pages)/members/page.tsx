@@ -1,41 +1,36 @@
 import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import UserTable from "@/app/(authenticated)/[orgSlug]/(org-pages)/members/_components/user-table";
 import { permissions } from "@/lib/types/permissions";
-import { getOrgMembers } from "@/services/org.service";
+import { getOrgMembers, type MembershipStatusFilterType } from "@/services/org.service";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Link from "next/link";
 import { Suspense } from "react";
 import MembershipStatusFilter from "./_components/membership-status-filter";
+import { ComponentPermission } from "@/components/ComponentPermission";
+import { InviteMemberButton } from "./_components/invite-member-button";
 
-async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
+async function MembersPage({ org, searchParams, userPermissions }: OrgAccessHOCProps) {
   const _searchParams = await searchParams || {};
   const tab = (_searchParams?.tab || "members") as string;
-  const membershipStatus = (_searchParams?.status || "active") as string;
-  
-  // Handle different membership status filters
-  let isActive;
-  if (membershipStatus === "all") {
-    // Will fetch all members regardless of status
-    isActive = undefined;
-  } else if (membershipStatus === "inactive") {
-    isActive = false;
-  } else {
-    // Default to active
-    isActive = true;
-  }
+  const membershipStatus = (_searchParams?.status || "active") as MembershipStatusFilterType;
   
   const members = await getOrgMembers({ 
     id: org.id,
-    isActive 
+    status: membershipStatus
   });
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col space-y-1.5">
-        <h2 className="text-2xl font-bold tracking-tight">Organization Members</h2>
-        <p className="text-muted-foreground">
-          Manage members and their access to {org.name}
-        </p>
+      <div className="flex justify-between items-center">
+        <div className="flex flex-col space-y-1.5">
+          <h2 className="text-2xl font-bold tracking-tight">Organization Members</h2>
+          <p className="text-muted-foreground">
+            Manage members and their access to {org.name}
+          </p>
+        </div>
+        <ComponentPermission requiredPermissions={[permissions.members.invite]}>
+          <InviteMemberButton orgId={org.id} orgSlug={org.slug} />
+        </ComponentPermission>
       </div>
 
       <div className="rounded-lg border bg-card shadow-sm">
@@ -78,8 +73,9 @@ async function MembersPage({ org, searchParams }: OrgAccessHOCProps) {
             <div className="px-6 pb-6">
               <UserTable 
                 users={members} 
-                groupRoleId={org.id} 
                 membershipStatus={membershipStatus}
+                orgId={org.id}
+                orgSlug={org.slug}
               />
             </div>
           )}

@@ -120,85 +120,84 @@ export async function getOrgRoleUsers({ id }: { id: string }) {
   }
 }
 
-export async function getOrgMembers({ id, isActive }: { id: string; isActive?: boolean }) {
-  const supabase = await createServiceRoleClient();
+// Define the possible status filter values
+export type MembershipStatusFilterType = 'active' | 'inactive' | 'deleted' | 'all';
+
+export async function getOrgMembers({ id, status }: { id: string; status?: MembershipStatusFilterType }) {
+  const supabase = await createServiceRoleClient(); 
   
   try {
-    // First query the group_users table
-    let baseQuery = supabase
-      .from("group_users")
+    let query = supabase
+      .from("group_members_view")
       .select(
         `
-          id, 
-          created_at, 
-          user_id,
-          is_active,
-          profile:user_id (
-            first_name,
-            last_name,
-            avatar_url
-          )
+          id,
+          group_id,
+          user_id, 
+          is_active, 
+          is_deleted,
+          created_at,
+          email, 
+          first_name, 
+          last_name, 
+          avatar_url,
+          member_id,
+          member_ids_record_id
         `
       )
       .eq("group_id", id);
     
-    // Only filter by is_active if it's explicitly set
-    if (isActive !== undefined) {
-      baseQuery = baseQuery.eq("is_active", isActive);
+    // Apply filters based on the status parameter
+    switch (status) {
+      case 'active':
+        query = query.eq('is_active', true).eq('is_deleted', false);
+        break;
+      case 'inactive': // Represents Pending invites
+        query = query.eq('is_active', false).eq('is_deleted', false);
+        break;
+      case 'deleted':
+        query = query.eq('is_deleted', true);
+        break;
+      case 'all': // Represents Active + Pending
+        query = query.eq('is_deleted', false);
+        break;
+      default: // Default to active if status is missing or invalid
+        query = query.eq('is_active', true).eq('is_deleted', false);
+        break;
     }
 
-    const { data: groupUsers, error: usersError } = await baseQuery;
+    const { data: members, error: viewError } = await query;
 
-    if (usersError) {
-      throw usersError;
+    if (viewError) {
+      console.error("Error fetching from group_members_view:", viewError);
+      throw viewError;
     }
-
-    // Get all group_user IDs from the result
-    const groupUserIds = groupUsers.map(user => user.id).filter(Boolean);
     
-    // Specifically target member_id field (not external_id)
-    const { data: memberIds, error: memberIdsError } = await supabase
-      .from("member_ids")
-      .select("id, group_user_id, member_id")
-      .in("group_user_id", groupUserIds);
-      
-    if (memberIdsError) {
-      throw memberIdsError;
-    }
-
-    // Create a map of group_user_id to member IDs for easier lookup
-    const memberIdsMap: Record<string, any> = {};
-    if (memberIds) {
-      memberIds.forEach(item => {
-        if (item.group_user_id) {
-          memberIdsMap[item.group_user_id] = item;
-        }
-      });
-    }
-
-    // Transform the data to match the expected User type structure
-    const transformedData = camelcaseKeys(groupUsers).map((user: any) => {
-      // Check if profile is an array and extract the first item if it is
-      const profileData = Array.isArray(user.profile) && user.profile.length > 0 
-        ? user.profile[0]
-        : user.profile || { first_name: null, last_name: null, avatar_url: null };
-      
-      // Get the member_ids entry for this user
-      const memberIdEntry = memberIdsMap[user.id] || null;
-      
-      return {
-        ...user,
-        // Include the database ID of the member_ids record
-        memberIdsRecordId: memberIdEntry ? memberIdEntry.id : null,
-        // Include the actual member ID that we want to display
-        memberId: memberIdEntry ? memberIdEntry.member_id : null,
-        profile: profileData
-      };
+    const membersData: any[] = members || [];
+    
+    const transformedData = camelcaseKeys(membersData, { deep: true }).map((member: any) => {
+        return {
+            id: member.id, 
+            createdAt: member.createdAt, 
+            userId: member.userId,
+            isActive: member.isActive,
+            isDeleted: member.isDeleted,
+            profile: {
+                id: member.userId,
+                firstName: member.firstName,
+                lastName: member.lastName,
+                avatarUrl: member.avatarUrl,
+                email: member.email
+            },
+            memberId: member.memberId,
+            memberIdsRecordId: member.memberIdsRecordId 
+        };
     });
     
     return transformedData;
+
   } catch (error) {
-    console.error("Error fetching org members:", error);
+    console.error("Error in getOrgMembers (view):", error);
     throw error;
   }
 }

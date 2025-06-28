@@ -1,0 +1,2 @@
+ALTER TABLE public.group_users
+ADD COLUMN is_deleted BOOLEAN NOT NULL DEFAULT FALSE;

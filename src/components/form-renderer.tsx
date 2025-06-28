@@ -19,6 +19,8 @@ import { UploadProgressOverlay } from '@/components/ui/upload-progress';
 import { createClient } from '@/lib/utils/supabase/client';
 import { SignaturePad } from '@/components/ui/signature-pad';
 import { useToast } from '@/components/ui/use-toast';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import axios from 'axios';
 
 type FormTemplate = Database['public']['Tables']['form_templates']['Row'];
 
@@ -96,36 +98,37 @@ export function FormRenderer({
   const [template, setTemplate] = useState<FormTemplate | null>(initialTemplate || null);
   const [fields, setFields] = useState<FormField[]>([]);
   const [formData, setFormData] = useState<Record<string, any>>({});
-  const [loading, setLoading] = useState(!initialTemplate);
-  const [submitting, setSubmitting] = useState(false);
-  const [currentStep, setCurrentStep] = useState(0);
   const [fileFields, setFileFields] = useState<Record<string, File>>({});
-  const [totalSteps, setTotalSteps] = useState(0);
+  const [uploadResults, setUploadResults] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [formDataToSubmit, setFormDataToSubmit] = useState<any>(null);
+  const [formReadyToSubmit, setFormReadyToSubmit] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [totalSteps, setTotalSteps] = useState(1);
   
-  const supabase = createClient();
+  // Handle file upload progress
+  const [pendingUploads, setPendingUploads] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [totalFiles, setTotalFiles] = useState(0);
+  const [uploadedFiles, setUploadedFiles] = useState(0);
+  
+  // Keep track of processed files to avoid duplicates
+  const processedUploads = useRef<Record<string, boolean>>({});
+  
+  // Reference to form element
+  const formRef = useRef<HTMLFormElement>(null);
+  
+  const supabase = createClientComponentClient<Database>();
   const { toast } = useToast();
   
-  type UploadActionResult = {
-    success: boolean;
-    error?: string;
-    fileInfo?: {
-      path: string;
-      url: string;
-      name: string;
-      size: number;
-      type: string;
-    };
-  };
-
+  // For handling uploads
   const [uploadState, handleUpload, isUploading] = useToastActionState(uploadFileAction);
 
-  // Track upload completion
-  const [uploadResults, setUploadResults] = useState<Record<string, any>>({});
-  const [pendingUploads, setPendingUploads] = useState<boolean>(false);
-  const [formReadyToSubmit, setFormReadyToSubmit] = useState<boolean>(false);
-  const [formDataToSubmit, setFormDataToSubmit] = useState<any>(null);
-  
+  // Add a mapping to track which file belongs to which field
+  const fileToFieldIdMap = useRef<Record<string, string>>({});
+
   // Define types for form response data
   type FormFieldData = {
     label: string;
@@ -143,13 +146,6 @@ export function FormRenderer({
     sections: Record<string, FormSectionData>;
     fields: Record<string, FormFieldData>;
   };
-
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadedFiles, setUploadedFiles] = useState(0);
-  const [totalFiles, setTotalFiles] = useState(0);
-
-  // Add a ref to track which files have been processed
-  const processedUploads = useRef<Record<string, boolean>>({});
 
   // Make updateFormDataWithUploads accept fields as a parameter to avoid dependency issues
   const updateFormDataWithUploads = (formData: any, uploadResults: Record<string, any>, fieldsData: FormField[]) => {
@@ -253,12 +249,13 @@ export function FormRenderer({
   useEffect(() => {
     if (uploadState && uploadState.success && uploadState.fileInfo) {
       const fileName = uploadState.fileInfo.name;
-      const fieldId = Object.keys(fileFields).find(key => 
-        fileFields[key].name === fileName
+      const fieldId = uploadState.fieldId || Object.keys(fileFields).find(key => 
+        fileFields[key as keyof typeof fileFields].name === fileName
       );
       
-      if (fieldId && !processedUploads.current[fileName]) {
-        processedUploads.current[fileName] = true;
+      if (fieldId && !processedUploads.current[fieldId]) {
+        // Mark using fieldId instead of fileName to avoid conflicts with same-named files
+        processedUploads.current[fieldId] = true;
         
         setUploadResults(prev => {
         const newUploadResults = {
@@ -267,14 +264,11 @@ export function FormRenderer({
         };
           
           const uploadedCount = Object.keys(newUploadResults).length;
-          const allUploadsComplete = Object.keys(fileFields).every(id => {
-            return newUploadResults[id] || 
-              (uploadState.fileInfo && fileFields[id].name === uploadState.fileInfo.name);
-          });
+          const allUploadsComplete = uploadedCount >= Object.keys(fileFields).length;
           
           console.log('Upload progress:', {
             uploadedCount,
-            totalFiles,
+            totalFileFields: Object.keys(fileFields).length,
             allUploadsComplete,
             hasFormDataToSubmit: !!formDataToSubmit
           });
@@ -417,45 +411,52 @@ export function FormRenderer({
     
     // Check if there are any files to upload
     const hasNewFilesToUpload = Object.keys(fileFields).length > 0;
-    
+
     if (hasNewFilesToUpload) {
-      console.log(`Starting uploads for ${Object.keys(fileFields).length} files`);
+      console.log(`Starting batch upload for ${Object.keys(fileFields).length} files`);
       
-      // Set these values once at the beginning instead of updating during the loop
-      const filesToUpload = Object.keys(fileFields).length;
-      setTotalFiles(filesToUpload);
-      setPendingUploads(true);
-      setUploadedFiles(0);
-      setUploadProgress(0);
-      
-      // For each file, create and start the upload
-      for (const [fieldId, file] of Object.entries(fileFields)) {
-        console.log(`Uploading file for field ${fieldId}:`, (file as File).name);
+      try {
+        // Store the form data for submission after uploads complete
+        const formSubmitData = {
+          templateId: formTemplateId,
+          responseData: processedResponseData,
+          formData: formDataToSubmit
+        };
         
-        // Create upload form data with correct parameters
-        const uploadFormData = new FormData();
-        uploadFormData.append('file', file as File);
-        uploadFormData.append('bucket', 'form-uploads');
-        uploadFormData.append('folder', `form-responses/${formTemplateId}`);
+        // Set this to be used after uploads are done
+        setFormDataToSubmit(formSubmitData);
         
-        // Use the handleUpload function
-        handleUpload(uploadFormData);
+        // Start the batch upload
+        const uploadResults = await batchUploadFiles(fileFields);
         
-        // Mark this field as being processed to avoid duplicate uploads
-        processedUploads.current[(file as File).name] = false;
+        if (Object.keys(uploadResults).length > 0) {
+          console.log('All uploads complete, preparing to submit form');
+          
+          const dataToSubmit = { ...formSubmitData };
+          
+          // Update with upload results and submit
+          const updatedData = updateFormDataWithUploads(dataToSubmit, uploadResults, fields);
+          
+          console.log('Submitting form with updated file data:', updatedData);
+          const response = await onSubmit(updatedData);
+          
+          if (response && typeof response === 'object' && 'success' in response) {
+            if (response.success) {
+              onSuccessCallback(response);
+            } else if ('error' in response) {
+              setError(response.error || 'An error occurred');
+            }
+          }
+        } else {
+          setError('No files were successfully uploaded');
+        }
+      } catch (error) {
+        console.error('Form submission error:', error);
+        setError(error instanceof Error ? error.message : 'An error occurred');
+      } finally {
+        setSubmitting(false);
+        setFormDataToSubmit(null);
       }
-      
-      // Store the form data for submission after all uploads complete
-      const formSubmitData = {
-        templateId: formTemplateId,
-        responseData: processedResponseData,
-        formData: formDataToSubmit
-      };
-      
-      console.log('Setting formDataToSubmit for later submission when uploads complete:', formSubmitData);
-      
-      // Set this to trigger the useEffect to submit the form when uploads are done
-      setFormDataToSubmit(formSubmitData);
     } else {
       // No new files to upload, but we need to include any existing file data
       console.log('No new files to upload, submitting form directly with any existing file data');
@@ -522,26 +523,30 @@ export function FormRenderer({
     
     const { name: fileName, url, path, size, type } = uploadState.fileInfo;
     
-    // Find which field this upload belongs to
-    const fieldId = Object.keys(fileFields).find(key => 
-      fileFields[key].name === fileName
-    );
+    // Get the field ID either from the upload state or our mapping
+    const fieldId = uploadState.fieldId || fileToFieldIdMap.current[fileName];
     
     if (!fieldId) {
       console.log(`Could not find field for uploaded file: ${fileName}`);
       return;
     }
     
-    // Skip if we've already processed this file
-    if (processedUploads.current[fileName]) {
-      console.log(`File ${fileName} already processed, skipping`);
+    // Skip if we've already processed this file for this field
+    if (processedUploads.current[fieldId]) {
+      console.log(`File already processed for field ${fieldId}, skipping`);
       return;
     }
     
     // Mark as processed
-    processedUploads.current[fileName] = true;
+    processedUploads.current[fieldId] = true;
     
     console.log(`File upload complete for ${fieldId}: ${fileName}`);
+    
+    // Get upload batch information
+    const uploadIndex = parseInt(uploadState.uploadIndex || '0');
+    const totalUploads = parseInt(uploadState.totalUploads || '1');
+    
+    console.log(`Upload batch info: ${uploadIndex + 1} of ${totalUploads}`);
     
     // Store upload result
     setUploadResults(prev => {
@@ -558,19 +563,19 @@ export function FormRenderer({
       
       // Update upload progress
       const uploadedCount = Object.keys(newResults).length;
-      const total = totalFiles || Object.keys(fileFields).length;
+      const expectedUploadCount = totalUploads;
+      
+      console.log(`Upload count: ${uploadedCount} / Expected: ${expectedUploadCount}`);
       
       setTimeout(() => {
         setUploadedFiles(uploadedCount);
-        setUploadProgress(Math.round((uploadedCount / total) * 100));
+        setUploadProgress(Math.round((uploadedCount / expectedUploadCount) * 100));
       }, 0);
       
-      // Check if all files have been uploaded
-      const allUploadsComplete = Object.keys(fileFields).every(id => {
-        return newResults[id] || (fileFields[id].name === fileName);
-      });
+      // Check if all files have been uploaded based on the uploadResults count
+      const allUploadsComplete = uploadedCount >= expectedUploadCount;
       
-      console.log(`Upload progress: ${uploadedCount}/${total}, all complete: ${allUploadsComplete}`);
+      console.log(`Upload progress: ${uploadedCount}/${expectedUploadCount}, all complete: ${allUploadsComplete}`);
       
       if (allUploadsComplete && formDataToSubmit) {
         console.log('All uploads complete, preparing to submit form');
@@ -1598,6 +1603,162 @@ export function FormRenderer({
     handleUpload(uploadFormData);
   }, [formTemplateId, handleUpload]);
 
+  // Function to cancel ongoing uploads
+  const cancelUploads = useCallback(() => {
+    console.log('Cancelling uploads');
+    setPendingUploads(false);
+    setFormDataToSubmit(null);
+    
+    // Clear processed uploads tracking
+    processedUploads.current = {};
+    
+    // Reset upload state
+    setUploadProgress(0);
+    setUploadedFiles(0);
+    setTotalFiles(0);
+    
+    toast({
+      title: 'Uploads Cancelled',
+      description: 'File uploads have been cancelled.',
+      variant: 'default',
+    });
+    
+    setSubmitting(false);
+  }, [toast]);
+
+  // Function to handle batch uploads with axios
+  const batchUploadFiles = useCallback(async (files: Record<string, File>) => {
+    try {
+      console.log(`Starting batch upload for ${Object.keys(files).length} files`);
+      
+      // Set up initial state for uploads
+      setPendingUploads(true);
+      setTotalFiles(Object.keys(files).length);
+      setUploadedFiles(0);
+      setUploadProgress(0);
+      
+      // Track individual file progress
+      const fileProgress: Record<string, number> = {};
+      const totalSize = Object.values(files).reduce((sum, file) => sum + file.size, 0);
+      let totalLoaded = 0;
+      
+      // Function to update overall progress
+      const updateOverallProgress = () => {
+        // Calculate total progress percentage based on loaded bytes
+        const progressPercentage = Math.round((totalLoaded / totalSize) * 100);
+        setUploadProgress(progressPercentage);
+        console.log(`Overall upload progress: ${progressPercentage}%`);
+      };
+      
+      // Create an array of upload promises
+      const uploadPromises = Object.entries(files).map(async ([fieldId, file]) => {
+        // Initialize this file's progress
+        fileProgress[fieldId] = 0;
+        
+        // Create form data for this file
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('bucket', 'form-uploads');
+        formData.append('folder', `form-responses/${formTemplateId}`);
+        formData.append('fieldId', fieldId);
+        
+        // Store mapping between filename and field ID
+        fileToFieldIdMap.current[file.name] = fieldId;
+        
+        // Create a promise for this upload
+        try {
+          const response = await axios.post('/api/upload', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            },
+            onUploadProgress: (progressEvent) => {
+              // Update this file's progress
+              const loaded = progressEvent.loaded;
+              const total = progressEvent.total || file.size;
+              const filePercentage = Math.round((loaded / total) * 100);
+              
+              // Update the progress tracking
+              const previousLoaded = fileProgress[fieldId] / 100 * file.size;
+              const additionalLoaded = loaded - previousLoaded;
+              
+              if (additionalLoaded > 0) {
+                totalLoaded += additionalLoaded;
+                fileProgress[fieldId] = filePercentage;
+                
+                // Update the UI with progress
+                updateOverallProgress();
+                
+                // Log individual file progress
+                console.log(`File ${file.name}: ${filePercentage}%`);
+              }
+            }
+          });
+          
+          if (response.data.success) {
+            // Mark this field as successfully uploaded
+            processedUploads.current[fieldId] = true;
+            
+            // Ensure progress is 100% for this file
+            fileProgress[fieldId] = 100;
+            
+            // Update count of completely uploaded files
+            setUploadedFiles(prev => prev + 1);
+            
+            // Update our upload results
+            return {
+              fieldId,
+              fileInfo: response.data.fileInfo
+            };
+          } else {
+            throw new Error(response.data.error || 'Upload failed');
+          }
+        } catch (error) {
+          console.error(`Error uploading file for field ${fieldId}:`, error);
+          toast({
+            title: 'Upload Failed',
+            description: `Failed to upload ${file.name}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            variant: 'destructive',
+          });
+          throw error;
+        }
+      });
+      
+      // Use Promise.allSettled to wait for all uploads to complete or fail
+      const results = await Promise.allSettled(uploadPromises);
+      
+      // Process the results
+      const successfulUploads: Record<string, any> = {};
+      let uploadedCount = 0;
+      
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const { fieldId, fileInfo } = result.value;
+          successfulUploads[fieldId] = fileInfo;
+          uploadedCount++;
+        }
+      });
+      
+      // Ensure progress is at 100% when all done
+      setUploadProgress(100);
+      setUploadedFiles(uploadedCount);
+      setPendingUploads(Object.keys(successfulUploads).length < Object.keys(files).length);
+      
+      console.log(`Completed ${uploadedCount} of ${Object.keys(files).length} uploads`);
+      
+      // Return the upload results
+      return successfulUploads;
+    } catch (error) {
+      console.error('Batch upload error:', error);
+      toast({
+        title: 'Upload Failed',
+        description: 'Failed to upload files',
+        variant: 'destructive',
+      });
+      setPendingUploads(false);
+      return {};
+    }
+  }, [formTemplateId, toast]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -1639,6 +1800,7 @@ export function FormRenderer({
         progress={uploadProgress}
         totalFiles={totalFiles}
         uploadedFiles={uploadedFiles}
+        onCancel={cancelUploads}
       />
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Progress indicator */}

@@ -11,6 +11,8 @@ import { createClient } from "@/lib/utils/supabase/server";
 import { MembershipActivationType } from "@/lib/types/membership";
 import { getGroupUser } from "@/services/user.service";
 import { MembershipActivationService } from "@/services/membership-activation.service";
+import { createOrg } from "@/services/org.service";
+import { slugify } from "@/lib/utils/string";
 
 type State = {
   message?: string;
@@ -59,6 +61,59 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       };
     }
 
+    // For organization tiers with a new organization, create it first
+    let actualOrganizationId = organizationId;
+    
+    if (isOrganizationTier && !organizationId && organizationName) {
+      // Extract additional org data from form data
+      const orgSlug = formData.get('org_slug') as string || slugify(organizationName);
+      
+      // Create a properly typed organization data object
+      const newOrgData: { 
+        name: string; 
+        slug: string;
+        type?: string;
+        description?: string;
+        alternateName?: string;
+      } = {
+        name: organizationName,
+        slug: orgSlug,
+      };
+      
+      // Check for additional organization properties from form
+      const formDataEntries = Array.from(formData.entries());
+      formDataEntries.forEach(([key, value]) => {
+        if (key.startsWith('org_') && value) {
+          const orgField = key.replace('org_', '');
+          if (orgField === 'type' || orgField === 'description' || orgField === 'alternateName') {
+            newOrgData[orgField] = value as string;
+          }
+        }
+      });
+      
+      // Create the organization using the org service
+      const createOrgResult = await createOrg(newOrgData, userId);
+      
+      if (createOrgResult.error) {
+        return {
+          errors: {
+            form: [`Failed to create organization: ${createOrgResult.error}`]
+          }
+        };
+      }
+      
+      if (!createOrgResult.data) {
+        return {
+          errors: {
+            form: ['Failed to create organization: No organization returned']
+          }
+        };
+      }
+      
+      actualOrganizationId = createOrgResult.data.id;
+      console.log('Created new organization:', actualOrganizationId);
+    }
+
     // Create group user if not exists
     let groupUser = await getGroupUser({userId, groupId});
 
@@ -75,19 +130,19 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       tierId: membershipTierId,
       formData: formSubmissionData ? JSON.parse(formSubmissionData) : null,
       isOrganizationTier,
-      organizationId: isOrganizationTier ? organizationId : null,
+      organizationId: isOrganizationTier ? actualOrganizationId : null,
       organizationName: isOrganizationTier ? organizationName : null
     });
 
     // For organization tiers, check if there's already a relationship 
     // between the two groups in group_organization table
-    if (isOrganizationTier && organizationId) {
+    if (isOrganizationTier && actualOrganizationId) {
       const supabase = await createClient();
       const { data: existingRelation, error: relError } = await supabase
         .from('group_organization')
         .select('id, is_active, tier_id')
         .eq('parent_group_id', groupId)
-        .eq('child_group_id', organizationId)
+        .eq('child_group_id', actualOrganizationId)
         .maybeSingle();
         
       if (relError) {
@@ -107,7 +162,7 @@ export async function join(prevState: State, formData: FormData): Promise<State>
       const { error: activateOrgError } = await supabase
         .from('group')
         .update({ is_active: true })
-        .eq('id', organizationId);
+        .eq('id', actualOrganizationId);
         
       if (activateOrgError) {
         console.error('Error activating organization:', activateOrgError);
@@ -117,7 +172,7 @@ export async function join(prevState: State, formData: FormData): Promise<State>
 
     // Create the application with metadata for organization tiers
     const metadata = isOrganizationTier ? {
-      organizationId,
+      organizationId: actualOrganizationId,
       organizationName
     } : undefined;
     
@@ -199,16 +254,16 @@ export async function join(prevState: State, formData: FormData): Promise<State>
         queryParams.append('applicationId', application.id);
         
         // Pass organization information via query parameters
-        if (organizationId) {
+        if (actualOrganizationId) {
           // For existing organization
-          queryParams.append('organizationId', organizationId);
+          queryParams.append('organizationId', actualOrganizationId);
           
           // Find organization name if not provided directly
           if (!organizationName) {
             const { data: orgData } = await supabase
               .from('group')
               .select('name')
-              .eq('id', organizationId)
+              .eq('id', actualOrganizationId)
               .single();
               
             if (orgData?.name) {

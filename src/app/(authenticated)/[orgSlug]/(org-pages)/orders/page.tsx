@@ -3,6 +3,9 @@ import { OrgAccessHOCProps, withOrgAccess } from "@/lib/hoc/org";
 import { Order, columns } from "./columns";
 import { DataTable } from "./data-table";
 import { permissions } from "@/lib/types/permissions";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { PlusCircle } from "lucide-react";
 
 interface SearchParams {
   page?: string;
@@ -25,8 +28,8 @@ async function OrdersPage(params: OrgAccessHOCProps & { searchParams: SearchPara
   const supabase = await createServiceRoleClient();
 
   // Parse search params
-  const pageIndex = searchParams.page ? parseInt(searchParams.page) - 1 : 0;
-  const pageSize = searchParams.pageSize ? parseInt(searchParams.pageSize) : 10;
+  const pageIndex = searchParams.page ? parseInt(searchParams.page as string) - 1 : 0;
+  const pageSize = searchParams.pageSize ? parseInt(searchParams.pageSize as string) : 10;
   const sortBy = searchParams.sortBy || 'created_at';
   const sortOrder = searchParams.sortOrder || 'desc';
   const search = searchParams.search || '';
@@ -66,7 +69,7 @@ async function OrdersPage(params: OrgAccessHOCProps & { searchParams: SearchPara
 
   // Add sorting and pagination
   query = query
-    .order(sortBy, { ascending: sortOrder === 'asc' })
+    .order(sortBy as string, { ascending: sortOrder === 'asc' })
     .range(from, to);
 
   // Execute query
@@ -82,7 +85,15 @@ async function OrdersPage(params: OrgAccessHOCProps & { searchParams: SearchPara
 
   return (
     <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-6">Orders</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Orders</h1>
+        <Link href={`/${org.slug}/orders/create`}>
+          <Button>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create Order
+          </Button>
+        </Link>
+      </div>
       <DataTable
         columns={columns}
         data={orders || []}

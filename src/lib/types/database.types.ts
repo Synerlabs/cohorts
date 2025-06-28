@@ -42,6 +42,7 @@ export type Database = {
           form_response_id: string | null
           group_user_id: string
           id: string
+          metadata: Json | null
           order_id: string | null
           rejected_at: string | null
           status: string
@@ -56,6 +57,7 @@ export type Database = {
           form_response_id?: string | null
           group_user_id: string
           id?: string
+          metadata?: Json | null
           order_id?: string | null
           rejected_at?: string | null
           status?: string
@@ -70,6 +72,7 @@ export type Database = {
           form_response_id?: string | null
           group_user_id?: string
           id?: string
+          metadata?: Json | null
           order_id?: string | null
           rejected_at?: string | null
           status?: string
@@ -89,8 +92,22 @@ export type Database = {
             foreignKeyName: "applications_group_user_id_fkey"
             columns: ["group_user_id"]
             isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_group_user_id_fkey"
+            columns: ["group_user_id"]
+            isOneToOne: false
             referencedRelation: "group_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "membership_applications_view"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "applications_order_id_fkey"
@@ -105,6 +122,82 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "products"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_details: {
+        Row: {
+          address: string | null
+          city: string | null
+          company: string | null
+          country: string | null
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          is_default: boolean | null
+          order_id: string | null
+          phone: string | null
+          state: string | null
+          updated_at: string | null
+          user_id: string
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string | null
+          email: string
+          full_name: string
+          id?: string
+          is_default?: boolean | null
+          order_id?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string | null
+          user_id: string
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          is_default?: boolean | null
+          order_id?: string | null
+          phone?: string | null
+          state?: string | null
+          updated_at?: string | null
+          user_id?: string
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_details_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "membership_applications_view"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "billing_details_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_details_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -137,6 +230,13 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "form_responses_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "form_responses_template_id_fkey"
             columns: ["template_id"]
@@ -197,11 +297,32 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "form_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "form_templates_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
+          },
+          {
             foreignKeyName: "form_templates_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "group"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_templates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -240,6 +361,58 @@ export type Database = {
           type?: string | null
         }
         Relationships: []
+      }
+      group_organization: {
+        Row: {
+          child_group_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          parent_group_id: string
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          child_group_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          parent_group_id: string
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          child_group_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          parent_group_id?: string
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_organization_child_group_id_fkey"
+            columns: ["child_group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_organization_parent_group_id_fkey"
+            columns: ["parent_group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_organization_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "membership_tiers"
+            referencedColumns: ["product_id"]
+          },
+        ]
       }
       group_payment_gateways: {
         Row: {
@@ -332,6 +505,7 @@ export type Database = {
           group_id: string
           id: string
           is_active: boolean
+          is_deleted: boolean
           updated_at: string
           user_id: string
         }
@@ -340,6 +514,7 @@ export type Database = {
           group_id: string
           id?: string
           is_active?: boolean
+          is_deleted?: boolean
           updated_at?: string
           user_id: string
         }
@@ -348,6 +523,7 @@ export type Database = {
           group_id?: string
           id?: string
           is_active?: boolean
+          is_deleted?: boolean
           updated_at?: string
           user_id?: string
         }
@@ -363,8 +539,75 @@ export type Database = {
             foreignKeyName: "group_users_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "group_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      invitation_metadata: {
+        Row: {
+          auth_token: string | null
+          created_at: string | null
+          custom_message: string | null
+          email: string
+          group_id: string
+          id: string
+          invited_by: string | null
+          metadata: Json | null
+          role: string | null
+          status: string
+          updated_at: string | null
+          viewed_at: string | null
+        }
+        Insert: {
+          auth_token?: string | null
+          created_at?: string | null
+          custom_message?: string | null
+          email: string
+          group_id: string
+          id?: string
+          invited_by?: string | null
+          metadata?: Json | null
+          role?: string | null
+          status?: string
+          updated_at?: string | null
+          viewed_at?: string | null
+        }
+        Update: {
+          auth_token?: string | null
+          created_at?: string | null
+          custom_message?: string | null
+          email?: string
+          group_id?: string
+          id?: string
+          invited_by?: string | null
+          metadata?: Json | null
+          role?: string | null
+          status?: string
+          updated_at?: string | null
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_metadata_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitation_metadata_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -453,6 +696,13 @@ export type Database = {
             foreignKeyName: "membership_member_ids_member_id_id_fkey"
             columns: ["member_id_id"]
             isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["member_ids_record_id"]
+          },
+          {
+            foreignKeyName: "membership_member_ids_member_id_id_fkey"
+            columns: ["member_id_id"]
+            isOneToOne: false
             referencedRelation: "member_ids"
             referencedColumns: ["id"]
           },
@@ -501,6 +751,13 @@ export type Database = {
           tier_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "membership_tier_roles_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
+          },
           {
             foreignKeyName: "membership_tier_roles_group_role_id_fkey"
             columns: ["group_role_id"]
@@ -560,56 +817,56 @@ export type Database = {
         Row: {
           activation_type: string
           duration_months: number
-          duration_unit?: string
+          duration_unit: string
+          fiscal_start_day: number | null
+          fiscal_start_month: number | null
+          fixed_end_date: string | null
+          fixed_start_date: string | null
           form_template_id: string | null
+          has_fixed_dates: boolean
+          has_monthly_cycle: boolean
+          is_fiscal_period: boolean
+          monthly_end_day: number | null
+          monthly_end_day_type: string
+          monthly_start_day: number | null
           product_id: string
           type: string
-          has_fixed_dates?: boolean
-          fixed_start_date?: string | null
-          fixed_end_date?: string | null
-          is_fiscal_period?: boolean
-          fiscal_start_month?: number | null
-          fiscal_start_day?: number | null
-          has_monthly_cycle?: boolean
-          monthly_start_day?: number | null
-          monthly_end_day_type?: string
-          monthly_end_day?: number | null
         }
         Insert: {
           activation_type: string
           duration_months?: number
           duration_unit?: string
+          fiscal_start_day?: number | null
+          fiscal_start_month?: number | null
+          fixed_end_date?: string | null
+          fixed_start_date?: string | null
           form_template_id?: string | null
+          has_fixed_dates?: boolean
+          has_monthly_cycle?: boolean
+          is_fiscal_period?: boolean
+          monthly_end_day?: number | null
+          monthly_end_day_type?: string
+          monthly_start_day?: number | null
           product_id: string
           type?: string
-          has_fixed_dates?: boolean
-          fixed_start_date?: string | null
-          fixed_end_date?: string | null
-          is_fiscal_period?: boolean
-          fiscal_start_month?: number | null
-          fiscal_start_day?: number | null
-          has_monthly_cycle?: boolean
-          monthly_start_day?: number | null
-          monthly_end_day_type?: string
-          monthly_end_day?: number | null
         }
         Update: {
           activation_type?: string
           duration_months?: number
           duration_unit?: string
+          fiscal_start_day?: number | null
+          fiscal_start_month?: number | null
+          fixed_end_date?: string | null
+          fixed_start_date?: string | null
           form_template_id?: string | null
+          has_fixed_dates?: boolean
+          has_monthly_cycle?: boolean
+          is_fiscal_period?: boolean
+          monthly_end_day?: number | null
+          monthly_end_day_type?: string
+          monthly_start_day?: number | null
           product_id?: string
           type?: string
-          has_fixed_dates?: boolean
-          fixed_start_date?: string | null
-          fixed_end_date?: string | null
-          is_fiscal_period?: boolean
-          fiscal_start_month?: number | null
-          fiscal_start_day?: number | null
-          has_monthly_cycle?: boolean
-          monthly_start_day?: number | null
-          monthly_end_day_type?: string
-          monthly_end_day?: number | null
         }
         Relationships: [
           {
@@ -667,8 +924,22 @@ export type Database = {
             foreignKeyName: "memberships_group_user_id_fkey"
             columns: ["group_user_id"]
             isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_group_user_id_fkey"
+            columns: ["group_user_id"]
+            isOneToOne: false
             referencedRelation: "group_users"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "memberships_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "membership_applications_view"
+            referencedColumns: ["order_id"]
           },
           {
             foreignKeyName: "memberships_order_id_fkey"
@@ -730,6 +1001,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "group"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -853,8 +1131,22 @@ export type Database = {
             foreignKeyName: "payments_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "membership_applications_view"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -886,7 +1178,7 @@ export type Database = {
           is_deleted?: boolean | null
           name: string
           price?: number
-          type: string
+          type?: string
           updated_at?: string
         }
         Update: {
@@ -909,6 +1201,13 @@ export type Database = {
             foreignKeyName: "products_deleted_by_fkey"
             columns: ["deleted_by"]
             isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "products_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -924,6 +1223,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          email: string | null
           first_name: string | null
           id: string
           last_name: string | null
@@ -932,6 +1232,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          email?: string | null
           first_name?: string | null
           id: string
           last_name?: string | null
@@ -940,6 +1241,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
@@ -1019,18 +1321,24 @@ export type Database = {
       stripe_payments: {
         Row: {
           payment_id: string
+          stripe_account_id: string | null
+          stripe_payment_intent_client_secret: string | null
           stripe_payment_intent_id: string | null
           stripe_payment_method: string | null
           stripe_status: string | null
         }
         Insert: {
           payment_id: string
+          stripe_account_id?: string | null
+          stripe_payment_intent_client_secret?: string | null
           stripe_payment_intent_id?: string | null
           stripe_payment_method?: string | null
           stripe_status?: string | null
         }
         Update: {
           payment_id?: string
+          stripe_account_id?: string | null
+          stripe_payment_intent_client_secret?: string | null
           stripe_payment_intent_id?: string | null
           stripe_payment_method?: string | null
           stripe_status?: string | null
@@ -1137,6 +1445,13 @@ export type Database = {
             foreignKeyName: "suborders_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
+            referencedRelation: "membership_applications_view"
+            referencedColumns: ["order_id"]
+          },
+          {
+            foreignKeyName: "suborders_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
             referencedRelation: "orders"
             referencedColumns: ["id"]
           },
@@ -1226,6 +1541,20 @@ export type Database = {
             referencedColumns: ["role_id"]
           },
           {
+            foreignKeyName: "user_roles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_roles_user_id_fkey1"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
             foreignKeyName: "user_roles_user_id_fkey1"
             columns: ["user_id"]
             isOneToOne: false
@@ -1234,26 +1563,153 @@ export type Database = {
           },
         ]
       }
+      xendit_connected_accounts: {
+        Row: {
+          account_id: string
+          capabilities_status: Json | null
+          charges_enabled: boolean | null
+          created_at: string | null
+          disabled_reason: string | null
+          has_external_account: boolean | null
+          id: string
+          is_active: boolean | null
+          last_synced_at: string | null
+          org_id: string | null
+          payouts_enabled: boolean | null
+          requirements_due_date: string | null
+          requirements_status: Json | null
+          updated_at: string | null
+          verification_status: Json | null
+        }
+        Insert: {
+          account_id: string
+          capabilities_status?: Json | null
+          charges_enabled?: boolean | null
+          created_at?: string | null
+          disabled_reason?: string | null
+          has_external_account?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          org_id?: string | null
+          payouts_enabled?: boolean | null
+          requirements_due_date?: string | null
+          requirements_status?: Json | null
+          updated_at?: string | null
+          verification_status?: Json | null
+        }
+        Update: {
+          account_id?: string
+          capabilities_status?: Json | null
+          charges_enabled?: boolean | null
+          created_at?: string | null
+          disabled_reason?: string | null
+          has_external_account?: boolean | null
+          id?: string
+          is_active?: boolean | null
+          last_synced_at?: string | null
+          org_id?: string | null
+          payouts_enabled?: boolean | null
+          requirements_due_date?: string | null
+          requirements_status?: Json | null
+          updated_at?: string | null
+          verification_status?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xendit_connected_accounts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      xendit_payments: {
+        Row: {
+          created_at: string | null
+          payment_id: string
+          payment_method: string | null
+          updated_at: string | null
+          xendit_invoice_id: string
+          xendit_status: string
+        }
+        Insert: {
+          created_at?: string | null
+          payment_id: string
+          payment_method?: string | null
+          updated_at?: string | null
+          xendit_invoice_id: string
+          xendit_status: string
+        }
+        Update: {
+          created_at?: string | null
+          payment_id?: string
+          payment_method?: string | null
+          updated_at?: string | null
+          xendit_invoice_id?: string
+          xendit_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xendit_payments_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: true
+            referencedRelation: "payments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
+      group_members_view: {
+        Row: {
+          avatar_url: string | null
+          created_at: string | null
+          email: string | null
+          first_name: string | null
+          group_id: string | null
+          id: string | null
+          is_active: boolean | null
+          is_deleted: boolean | null
+          last_name: string | null
+          member_id: string | null
+          member_ids_record_id: string | null
+          profile_id: string | null
+          user_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "group_users_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       membership_applications_view: {
         Row: {
           activation_type: string | null
+          amount: number | null
+          application_id: string | null
           approved_at: string | null
+          currency: string | null
           duration_months: number | null
+          end_date: string | null
           group_id: string | null
-          group_name: string | null
-          group_slug: string | null
           group_user_id: string | null
           id: string | null
-          order_data: Json | null
           order_id: string | null
+          order_status: string | null
+          payment_completed_at: string | null
           product_currency: string | null
-          product_data: Json | null
+          product_description: string | null
           product_id: string | null
           product_name: string | null
           product_price: number | null
           rejected_at: string | null
+          start_date: string | null
           status: string | null
           submitted_at: string | null
           type: string | null
@@ -1266,14 +1722,14 @@ export type Database = {
             foreignKeyName: "applications_group_user_id_fkey"
             columns: ["group_user_id"]
             isOneToOne: false
-            referencedRelation: "group_users"
+            referencedRelation: "group_members_view"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "applications_order_id_fkey"
-            columns: ["order_id"]
+            foreignKeyName: "applications_group_user_id_fkey"
+            columns: ["group_user_id"]
             isOneToOne: false
-            referencedRelation: "orders"
+            referencedRelation: "group_users"
             referencedColumns: ["id"]
           },
           {
@@ -1289,6 +1745,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "group"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "group_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["profile_id"]
           },
           {
             foreignKeyName: "group_users_user_id_fkey"
@@ -1324,6 +1787,13 @@ export type Database = {
             foreignKeyName: "group_users_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "group_users_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
@@ -1340,23 +1810,20 @@ export type Database = {
         }
         Returns: undefined
       }
+      calculate_membership_end_date: {
+        Args: { p_tier_id: string; p_start_date: string }
+        Returns: string
+      }
       complete_payment: {
-        Args: {
-          p_application_id: string
-        }
+        Args: { p_application_id: string }
         Returns: undefined
       }
       generate_member_id: {
-        Args: {
-          p_group_id: string
-          p_format: string
-        }
+        Args: { p_group_id: string; p_format: string }
         Returns: string
       }
       get_group_members: {
-        Args: {
-          group_id: string
-        }
+        Args: { group_id: string }
         Returns: {
           id: string
           created_at: string
@@ -1368,11 +1835,16 @@ export type Database = {
         }[]
       }
       reject_application: {
-        Args: {
-          p_application_id: string
-          p_rejected_at: string
-        }
+        Args: { p_application_id: string; p_rejected_at: string }
         Returns: undefined
+      }
+      search_auth_user_by_email: {
+        Args: { email_param: string }
+        Returns: string
+      }
+      sync_profile_emails: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
     }
     Enums: {
@@ -1392,13 +1864,19 @@ export type Database = {
         | "form_then_payment"
         | "form_then_review"
         | "form_then_payment_then_review"
+        | "form_then_review_then_payment"
       payment_gateway_status:
         | "unconfigured"
         | "configured"
         | "disabled"
         | "error"
-      payment_status: "pending" | "paid" | "rejected"
-      payment_type: "manual" | "stripe"
+      payment_status:
+        | "pending"
+        | "paid"
+        | "rejected"
+        | "initialized"
+        | "pending_approval"
+      payment_type: "manual" | "stripe" | "xendit"
       storage_provider_type: "google-drive" | "blob-storage"
       suborder_status:
         | "pending"
@@ -1413,27 +1891,29 @@ export type Database = {
   }
 }
 
-type PublicSchema = Database[Extract<keyof Database, "public">]
+type DefaultSchema = Database[Extract<keyof Database, "public">]
 
 export type Tables<
-  PublicTableNameOrOptions extends
-    | keyof (PublicSchema["Tables"] & PublicSchema["Views"])
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-        Database[PublicTableNameOrOptions["schema"]]["Views"])
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? (Database[PublicTableNameOrOptions["schema"]]["Tables"] &
-      Database[PublicTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? (Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      Database[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : PublicTableNameOrOptions extends keyof (PublicSchema["Tables"] &
-        PublicSchema["Views"])
-    ? (PublicSchema["Tables"] &
-        PublicSchema["Views"])[PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -1441,20 +1921,22 @@ export type Tables<
     : never
 
 export type TablesInsert<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -1462,20 +1944,22 @@ export type TablesInsert<
     : never
 
 export type TablesUpdate<
-  PublicTableNameOrOptions extends
-    | keyof PublicSchema["Tables"]
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
     | { schema: keyof Database },
-  TableName extends PublicTableNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicTableNameOrOptions["schema"]]["Tables"]
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never = never,
-> = PublicTableNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+> = DefaultSchemaTableNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : PublicTableNameOrOptions extends keyof PublicSchema["Tables"]
-    ? PublicSchema["Tables"][PublicTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -1483,21 +1967,23 @@ export type TablesUpdate<
     : never
 
 export type Enums<
-  PublicEnumNameOrOptions extends
-    | keyof PublicSchema["Enums"]
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
     | { schema: keyof Database },
-  EnumName extends PublicEnumNameOrOptions extends { schema: keyof Database }
-    ? keyof Database[PublicEnumNameOrOptions["schema"]]["Enums"]
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof Database
+  }
+    ? keyof Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never = never,
-> = PublicEnumNameOrOptions extends { schema: keyof Database }
-  ? Database[PublicEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : PublicEnumNameOrOptions extends keyof PublicSchema["Enums"]
-    ? PublicSchema["Enums"][PublicEnumNameOrOptions]
+> = DefaultSchemaEnumNameOrOptions extends { schema: keyof Database }
+  ? Database[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof PublicSchema["CompositeTypes"]
+    | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof Database },
   CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
     schema: keyof Database
@@ -1506,7 +1992,58 @@ export type CompositeTypes<
     : never = never,
 > = PublicCompositeTypeNameOrOptions extends { schema: keyof Database }
   ? Database[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof PublicSchema["CompositeTypes"]
-    ? PublicSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
     : never
+
+export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
+  public: {
+    Enums: {
+      app_permission: [
+        "group.edit",
+        "group.delete",
+        "group.members.invite",
+        "group.members.approve",
+      ],
+      group_role_type: ["GUEST", "MEMBER"],
+      manual_payment_status: ["pending", "approved", "rejected"],
+      membership_activation_type: [
+        "automatic",
+        "review_required",
+        "payment_required",
+        "review_then_payment",
+        "form_required",
+        "form_then_payment",
+        "form_then_review",
+        "form_then_payment_then_review",
+        "form_then_review_then_payment",
+      ],
+      payment_gateway_status: [
+        "unconfigured",
+        "configured",
+        "disabled",
+        "error",
+      ],
+      payment_status: [
+        "pending",
+        "paid",
+        "rejected",
+        "initialized",
+        "pending_approval",
+      ],
+      payment_type: ["manual", "stripe", "xendit"],
+      storage_provider_type: ["google-drive", "blob-storage"],
+      suborder_status: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+    },
+  },
+} as const
 

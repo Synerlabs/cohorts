@@ -5,6 +5,10 @@ export type ApplicationStatus = 'pending' | 'pending_payment' | 'approved' | 're
 
 export interface ApplicationBase {
   form_response_id: string | null;
+  metadata?: {
+    organizationId?: string | null;
+    organizationName?: string | null;
+  };
 }
 
 export interface Application {
@@ -33,7 +37,7 @@ export class ApplicationService {
     
     const { data, error } = await supabase
       .from('applications')
-      .select('form_response_id')
+      .select()
       .eq('id', applicationId)
       .single();
 
@@ -43,6 +47,31 @@ export class ApplicationService {
     }
 
     return data;
+  }
+
+  static async getApplicationMetadata(applicationId: string): Promise<{
+    organizationId?: string | null;
+    organizationName?: string | null;
+  } | null> {
+    const supabase = await this.getSupabaseClient();
+    
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('metadata')
+        .eq('id', applicationId)
+        .single();
+      
+      if (error) {
+        console.error('Error loading application metadata:', error);
+        return null;
+      }
+      
+      return data?.metadata || null;
+    } catch (error) {
+      console.error('Error fetching application metadata:', error);
+      return null;
+    }
   }
 
   static async getApplicationDetails(applicationId: string): Promise<Application> {

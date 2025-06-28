@@ -12,6 +12,9 @@ type CurrentState = {
     size: number;
     type: string;
   };
+  fieldId?: string;
+  uploadIndex?: string;
+  totalUploads?: string;
 } | null;
 
 export const uploadFileAction = async (
@@ -22,6 +25,9 @@ export const uploadFileAction = async (
     const file = formData.get("file") as File;
     const bucket = (formData.get("bucket") as string) || 'form-uploads';
     const folder = (formData.get("folder") as string) || 'files';
+    const fieldId = formData.get("fieldId") as string;
+    const uploadIndex = formData.get("uploadIndex") as string;
+    const totalUploads = formData.get("totalUploads") as string;
 
     if (!file) {
       return {
@@ -48,6 +54,9 @@ export const uploadFileAction = async (
       return {
         success: false,
         error: error.message,
+        fieldId,
+        uploadIndex,
+        totalUploads
       };
     }
 
@@ -57,6 +66,9 @@ export const uploadFileAction = async (
 
     return {
       success: true,
+      fieldId,
+      uploadIndex,
+      totalUploads,
       fileInfo: {
         path: data.path,
         url: publicUrl,

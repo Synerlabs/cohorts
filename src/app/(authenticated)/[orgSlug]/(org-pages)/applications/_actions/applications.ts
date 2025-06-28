@@ -9,6 +9,7 @@ import { MembershipActivationType } from "@/lib/types/membership";
 import { withPermissions } from "@/lib/utils/action-permissions";
 import { permissions } from "@/lib/types/permissions";
 import { MembershipActivationService } from "@/services/membership-activation.service";
+import { error } from "console";
 
 type ApplicationWithMembership = {
   approved_at: string | null;
@@ -27,6 +28,7 @@ async function checkUserPermissions(requiredPermissions: string[], orgSlug: stri
 
     // Get org
     const { data: org, error: orgError } = await getCachedOrgBySlug(orgSlug);
+    console.error('org', org, error);
     if (orgError || !org) {
       return false;
     }

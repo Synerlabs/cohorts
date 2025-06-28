@@ -93,13 +93,15 @@ interface UploadProgressOverlayProps {
   progress: number;
   totalFiles: number;
   uploadedFiles: number;
+  onCancel?: () => void;
 }
 
 export function UploadProgressOverlay({ 
   isUploading, 
   progress, 
   totalFiles, 
-  uploadedFiles 
+  uploadedFiles,
+  onCancel
 }: UploadProgressOverlayProps) {
   if (!isUploading) return null;
 
@@ -119,6 +121,14 @@ export function UploadProgressOverlay({
           <p className="text-sm text-muted-foreground">
             {uploadedFiles} of {totalFiles} files uploaded
           </p>
+          {onCancel && (
+            <button
+              onClick={onCancel}
+              className="mt-4 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Cancel upload
+            </button>
+          )}
         </div>
       </div>
     </div>

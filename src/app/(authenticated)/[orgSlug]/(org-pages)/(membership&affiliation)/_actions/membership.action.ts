@@ -9,6 +9,12 @@ import { MembershipService } from "@/services/membership.service";
 import { MembershipStatus } from "@/lib/types/membership";
 import { permissions } from "@/lib/types/permissions";
 import { withPermissions } from "@/lib/utils/action-permissions";
+import { createServiceRoleClient as createSupabaseServiceRoleClient } from "@/lib/utils/supabase/server";
+import { unstable_noStore as noStore } from "next/cache";
+import { Membership } from '@/lib/types/membership';
+import { Database } from "@/lib/types/database.types";
+import { Currency, MembershipActivationType } from '@/lib/types/membership';
+import { calculateMembershipDates } from '@/lib/utils/membership-dates';
 
 const membershipTierSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -693,4 +699,491 @@ export async function updateMembershipDatesAction(
   );
 
   return handler(prevState, { formData });
+}
+
+// Define a type for the data returned by joining tiers and products
+type TierWithProductData = Database['public']['Tables']['membership_tiers']['Row'] & {
+  product: Database['public']['Tables']['products']['Row']
+};
+
+// Define AND EXPORT a type for the data returned by the memberships query
+export type MembershipWithTierAndProductName = Membership & {
+  membership_tier: { 
+    product: {
+      name: string | null;
+    }
+  } | null; 
+  member_id?: string | null; 
+  status?: string; // Added based on usage in slideover
+  start_date?: string | null; 
+  end_date?: string | null; 
+  created_at?: string | null; // Added from select *
+};
+
+export async function getTierAndMembershipDataForUser(
+  orgId: string,
+  userId: string
+): Promise<{ tiers: IMembershipTierProduct[]; userMemberships: MembershipWithTierAndProductName[] }> { 
+  noStore();
+  const supabase = await createSupabaseServiceRoleClient();
+
+  // Fetch available tiers by joining membership_tiers and products
+  const { data: tiersData, error: tiersError } = await supabase
+    .from('membership_tiers') 
+    .select(`
+      *,
+      product:products!inner(*)
+    `)
+    .eq('product.group_id', orgId) 
+    .eq('product.is_active', true)
+    // Correct syntax for ordering by joined table column
+    .order('name', { referencedTable: 'products', ascending: true }); 
+
+  if (tiersError) {
+    console.error("Error fetching membership tiers:", tiersError);
+    // Throw the specific Supabase error for better debugging
+    throw new Error(`Failed to fetch membership tiers: ${tiersError.message}`); 
+  }
+
+   // Map to expected IMembershipTierProduct structure (from src/lib/types/product.ts)
+  const tiers: IMembershipTierProduct[] = tiersData?.map((tier: TierWithProductData) => ({
+    ...(tier.product as Database['public']['Tables']['products']['Row']), // Spread product fields
+    id: tier.product.id, 
+    type: 'membership_tier', 
+    group_id: tier.product.group_id || '', // Ensure group_id is non-nullable
+    currency: tier.product.currency as Currency, 
+    form_template_id: tier.form_template_id || '', 
+    membership_tier: { 
+      product_id: tier.product_id, 
+      duration_months: tier.duration_months,
+      duration_unit: tier.duration_unit as ('month' | 'year') || 'month', 
+      activation_type: tier.activation_type as MembershipActivationType, // Use imported type
+      type: tier.type as ('membership' | 'organization'), 
+      has_fixed_dates: tier.has_fixed_dates ?? false,
+      fixed_start_date: tier.fixed_start_date ?? null,
+      fixed_end_date: tier.fixed_end_date ?? null,
+      is_fiscal_period: tier.is_fiscal_period ?? false,
+      fiscal_start_month: tier.fiscal_start_month ?? null,
+      fiscal_start_day: tier.fiscal_start_day ?? null,
+      has_monthly_cycle: tier.has_monthly_cycle ?? false,
+      monthly_start_day: tier.monthly_start_day ?? null,
+      monthly_end_day_type: tier.monthly_end_day_type as ('specific' | 'last_day') || 'specific', 
+      monthly_end_day: tier.monthly_end_day ?? null,
+    }
+  })) || [];
+
+  // Fetch the user's group_user_id first
+  const { data: groupUserData, error: groupUserError } = await supabase
+    .from('group_users')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('group_id', orgId)
+    .maybeSingle();
+
+  if (groupUserError) {
+    console.error("Error fetching group user ID:", groupUserError);
+    throw new Error(`Failed to fetch group user ID: ${groupUserError.message}`);
+  }
+
+  let userMemberships: MembershipWithTierAndProductName[] = [];
+
+  // Only fetch memberships if the user is part of the group
+  if (groupUserData) {
+    const groupUserId = groupUserData.id;
+
+    // Fetch the user's current memberships using group_user_id
+    const { data: userMembershipsData, error: membershipsError } = await supabase
+      .from('memberships')
+      .select(`
+        *,
+        membership_tier:membership_tiers!inner(
+          product:products!inner(name)
+        )
+      `)
+      .eq('group_user_id', groupUserId) // Filter by group_user_id
+      .order('created_at', { ascending: false });
+
+    if (membershipsError) {
+      console.error("Error fetching user memberships:", membershipsError);
+      throw new Error(`Failed to fetch user memberships: ${membershipsError.message}`);
+    }
+
+    // Add type assertion for the fetched data
+    userMemberships = userMembershipsData as MembershipWithTierAndProductName[] || [];
+  }
+
+  return { tiers, userMemberships };
+}
+
+// Action to assign a membership tier to a user directly
+export async function assignMembershipAction(
+  userId: string, // This is the target user ID
+  orgId: string,
+  tierId: string,
+  // Add optional parameters for custom dates and member ID
+  options?: {
+    startDate?: string; // Custom start date (ISO string)
+    endDate?: string;   // Custom end date (ISO string)
+    memberId?: string;  // Custom member ID
+  }
+): Promise<{ success: boolean; error?: string; existingMemberId?: string }> { 
+  noStore();
+  
+  const supabase = await createSupabaseServiceRoleClient();
+
+  try {
+    // 1. Get group_user record
+    const { data: groupUser, error: groupUserError } = await supabase
+      .from('group_users')
+      .select('id, is_deleted') 
+      .eq('user_id', userId)
+      .eq('group_id', orgId)
+      .maybeSingle(); 
+
+    if (groupUserError) throw new Error(`Error fetching group user: ${groupUserError.message}`);
+    if (!groupUser) throw new Error("User is not a member of this organization."); 
+    if (groupUser.is_deleted) throw new Error("Cannot assign membership to a deleted member.");
+
+    const groupUserId = groupUser.id;
+
+    // 2. Get Tier Details
+    const { data: tierData, error: tierError } = await supabase
+      .from('membership_tiers')
+      .select(`
+        *,
+        product:products!inner(currency, price, group_id)
+      `)
+      .eq('product_id', tierId)
+      .single();
+      
+    if (tierError) throw new Error(`Error fetching tier details: ${tierError.message}`);
+    if (!tierData || !tierData.product) throw new Error("Membership tier not found.");
+    if (tierData.product.group_id !== orgId) throw new Error("Tier does not belong to this organization.");
+    
+    // Get the member ID format for this tier in a separate query
+    const { data: tierSettings, error: settingsError } = await supabase
+      .from('membership_tier_settings')
+      .select('member_id_format')
+      .eq('tier_id', tierId)
+      .single();
+      
+    // Default member ID format if none is found
+    const tierMemberIdFormat = tierSettings?.member_id_format || 'MEM-{YYYY}-{SEQ:3}';
+    
+    // Check if the user already has a member ID with this format
+    const { data: existingMemberId, error: memberIdError } = await supabase
+      .from('member_ids')
+      .select('member_id')
+      .eq('group_user_id', groupUserId)
+      .eq('group_id', orgId)
+      .single();
+    
+    // If user has a custom member ID specified, use that instead
+    const customMemberId = options?.memberId;
+    
+    // If no custom ID provided, but we found an existing ID, use that
+    if (!customMemberId && existingMemberId?.member_id) {
+      options = {
+        ...options,
+        memberId: existingMemberId.member_id
+      };
+    }
+
+    // Calculate membership dates early so we can use them for overlap checking
+    let startDate, endDate;
+    
+    if (options?.startDate) {
+      // Use provided start date
+      startDate = new Date(options.startDate);
+    } else {
+      // Calculate start date using tier settings
+      startDate = calculateMembershipDates({
+        duration_months: tierData.duration_months,
+        duration_unit: tierData.duration_unit as ('month' | 'year'),
+        has_fixed_dates: tierData.has_fixed_dates,
+        fixed_start_date: tierData.fixed_start_date,
+        fixed_end_date: tierData.fixed_end_date,
+        is_fiscal_period: tierData.is_fiscal_period,
+        fiscal_start_month: tierData.fiscal_start_month,
+        fiscal_start_day: tierData.fiscal_start_day,
+        has_monthly_cycle: tierData.has_monthly_cycle,
+        monthly_start_day: tierData.monthly_start_day,
+        monthly_end_day_type: tierData.monthly_end_day_type as ('specific' | 'last_day'),
+        monthly_end_day: tierData.monthly_end_day,
+      }).startDate;
+    }
+    
+    if (options?.endDate) {
+      // Use provided end date
+      endDate = new Date(options.endDate);
+    } else if (startDate) {
+      // Calculate end date using tier settings
+      endDate = calculateMembershipDates({
+        duration_months: tierData.duration_months,
+        duration_unit: tierData.duration_unit as ('month' | 'year'),
+        has_fixed_dates: tierData.has_fixed_dates,
+        fixed_start_date: tierData.fixed_start_date,
+        fixed_end_date: tierData.fixed_end_date,
+        is_fiscal_period: tierData.is_fiscal_period,
+        fiscal_start_month: tierData.fiscal_start_month,
+        fiscal_start_day: tierData.fiscal_start_day,
+        has_monthly_cycle: tierData.has_monthly_cycle,
+        monthly_start_day: tierData.monthly_start_day,
+        monthly_end_day_type: tierData.monthly_end_day_type as ('specific' | 'last_day'),
+        monthly_end_day: tierData.monthly_end_day,
+      }).endDate;
+    }
+
+    // 3. Check for overlapping memberships for this tier
+    const { data: existingMemberships, error: existingCheckError } = await supabase
+      .from('memberships')
+      .select('id, start_date, end_date, status')
+      .eq('group_user_id', groupUserId)
+      .eq('tier_id', tierId)
+      .eq('status', MembershipStatus.ACTIVE);
+
+    if (existingCheckError) throw new Error(`Error checking existing memberships: ${existingCheckError.message}`);
+    
+    // Check for overlapping dates with existing active memberships
+    if (existingMemberships && existingMemberships.length > 0) {
+      // Helper function to check if two date ranges overlap
+      const datesOverlap = (
+        start1: Date, 
+        end1: Date | null, 
+        start2: Date, 
+        end2: Date | null
+      ): boolean => {
+        // If either membership is indefinite (no end date), they overlap if start1 <= end2 (if end2 exists) or vice versa
+        if (!end1) return !end2 || start1 <= end2;
+        if (!end2) return start2 <= end1;
+        
+        // Otherwise standard overlap check: !(end1 < start2 || end2 < start1)
+        return !(end1 < start2 || end2 < start1);
+      };
+      
+      // Check each existing membership for overlap
+      for (const membership of existingMemberships) {
+        const memStartDate = membership.start_date ? new Date(membership.start_date) : null;
+        const memEndDate = membership.end_date ? new Date(membership.end_date) : null;
+        
+        if (memStartDate && datesOverlap(startDate, endDate || null, memStartDate, memEndDate)) {
+          return { 
+            success: false, 
+            error: "An active membership for this tier already exists during the selected dates." 
+          };
+        }
+      }
+    }
+
+    // 4. Create Order
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .insert({
+        user_id: userId,
+        group_id: orgId,
+        amount: 0, 
+        currency: tierData.product.currency,
+        status: 'completed', 
+        type: 'membership',
+      })
+      .select('id')
+      .single();
+
+    if (orderError) throw new Error(`Error creating order: ${orderError.message}`);
+    if (!order) throw new Error("Failed to create order record.");
+    const orderId = order.id;
+
+    // 5. Create Membership Record
+    const membershipData: any = {
+      group_user_id: groupUserId,
+      tier_id: tierId,
+      order_id: orderId,
+      start_date: startDate.toISOString(),
+      end_date: endDate ? endDate.toISOString() : null,
+      status: MembershipStatus.ACTIVE,
+    };
+
+    // Insert the membership record
+    const { data: newMembership, error: membershipError } = await supabase
+      .from('memberships')
+      .insert(membershipData)
+      .select('id')
+      .single();
+
+    if (membershipError) {
+      // TODO: Rollback order?
+      throw new Error(`Error creating membership: ${membershipError.message}`);
+    }
+
+    // If a custom member ID was provided, update the corresponding record in member_ids
+    // This needs to happen *after* the automatic trigger potentially creates one
+    if (customMemberId && newMembership) {
+      try {
+        // Update the member_id record associated with this group user
+        const { error: updateError } = await supabase
+          .from('member_ids')
+          .update({ member_id: customMemberId })
+          .eq('group_user_id', groupUserId) // Target the record using group_user_id
+          .eq('group_id', orgId); // Add group_id for extra safety/specificity
+
+        if (updateError) {
+          console.error('Error explicitly updating member_id:', updateError);
+          // Log the error, but don't throw. The membership was created.
+          // Consider a specific toast message?
+        }
+      } catch (memberIdError) {
+        console.error('Error handling custom member_id update:', memberIdError);
+        // Don't throw
+      }
+    }
+
+    // 6. Revalidate relevant paths
+    revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page'); 
+
+    return { 
+      success: true,
+      existingMemberId: existingMemberId?.member_id 
+    };
+
+  } catch (error: any) {
+    console.error("Error assigning membership:", error);
+    return { success: false, error: error.message || "An unknown error occurred during assignment." }; 
+  }
+}
+
+/**
+ * Cancel a membership (logical deletion)
+ */
+export async function cancelMembershipAction(
+  membershipId: string,
+  orgId: string,
+  reasonCode?: string,
+  reasonNote?: string
+): Promise<{ success: boolean; error?: string }> {
+  noStore();
+  
+  const supabase = await createSupabaseServiceRoleClient();
+
+  try {
+    // Get the membership to verify it belongs to the org
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select(`
+        id,
+        group_user:group_user_id (
+          group_id
+        )
+      `)
+      .eq('id', membershipId)
+      .single();
+
+    if (membershipError) {
+      throw new Error(`Error fetching membership: ${membershipError.message}`);
+    }
+    
+    if (!membership) {
+      return { success: false, error: "Membership not found" };
+    }
+    
+    // Verify the membership belongs to the org
+    const groupUser = membership.group_user as any;
+    if (groupUser?.group_id !== orgId) {
+      return { success: false, error: "Membership does not belong to this organization" };
+    }
+
+    // Update the membership status to cancelled
+    const { error: updateError } = await supabase
+      .from('memberships')
+      .update({ 
+        status: MembershipStatus.CANCELLED
+      })
+      .eq('id', membershipId);
+
+    if (updateError) {
+      throw new Error(`Error cancelling membership: ${updateError.message}`);
+    }
+
+    // Revalidate paths
+    revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page');
+
+    return { 
+      success: true 
+    };
+  } catch (error: any) {
+    console.error("Error cancelling membership:", error);
+    return { 
+      success: false, 
+      error: error.message || "An unknown error occurred while cancelling the membership" 
+    };
+  }
+}
+
+/**
+ * Permanently delete a membership
+ * Only cancelled memberships should be deletable
+ */
+export async function deleteMembershipAction(
+  membershipId: string,
+  orgId: string
+): Promise<{ success: boolean; error?: string }> {
+  noStore();
+  
+  const supabase = await createSupabaseServiceRoleClient();
+
+  try {
+    // Get the membership to verify it belongs to the org and is cancelled
+    const { data: membership, error: membershipError } = await supabase
+      .from('memberships')
+      .select(`
+        id,
+        status,
+        group_user:group_user_id (
+          group_id
+        )
+      `)
+      .eq('id', membershipId)
+      .single();
+
+    if (membershipError) {
+      throw new Error(`Error fetching membership: ${membershipError.message}`);
+    }
+    
+    if (!membership) {
+      return { success: false, error: "Membership not found" };
+    }
+    
+    // Verify the membership belongs to the org
+    const groupUser = membership.group_user as any;
+    if (groupUser?.group_id !== orgId) {
+      return { success: false, error: "Membership does not belong to this organization" };
+    }
+
+    // Only allow deletion of cancelled memberships
+    if (membership.status !== MembershipStatus.CANCELLED) {
+      return { success: false, error: "Only cancelled memberships can be deleted" };
+    }
+
+    // Delete the membership
+    const { error: deleteError } = await supabase
+      .from('memberships')
+      .delete()
+      .eq('id', membershipId);
+
+    if (deleteError) {
+      throw new Error(`Error deleting membership: ${deleteError.message}`);
+    }
+
+    // Revalidate paths
+    revalidatePath(`/(authenticated)/[orgSlug]/(org-pages)/members`, 'page');
+
+    return { 
+      success: true 
+    };
+  } catch (error: any) {
+    console.error("Error deleting membership:", error);
+    return { 
+      success: false, 
+      error: error.message || "An unknown error occurred while deleting the membership" 
+    };
+  }
 }

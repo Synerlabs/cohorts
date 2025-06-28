@@ -1,0 +1,4 @@
+/* Remove overlay background from assignment drawer */
+[data-no-overlay="true"] ~ [role="dialog"][aria-modal="true"]::before {
+  display: none !important;
+} 
