@@ -51,16 +51,21 @@ async function handleAddOrInviteMember(
     let existingUser = null;
     // Use Supabase Admin API to check for existing user
     const { data: user, error: userError } = await supabaseService
-    .from('users') // or whatever your users table is called
-    .select('id, email')
-    .eq('email', email)
-    .maybeSingle();
+      .from('profiles') // or whatever your users table is called
+      .select('id, email')
+      .eq('email', email)
+      .maybeSingle();
     const userByEmail = user;
+    console.log('userByEmail', email, user);
+    if (userError) {
+      console.error('Error fetching user by email:', userError);
+      return { error: userError.message || 'Failed to fetch user by email.' };
+    }
     if (userByEmail && userByEmail.id) {
       // User exists, just add to org and notify
       userIdToAdd = userByEmail.id;
       isNewInvite = false;
-      // --- PLACEHOLDER: Send notification to user (email, in-app, etc.) ---
+      // TODO: Send notification to user (email, in-app, etc.) ---
       // await sendOrgInviteNotification(userIdToAdd, orgId);
       console.log(`[Invite Logic] Existing user found: ${userIdToAdd}. Adding to org and notifying.`);
     } else {

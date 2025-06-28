@@ -506,7 +506,6 @@ export type Database = {
           id: string
           is_active: boolean
           is_deleted: boolean
-          metadata: Json | null
           updated_at: string
           user_id: string
         }
@@ -516,7 +515,6 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_deleted?: boolean
-          metadata?: Json | null
           updated_at?: string
           user_id: string
         }
@@ -526,7 +524,6 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_deleted?: boolean
-          metadata?: Json | null
           updated_at?: string
           user_id?: string
         }
@@ -551,6 +548,66 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      invitation_metadata: {
+        Row: {
+          auth_token: string | null
+          created_at: string | null
+          custom_message: string | null
+          email: string
+          group_id: string
+          id: string
+          invited_by: string | null
+          metadata: Json | null
+          role: string | null
+          status: string
+          updated_at: string | null
+          viewed_at: string | null
+        }
+        Insert: {
+          auth_token?: string | null
+          created_at?: string | null
+          custom_message?: string | null
+          email: string
+          group_id: string
+          id?: string
+          invited_by?: string | null
+          metadata?: Json | null
+          role?: string | null
+          status?: string
+          updated_at?: string | null
+          viewed_at?: string | null
+        }
+        Update: {
+          auth_token?: string | null
+          created_at?: string | null
+          custom_message?: string | null
+          email?: string
+          group_id?: string
+          id?: string
+          invited_by?: string | null
+          metadata?: Json | null
+          role?: string | null
+          status?: string
+          updated_at?: string | null
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invitation_metadata_group_id_fkey"
+            columns: ["group_id"]
+            isOneToOne: false
+            referencedRelation: "group"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invitation_metadata_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -635,6 +692,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "membership_member_ids_member_id_id_fkey"
+            columns: ["member_id_id"]
+            isOneToOne: false
+            referencedRelation: "group_members_view"
+            referencedColumns: ["member_ids_record_id"]
+          },
           {
             foreignKeyName: "membership_member_ids_member_id_id_fkey"
             columns: ["member_id_id"]
@@ -1159,6 +1223,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          email: string | null
           first_name: string | null
           id: string
           last_name: string | null
@@ -1167,6 +1232,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          email?: string | null
           first_name?: string | null
           id: string
           last_name?: string | null
@@ -1175,6 +1241,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          email?: string | null
           first_name?: string | null
           id?: string
           last_name?: string | null
@@ -1774,6 +1841,10 @@ export type Database = {
       search_auth_user_by_email: {
         Args: { email_param: string }
         Returns: string
+      }
+      sync_profile_emails: {
+        Args: Record<PropertyKey, never>
+        Returns: number
       }
     }
     Enums: {

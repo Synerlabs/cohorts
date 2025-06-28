@@ -52,9 +52,9 @@ export default function CreateCohortForm() {
             <h5>{details[step].subDescription}</h5>
           </div>
         </DialogHeader>
-        <DialogContent className="flex-1">
+        <div className="flex-1">
           <ActiveComponent />
-        </DialogContent>
+        </div>
         <DialogFooter>
           {step > 0 && (
             <Button
