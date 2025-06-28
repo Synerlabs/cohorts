@@ -44,104 +44,55 @@ async function handleAddOrInviteMember(
       return { error: 'Internal error: Missing orgSlug in form data.' };
   }
 
-  // Prepare optional metadata for invite
-  const inviteMetadata = {
-    first_name: firstName,
-    last_name: lastName
-  };
-
-  // Construct the redirect URL for the callback
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
-  
-  // Make sure the org slug is included in the path for context
-  const orgPath = `/@${orgSlug}`;
-  
-  // Use the invitation accepted landing page
-  // This page will handle the auth handoff before redirecting to account setup
-  const finalRedirectUrl = `${siteUrl}/invitation-accepted?orgSlug=${encodeURIComponent(orgSlug || '')}&email=${encodeURIComponent(email)}`;
-  
-  // Log all the URLs for debugging
-  console.log('\n=========== INVITE GENERATION DEBUG ===========');
-  console.log('[Invite Generation Debug]', {
-    siteUrl,
-    orgPath,
-    finalRedirectUrl, // This now points to /invitation-accepted
-    email,
-    orgId,
-    orgSlug
-  });
-
   try {
-    // 1. Find or Invite User - Determine userIdToAdd
+    // 1. Check if user already exists
     let userIdToAdd: string | null = null;
     let isNewInvite = false;
-    
-    // UPDATED: Use inviteUserByEmail which automatically sends emails, but configure it properly
-    console.log('[Invite API Call]', {
-      email,
-      redirectTo: finalRedirectUrl,
-      metadata: inviteMetadata
-    });
-    
-    // Use inviteUserByEmail to send a magic link invitation
-    const { data: inviteResponse, error: inviteError } = await supabaseService.auth.admin.inviteUserByEmail(
-      email,
-      { 
-        data: {
-          ...inviteMetadata,
-          inviteType: 'org_invitation', 
-          orgSlug: orgSlug
-        },
-        redirectTo: finalRedirectUrl
-      }
-    );
-    
-    console.log('[Invite API Response]', {
-      success: !!inviteResponse && !inviteError,
-      error: inviteError?.message,
-      data: inviteResponse ? 'Response received' : 'No data'
-    });
-
-    const inviteData = inviteResponse as ({ user: { id: string; [key: string]: any; } | null; [key: string]: any; }) | null;
-    
-    // Rest of handling logic for existing users vs new users
-    if (inviteError) {
-      if (inviteError.message.includes('already registered')) {
-        console.log('[Invite Logic] Handling \'already registered\' error.');
-        // Try getting ID from the invite response data FIRST, even though there's an error
-        userIdToAdd = inviteData?.user?.id || null;
-        console.log(`[Invite Logic] User ID from inviteData (despite error): ${userIdToAdd}`);
-
-        if (!userIdToAdd) {
-           // If still null, THEN try the RPC fallback
-           console.log('[Invite Logic] inviteData did not contain user ID, trying RPC fallback...');
-           const { data: rpcUserId, error: rpcError } = await supabaseService
-             .rpc('search_auth_user_by_email', { email_param: email });
-
-           if (rpcError || !rpcUserId) {
-               console.error('[Invite Logic] RPC fallback failed:', rpcError);
-               // If RPC fails, we cannot proceed with storing metadata reliably
-               return { error: 'Invite failed: Could not resolve user ID for existing user.' };
-           } else {
-               userIdToAdd = rpcUserId as string;
-               console.log(`[Invite Logic] User ID from RPC fallback: ${userIdToAdd}`);
-           }
+    let existingUser = null;
+    // Use Supabase Admin API to check for existing user
+    const { data: user, error: userError } = await supabaseService
+    .from('users') // or whatever your users table is called
+    .select('id, email')
+    .eq('email', email)
+    .maybeSingle();
+    const userByEmail = user;
+    if (userByEmail && userByEmail.id) {
+      // User exists, just add to org and notify
+      userIdToAdd = userByEmail.id;
+      isNewInvite = false;
+      // --- PLACEHOLDER: Send notification to user (email, in-app, etc.) ---
+      // await sendOrgInviteNotification(userIdToAdd, orgId);
+      console.log(`[Invite Logic] Existing user found: ${userIdToAdd}. Adding to org and notifying.`);
+    } else {
+      // User does not exist, invite via email
+      // Prepare optional metadata for invite
+      const inviteMetadata = {
+        first_name: firstName,
+        last_name: lastName
+      };
+      // Construct the redirect URL for the callback
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001';
+      const finalRedirectUrl = `${siteUrl}/invitation-accepted?orgSlug=${encodeURIComponent(orgSlug || '')}&email=${encodeURIComponent(email)}`;
+      const { data: inviteResponse, error: inviteError } = await supabaseService.auth.admin.inviteUserByEmail(
+        email,
+        {
+          data: {
+            ...inviteMetadata,
+            inviteType: 'org_invitation',
+            orgSlug: orgSlug
+          },
+          redirectTo: finalRedirectUrl
         }
-        isNewInvite = false; // Mark as existing user
-      } else {
-        // Actual invite error, return it
+      );
+      if (inviteError) {
         return { error: inviteError.message || 'Failed to invite user.' };
       }
-    } else {
-      // No inviteError, this means it was a successful NEW invite
-      userIdToAdd = inviteData?.user?.id || null;
+      userIdToAdd = inviteResponse?.user?.id || null;
+      isNewInvite = true;
       console.log(`[Invite Logic] New user invite successful. User ID from inviteData: ${userIdToAdd}`);
       if (!userIdToAdd) {
-          // This shouldn't happen if invite succeeded, but good to handle
-          console.error('[Invite Logic] Invite successful but no user ID returned in inviteData!');
-          return { error: 'Invite succeeded but failed to get user data.' };
+        return { error: 'Invite succeeded but failed to get user data.' };
       }
-      isNewInvite = true;
     }
     
     // Continue with storing invitation metadata
@@ -202,6 +153,7 @@ async function handleAddOrInviteMember(
       // 3. Handle based on existing record status
       if (existingMembership) {
           if (!existingMembership.is_deleted) {
+            console.warn(`User ${userIdToAdd} is already an active or pending member of this organization.`);
               // Scenario 1: Already an active or pending member
               return { error: 'User is already an active or pending member of this organization.' }; 
           } else {

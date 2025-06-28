@@ -4,8 +4,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogBody,
+  DialogContent,
 } from "@/components/ui/dialog";
-import { DialogBody } from "next/dist/client/components/react-dev-overlay/internal/components/Dialog";
 import { Button } from "@/components/ui/button";
 import LoadingButton from "@/components/ui/loading-button";
 import { FormProvider, useForm } from "react-hook-form";
@@ -51,9 +52,9 @@ export default function CreateCohortForm() {
             <h5>{details[step].subDescription}</h5>
           </div>
         </DialogHeader>
-        <DialogBody className="flex-1">
+        <DialogContent className="flex-1">
           <ActiveComponent />
-        </DialogBody>
+        </DialogContent>
         <DialogFooter>
           {step > 0 && (
             <Button
