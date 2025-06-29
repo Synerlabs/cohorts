@@ -9,7 +9,6 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { DialogBody } from "next/dist/client/components/react-dev-overlay/internal/components/Dialog";
 import { PlusCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -94,7 +93,7 @@ export default function AddUserToRoleForm({ users, groupRoleId }: AddUserToRoleF
                 Select users to add to the role and click save
               </DialogDescription>
             </DialogHeader>
-            <DialogBody className="flex-1">
+            <div className="flex-1">
               <FormField
                 name="groupRoleId"
                 render={({ field }) => <input type="hidden" {...field} />}
@@ -142,7 +141,7 @@ export default function AddUserToRoleForm({ users, groupRoleId }: AddUserToRoleF
                   </ToggleGroup>
                 )}
               />
-            </DialogBody>
+            </div>
             <DialogFooter>
               <Button
                 type="button"

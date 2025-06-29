@@ -263,7 +263,7 @@ export function ManualPaymentForm({
 
             {/* Instruction about submission */}
             <div className="text-sm text-center text-muted-foreground pt-2">
-              Complete the information above, then use the "Submit Payment Proof" button in the order summary to submit.
+              Complete the information above, then use the &quot;Submit Payment Proof&quot; button in the order summary to submit.
             </div>
           </CardContent>
         </Card>

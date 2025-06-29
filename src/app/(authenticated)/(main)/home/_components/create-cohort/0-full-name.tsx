@@ -34,7 +34,7 @@ export default function CreateCohortForm() {
       </FormControl>
       <FormMessage />
       <FormDescription className="pt-2">
-        Don't worry if it's a bit long—we'll handle that later with alternative
+        Don&apos;t worry if it&apos;s a bit long—we&apos;ll handle that later with alternative
         names.
       </FormDescription>
     </FormItem>

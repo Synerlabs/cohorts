@@ -159,7 +159,7 @@ export function MembershipOverridesSlideover({
         <SheetHeader>
           <SheetTitle>Membership Overrides (Item {suborderIndex + 1})</SheetTitle>
           <SheetDescription>
-            Configure custom membership details for "{selectedProduct?.name || 'this item'}".
+            Configure custom membership details for &quot;{selectedProduct?.name || 'this item'}&quot;.
           </SheetDescription>
         </SheetHeader>
         <div className="grid gap-6 py-6">
@@ -239,7 +239,7 @@ export function MembershipOverridesSlideover({
                                 )}
                             />
                             <p className="text-xs text-muted-foreground italic">
-                                Note: Custom dates override the membership tier's default duration settings.
+                                Note: Custom dates override the membership tier&apos;s default duration settings.
                             </p>
                         </div>
                     )}

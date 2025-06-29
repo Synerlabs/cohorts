@@ -158,7 +158,7 @@ function PaymentStatusMessages() {
       <Alert className="bg-green-50 text-green-800 border-green-200">
         <CheckCircle2 className="h-4 w-4 text-green-600 mr-2" />
         <AlertDescription>
-          Payment processed successfully! We'll update your membership status shortly.
+          Payment processed successfully! We&apos;ll update your membership status shortly.
         </AlertDescription>
       </Alert>
     );
@@ -1219,7 +1219,7 @@ function PaymentPageContent({
             </div>
             <h3 className="text-lg font-medium text-green-800">Payment Proof Submitted</h3>
             <p className="text-green-700 mt-1 max-w-md">
-              Your payment proof has been submitted successfully. We'll review it shortly and update your membership status.
+              Your payment proof has been submitted successfully. We&apos;ll review it shortly and update your membership status.
             </p>
           </div>
         </div>

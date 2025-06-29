@@ -95,7 +95,7 @@ export function StripeSettingsForm({ orgId, initialSettings }: StripeSettingsFor
                   <Input {...field} placeholder="acct_..." />
                 </FormControl>
                 <FormDescription>
-                  Your Stripe Connect account ID starting with 'acct_'
+                  Your Stripe Connect account ID starting with &apos;acct_&apos;
                 </FormDescription>
                 <FormMessage />
               </FormItem>

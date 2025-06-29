@@ -21,16 +21,16 @@ export default function PermissionsRow({
         </ToggleGroupItem>
       );
     } else if (typeof value === "object") {
-      const module = permissionModules[key as PermissionModule];
+      const permissionModule = permissionModules[key as PermissionModule];
       return (
         <TableRow key={key} className="hover:bg-gray-50">
           <TableCell className="font-semibold">
             <div className="flex items-center gap-2">
-              {module?.icon}{" "}
+              {permissionModule?.icon}{" "}
               {key.charAt(0).toUpperCase() + key.slice(1)}
             </div>
             <span className="text-neutral-400 text-sm font-normal ml-7">
-              {module?.description}
+              {permissionModule?.description}
             </span>
           </TableCell>
           <TableCell className="flex gap-1 justify-end">

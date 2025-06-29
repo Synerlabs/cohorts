@@ -339,7 +339,7 @@ export function OrganizationSelection({ tier, groupId, userId }: OrganizationSel
                 <div className="mt-0.5 bg-blue-100 text-blue-600 p-1 rounded-full">
                   <ClipboardCheck className="h-3 w-3" />
                 </div>
-                <p className="text-slate-700">You'll need to complete an organization information form.</p>
+                <p className="text-slate-700">You&apos;ll need to complete an organization information form.</p>
               </div>
             )}
             {(tier.membership_tier?.activation_type === 'form_then_payment' ||
@@ -429,7 +429,7 @@ export function OrganizationSelection({ tier, groupId, userId }: OrganizationSel
                   autoFocus
                 />
                 <p className="text-xs text-muted-foreground">
-                  A new organization will be created with this name. You'll be the admin.
+                  A new organization will be created with this name. You&apos;ll be the admin.
                 </p>
               </div>
             ) : (
@@ -469,7 +469,7 @@ export function OrganizationSelection({ tier, groupId, userId }: OrganizationSel
                       <div className="flex flex-col items-center p-4 mt-2 bg-amber-50 rounded-lg border border-amber-100">
                         <AlertCircle className="h-8 w-8 text-amber-500 mb-2" />
                         <p className="text-sm text-amber-700 mb-1 text-center font-medium">No Organizations Available</p>
-                        <p className="text-xs text-amber-600 text-center mb-3">You don't have any organizations yet.</p>
+                        <p className="text-xs text-amber-600 text-center mb-3">You don&apos;t have any organizations yet.</p>
                         <Button 
                           variant="outline"
                           size="sm"

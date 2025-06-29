@@ -724,7 +724,7 @@ export default function MemberDetailsSlideOver({
                           </div>
                           <div>
                             <p className="font-medium">No memberships found</p>
-                            <p className="text-xs text-muted-foreground mt-1">This user doesn't have any memberships in this organization.</p>
+                            <p className="text-xs text-muted-foreground mt-1">This user doesn&apos;t have any memberships in this organization.</p>
                           </div>
                         </div>
                       )}
@@ -885,7 +885,7 @@ export default function MemberDetailsSlideOver({
                               {!customMemberId && (
                                 <p className="text-xs text-muted-foreground mt-1.5 flex items-center gap-1">
                                   <Info className="h-3 w-3" />
-                                  <span>A unique ID will be automatically generated based on the tier's format settings</span>
+                                  <span>A unique ID will be automatically generated based on the tier&apos;s format settings</span>
                                 </p>
                               )}
                             </>
@@ -966,7 +966,7 @@ export default function MemberDetailsSlideOver({
                                 />
                               </div>
                               <p className="text-xs text-muted-foreground italic">
-                                Note: Custom dates override the membership tier's default duration settings.
+                                Note: Custom dates override the membership tier&apos;s default duration settings.
                               </p>
                             </div>
                           )}

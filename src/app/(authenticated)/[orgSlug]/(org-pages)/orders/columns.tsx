@@ -7,6 +7,23 @@ import { format } from "date-fns"
 import { DataTableColumnHeader } from "./components/data-table-column-header"
 import { useRouter } from "next/navigation"
 
+// Action cell component to properly use hooks
+function ActionCell({ order }: { order: Order }) {
+  const router = useRouter()
+
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        const params = new URLSearchParams(window.location.search)
+        router.push(`${window.location.pathname}/${order.id}?${params.toString()}`)
+      }}
+    >
+      View Details
+    </Button>
+  )
+}
+
 // This type is used to define the shape of our data.
 export type Order = {
   id: string
@@ -115,18 +132,9 @@ export const columns: ColumnDef<Order>[] = [
     id: "actions",
     cell: ({ row, table }) => {
       const order = row.original
-      const router = useRouter()
 
       return (
-        <Button
-          variant="ghost"
-          onClick={() => {
-            const params = new URLSearchParams(window.location.search)
-            router.push(`${window.location.pathname}/${order.id}?${params.toString()}`)
-          }}
-        >
-          View Details
-        </Button>
+        <ActionCell order={order} />
       )
     },
   },

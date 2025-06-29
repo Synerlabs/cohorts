@@ -365,7 +365,7 @@ export default function SelectOrganizationPage() {
               
               {organizations.length === 0 && (
                 <p className="text-xs text-muted-foreground text-center mt-2">
-                  You don't have any eligible organizations to select.
+                  You don&apos;t have any eligible organizations to select.
                 </p>
               )}
             </div>
@@ -395,7 +395,7 @@ export default function SelectOrganizationPage() {
                 <div className="p-4 border border-amber-200 bg-amber-50 rounded-md text-amber-700">
                   <p className="font-medium">No eligible organizations found</p>
                   <p className="text-sm mt-1">
-                    You don't have any organizations that can be affiliated with this one. 
+                    You don&apos;t have any organizations that can be affiliated with this one. 
                     This could be because you only have one organization, or all your other 
                     organizations are already affiliated.
                   </p>
@@ -432,7 +432,7 @@ export default function SelectOrganizationPage() {
               </div>
               <p className="text-xs text-blue-600 mt-2">
                 {redirectInProgress 
-                  ? "If a form is required, you'll be redirected to complete it..."
+                  ? "If a form is required, you&apos;ll be redirected to complete it..."
                   : "Please wait while we process your request. This may take a few moments."}
               </p>
             </div>

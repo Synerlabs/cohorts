@@ -140,7 +140,7 @@ export function RoleSelector({
                   {localSelectedRoles.length === 0 && isEditing ? (
                     <tr>
                       <td colSpan={3} className="p-6 text-center text-muted-foreground">
-                        No roles selected. Click "Add Roles" to assign roles to members.
+                        No roles selected. Click &quot;Add Roles&quot; to assign roles to members.
                       </td>
                     </tr>
                   ) : (

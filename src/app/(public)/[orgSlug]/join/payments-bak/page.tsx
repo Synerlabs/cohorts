@@ -116,7 +116,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
       console.log('Order lookup error:', { error, data, orderId, userId: user.id, orgId: org.id });
       return <ErrorDisplay 
         message="Order not found" 
-        details="The order you're looking for doesn't exist or you don't have permission to view it."
+        details="The order you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission to view it."
         orgSlug={org.slug}
       />;
     }
@@ -131,7 +131,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
       console.log('Application lookup error:', { applicationId, userId: user.id, orgId: org.id });
       return <ErrorDisplay 
         message="Application not found" 
-        details="The application you're looking for doesn't exist or you don't have permission to view it."
+        details="The application you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission to view it."
         orgSlug={org.slug}
       />;
     }
@@ -278,7 +278,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                All transactions are secure and encrypted. By completing your payment, you agree to the organization's terms and conditions.
+                All transactions are secure and encrypted. By completing your payment, you agree to the organization&apos;s terms and conditions.
               </p>
             </CardContent>
           </Card>
@@ -398,7 +398,7 @@ async function PaymentsPage({ org, user, searchParams }: OrgAccessHOCProps & { s
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground">
-                If you're experiencing any issues with your payment, please contact the organization administrator for assistance.
+                If you&apos;re experiencing any issues with your payment, please contact the organization administrator for assistance.
               </p>
             </CardContent>
           </Card>

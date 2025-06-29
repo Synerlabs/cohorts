@@ -38,7 +38,7 @@ export function JoinOrgForm({ org, userId }: JoinOrgFormProps) {
       <CardContent className="space-y-6">
         <div className="bg-primary/5 p-4 rounded-lg text-center space-y-2">
           <p className="text-sm text-muted-foreground">
-            By joining this organization, you'll get access to exclusive content, events, and community discussions.
+            By joining this organization, you&apos;ll get access to exclusive content, events, and community discussions.
           </p>
           <p className="text-sm font-medium">
             Membership is free and instant!

@@ -7,7 +7,7 @@ export default function NotFound() {
       <div className="max-w-md w-full mx-auto px-4 text-center">
         <h2 className="text-2xl font-semibold mb-4 text-foreground">Organization Not Found</h2>
         <p className="text-muted-foreground mb-8">
-          The organization you're looking for doesn't exist or has been moved.
+          The organization you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
         <Button asChild>
           <Link href="/">Return Home</Link>

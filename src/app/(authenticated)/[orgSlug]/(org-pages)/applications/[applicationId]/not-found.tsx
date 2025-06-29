@@ -10,7 +10,7 @@ export default function ApplicationNotFound() {
       </div>
       <h2 className="text-2xl font-semibold tracking-tight">Application Not Found</h2>
       <p className="text-muted-foreground">
-        The application you're looking for doesn't exist or has been removed.
+        The application you&apos;re looking for doesn&apos;t exist or has been removed.
       </p>
       <Button asChild variant="outline">
         <Link href="./applications">Back to Applications</Link>

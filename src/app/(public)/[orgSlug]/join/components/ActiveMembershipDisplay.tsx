@@ -230,7 +230,7 @@ export function ActiveMembershipDisplay({ membership, orgSlug }: ActiveMembershi
             <h4 className="font-medium mb-1">Looking for a different membership?</h4>
             <p className="text-sm">
               You can view other membership options while keeping your current active membership.
-              Click "View All Memberships" to see what's available.
+              Click &quot;View All Memberships&quot; to see what&apos;s available.
             </p>
           </div>
         </div>

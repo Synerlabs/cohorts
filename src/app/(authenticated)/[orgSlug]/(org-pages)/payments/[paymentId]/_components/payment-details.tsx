@@ -35,6 +35,9 @@ interface PaymentDetailsProps {
 }
 
 function FilePreview({ file }: { file: { originalFilename: string; fileUrl: string; fileSize?: number } }) {
+  // React hooks must be called at the top level - move useState to here
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  
   if (!file?.originalFilename) return null;
   
   // Improved file type detection
@@ -73,7 +76,6 @@ function FilePreview({ file }: { file: { originalFilename: string; fileUrl: stri
   
   const fileInfo = getFileType(file.originalFilename);
   const isImage = fileInfo.type === 'image';
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   
   return (
     <>
@@ -567,7 +569,7 @@ export default function PaymentDetails({ payment, org, user, userPermissions }: 
                     {/* Security Info - Keep existing code */}
                     <div className="flex items-center gap-2 mt-4 pt-4 border-t text-xs text-muted-foreground">
                       <Shield className="h-3.5 w-3.5 text-primary" />
-                      <span>Processed securely through Stripe's payment gateway</span>
+                      <span>Processed securely through Stripe&apos;s payment gateway</span>
               </div>
             </CardContent>
           </Card>

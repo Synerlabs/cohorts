@@ -16,7 +16,7 @@ export default function UserPermissionsExample({ groupId }: { groupId: string })
   // Check if user has permissions for this group
   const groupData = groupPermissions[groupId]
   if (!groupData) {
-    return <div>You don't have access to this group</div>
+    return <div>You don&apos;t have access to this group</div>
   }
   
   // Check if user has specific permission
@@ -54,7 +54,7 @@ export default function UserPermissionsExample({ groupId }: { groupId: string })
         {canViewContent && (
           <div>
             <h3>Content</h3>
-            <p>This content is only visible to users with the 'view_content' permission</p>
+            <p>This content is only visible to users with the &apos;view_content&apos; permission</p>
           </div>
         )}
         

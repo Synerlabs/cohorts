@@ -298,7 +298,7 @@ export function FieldSettingsRenderer({ field, onUpdate, compact = false }: Fiel
                       allowOther: Boolean(checked),
                     })}
                   />
-                  <Label htmlFor="allowOther">Allow "Other" option</Label>
+                  <Label htmlFor="allowOther">Allow &quot;Other&quot; option</Label>
                 </div>
               </div>
             )}

@@ -224,7 +224,7 @@ export function MembershipSelection({ memberships, groupId, userId }: Membership
                         <span>Payment is required to activate your membership.</span>
                       )}
                       {tier.membership_tier?.activation_type === MembershipActivationType.FORM_REQUIRED && (
-                        <span>You'll need to complete an application form before membership is activated.</span>
+                        <span>You&apos;ll need to complete an application form before membership is activated.</span>
                       )}
                       {(tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_PAYMENT || 
                         tier.membership_tier?.activation_type === MembershipActivationType.FORM_THEN_REVIEW ||

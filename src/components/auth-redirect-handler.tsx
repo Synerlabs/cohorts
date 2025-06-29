@@ -276,7 +276,7 @@ export function AuthRedirectHandler({ pathname, searchParams }: AuthRedirectHand
                 <div className="space-y-4">
                   <p>
                     This invitation was sent to <span className="font-medium">{inviteEmail}</span> but 
-                    you're currently logged in as <span className="font-medium">{currentUserEmail}</span>.
+                    you&apos;re currently logged in as <span className="font-medium">{currentUserEmail}</span>.
                   </p>
                   <p>What would you like to do?</p>
                 </div>

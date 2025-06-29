@@ -218,7 +218,7 @@ export function PaymentManagement({
                                     Delete {payment.uploads.length} associated file{payment.uploads.length !== 1 ? 's' : ''}
                                   </label>
                                   <p className="text-[0.8rem] text-muted-foreground">
-                                    If unchecked, files will remain in storage but won't be accessible
+                                    If unchecked, files will remain in storage but won&apos;t be accessible
                                   </p>
                                 </div>
                               </div>

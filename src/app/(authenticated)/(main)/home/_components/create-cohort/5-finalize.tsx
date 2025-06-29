@@ -47,7 +47,7 @@ export default function FinalizeForm() {
         I affirm that I am a duly authorized representative of the
         organization/group I am creating, with full authority to act on its
         behalf. I acknowledge that by creating a cohort on this platform, I am
-        accepting the platform's terms and conditions. I understand that the
+        accepting the platform&apos;s terms and conditions. I understand that the
         platform reserves the right to modify, suspend, or terminate access to
         the cohort in cases of policy violation, legal disputes, or at its
         discretion. I also agree that the platform is not liable for any

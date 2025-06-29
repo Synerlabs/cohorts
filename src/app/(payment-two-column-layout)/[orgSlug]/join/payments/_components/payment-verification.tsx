@@ -85,7 +85,7 @@ export function PaymentVerification({ clientSecret, accountId, orgSlug, orderId,
       <CardHeader>
         <CardTitle className="text-xl">Payment Verification</CardTitle>
         <CardDescription>
-          We're confirming your payment with our payment processor
+          We&apos;re confirming your payment with our payment processor
         </CardDescription>
       </CardHeader>
       
@@ -97,7 +97,7 @@ export function PaymentVerification({ clientSecret, accountId, orgSlug, orderId,
               Verifying your payment status...
             </p>
             <p className="text-xs text-center text-muted-foreground">
-              This may take a moment. Please don't close this page.
+              This may take a moment. Please don&apos;t close this page.
             </p>
           </div>
         )}
